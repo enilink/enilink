@@ -7,7 +7,7 @@ import net.enilink.lift.snippet.RdfContext
 object ElemWithRdfa {
   def unapplySeq(n: xml.Node) = n match {
     case e: ElemWithRdfa => Some((e.context, e.prefix, e.label, e.attributes, e.scope, e.child))
-    case _ => Elem.unapplySeq(n)
+    case _ => None
   }
 }
 

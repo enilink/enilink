@@ -35,7 +35,7 @@ trait RDFaTemplates {
     ns.flatMap(processNode _)
   }
 
-  private val attNames = Set("about", "src", "rel", "rev", "property", "href", "resource", "content", "clear-content")
+  private val rdfaAttributes = Set("about", "src", "rel", "rev", "property", "href", "resource", "content", "clear-content")
   private val Variable = "^\\?(.*)".r
 
   // isTemplate is required for disambiguation because xml.Node extends Seq[xml.Node]
@@ -70,7 +70,7 @@ trait RDFaTemplates {
             val result = if (tElem.attributes.isEmpty) tElem.asInstanceOf[Elem] else {
               var attributes = tElem.attributes
               tElem.attributes.foreach(meta =>
-                if (!meta.isPrefixed && attNames.contains(meta.key)) {
+                if (!meta.isPrefixed && rdfaAttributes.contains(meta.key)) {
                   meta.value.text match {
                     case Variable(v) => {
                       val rdfValue = if (v == "this") ctx.subject else bindings.get(v)
