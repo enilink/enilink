@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta content="text/html; charset=UTF-8" http-equiv="content-type" />
+<title>Home</title>
+</head>
+<body class="lift:content_id=main"
+	xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"
+	xmlns:owl="http://www.w3.org/2002/07/owl#"
+	xmlns:rdfs="http://www.w3.org/2000/01/rdf-schema#">
+	<div id="main" class="lift:surround?with=default;at=content">
+		<div class="lift:rdfa">
+			<div about="?o" typeof="owl:Ontology">
+				<table style="background-color: lightgray; width:100%">
+					<tbody class="optional union">
+						<tr>
+							<td colspan="2">Ontology &lt;<span class="lift:rdf.uri"></span>&gt;
+							</td>
+						</tr>
+						<tr>
+							<td></td>
+							<td><div property="rdfs:label" class="lift:rdf.label"></div></td>
+						</tr>
+						<tr>
+							<td>Comments</td>
+							<td></td>
+						</tr>
+						<tr>
+							<td></td>
+							<td><div property="rdfs:comment" class="lift:rdf.label"></div></td>
+						</tr>
+
+					</tbody>
+				</table>
+
+				<div class="optional union"
+					data-filter="regex(str(?c), str(?o)) || regex(str(?p), str(?o))">
+					<div style="background-color: orange">
+						Classes:
+						<ul>
+							<li resource="?c" typeof="owl:Class" class="lift:rdf.label asc"></li>
+						</ul>
+					</div>
+
+					<div style="background-color: yellow">
+						Properties:
+						<ul>
+							<li resource="?p" typeof="rdf:Property"
+								class="lift:rdf.label asc"></li>
+						</ul>
+					</div>
+				</div>
+			</div>
+		</div>
+	</div>
+</body>
+</html>

@@ -15,4 +15,3 @@ class HelloWorld {
 
   def howdy = "#time *" #> ("" + SelectionHolder.getSelection())
 }
-

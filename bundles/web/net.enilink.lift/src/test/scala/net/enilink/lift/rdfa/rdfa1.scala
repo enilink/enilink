@@ -5,6 +5,7 @@ import org.specs.matcher._
 import org.specs.specification._
 import org.specs.runner.ConsoleRunner
 import org.specs.runner.JUnit4
+import net.enilink.lift.rdf._
 
 class RDFaMiscTestSpecsAsTest extends JUnit4(RDFaMiscTestSpecs)
 object RDFaMiscTestSpecsRunner extends ConsoleRunner(RDFaMiscTestSpecs)
@@ -30,9 +31,9 @@ object RDFaMiscTestSpecs extends Specification {
 
       var addr = "data:"
       val undef = RDFaParser.undef
-      var arcs = RDFaParser.walk(e1, addr, Name(addr), undef, Nil, Nil, null)
+      var (e, arcs) = RDFaParser.walk(e1, addr, Label(addr), undef, Nil, Nil, null)
       (arcs.force.head match {
-        case (Name(_), Name(_), XMLVar(_, _)) => true
+        case (Label(_), Label(_), Variable(_, _)) => true
         case _ => false
       }) must be(true)
     }
