@@ -1,0 +1,9 @@
+Manifest-Version: 1.0
+Bundle-ManifestVersion: 2
+Bundle-Name: eniLINK Authentication Support
+Bundle-SymbolicName: net.enilink.auth;singleton:=true
+Bundle-Version: 1.0.0.qualifier
+Bundle-RequiredExecutionEnvironment: JavaSE-1.6
+Export-Package: net.enilink.auth
+Import-Package: net.enilink.rap.security.openid;resolution:=optional,
+ org.apache.chemistry.opencmis.auth;resolution:=optional
