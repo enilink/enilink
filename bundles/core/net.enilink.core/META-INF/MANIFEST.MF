@@ -1,0 +1,14 @@
+Manifest-Version: 1.0
+Bundle-ManifestVersion: 2
+Bundle-Name: eniLINK Core
+Bundle-SymbolicName: net.enilink.core
+Bundle-Version: 1.0.0.qualifier
+Bundle-Activator: net.enilink.core.Activator
+Require-Bundle: org.eclipse.core.runtime,
+ net.enilink.komma.model,
+ net.enilink.komma.edit
+Bundle-ActivationPolicy: lazy
+Bundle-RequiredExecutionEnvironment: JavaSE-1.6
+Import-Package: com.google.inject,
+ org.eclipse.rwt
+Export-Package: net.enilink.core
