@@ -1,27 +1,25 @@
 package net.enilink.lift.snippet
-import scala.collection.JavaConversions.asScalaBuffer
+
 import scala.collection.JavaConversions.asScalaIterator
 import scala.collection.mutable
-import scala.xml.Elem
-import scala.xml.Node
+import scala.xml.NodeSeq.seqToNodeSeq
 import scala.xml.NodeSeq
 import net.enilink.komma.core.IBindings
+import net.enilink.komma.core.ITupleResult
 import net.enilink.komma.core.IEntity
 import net.enilink.komma.core.IGraph
 import net.enilink.komma.core.IGraphResult
-import net.enilink.komma.core.ITupleResult
-import net.enilink.lift.eclipse.SelectionHolder
-import net.enilink.lift.rdfa.RDFaToSparql
-import net.liftweb.common.Box
-import net.liftweb.common.Full
-import net.liftweb.util.Helpers.pairToUnprefixed
-import net.liftweb.util.Helpers.strToCssBindPromoter
-import net.liftweb.util.Helpers.strToSuperArrowAssoc
 import net.enilink.komma.core.LinkedHashBindings
+import net.enilink.lift.lib.Globals
 import net.enilink.lift.rdfa.template.RDFaTemplates
+import net.liftweb.common.Box.box2Option
+import net.liftweb.common.Full
+import net.liftweb.http.S
+import net.liftweb.http.PageName
+import net.liftweb.util.ClearClearable
 
 class Sparql extends RDFaTemplates {
-  val selection = SelectionHolder.getSelection()
+  val selection = Globals.contextResource.vend
 
   def render(n: NodeSeq): NodeSeq = {
     def renderResults = {
@@ -72,6 +70,6 @@ class Sparql extends RDFaTemplates {
   def renderTuples(template: Seq[xml.Node], r: Iterator[IBindings[_]]) = {
     val existing = new mutable.HashMap[Key, Seq[xml.Node]]
     val result = r.foldLeft(Nil: NodeSeq)((transformed, row) => transform(CurrentContext.value.get, template)(row, existing))
-    processSurroundAndInclude(result)
+    ClearClearable.apply(S.session.get.processSurroundAndInclude(PageName.get, processSurroundAndInclude(result)))
   }
 }

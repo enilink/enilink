@@ -20,6 +20,7 @@ trait RDFaTemplates {
    */
   def processSurroundAndInclude(ns: NodeSeq): NodeSeq = {
     def processNode(n: xml.Node): NodeSeq = {
+      val value = CurrentContext.value
       n match {
         case e: ElemWithRdfa => {
           val result = e.copy(child = processSurroundAndInclude(e.child))
@@ -34,8 +35,12 @@ trait RDFaTemplates {
 
     ns.flatMap(processNode _)
   }
+  
+  def withPrefixes(prefixes : Seq[String], values : Set[String]) = {
+    values ++ values.flatMap(v => prefixes.map(_ + v))
+  }
 
-  private val rdfaAttributes = Set("about", "src", "rel", "rev", "property", "href", "resource", "content", "clear-content")
+  private val rdfaAttributes = withPrefixes(List("data-", "data-clear-"), Set("about", "src", "rel", "rev", "property", "href", "resource", "content"))
   private val Variable = "^\\?(.*)".r
 
   // isTemplate is required for disambiguation because xml.Node extends Seq[xml.Node]
@@ -56,6 +61,8 @@ trait RDFaTemplates {
     override def elemHashCode(e: xml.Node) = System.identityHashCode(e)
     override def elemEquals(a: xml.Node, b: xml.Node) = a eq b
   }
+  
+  final val attribute = "^(?:data(?:-clear)?-)?(.*)".r
 
   def transform(ctx: RdfContext, template: Seq[xml.Node])(implicit bindings: IBindings[_], existing: mutable.Map[Key, Seq[xml.Node]]): Seq[xml.Node] = {
     def internalTransform(ctxs: Seq[RdfContext], template: Seq[xml.Node]): Seq[xml.Node] = {
@@ -78,7 +85,7 @@ trait RDFaTemplates {
                       if (rdfValue != null) {
                         // check if context needs to be changed for children
                         meta.key match {
-                          case "rel" | "rev" | "property" =>
+                          case attribute("rel" | "rev" | "property") =>
                             currentCtx = new RdfContext(currentCtx.subject, rdfValue)
                           case _ =>
                             currentCtx = new RdfContext(rdfValue, currentCtx.predicate)
@@ -99,7 +106,7 @@ trait RDFaTemplates {
                       }
 
                       if (attValue == null) attributes = null
-                      else if (meta.key.startsWith("clear-")) attributes = attributes.remove(meta.key)
+                      else if (meta.key.startsWith("data-clear-")) attributes = attributes.remove(meta.key)
                       else attributes = attributes.append(new UnprefixedAttribute(meta.key, attValue.toString, meta.next))
                     }
                     case _ =>

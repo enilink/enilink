@@ -1,18 +1,17 @@
 package net.enilink.lift
 package snippet
 
-import org.specs._
-import org.specs.runner.JUnit4
 import org.specs.runner.ConsoleRunner
-import net.liftweb._
-import http._
-import net.liftweb.util._
-import net.liftweb.common._
-import org.specs.matcher._
-import org.specs.specification._
+import org.specs.runner.JUnit4
+import org.specs.specification.Examples
+import org.specs.Specification
 
-import Helpers._
-import lib._
+import lib.Globals
+import net.liftweb.common.Empty
+import net.liftweb.http.LiftSession
+import net.liftweb.http.S
+import net.liftweb.util.Helpers.now
+import net.liftweb.util.Helpers.randomString
 
 class HelloWorldTestSpecsAsTest extends JUnit4(HelloWorldTestSpecs)
 object HelloWorldTestSpecsRunner extends ConsoleRunner(HelloWorldTestSpecs)
@@ -23,7 +22,7 @@ object HelloWorldTestSpecs extends Specification {
 
   override def executeExpectations(ex: Examples, t: => Any): Any = {
     S.initIfUninitted(session) {
-      DependencyFactory.time.doWith(stableTime) {
+      Globals.time.doWith(stableTime) {
         super.executeExpectations(ex, t)
       }
     }

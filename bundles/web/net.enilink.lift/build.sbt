@@ -12,7 +12,7 @@ scalaVersion := "2.9.0-1"
 retrieveManaged := true
 
 libraryDependencies ++= {
-  val liftVersion = "2.4-M4" // Put the current/latest lift version here
+  val liftVersion = "2.4" // Put the current/latest lift version here
   Seq(
     "net.liftweb" %% "lift-webkit" % liftVersion % "compile->default",
     "net.liftweb" %% "lift-wizard" % liftVersion % "compile->default")

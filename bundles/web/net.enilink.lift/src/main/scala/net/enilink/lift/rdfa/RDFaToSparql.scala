@@ -6,7 +6,6 @@ import scala.collection.mutable.StringBuilder
 import scala.collection.mutable
 import scala.xml.NodeSeq
 import scala.xml.UnprefixedAttribute
-
 import net.enilink.komma.core.IBindings
 import net.enilink.komma.core.LinkedHashBindings
 import net.enilink.lift.rdf.Label
@@ -19,6 +18,7 @@ import net.enilink.lift.rdf.TypedLiteral
 import net.enilink.lift.rdf.Variable
 import net.enilink.lift.rdf.Vocabulary
 import net.enilink.lift.rdf.XmlLiteral
+import net.enilink.lift.rdf.PlainLiteral
 
 class RDFaToSparql()(implicit s: Scope = new Scope()) extends RDFaParser {
   import scala.collection.mutable
@@ -160,13 +160,19 @@ class RDFaToSparql()(implicit s: Scope = new Scope()) extends RDFaParser {
 
   override def transformLiteral(e: xml.Elem, content: NodeSeq, literal: Literal): (xml.Elem, Node) = {
     var (e1, literal1) = super.transformLiteral(e, content, literal)
-    if (content.isEmpty && (literal match {
+    if (content.isEmpty && (literal1 match {
       case PlainLiteral("", _) => true
       case XmlLiteral(xml) => "(?:^|\\s)l(?:ift)?:".r.findFirstIn((xml \\ "@class").text) != None
       case _ => false
     })) {
       literal1 = select(fresh("l"))
-      e1 = e1.copy(attributes = e1.attributes.append(new UnprefixedAttribute("clear-content", "?" + literal1, e1.attributes)))
+      e1 = e1.copy(attributes = e1.attributes.append(new UnprefixedAttribute("data-clear-content", "?" + literal1, e1.attributes)))
+    } else {
+      // content="?someVar"
+      literal1 match {
+        case PlainLiteral(variable(l), _) => literal1 = createVariable(l).get
+        case _ =>
+      }
     }
     (e1, literal1)
   }
