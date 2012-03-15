@@ -10,7 +10,7 @@ import net.enilink.komma.core.IEntity
 import net.enilink.komma.core.IGraph
 import net.enilink.komma.core.IGraphResult
 import net.enilink.komma.core.LinkedHashBindings
-import net.enilink.lift.lib.Globals
+import net.enilink.lift.util.Globals
 import net.enilink.lift.rdfa.template.RDFaTemplates
 import net.liftweb.common.Box.box2Option
 import net.liftweb.common.Full

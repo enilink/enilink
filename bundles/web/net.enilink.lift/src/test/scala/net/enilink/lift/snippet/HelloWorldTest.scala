@@ -6,7 +6,7 @@ import org.specs.runner.JUnit4
 import org.specs.specification.Examples
 import org.specs.Specification
 
-import lib.Globals
+import util.Globals
 import net.liftweb.common.Empty
 import net.liftweb.http.LiftSession
 import net.liftweb.http.S

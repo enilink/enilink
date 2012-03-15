@@ -35,8 +35,8 @@ trait RDFaTemplates {
 
     ns.flatMap(processNode _)
   }
-  
-  def withPrefixes(prefixes : Seq[String], values : Set[String]) = {
+
+  def withPrefixes(prefixes: Seq[String], values: Set[String]) = {
     values ++ values.flatMap(v => prefixes.map(_ + v))
   }
 
@@ -44,9 +44,9 @@ trait RDFaTemplates {
   private val Variable = "^\\?(.*)".r
 
   // isTemplate is required for disambiguation because xml.Node extends Seq[xml.Node]
-  class Key(val ctxs: Seq[RdfContext], val nodeOrNodeSeq: AnyRef, val isTemplate : Boolean = false) {
-    val hashCodeVal = 41 * System.identityHashCode(nodeOrNodeSeq) + ctxs.hashCode + (if (isTemplate) 1 else 0) 
-   
+  class Key(val ctxs: Seq[RdfContext], val nodeOrNodeSeq: AnyRef, val isTemplate: Boolean = false) {
+    val hashCodeVal = 41 * System.identityHashCode(nodeOrNodeSeq) + ctxs.hashCode + (if (isTemplate) 1 else 0)
+
     override def hashCode = hashCodeVal
 
     override def equals(other: Any) = {
@@ -61,7 +61,7 @@ trait RDFaTemplates {
     override def elemHashCode(e: xml.Node) = System.identityHashCode(e)
     override def elemEquals(a: xml.Node, b: xml.Node) = a eq b
   }
-  
+
   final val attribute = "^(?:data(?:-clear)?-)?(.*)".r
 
   def transform(ctx: RdfContext, template: Seq[xml.Node])(implicit bindings: IBindings[_], existing: mutable.Map[Key, Seq[xml.Node]]): Seq[xml.Node] = {
@@ -107,7 +107,7 @@ trait RDFaTemplates {
 
                       if (attValue == null) attributes = null
                       else if (meta.key.startsWith("data-clear-")) attributes = attributes.remove(meta.key)
-                      else attributes = attributes.append(new UnprefixedAttribute(meta.key, attValue.toString, meta.next))
+                      else if (attributes != null) attributes = attributes.append(new UnprefixedAttribute(meta.key, attValue.toString, meta.next))
                     }
                     case _ =>
                   }

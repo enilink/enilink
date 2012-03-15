@@ -24,6 +24,10 @@ object CSSUtil extends DispatchSnippet {
         "/" + LiftRules.resourceServerPath +
           "/bootstrap/css/bootstrap-responsive.min.css"
       } type="text/css"/>
+      <link rel="stylesheet" href={
+        "/" + LiftRules.resourceServerPath +
+          "/bootstrap/css/bootstrap-custom.css"
+      } type="text/css"/>
     </xml:group>
   }
 }

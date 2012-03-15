@@ -2,7 +2,7 @@ package net.enilink.lift.snippet
 
 import java.util.Date
 
-import net.enilink.lift.lib.Globals
+import net.enilink.lift.util.Globals
 import net.liftweb.common.Box
 import net.liftweb.util.Helpers.strToCssBindPromoter
 import net.liftweb.util.IterableConst.boxString

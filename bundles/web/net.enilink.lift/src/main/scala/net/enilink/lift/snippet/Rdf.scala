@@ -8,7 +8,7 @@ import scala.xml.UnprefixedAttribute
 
 import net.enilink.komma.model.ModelUtil
 import net.enilink.komma.parser.manchester.ManchesterSyntaxGenerator
-import net.enilink.lift.lib.Globals
+import net.enilink.lift.util.Globals
 import net.enilink.lift.rdfa.template.RDFaTemplates
 import net.liftweb.common.Box.box2Option
 import net.liftweb.common.Box
