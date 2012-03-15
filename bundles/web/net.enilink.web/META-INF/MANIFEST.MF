@@ -1,0 +1,11 @@
+Manifest-Version: 1.0
+Bundle-ManifestVersion: 2
+Bundle-Name: enilink.net Website
+Bundle-SymbolicName: net.enilink.web;singleton:=true
+Bundle-Version: 1.0.0.qualifier
+Lift-Packages: 
+Bundle-ClassPath: .,
+ bin/
+Require-Bundle: org.scala-ide.scala.library,
+ net.enilink.lift
+Bundle-ActivationPolicy: lazy
