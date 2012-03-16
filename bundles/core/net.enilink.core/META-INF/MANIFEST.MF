@@ -6,9 +6,11 @@ Bundle-Version: 1.0.0.qualifier
 Bundle-Activator: net.enilink.core.Activator
 Require-Bundle: org.eclipse.core.runtime,
  net.enilink.komma.model,
- net.enilink.komma.edit
+ net.enilink.komma.edit,
+ net.enilink.komma.workbench
 Bundle-ActivationPolicy: lazy
 Bundle-RequiredExecutionEnvironment: JavaSE-1.6
 Import-Package: com.google.inject,
+ org.eclipse.core.resources,
  org.eclipse.rwt
 Export-Package: net.enilink.core

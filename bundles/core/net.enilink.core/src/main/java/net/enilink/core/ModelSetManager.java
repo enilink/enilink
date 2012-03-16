@@ -1,5 +1,8 @@
 package net.enilink.core;
 
+import org.eclipse.core.resources.IProject;
+import org.eclipse.core.resources.ResourcesPlugin;
+
 import com.google.inject.Guice;
 import com.google.inject.Injector;
 
@@ -11,6 +14,8 @@ import net.enilink.komma.model.IModelSetFactory;
 import net.enilink.komma.model.MODELS;
 import net.enilink.komma.model.ModelCore;
 import net.enilink.komma.model.ModelSetModule;
+import net.enilink.komma.model.base.IURIMapRule;
+import net.enilink.komma.model.base.SimpleURIMapRule;
 import net.enilink.komma.model.concepts.Model;
 import net.enilink.komma.core.IGraph;
 import net.enilink.komma.core.IUnitOfWork;
@@ -18,6 +23,8 @@ import net.enilink.komma.core.KommaModule;
 import net.enilink.komma.core.LinkedHashGraph;
 import net.enilink.komma.core.URI;
 import net.enilink.komma.core.URIImpl;
+import net.enilink.komma.workbench.IProjectModelSet;
+import net.enilink.komma.workbench.ProjectModelSetSupport;
 
 public class ModelSetManager {
 	public static final ModelSetManager INSTANCE = new ModelSetManager();
@@ -30,6 +37,10 @@ public class ModelSetManager {
 				.getClassLoader());
 		module.addBehaviour(SessionModelSetSupport.class);
 		module.addBehaviour(LazyModelSupport.class);
+
+		module.addConcept(IProjectModelSet.class);
+		module.addBehaviour(ProjectModelSetSupport.class);
+
 		injector = Guice.createInjector(new ModelSetModule(module));
 	}
 
@@ -56,13 +67,41 @@ public class ModelSetManager {
 				MODELS.NAMESPACE_URI.appendLocalPart(//
 						"OwlimModelSet" //
 						// "VirtuosoModelSet" //
-//						 "AGraphModelSet"
-						));
+						// "AGraphModelSet"
+						),
+				URIImpl.createURI(MODELS.NAMESPACE + "ProjectModelSet"));
 
 		return modelSet;
 	}
 
-	protected void createModels(IModelSet modelSet) {
+	protected void createModels(final IModelSet modelSet) {
+		if (modelSet instanceof IProjectModelSet) {
+			IProject project = ResourcesPlugin.getWorkspace().getRoot()
+					.getProject("models");
+			System.out
+					.println("Looking for models in: "
+							+ ResourcesPlugin.getWorkspace().getRoot()
+									.getLocationURI());
+			try {
+				if (!project.exists()) {
+					project.create(null);
+				}
+				project.open(null);
+
+				((IProjectModelSet) modelSet).setProject(project);
+				for (IURIMapRule rule : modelSet.getURIConverter()
+						.getURIMapRules()) {
+					if (rule instanceof SimpleURIMapRule) {
+						String modelUri = ((SimpleURIMapRule) rule)
+								.getPattern();
+						modelSet.createModel(URIImpl.createURI(modelUri));
+					}
+				}
+			} catch (Exception e) {
+				System.err.println(e.getMessage());
+			}
+		}
+
 		IModel structureModel = modelSet
 				.createModel(URIImpl
 						.createURI("http://enilink.net/vocab/innocat/structure"));
