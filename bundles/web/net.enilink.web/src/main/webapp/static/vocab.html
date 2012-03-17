@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta content="text/html; charset=UTF-8" http-equiv="content-type" />
+<title>Home</title>
+</head>
+<body class="lift:content_id=main"
+	xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"
+	xmlns:owl="http://www.w3.org/2002/07/owl#"
+	xmlns:rdfs="http://www.w3.org/2000/01/rdf-schema#"
+	xmlns:models="http://enilink.net/vocab/komma/models#">
+	<div id="main" class="lift:surround?with=default;at=content">
+		<div class="lift:rdfa?target=meta">
+			<h3>Ontologies</h3>
+			<div about="?model" typeof="models:Model" class="row-fluid asc">
+				<section class="optional">
+					<div class="row-fluid union">
+						<div class="span5">
+							&lt;<a href="/static/ontology?model={}"
+								class="lift:rdf:ref?to=href"><span class="lift:rdf:ref"></span></a>&gt;
+						</div>
+						<div class="span3">
+							<div property="rdfs:label" content="?label">
+								<div class="row-fluid">
+									<div class="lift:rdf.label span12"></div>
+								</div>
+							</div>
+						</div>
+						<div class="span4">
+							<div property="rdfs:comment" content="?comment">
+								<div class="row-fluid">
+									<div class="lift:rdf.label span12"></div>
+								</div>
+							</div>
+						</div>
+					</div>
+				</section>
+			</div>
+		</div>
+	</div>
+</body>
+</html>

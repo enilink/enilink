@@ -3,9 +3,9 @@ Bundle-ManifestVersion: 2
 Bundle-Name: enilink.net Website
 Bundle-SymbolicName: net.enilink.web;singleton:=true
 Bundle-Version: 1.0.0.qualifier
-Lift-Packages: 
+Lift-Packages: net.enilink.web
 Bundle-ClassPath: .,
  bin/
-Require-Bundle: org.scala-ide.scala.library,
- net.enilink.lift
+Require-Bundle: net.enilink.lift
 Bundle-ActivationPolicy: lazy
+Export-Package: net.enilink.web.snippet

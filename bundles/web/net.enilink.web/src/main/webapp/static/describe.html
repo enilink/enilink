@@ -43,6 +43,22 @@
 					</div>
 				</section>
 			</div>
+			<br />
+			<!-- show relevant properties for classes -->
+			<div about="?this" typeof="rdfs:Class" class="row-fluid optional"
+				data-clear-about="?relevantProp">
+				<h4>Relevant class properties</h4>
+				<section>
+					<!-- query relevant properties -->
+					<span about="?this" rel="rdfs:subClassOf" class="clearable">
+						<span rel="owl:onProperty" resource="?relevantProp"></span>
+					</span>
+					<ul about="?relevantProp">
+						<li><a href="/static/describe?model={model}&resource={}"
+							class="lift:rdf:ref?to=href"><span class="lift:rdf:label"></span></a></li>
+					</ul>
+				</section>
+			</div>
 		</div>
 	</div>
 </body>
