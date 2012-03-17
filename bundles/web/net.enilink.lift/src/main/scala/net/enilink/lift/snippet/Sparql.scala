@@ -17,6 +17,7 @@ import net.liftweb.common.Full
 import net.liftweb.http.S
 import net.liftweb.http.PageName
 import net.liftweb.util.ClearClearable
+import net.enilink.core.ModelSetManager
 
 class Sparql extends RDFaTemplates {
   val selection = Globals.contextResource.vend
@@ -46,10 +47,13 @@ class Sparql extends RDFaTemplates {
       }
     }
 
+    val isMetaQuery = (S.attr("target") openOr null) == "meta"
+
     CurrentContext.value match {
-      case Full(_) => renderResults
+      case Full(_) if !isMetaQuery => renderResults
       case _ =>
-        selection match {
+        val target = if (isMetaQuery) ModelSetManager.INSTANCE.getModelSet else selection
+        target match {
           case resource: Any =>
             CurrentContext.withValue(Full(new RdfContext(resource, null))) {
               renderResults

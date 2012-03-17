@@ -3,12 +3,12 @@ Bundle-ManifestVersion: 2
 Bundle-Name: eniLINK Lift
 Bundle-SymbolicName: net.enilink.lift;singleton:=true
 Bundle-Version: 1.0.0.qualifier
+Eclipse-BuddyPolicy: dependent
 Lift-Packages: net.enilink.lift
-Export-Package: net.enilink.lift,
- net.enilink.lift.util,
- net.enilink.lift.selection,
+Export-Package: net.enilink.lift.selection,
  net.enilink.lift.sitemap,
  net.enilink.lift.snippet,
+ net.enilink.lift.util,
  net.enilink.lift.view,
  net.liftweb.actor,
  net.liftweb.builtin.snippet,
@@ -58,7 +58,7 @@ Import-Package: net.enilink.komma.http,
  org.osgi.util.tracker,
  org.slf4j
 Require-Bundle: org.eclipse.core.runtime,
- org.scala-ide.scala.library,
+ org.scala-ide.scala.library;visibility:=reexport,
  net.enilink.komma.model,
  net.enilink.core
 Bundle-ActivationPolicy: lazy

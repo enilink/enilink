@@ -74,16 +74,16 @@ class LiftModule {
 
         var modelSet = ModelSetManager.INSTANCE.getModelSet
         var unitsOfWork: Seq[IUnitOfWork] = Nil
+        // start a unit of work for the current model set
+        var uow = modelSet.getUnitOfWork
+        unitsOfWork = unitsOfWork ++ List(uow)
+        uow.begin
         try {
           var model: Box[IModel] = Empty
           if (modelName.isDefined) {
             // try to get the model from the model set
             try {
               val modelUri = URIImpl.createURI(modelName.get)
-              // start a unit of work to retrieve the meta data
-              var uow = modelSet.getUnitOfWork
-              unitsOfWork = unitsOfWork ++ List(uow)
-              uow.begin
               model = Full(modelSet.getModel(modelUri, true))
             } catch {
               case e: Exception => System.out.println(e)
