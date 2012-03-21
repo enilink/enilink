@@ -59,6 +59,9 @@ class Activator extends BundleActivator {
   var httpServiceTracker: HttpServiceTracker = null
 
   def initLift {
+    // allow duplicate link names
+    SiteMap.enforceUniqueLinks = false
+    
     // set context path
     LiftRules.calculateContextPath = () => Empty
 

@@ -30,7 +30,10 @@ class Bootstrap extends DispatchSnippet {
         app = path.find(isApplication) getOrElse null
       } yield sm.kids.flatMap {
         // create only items for current application
-        kid => if (kid.loc.hidden || isApplication(kid.loc) && kid.loc != app) Nil else kid.makeMenuItem(path)
+        kid =>
+          if (kid.loc.hidden) Nil else if (isApplication(kid.loc)) {
+            if (kid.loc != app) Nil else kid.kids.flatMap(_.makeMenuItem(path))
+          } else kid.makeMenuItem(path)
       }) openOr Nil
     result
   }
