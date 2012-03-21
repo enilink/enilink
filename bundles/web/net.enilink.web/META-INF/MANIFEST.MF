@@ -8,4 +8,3 @@ Bundle-ClassPath: .,
  bin/
 Require-Bundle: net.enilink.lift
 Bundle-ActivationPolicy: lazy
-Export-Package: net.enilink.web.snippet

@@ -16,7 +16,9 @@ import net.enilink.lift.sitemap.Application
  */
 class LiftModule {
   def sitemapMutator: SiteMap => SiteMap = {
-    val entries = List[Menu](Menu.i("Home") / "index" >> Application)
+    val entries = List[Menu](Menu.i("enilink") / "" >> Application submenus (
+      Menu("enilink.Home", S ? "Home") / "index",
+      Menu("enilink.Vocabulary", S ? "Vocabulary") / "vocab"))
 
     SiteMap.sitemapMutator { Map.empty }(SiteMap.addMenusAtEndMutator(entries))
   }
