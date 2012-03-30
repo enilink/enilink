@@ -16,12 +16,13 @@ import net.liftweb.util.Helpers._
 import net.liftweb.util._
 import net.liftweb._
 import net.enilink.lift.sitemap.Application
+import net.liftweb.common.Logger
 
 /**
  * A class that's instantiated early and run.  It allows the application
  * to modify lift's environment
  */
-class LiftModule {
+class LiftModule extends Logger {
   def sitemapMutator: SiteMap => SiteMap = {
     val entries = List[Menu]( // /static path to be visible
       Menu(Loc("Static", Link(List("static"), true, "/static/index"),
@@ -84,9 +85,12 @@ class LiftModule {
             // try to get the model from the model set
             try {
               val modelUri = URIImpl.createURI(modelName.get)
-              model = Full(modelSet.getModel(modelUri, true))
+              model = modelSet.getModel(modelUri, false) match {
+                case m : AnyRef => Full(m)
+                case _ => None
+              }
             } catch {
-              case e: Exception => System.out.println(e)
+              case e: Exception => error(e)
             }
           }
 

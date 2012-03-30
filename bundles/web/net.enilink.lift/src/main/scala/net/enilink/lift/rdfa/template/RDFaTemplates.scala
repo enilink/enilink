@@ -2,7 +2,10 @@ package net.enilink.lift.rdfa.template
 
 import scala.collection.mutable
 import scala.xml.Elem
+import scala.xml.MetaData
 import scala.xml.NodeSeq
+import scala.xml.UnprefixedAttribute
+
 import net.enilink.komma.core.IBindings
 import net.enilink.komma.core.IReference
 import net.enilink.lift.snippet.CurrentContext
@@ -12,7 +15,6 @@ import net.liftweb.http.PageName
 import net.liftweb.http.S
 import net.liftweb.util.Helpers.pairToUnprefixed
 import net.liftweb.util.Helpers.strToSuperArrowAssoc
-import scala.xml.UnprefixedAttribute
 
 trait RDFaTemplates {
   /**
@@ -40,7 +42,7 @@ trait RDFaTemplates {
     values ++ values.flatMap(v => prefixes.map(_ + v))
   }
 
-  private val rdfaAttributes = withPrefixes(List("data-", "data-clear-"), Set("about", "src", "rel", "rev", "property", "href", "resource", "content"))
+  private val rdfaAttributes = withPrefixes(List("data-", "data-clear-"), Set("about", "src", "rel", "rev", "property", "href", "resource", "content")) + "data-if"
   private val Variable = "^\\?(.*)".r
 
   // isTemplate is required for disambiguation because xml.Node extends Seq[xml.Node]
@@ -62,6 +64,9 @@ trait RDFaTemplates {
     override def elemEquals(a: xml.Node, b: xml.Node) = a eq b
   }
 
+  /** Marks insertion points of new nodes if previous template transformations returned an empty result */
+  class Marker extends Elem(null, "marker", new UnprefixedAttribute("class", "clearable", scala.xml.Null), xml.TopScope)
+
   final val attribute = "^(?:data(?:-clear)?-)?(.*)".r
 
   def transform(ctx: RdfContext, template: Seq[xml.Node])(implicit bindings: IBindings[_], existing: mutable.Map[Key, Seq[xml.Node]]): Seq[xml.Node] = {
@@ -74,10 +79,10 @@ trait RDFaTemplates {
 
         tNode match {
           case tElem: Elem => {
-            val result = if (tElem.attributes.isEmpty) tElem.asInstanceOf[Elem] else {
+            val result = if (tElem.attributes.isEmpty) tElem else {
               var attributes = tElem.attributes
               tElem.attributes.foreach(meta =>
-                if (!meta.isPrefixed && rdfaAttributes.contains(meta.key)) {
+                if (attributes != null && !meta.isPrefixed && rdfaAttributes.contains(meta.key)) {
                   meta.value.text match {
                     case Variable(v) => {
                       val rdfValue = if (v == "this") ctx.subject else bindings.get(v)
@@ -85,6 +90,7 @@ trait RDFaTemplates {
                       if (rdfValue != null) {
                         // check if context needs to be changed for children
                         meta.key match {
+                          case "data-if" => // does not change context
                           case attribute("rel" | "rev" | "property") =>
                             currentCtx = new RdfContext(currentCtx.subject, rdfValue)
                           case _ =>
@@ -106,13 +112,14 @@ trait RDFaTemplates {
                       }
 
                       if (attValue == null) attributes = null
-                      else if (meta.key.startsWith("data-clear-")) attributes = attributes.remove(meta.key)
-                      else if (attributes != null) attributes = attributes.append(new UnprefixedAttribute(meta.key, attValue.toString, meta.next))
+                      else if (meta.key.startsWith("data-clear-") || meta.key == "data-if")
+                        attributes = attributes.remove(meta.key)
+                      else attributes = attributes.append(new UnprefixedAttribute(meta.key, attValue.toString, meta.next))
                     }
                     case _ =>
                   }
                 })
-              if (attributes == null) null else tElem.asInstanceOf[Elem].copy(attributes = attributes)
+              if (attributes == null) null else tElem.copy(attributes = attributes)
             }
 
             val currentCtxs = if (currentCtx == ctx) ctxs else ctxs ++ List(currentCtx)
@@ -120,6 +127,25 @@ trait RDFaTemplates {
             var newNodes: Seq[xml.Node] = Nil
             val key = new Key(currentCtxs, tNode)
             val nodesForContext = existing.get(key) match {
+              case None if (result == null) => newNodes = new Marker; newNodes
+              case Some(m: Marker) if (result == null) => m
+              case value @ (None | Some(_: Marker)) => {
+                // create new node with transformed children
+                val newChild = internalTransform(currentCtxs, tElem.child)
+                val newElem = if (currentCtx == ctx) {
+                  result.copy(child = newChild)
+                } else {
+                  new ElemWithRdfa(currentCtx, result.prefix, result.label, result.attributes,
+                    result.scope, newChild: _*)
+                }
+                value match {
+                  case Some(m: Marker) =>
+                    if (replacedNodes == null) replacedNodes = new ReplacementMap
+                    replacedNodes.put(m, newElem)
+                  case _ => newNodes = newElem
+                }
+                newElem
+              }
               case Some(nodes) => {
                 if (replacedNodes == null) replacedNodes = new ReplacementMap
                 nodes.map(
@@ -132,27 +158,18 @@ trait RDFaTemplates {
                     case other => other
                   })
               }
-              case None => if (result == null) Nil else {
-                // create new node with transformed children
-                val newChild = internalTransform(currentCtxs, tElem.child)
-                if (currentCtx == ctx) {
-                  newNodes = result.copy(child = newChild)
-                } else {
-                  newNodes = new ElemWithRdfa(currentCtx, result.prefix, result.label, result.attributes,
-                    result.scope, newChild: _*)
-                }
-                newNodes
-              }
             }
-
             existing(key) = nodesForContext
             newNodes
           }
-          case other => existing.get(new Key(ctxs, tNode)) match {
-            case Some(nodes) => Nil
-            case None => {
-              existing(new Key(ctxs, tNode)) = other
-              other
+          case other => {
+            val key = new Key(ctxs, tNode)
+            existing.get(key) match {
+              case Some(nodes) => Nil
+              case None => {
+                existing(key) = other
+                other
+              }
             }
           }
         }

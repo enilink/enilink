@@ -7,7 +7,7 @@
 	<classpathentry kind="src" path="src/main/webapp"/>
 	<classpathentry exported="true" kind="lib" path="bin/"/>
 	<classpathentry exported="true" kind="lib" path="lib_managed/jars/net.liftweb/lift-actor_2.9.0-1/lift-actor_2.9.0-1-2.4.jar"/>
-	<classpathentry exported="true" kind="lib" path="lib_managed/jars/net.liftweb/lift-common_2.9.0-1/lift-common_2.9.0-1-2.4.jar"/>
+	<classpathentry exported="true" kind="lib" path="lib_managed/jars/net.liftweb/lift-common_2.9.0-1/lift-common_2.9.0-1-2.4.jar" sourcepath="/sources/lift/lift-framework.zip"/>
 	<classpathentry exported="true" kind="lib" path="lib_managed/jars/net.liftweb/lift-db_2.9.0-1/lift-db_2.9.0-1-2.4.jar"/>
 	<classpathentry exported="true" kind="lib" path="lib_managed/jars/net.liftweb/lift-json_2.9.0-1/lift-json_2.9.0-1-2.4.jar"/>
 	<classpathentry exported="true" kind="lib" path="lib_managed/jars/net.liftweb/lift-util_2.9.0-1/lift-util_2.9.0-1-2.4.jar" sourcepath="/sources/lift/lift-framework.zip"/>
