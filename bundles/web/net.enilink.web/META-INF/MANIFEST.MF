@@ -6,5 +6,10 @@ Bundle-Version: 1.0.0.qualifier
 Lift-Packages: net.enilink.web
 Bundle-ClassPath: .,
  bin/
-Require-Bundle: net.enilink.lift
+Require-Bundle: net.enilink.core,
+ net.enilink.lift,
+ org.eclipse.core.runtime,
+ net.enilink.komma.model;bundle-version="1.0.0"
 Bundle-ActivationPolicy: lazy
+Import-Package: org.eclipse.core.resources
+Export-Package: net.enilink.web.rest
