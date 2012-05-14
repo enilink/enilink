@@ -16,12 +16,13 @@ trait HasRender {
 
 trait EditRdfa extends HasRender {
   abstract override def render(n: NodeSeq): NodeSeq = {
+    var tid = 0
      def withTemplateIds(n: NodeSeq): NodeSeq = n.flatMap {
       _ match {
         case e: Elem =>
           val newE = e.attribute("tid") match {
             case Some(id) => e
-            case None => e % ("data-tid" -> Helpers.nextFuncName)
+            case None => e % ("data-tid" -> {tid = tid + 1; tid})
           }
           if (newE.child.isEmpty) newE else newE.copy(child = withTemplateIds(newE.child))
         case other => other

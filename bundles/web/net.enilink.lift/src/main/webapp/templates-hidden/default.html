@@ -26,8 +26,8 @@ body {
 				<a class="btn btn-navbar" data-toggle="collapse"
 					data-target=".nav-collapse"> <span class="icon-bar"></span> <span
 					class="icon-bar"></span> <span class="icon-bar"></span>
-				</a> <a class="brand" href="/"><img src="/images/enilink-grayscale.png"
-					style="height: 19px"></img></a>
+				</a> <a class="brand" href="/"><img
+					src="/images/enilink-grayscale.png" style="height: 19px"></img></a>
 				<div class="nav-collapse">
 					<span class="lift:Bootstrap.menu"></span>
 				</div>
@@ -36,13 +36,12 @@ body {
 	</div>
 	<span class="lift:Bootstrap.submenu"></span>
 	<div class="container">
-		<div class="row">
-			<div class="span12" style="text-align: right">
-				<h1 class="alt">
-					<img alt="" id="ajax-loader"
-						style="display: none; margin-bottom: 0px; margin-left: 5px"
-						src="/images/ajax-loader.gif"></img>
-				</h1>
+		<div class="row" style="position: fixed; top: 50px; opacity: 0.7">
+			<div id="notification-area" class="span11"
+				style="height: 80px; overflow: auto;"></div>
+			<div class="span1" style="float: right;">
+				<img alt="" id="ajax-loader" style="display: none"
+					src="/images/ajax-loader.gif"></img>
 			</div>
 		</div>
 

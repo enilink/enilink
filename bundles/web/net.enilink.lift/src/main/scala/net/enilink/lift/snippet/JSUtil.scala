@@ -20,6 +20,10 @@ object JSUtil extends DispatchSnippet {
       "/" + LiftRules.resourceServerPath +
         "/bootstrap/js/bootstrap.min.js"
     } type="text/javascript"></script>
+    <script src={
+      "/" + LiftRules.resourceServerPath +
+        "/bootstrap/js/bootstrap-ext.js"
+    } type="text/javascript"></script>
   }
 
   def rdfa: NodeSeq = {

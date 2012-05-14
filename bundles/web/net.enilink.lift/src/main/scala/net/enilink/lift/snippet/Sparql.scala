@@ -23,7 +23,7 @@ import net.liftweb.util.Helpers
 import scala.xml.UnprefixedAttribute
 
 class Sparql extends RDFaTemplates {
-  val selection = Globals.contextResource.vend
+  val selection = Globals.contextResource.vend.openOr(null)
 
   def render(n: NodeSeq): NodeSeq = {
     def renderResults = {

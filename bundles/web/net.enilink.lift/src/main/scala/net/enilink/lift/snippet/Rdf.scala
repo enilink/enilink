@@ -28,13 +28,13 @@ import scala.xml.TopScope
 
 class RdfContext(val subject: Any, val predicate: Any, val prefix: NamespaceBinding = TopScope) {
   override def equals(that: Any): Boolean = that match {
-    case other: RdfContext => subject == other.subject && predicate == other.predicate
+    case other: RdfContext => subject == other.subject && predicate == other.predicate && prefix == other.prefix
     case _ => false
   }
-  override def hashCode = (if (subject != null) subject.hashCode else 0) + (if (predicate != null) predicate.hashCode else 0)
+  override def hashCode = (if (subject != null) subject.hashCode else 0) + (if (predicate != null) predicate.hashCode else 0) + prefix.hashCode
 
   override def toString = {
-    "(s = " + subject + ", p = " + predicate + ")"
+    "(s = " + subject + ", p = " + predicate + ", prefix = " + prefix + ")"
   }
 
   def copy(subject: Any = this.subject, predicate: Any = this.predicate, prefix: NamespaceBinding = this.prefix) = {
@@ -57,6 +57,7 @@ class Rdf extends DispatchSnippet with RDFaTemplates {
       case _ => method match {
         // simply return template content
         case "label" | "manchester" => ((n: NodeSeq) => n)
+        case _ => ClearNodes
       }
     }
     case method => CurrentContext.value match {
@@ -65,6 +66,7 @@ class Rdf extends DispatchSnippet with RDFaTemplates {
       case _ => method match {
         // simply return template content
         case "label" | "manchester" => ((n: NodeSeq) => n)
+        case _ => ClearNodes
       }
     }
   }
@@ -91,8 +93,8 @@ class Rdf extends DispatchSnippet with RDFaTemplates {
           var newAttrValue = attrValue.text.replaceAll("\\{\\}", encode(value))
 
           // insert current model into the attribute
-          val model = Globals.contextModel.vend
-          newAttrValue = newAttrValue.replaceAll("\\{model\\}", encode(if (model != null) model.toString else ""))
+          val modelName = Globals.contextModel.vend.dmap("")(_.toString)
+          newAttrValue = newAttrValue.replaceAll("\\{model\\}", encode(modelName))
 
           attributes = attributes.remove(replaceAttr.get)
           attributes = attributes.append(new UnprefixedAttribute(replaceAttr.get, newAttrValue, attributes))

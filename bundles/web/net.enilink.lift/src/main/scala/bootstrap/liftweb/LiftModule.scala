@@ -92,17 +92,17 @@ class LiftModule extends Logger {
             }
           }
 
-          var resource: Option[AnyRef] = Empty
+          var resource: Box[AnyRef] = Empty
           if (model.isEmpty) {
             // try to get the model from the global selection (e.g. from a RAP instance)
-            Globals.contextResource.vend match {
+            Globals.contextResource.vend.map(_ match {
               case selected: IObject => {
                 resource = Full(selected)
                 model = Full(selected.getModel)
               }
-              case selected: AnyRef => resource = Full(selected)
-              case _ =>
-            }
+              case other: AnyRef => resource = Full(other)
+              case _ => // leave resource empty
+            })
           } else if (resourceName.isDefined) {
             // a resource was passed as parameter, replace the global selection with this resource
             val bnode = "^(_:.*)".r
@@ -122,10 +122,10 @@ class LiftModule extends Logger {
             resource = Full(model.get.getOntology)
           }
           if (resource.isDefined) {
-            Globals.contextResource.request.set(resource.get)
+            Globals.contextResource.request.set(resource)
           }
           if (model.isDefined) {
-            Globals.contextModel.request.set(model.get)
+            Globals.contextModel.request.set(model)
           }
 
           if (model.isDefined && modelSet != model.get.getModelSet) {
