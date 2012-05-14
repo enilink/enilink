@@ -9,6 +9,7 @@
 	xmlns:owl="http://www.w3.org/2002/07/owl#"
 	xmlns:rdfs="http://www.w3.org/2000/01/rdf-schema#">
 	<div id="main" class="lift:surround?with=default;at=content">
+		<script data-lift="JSUtil.rdfa"></script>
 		<div class="lift:rdfa">
 			<div about="?this" class="row-fluid">
 				<h3>
@@ -46,7 +47,7 @@
 			<br />
 			<!-- show relevant properties for classes -->
 			<div about="?this" typeof="rdfs:Class" class="row-fluid optional"
-				data-clear-about="?relevantProp">
+				data-if="?relevantProp">
 				<h4>Relevant class properties</h4>
 				<section>
 					<!-- query relevant properties -->
@@ -60,6 +61,130 @@
 				</section>
 			</div>
 		</div>
+
+		<!-- add some editing support -->
+		<script type="text/javascript">
+			var rdfAttributes = ["about", "typeof", "rel", "rev", "property", "href", "resource", "src"];
+		
+			function noParamCallback() {
+				// this is just for testing purposes and should be removed
+				alert("did it");
+			}
+
+			$(function() {
+				var buttons = $("#buttons");
+				// relocate buttons for absolute positioning
+				buttons.appendTo("body");
+
+				$("[rel],[property]").hover(
+						function(e) {
+							e.stopPropagation();
+							var target = $(e.target);
+							target = target.closest("[rel],[property]");
+							if (! target.is(buttons.data("target")) || ! buttons.is(":visible")) {
+								var lastTarget = buttons.data("target");
+								if (lastTarget) {
+									lastTarget.removeClass("focused");
+								}
+								
+								target.addClass("focused");
+								buttons.data("target", target);
+
+								var parentOffset = buttons.parent().offset();
+								buttons.css({
+									position : "absolute",
+									marginLeft : 0,
+									marginTop : 0,
+									top : e.pageY - parentOffset.top - 10,
+									left : e.pageX - parentOffset.left + 10
+								});
+								buttons.css("display", "block");
+							}
+						},
+						function(e) {
+							var relatedTarget = $(e.relatedTarget);
+							if (! relatedTarget || (relatedTarget != buttons
+									&& relatedTarget.closest("#buttons").length == 0)) {
+								var lastTarget = buttons.data("target");
+								if (lastTarget) {
+									lastTarget.removeClass("focused");
+								}
+								buttons.css("display", "none");
+							}
+						});
+			});
+
+			function remove() {
+				var target = $("#buttons").data("target");
+				if (target) {
+					var body = $("body");
+					var rdfBefore = body.rdf();
+					target.remove();
+					var rdfAfter = body.rdf();
+					
+					var data = rdfBefore.databank.except(rdfAfter.databank).dump({serialize: true, format: "application/rdf+xml"});
+					console.log(data);
+					deleteTriples("removeCallback", data);
+				}
+				$("#buttons").hide();
+			}
+			
+			function removeCallback() {
+				notifications.notify("removed");	
+			}
+			
+			function edit() {
+				function getFirstText(node) {
+			        if (node.nodeType == 3) {
+			            if ($.trim(node.nodeValue).length > 0) return node;
+			        } else {
+			            for (var i = 0, len = node.childNodes.length; i < len; ++i) {
+			            	var textNode = getFirstText(node.childNodes[i]);
+			            	if (textNode) return textNode;
+			            }
+			        }
+					return null;
+				}
+				
+				var target = $("#buttons").data("target");
+				if (target) {
+					var firstText = getFirstText(target.get(0));
+					if (firstText) {
+						firstText = $(firstText);
+						var input = $("<input type='text' name='edit'></input>");
+						input.val($.trim(firstText.text()));
+
+						var toReplace = firstText.closest("a");
+						if (toReplace.length == 0) toReplace = firstText
+						toReplace.replaceWith(input);
+					}
+				}
+			}
+			
+			function showRdf() {
+				var target = $("#buttons").data("target");
+				if (target) {
+					var body = $("body");
+					var rdf = body.rdf();
+					console.log(rdf.databank); 
+				}
+			}
+
+		</script>
+		<div id="buttons" class="btn-toolbar" style="display: none">
+			<div class="btn-group">
+				<button class="btn" title="Edit" onclick="edit()">
+					<i class="icon-edit"></i>
+				</button>
+				<button class="btn" title="Remove" onclick="remove()">
+					<i class="icon-remove"></i>
+				</button>
+				<button class="btn" title="Show RDF" onclick="showRdf()">
+					<i class="icon-eye-open"></i>
+				</button>
+			</div>
+		</div>
+		<span data-lift="Edit"></span>
 	</div>
 </body>
 </html>

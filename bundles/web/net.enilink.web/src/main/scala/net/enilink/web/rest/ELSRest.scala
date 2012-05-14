@@ -21,47 +21,44 @@ object ELSRest extends RestHelper {
 
   serve {
     case "services" :: "els" :: nodeName :: _ XmlGet _ => {
-      Globals.contextModel.vend match {
-        case model: AnyRef => {
-          val manager = model.getManager
-          val node = manager.find(nodeName, classOf[IResource])
+      for (model <- Globals.contextModel.vend ?~ "Model not found.") yield {
+        val manager = model.getManager
+        val node = manager.find(nodeName, classOf[IResource])
 
-          <NodeData ID={ node } ParentID={
-            node.getContainer match {
-              case c: AnyRef => c : String
-              case _ => null
-            }
-          } Name={ ModelUtil.getLabel(node) }>
-            <ChildList>
-              {
-                node.getContents.map {
-                  child =>
-                    <Child>
-                      <ID>{ child }</ID>
-                      <Name>{ ModelUtil.getLabel(child) }</Name>
-                      <CharacteristicList>
-                        <Characteristic>
-                          <View>im Durchschnitt</View>
-                          <Name>Gesamtenergieverbrauch</Name>
-                          <MeasurementUnit>KWh</MeasurementUnit>
-                          <Value>153.00</Value>
-                        </Characteristic>
-                      </CharacteristicList>
-                    </Child>
-                      
-                }
+        <NodeData ID={ node } ParentID={
+          node.getContainer match {
+            case c: AnyRef => c: String
+            case _ => null
+          }
+        } Name={ ModelUtil.getLabel(node) }>
+          <ChildList>
+            {
+              node.getContents.map {
+                child =>
+                  <Child>
+                    <ID>{ child }</ID>
+                    <Name>{ ModelUtil.getLabel(child) }</Name>
+                    <CharacteristicList>
+                      <Characteristic>
+                        <View>im Durchschnitt</View>
+                        <Name>Gesamtenergieverbrauch</Name>
+                        <MeasurementUnit>KWh</MeasurementUnit>
+                        <Value>153.00</Value>
+                      </Characteristic>
+                    </CharacteristicList>
+                  </Child>
+
               }
-            </ChildList>
-            <AssociationToOtherNode>
-              <Association>
-                <OtherNodeID>otherNodeID</OtherNodeID>
-                <Dimension>Prozess|Anlagenstruktur</Dimension>
-                <Name>Other Node</Name>
-              </Association>
-            </AssociationToOtherNode>
-          </NodeData>
-        }
-        case _ => Failure("Model not found."): Box[LiftResponse]
+            }
+          </ChildList>
+          <AssociationToOtherNode>
+            <Association>
+              <OtherNodeID>otherNodeID</OtherNodeID>
+              <Dimension>Prozess|Anlagenstruktur</Dimension>
+              <Name>Other Node</Name>
+            </Association>
+          </AssociationToOtherNode>
+        </NodeData>
       }
     }
   }

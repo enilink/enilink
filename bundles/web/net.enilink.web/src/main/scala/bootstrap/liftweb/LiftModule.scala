@@ -10,6 +10,7 @@ import net.liftweb.util._
 import net.liftweb._
 import net.enilink.lift.sitemap.Application
 import net.enilink.web.rest.ELSRest
+import net.enilink.web.rest.ModelsRest
 
 /**
  * A class that's instantiated early and run.  It allows the application
@@ -26,5 +27,6 @@ class LiftModule {
 
   def boot {
     LiftRules.dispatch.append(ELSRest)
+    LiftRules.dispatch.append(ModelsRest)
   }
 }
