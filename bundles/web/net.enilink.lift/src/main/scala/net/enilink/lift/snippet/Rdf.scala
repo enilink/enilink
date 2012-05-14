@@ -5,7 +5,6 @@ import scala.util.DynamicVariable
 import scala.xml.Elem
 import scala.xml.NodeSeq
 import scala.xml.UnprefixedAttribute
-
 import net.enilink.komma.model.ModelUtil
 import net.enilink.komma.parser.manchester.ManchesterSyntaxGenerator
 import net.enilink.lift.util.Globals
@@ -24,8 +23,10 @@ import net.liftweb.util.ClearNodes
 import net.liftweb.util.Helpers
 import net.liftweb.util.HttpHelpers
 import net.liftweb.util.HttpHelpers
+import scala.xml.NamespaceBinding
+import scala.xml.TopScope
 
-class RdfContext(var subject: Any, var predicate: Any) {
+class RdfContext(val subject: Any, val predicate: Any, val prefix: NamespaceBinding = TopScope) {
   override def equals(that: Any): Boolean = that match {
     case other: RdfContext => subject == other.subject && predicate == other.predicate
     case _ => false
@@ -34,6 +35,10 @@ class RdfContext(var subject: Any, var predicate: Any) {
 
   override def toString = {
     "(s = " + subject + ", p = " + predicate + ")"
+  }
+
+  def copy(subject: Any = this.subject, predicate: Any = this.predicate, prefix: NamespaceBinding = this.prefix) = {
+    new RdfContext(subject, predicate, prefix)
   }
 }
 
@@ -48,11 +53,19 @@ class Rdf extends DispatchSnippet with RDFaTemplates {
         case "p" => execMethod(c.predicate, method)
         case _ => ClearNodes //TODO support access to variables
       }
-      case _ => ClearNodes
+      // no current RDF context
+      case _ => method match {
+        // simply return template content
+        case "label" | "manchester" => ((n: NodeSeq) => n)
+      }
     }
     case method => CurrentContext.value match {
       case Full(c) => execMethod(c.subject, method)
-      case _ => ClearNodes
+      // no current RDF context
+      case _ => method match {
+        // simply return template content
+        case "label" | "manchester" => ((n: NodeSeq) => n)
+      }
     }
   }
 

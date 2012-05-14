@@ -7,8 +7,23 @@ import net.enilink.lift.rdf._
 import Util.combine
 import scala.collection.mutable.ListBuffer
 import scala.xml.NodeSeq
+import scala.xml.TopScope
+import scala.xml.NamespaceBinding
+import scala.xml.NamespaceBinding
+import scala.xml.NamespaceBinding
 
 object RDFaParser extends RDFaParser()(new Scope())
+
+trait RDFaUtils {
+  private val PREFIX_PATTERN = "([\\S]+)\\s*:\\s*([\\S]+)".r
+  
+  def findPrefixes(e: xml.Elem, bindings: NamespaceBinding = null) = {
+    val prefixes = PREFIX_PATTERN.findAllIn((e \ "@prefix").text).matchData.foldLeft(if (bindings == null) e.scope else bindings) {(
+      (previous, mapping) => new NamespaceBinding(mapping.group(1), mapping.group(2), previous))
+    }
+    prefixes
+  }
+}
 
 /**
  * This parser is host-language neutral, so caller must
@@ -19,7 +34,7 @@ object RDFaParser extends RDFaParser()(new Scope())
  * W3C Recommendation 14 October 2008
  *
  */
-class RDFaParser()(implicit val s: Scope = new Scope()) extends CURIE {
+class RDFaParser()(implicit val s: Scope = new Scope()) extends CURIE with RDFaUtils {
   val undef = fresh("undef") // null seems to cause type mismatch errors
 
   def getArcs(e: xml.Elem, base: String): Stream[Arc] = {
@@ -47,10 +62,13 @@ class RDFaParser()(implicit val s: Scope = new Scope()) extends CURIE {
     lang1: Symbol): (xml.Elem, Stream[Arc]) = {
     assert(subj1 != undef) // with NotNull doesn't seem to work. scalaq?
 
-    // step 2., URI mappings, is taken care of by scala.xml
+    // step 2., URI mappings, xmlns is taken care of by scala.xml
+    // support for the @prefix attribute+
+    val prefixes = findPrefixes(e)
+    val eWithPrefixes = if (prefixes ne e.scope) e.copy(scope = prefixes) else e
 
     // step 3. [current language]
-    val lang2 = e \ "@{http://www.w3.org/XML/1998/namespace}lang"
+    val lang2 = eWithPrefixes \ "@{http://www.w3.org/XML/1998/namespace}lang"
     val lang = {
       if (lang2.isEmpty) lang1
       else if (lang2.text == "") null
@@ -58,12 +76,12 @@ class RDFaParser()(implicit val s: Scope = new Scope()) extends CURIE {
     }
 
     // steps 4 and 5, refactored
-    val relterms = refN(e, "@rel", true)
-    val revterms = refN(e, "@rev", true)
-    val types = refN(e, "@typeof", false)
-    val props = refN(e, "@property", false)
+    val (e01, relterms) = refN(eWithPrefixes, "@rel", true)
+    val (e02, revterms) = refN(e01, "@rev", true)
+    val (e03, types) = refN(e02, "@typeof", false)
+    val (e04, props) = refN(e03, "@property", false)
     val norel = relterms.isEmpty && revterms.isEmpty
-    val (e1, subj45, objref5, skip) = subjectObject(obj1, e, base, norel, types, props)
+    val (e1, subj45, objref5, skip) = subjectObject(obj1, e04, base, norel, types, props)
 
     // step 6. typeof
     val arcs6 = {
@@ -148,9 +166,9 @@ class RDFaParser()(implicit val s: Scope = new Scope()) extends CURIE {
   def subjectObject(obj1: Reference, e: xml.Elem, base: String,
     norel: Boolean,
     types: Iterable[Reference], props: Iterable[Reference]): (xml.Elem, Reference, Reference, Boolean) = {
-    val about = ref1(e, "@about", base)
+    val (e1, about) = ref1(e, "@about", base)
     lazy val src = e \ "@src"
-    lazy val resource = ref1(e, "@resource", base)
+    lazy val (e2, resource) = ref1(e, "@resource", base)
     lazy val href = e \ "@href"
 
     val (subjProp, subj45x) = {
@@ -171,7 +189,7 @@ class RDFaParser()(implicit val s: Scope = new Scope()) extends CURIE {
     val subj45 = if (subj45x != undef) subj45x else obj1
     val skip = norel && (subj45x == undef) && props.isEmpty
 
-    return ((if (skip) e else transformResource(e, subjProp, subj45, objProp, objref5)), subj45, objref5, skip)
+    return ((if (skip) e2 else transformResource(e2, subjProp, subj45, objProp, objref5)), subj45, objref5, skip)
   }
 
   def handleArcs(e: xml.Elem, arcs: Stream[Arc]) = {
@@ -246,7 +264,6 @@ class RDFaParser()(implicit val s: Scope = new Scope()) extends CURIE {
  * There is perhaps a more general notion of CURIE, but this captures
  * only the RDFa-specific notion.
  */
-
 trait CURIE extends RDFNodeBuilder {
   import scala.util.matching.Regex
 
@@ -264,24 +281,31 @@ trait CURIE extends RDFNodeBuilder {
 
   /**
    * expand one safe curie or URI reference
-   *
    */
-  def ref1(e: xml.Elem, attr: String, base: String)(implicit s: Scope): Option[Reference] = {
+  def ref1(e: xml.Elem, attr: String, base: String)(implicit s: Scope): (xml.Elem, Option[Reference]) = {
+    var expanded = false
     val attrval = e \ attr
-    if (attrval.isEmpty) None
+    val ref = if (attrval.isEmpty) None
     else attrval.text match {
       case parts2(p, l) if p == null => None
       case parts2("_", "") => Some(byName("_"))
       // TODO: encode arbitrary strings as XML names
       case parts2("_", l) if l.startsWith("_") => Some(byName(l))
       case parts2("_", l) => Some(byName(l))
-      case parts2(p, l) => Some(uri(expand(p, l, e)))
+      case parts2(p, l) => {
+        val ref = Some(uri(expand(p, l, e)))
+        expanded = true
+        ref
+      }
       case ref => ref match {
         case variable(v) => createVariable(v)
         case _ => Some(uri(combine(base, ref)))
       }
     }
+    (if (expanded && ref.isDefined) setExpandedReference(e, attr, ref.get) else e, ref)
   }
+
+  def setExpandedReference(e: xml.Elem, attr: String, ref: Reference) = e
 
   // 9.3. @rel/@rev attribute values
   def reserved = Array("alternate",
@@ -311,8 +335,9 @@ trait CURIE extends RDFNodeBuilder {
     "up")
   final val xhv = "http://www.w3.org/1999/xhtml/vocab#"
 
-  def refN(e: xml.Elem, attr: String, bare: Boolean): Iterable[Reference] = {
-    "\\s+".r.split((e \ attr).text) flatMap {
+  def refN(e: xml.Elem, attr: String, bare: Boolean)(implicit s: Scope): (xml.Elem, Iterable[Reference]) = {
+    var expanded = false
+    val refs = "\\s+".r.split((e \ attr).text) flatMap {
       case token if (bare && reserved.contains(token.toLowerCase)) =>
         List(uri(xhv + token.toLowerCase))
 
@@ -329,19 +354,31 @@ trait CURIE extends RDFNodeBuilder {
       case parts(p, l) if (p == "xml") => Nil // xml:foo
 
       case parts(p, l) => try {
-        List(uri(expand(p, l, e)))
+        val ref = List(uri(expand(p, l, e)))
+        expanded = true
+        ref
       } catch {
         case e: NotDefinedError => Nil
       }
 
       case _ => Nil
     }
+    (if (expanded) setExpandedReferences(e, attr, refs) else e, refs)
   }
+
+  def setExpandedReferences(e: xml.Elem, attr: String, refs: Iterable[Reference]) = e
 
   def createVariable(name: String): Option[Reference] = None
 
-  def expand(p: String, l: String, e: xml.Elem): String = {
-    val ns = if (p == "") xhv else e.getNamespace(p)
+  def expand(p: String, l: String, e: xml.Elem)(implicit s: Scope): String = {
+    val ns = if (p == "") xhv else {
+      e.getNamespace(p)
+      // use scope to get the prefix
+      //      s.prefixes.getURI(p) match {
+      //        case uri : String => uri
+      //        case _ => e.getNamespace(p)
+      //      }
+    }
 
     if (ns == null) {
       // TODO: find out if we're supposed to ignore this error.
@@ -350,3 +387,5 @@ trait CURIE extends RDFNodeBuilder {
     ns + l
   }
 }
+
+class NotDefinedError(msg: String) extends Error("not defined: " + msg)

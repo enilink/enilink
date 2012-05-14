@@ -18,6 +18,9 @@ import net.liftweb.http.S
 import net.liftweb.http.PageName
 import net.liftweb.util.ClearClearable
 import net.enilink.core.ModelSetManager
+import scala.xml.Elem
+import net.liftweb.util.Helpers
+import scala.xml.UnprefixedAttribute
 
 class Sparql extends RDFaTemplates {
   val selection = Globals.contextResource.vend
@@ -33,14 +36,15 @@ class Sparql extends RDFaTemplates {
             case r: IGraphResult =>
               n1 //renderGraph(new LinkedHashGraph(r.toList()))
             case r: ITupleResult[_] =>
-              renderTuples(n1, r.map(row => row match {
+              val result = renderTuples(n1, r.map(row => row match {
                 case b: IBindings[_] => b
                 case other => {
                   val b = new LinkedHashBindings[Any](1);
                   b.put(r.getBindingNames().get(0), other);
                   b
                 }
-              })) \ "_"
+              }))
+              result
             case _ => n1
           }
         case _ => n1
@@ -64,7 +68,7 @@ class Sparql extends RDFaTemplates {
   }
 
   def toSparql(n: NodeSeq): (NodeSeq, String) = {
-    (n, n.first.child.foldLeft("")((q, c) => c match { case scala.xml.Text(t) => q + t case _ => q }))
+    (n, n.head.child.foldLeft("")((q, c) => c match { case scala.xml.Text(t) => q + t case _ => q }))
   }
 
   def renderGraph(r: IGraph) = {
@@ -73,7 +77,26 @@ class Sparql extends RDFaTemplates {
 
   def renderTuples(template: Seq[xml.Node], r: Iterator[IBindings[_]]) = {
     val existing = new mutable.HashMap[Key, Seq[xml.Node]]
-    val result = r.foldLeft(Nil: NodeSeq)((transformed, row) => transform(CurrentContext.value.get, template)(row, existing))
-    ClearClearable.apply(S.session.get.processSurroundAndInclude(PageName.get, processSurroundAndInclude(result)))
+    var result = r.foldLeft(Nil: NodeSeq)((transformed, row) => transform(CurrentContext.value.get, template)(row, existing))
+    result = ClearClearable.apply(S.session.get.processSurroundAndInclude(PageName.get, processSurroundAndInclude(result)))
+    result.map(_ match {
+      case e: Elem => {
+        // add RDFa prefix declarations
+        val xmlns = "xmlns:?([^=]+)=\"(\\S+)\"".r.findAllIn(e.scope.buildString(scala.xml.TopScope)).matchData.map(m => (m.group(1), m.group(2))).toList
+        if (xmlns.isEmpty) e else {
+          // add RDFa 1.1 prefix attribute
+          var attributes = e.attributes.append(
+            new UnprefixedAttribute("prefix", xmlns.foldLeft(new StringBuilder((e \ "@prefix").text)) {
+              (sb, mapping) =>
+                if (sb.length > 0) sb.append(" ")
+                sb.append(mapping._1).append(": ").append(mapping._2)
+            }.toString, e.attributes))
+          // add legacy xmlns attributes
+          attributes = xmlns.foldLeft(attributes) { (attrs, mapping) => attrs.append(new UnprefixedAttribute("xmlns:" + mapping._1, mapping._2, attrs)) }
+          e.copy(attributes = attributes)
+        }
+      }
+      case other => other
+    })
   }
 }

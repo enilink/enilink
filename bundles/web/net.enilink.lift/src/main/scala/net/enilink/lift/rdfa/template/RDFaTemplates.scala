@@ -5,7 +5,6 @@ import scala.xml.Elem
 import scala.xml.MetaData
 import scala.xml.NodeSeq
 import scala.xml.UnprefixedAttribute
-
 import net.enilink.komma.core.IBindings
 import net.enilink.komma.core.IReference
 import net.enilink.lift.snippet.CurrentContext
@@ -15,8 +14,9 @@ import net.liftweb.http.PageName
 import net.liftweb.http.S
 import net.liftweb.util.Helpers.pairToUnprefixed
 import net.liftweb.util.Helpers.strToSuperArrowAssoc
+import net.enilink.lift.rdfa.RDFaUtils
 
-trait RDFaTemplates {
+trait RDFaTemplates extends RDFaUtils {
   /**
    * Process lift templates while changing the RDFa context resources
    */
@@ -81,31 +81,36 @@ trait RDFaTemplates {
           case tElem: Elem => {
             val result = if (tElem.attributes.isEmpty) tElem else {
               var attributes = tElem.attributes
+              val prefixes = findPrefixes(tElem, tElem.scope)
+              if (prefixes ne tElem.scope) currentCtx = currentCtx.copy(prefix = prefixes)
               tElem.attributes.foreach(meta =>
                 if (attributes != null && !meta.isPrefixed && rdfaAttributes.contains(meta.key)) {
                   meta.value.text match {
                     case Variable(v) => {
                       val rdfValue = if (v == "this") ctx.subject else bindings.get(v)
-
                       if (rdfValue != null) {
                         // check if context needs to be changed for children
                         meta.key match {
                           case "data-if" => // does not change context
                           case attribute("rel" | "rev" | "property") =>
-                            currentCtx = new RdfContext(currentCtx.subject, rdfValue)
+                            currentCtx = currentCtx.copy(predicate = rdfValue)
                           case _ =>
-                            currentCtx = new RdfContext(rdfValue, currentCtx.predicate)
+                            currentCtx = currentCtx.copy(subject = rdfValue)
                         }
                       }
 
                       val attValue = rdfValue match {
                         case ref: IReference => {
                           val uri = ref.getURI()
-                          if (uri == null) ref else {
+                          if (uri == null) ref 
+                          else if (uri.localPart.isEmpty || (meta.key match { case attribute("href" | "src") => true case _ => false})) {
+                            uri
+                          } else {
                             val namespace = uri.namespace.toString
                             lazy val uriStr = uri.toString
-                            val prefix = tElem.scope.getPrefix(namespace)
-                            if (prefix == null) uri else prefix + ":" + uriStr.substring(Math.min(namespace.length, uriStr.length))
+                            var prefix = currentCtx.prefix.getPrefix(namespace)
+                            if (prefix == null) prefix = tElem.scope.getPrefix(namespace)
+                            if (prefix == null) uri else prefix + ":" + uriStr.substring(scala.math.min(namespace.length, uriStr.length))
                           }
                         }
                         case other => other

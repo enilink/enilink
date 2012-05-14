@@ -19,6 +19,20 @@ import net.enilink.lift.rdf.Variable
 import net.enilink.lift.rdf.Vocabulary
 import net.enilink.lift.rdf.XmlLiteral
 import net.enilink.lift.rdf.PlainLiteral
+import net.liftweb.util.Helpers._
+
+/**
+ * Can be used to replace relative CURIEs with absolute URIs
+ */
+trait CURIEExpander extends CURIE {
+  override def setExpandedReference(e: xml.Elem, attr: String, ref: Reference) = {
+    e % (attr.substring(1) -> ref)
+  }
+
+  override def setExpandedReferences(e: xml.Elem, attr: String, refs: Iterable[Reference]) = {
+    e % (attr.substring(1) -> refs.mkString(" "))
+  }
+}
 
 class RDFaToSparql()(implicit s: Scope = new Scope()) extends RDFaParser {
   import scala.collection.mutable
@@ -32,26 +46,18 @@ class RDFaToSparql()(implicit s: Scope = new Scope()) extends RDFaParser {
   val seen: mutable.Set[Arc] = new mutable.HashSet[Arc]
 
   var indentation = 0
-
-  def indent {
-    indentation = indentation + 1
-  }
-
-  def dedent() {
-    indentation = indentation - 1
-  }
+  def indent { indentation = indentation + 1 }
+  def dedent() { indentation = indentation - 1 }
 
   def addLine(s: String, pos: Int = sparql.length) = {
     val line = new StringBuilder(indentation + s.length() + 1)
     for (i <- 0 to indentation) line.append("\t")
     line.append(s).append('\n')
-
-    sparql.insert(pos, line)
+    sparql.insertAll(pos, line)
   }
 
   def toSparql(e: xml.Elem, base: String): (xml.Elem, String) = {
     val (e1, _) = walk(e, base, uri(base), undef, Nil, Nil, null)
-
     val result = new StringBuilder
     (e1, {
       selectVars.map(toString _).addString(result, "select distinct ", " ", " where {\n")

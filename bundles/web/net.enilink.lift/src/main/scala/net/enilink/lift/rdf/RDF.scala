@@ -1,5 +1,7 @@
 package net.enilink.lift.rdf
 import scala.xml.MetaData
+import scala.xml.TopScope
+import scala.xml.NamespaceBinding
 
 /**
  * RDF abstract syntax per <cite><a
@@ -79,7 +81,7 @@ trait RDFNodeBuilder extends RDFGraphParts {
 
 class Scope(val vars: Iterable[Variable]) {
   def this() = this(List())
-
+  
   import scala.collection.mutable
   val varstack = new mutable.Stack[Variable]
   vars foreach {

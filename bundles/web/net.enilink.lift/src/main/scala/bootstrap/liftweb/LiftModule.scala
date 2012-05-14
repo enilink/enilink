@@ -61,6 +61,7 @@ class LiftModule extends Logger {
 
     ResourceServer.allow {
       case bs @ ("bootstrap" :: _) if bs.last.endsWith(".css") || bs.last.endsWith(".png") || bs.last.endsWith(".js") => true
+      case rdfa @ ("rdfa" :: _) if rdfa.last.endsWith(".js") => true
     }
 
     // Make a unit of work span the whole HTTP request
@@ -85,10 +86,7 @@ class LiftModule extends Logger {
             // try to get the model from the model set
             try {
               val modelUri = URIImpl.createURI(modelName.get)
-              model = modelSet.getModel(modelUri, false) match {
-                case m : AnyRef => Full(m)
-                case _ => None
-              }
+              model = Box.legacyNullTest(modelSet.getModel(modelUri, false))
             } catch {
               case e: Exception => error(e)
             }
