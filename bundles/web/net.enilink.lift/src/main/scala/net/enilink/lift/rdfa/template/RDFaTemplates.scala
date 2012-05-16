@@ -64,12 +64,14 @@ trait RDFaTemplates extends RDFaUtils {
     override def elemEquals(a: xml.Node, b: xml.Node) = a eq b
   }
 
-  /** Marks insertion points of new nodes if previous template transformations returned an empty result */
-  class Marker extends Elem(null, "marker", new UnprefixedAttribute("class", "clearable", scala.xml.Null), xml.TopScope)
-
+  /** Marks insertion points of new nodes if previous template transformations returned an empty result. */
+  class InsertionMarker extends Elem(null, "insertionMarker", new UnprefixedAttribute("class", "clearable", scala.xml.Null), xml.TopScope)
+  /** Marks nodes which should always be skipped once this marker was added. */
+  class SkipMarker  extends Elem(null, "skipMarker", new UnprefixedAttribute("class", "clearable", scala.xml.Null), xml.TopScope)
+  
   final val attribute = "^(?:data(?:-clear)?-)?(.*)".r
 
-  def transform(ctx: RdfContext, template: Seq[xml.Node])(implicit bindings: IBindings[_], existing: mutable.Map[Key, Seq[xml.Node]]): Seq[xml.Node] = {
+  def transform(ctx: RdfContext, template: Seq[xml.Node])(bindings: IBindings[_], inferred: Boolean, existing: mutable.Map[Key, Seq[xml.Node]]): Seq[xml.Node] = {
     def internalTransform(ctxs: Seq[RdfContext], template: Seq[xml.Node]): Seq[xml.Node] = {
       var replacedNodes: mutable.Map[xml.Node, xml.Node] = null
 
@@ -79,13 +81,23 @@ trait RDFaTemplates extends RDFaUtils {
 
         tNode match {
           case tElem: Elem => {
-            val result = if (tElem.attributes.isEmpty) tElem else {
+            val (result, skipNode) = if (tElem.attributes.isEmpty) (tElem, false) else {
+              var removeNode = false
               var attributes = tElem.attributes
               val prefixes = findPrefixes(tElem, tElem.scope)
               if (prefixes ne tElem.scope) currentCtx = currentCtx.copy(prefix = prefixes)
               tElem.attributes.foreach(meta =>
                 if (attributes != null && !meta.isPrefixed && rdfaAttributes.contains(meta.key)) {
                   meta.value.text match {
+                    // remove nodes of type <span data-if="inferred">This data is inferred or explicit.</span>
+                    // if we are currently processing explicit bindings
+                    case "inferred" if meta.key == "data-if" => {
+                      if (!inferred) {
+                        attributes = null
+                        removeNode = true
+                      } else attributes = attributes.remove(meta.key)
+                    }
+                    // fill variables for nodes of type <span about="?someVar>Data about some subject.</span>
                     case Variable(v) => {
                       val rdfValue = if (v == "this") ctx.subject else bindings.get(v)
                       if (rdfValue != null) {
@@ -98,12 +110,11 @@ trait RDFaTemplates extends RDFaUtils {
                             currentCtx = currentCtx.copy(subject = rdfValue)
                         }
                       }
-
                       val attValue = rdfValue match {
                         case ref: IReference => {
                           val uri = ref.getURI()
-                          if (uri == null) ref 
-                          else if (uri.localPart.isEmpty || (meta.key match { case attribute("href" | "src") => true case _ => false})) {
+                          if (uri == null) ref
+                          else if (uri.localPart.isEmpty || (meta.key match { case attribute("href" | "src") => true case _ => false })) {
                             uri
                           } else {
                             val namespace = uri.namespace.toString
@@ -124,7 +135,7 @@ trait RDFaTemplates extends RDFaUtils {
                     case _ =>
                   }
                 })
-              if (attributes == null) null else tElem.copy(attributes = attributes)
+              if (attributes == null) (null, removeNode) else (tElem.copy(attributes = attributes), false)
             }
 
             val currentCtxs = if (currentCtx == ctx) ctxs else ctxs ++ List(currentCtx)
@@ -132,9 +143,10 @@ trait RDFaTemplates extends RDFaUtils {
             var newNodes: Seq[xml.Node] = Nil
             val key = new Key(currentCtxs, tNode)
             val nodesForContext = existing.get(key) match {
-              case None if (result == null) => newNodes = new Marker; newNodes
-              case Some(m: Marker) if (result == null) => m
-              case value @ (None | Some(_: Marker)) => {
+              case None if (result == null) => newNodes = if (skipNode) new SkipMarker else new InsertionMarker; newNodes
+              case Some(m: SkipMarker) => m
+              case Some(m: InsertionMarker) if (result == null) => if (skipNode) new SkipMarker else m
+              case value @ (None | Some(_: InsertionMarker)) => {
                 // create new node with transformed children
                 val newChild = internalTransform(currentCtxs, tElem.child)
                 val newElem = if (currentCtx == ctx) {
@@ -144,12 +156,18 @@ trait RDFaTemplates extends RDFaUtils {
                     result.scope, newChild: _*)
                 }
                 value match {
-                  case Some(m: Marker) =>
+                  case Some(m: InsertionMarker) =>
                     if (replacedNodes == null) replacedNodes = new ReplacementMap
                     replacedNodes.put(m, newElem)
                   case _ => newNodes = newElem
                 }
                 newElem
+              }
+              case Some(nodes) if skipNode => {
+                // force removal of already existing nodes
+                if (replacedNodes == null) replacedNodes = new ReplacementMap
+                nodes.foreach(replacedNodes.put(_, null))
+                new SkipMarker
               }
               case Some(nodes) => {
                 if (replacedNodes == null) replacedNodes = new ReplacementMap
@@ -181,10 +199,10 @@ trait RDFaTemplates extends RDFaUtils {
       })
 
       val key = new Key(ctxs, template, true)
-      val nodesForTemplate = existing.getOrElse(key, Nil).map {
+      val nodesForTemplate = existing.getOrElse(key, Nil).flatMap {
         n =>
           (if (replacedNodes == null) None else replacedNodes.get(n)) match {
-            case Some(replacement) => replacement
+            case Some(replacement) => if (replacement != null) replacement else Nil
             case None => n
           }
       } ++ newNodesForTemplate

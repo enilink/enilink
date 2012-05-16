@@ -21,11 +21,17 @@ import net.liftweb.util.JsonCmd
 import net.enilink.komma.core.IStatement
 import net.enilink.lift.util.Globals
 import net.liftweb.http.RequestVar
+import net.enilink.komma.model.IModel
+import net.liftweb.http.StatefulSnippet
+import net.liftweb.http.S
+import net.liftweb.http.js.JsonCall
 
-class JsonCallHandler extends JsonHandler {
-  // retrieve context data since request vars are currently not accessible from ajax calls
-  val resource = Globals.contextResource.vend
-  val model = Globals.contextModel.vend
+class JsonCallHandler {
+  val handlers: (JsonCall, JsCmd) = S.buildJsonFunc(this.apply)
+  def call: JsonCall = handlers._1
+  def jsCmd: JsCmd = handlers._2
+
+  val model: Box[IModel] = Globals.contextModel.vend
 
   def apply(in: Any): JsCmd = in match {
     case JsonCmd("noParam", callback, _, _) =>
@@ -49,7 +55,7 @@ class JsonCallHandler extends JsonHandler {
   }
 }
 
-object Edit extends DispatchSnippet {
+class Edit extends DispatchSnippet {
   val dispatch = Map("render" -> buildFuncs _)
   def buildFuncs(in: NodeSeq): NodeSeq = {
     val handler = new JsonCallHandler
