@@ -31,13 +31,15 @@
 								<div class="span12">
 									<a href="/static/describe?model={model}&resource={}"
 										class="lift:rdf:ref?to=href"><span
-										class="lift:rdf:manchester"></span></a>
+										class="lift:rdf:manchester"></span></a> <span data-if="inferred"><i
+										class="icon-share-alt" style="opacity: 0.5"></i></span>
 								</div>
 							</div>
 							<div class="row-fluid asc" property="?property"
 								content="?oLiteral" data-filter="isLiteral(?oLiteral)">
 								<div class="span12">
-									<span class="lift:rdf.label"></span>
+									<span class="lift:rdf.label"></span> <span data-if="inferred"><i
+										class="icon-share-alt" style="opacity: 0.5"></i></span>
 								</div>
 							</div>
 						</div>
@@ -64,54 +66,56 @@
 
 		<!-- add some editing support -->
 		<script type="text/javascript">
-			var rdfAttributes = ["about", "typeof", "rel", "rev", "property", "href", "resource", "src"];
-		
-			function noParamCallback() {
-				// this is just for testing purposes and should be removed
-				alert("did it");
-			}
+			var rdfAttributes = [ "about", "typeof", "rel", "rev", "property",
+					"href", "resource", "src" ];
 
 			$(function() {
 				var buttons = $("#buttons");
 				// relocate buttons for absolute positioning
 				buttons.appendTo("body");
 
-				$("[rel],[property]").hover(
-						function(e) {
-							e.stopPropagation();
-							var target = $(e.target);
-							target = target.closest("[rel],[property]");
-							if (! target.is(buttons.data("target")) || ! buttons.is(":visible")) {
-								var lastTarget = buttons.data("target");
-								if (lastTarget) {
-									lastTarget.removeClass("focused");
-								}
-								
-								target.addClass("focused");
-								buttons.data("target", target);
+				$("[rel],[property]")
+						.hover(
+								function(e) {
+									e.stopPropagation();
+									var target = $(e.target);
+									target = target.closest("[rel],[property]");
+									if (!target.is(buttons.data("target"))
+											|| !buttons.is(":visible")) {
+										var lastTarget = buttons.data("target");
+										if (lastTarget) {
+											lastTarget.removeClass("focused");
+										}
 
-								var parentOffset = buttons.parent().offset();
-								buttons.css({
-									position : "absolute",
-									marginLeft : 0,
-									marginTop : 0,
-									top : e.pageY - parentOffset.top - 10,
-									left : e.pageX - parentOffset.left + 10
+										target.addClass("focused");
+										buttons.data("target", target);
+
+										var parentOffset = buttons.parent()
+												.offset();
+										buttons.css({
+											position : "absolute",
+											marginLeft : 0,
+											marginTop : 0,
+											top : e.pageY - parentOffset.top
+													- 10,
+											left : e.pageX - parentOffset.left
+													+ 10
+										});
+										buttons.css("display", "block");
+									}
+								},
+								function(e) {
+									var relatedTarget = $(e.relatedTarget);
+									if (!relatedTarget
+											|| (relatedTarget != buttons && relatedTarget
+													.closest("#buttons").length == 0)) {
+										var lastTarget = buttons.data("target");
+										if (lastTarget) {
+											lastTarget.removeClass("focused");
+										}
+										buttons.css("display", "none");
+									}
 								});
-								buttons.css("display", "block");
-							}
-						},
-						function(e) {
-							var relatedTarget = $(e.relatedTarget);
-							if (! relatedTarget || (relatedTarget != buttons
-									&& relatedTarget.closest("#buttons").length == 0)) {
-								var lastTarget = buttons.data("target");
-								if (lastTarget) {
-									lastTarget.removeClass("focused");
-								}
-								buttons.css("display", "none");
-							}
-						});
 			});
 
 			function remove() {
@@ -121,31 +125,37 @@
 					var rdfBefore = body.rdf();
 					target.remove();
 					var rdfAfter = body.rdf();
-					
-					var data = rdfBefore.databank.except(rdfAfter.databank).dump({serialize: true, format: "application/rdf+xml"});
+
+					var data = rdfBefore.databank.except(rdfAfter.databank)
+							.dump({
+								serialize : true,
+								format : "application/rdf+xml"
+							});
 					console.log(data);
 					deleteTriples("removeCallback", data);
 				}
 				$("#buttons").hide();
 			}
-			
+
 			function removeCallback() {
-				notifications.notify("removed");	
+				notifications.notify("removed");
 			}
-			
+
 			function edit() {
 				function getFirstText(node) {
-			        if (node.nodeType == 3) {
-			            if ($.trim(node.nodeValue).length > 0) return node;
-			        } else {
-			            for (var i = 0, len = node.childNodes.length; i < len; ++i) {
-			            	var textNode = getFirstText(node.childNodes[i]);
-			            	if (textNode) return textNode;
-			            }
-			        }
+					if (node.nodeType == 3) {
+						if ($.trim(node.nodeValue).length > 0)
+							return node;
+					} else {
+						for ( var i = 0, len = node.childNodes.length; i < len; ++i) {
+							var textNode = getFirstText(node.childNodes[i]);
+							if (textNode)
+								return textNode;
+						}
+					}
 					return null;
 				}
-				
+
 				var target = $("#buttons").data("target");
 				if (target) {
 					var firstText = getFirstText(target.get(0));
@@ -155,21 +165,21 @@
 						input.val($.trim(firstText.text()));
 
 						var toReplace = firstText.closest("a");
-						if (toReplace.length == 0) toReplace = firstText
+						if (toReplace.length == 0)
+							toReplace = firstText
 						toReplace.replaceWith(input);
 					}
 				}
 			}
-			
+
 			function showRdf() {
 				var target = $("#buttons").data("target");
 				if (target) {
 					var body = $("body");
 					var rdf = body.rdf();
-					console.log(rdf.databank); 
+					console.log(rdf.databank);
 				}
 			}
-
 		</script>
 		<div id="buttons" class="btn-toolbar" style="display: none">
 			<div class="btn-group">
