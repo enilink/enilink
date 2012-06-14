@@ -67,7 +67,7 @@ trait RDFaTemplates extends RDFaUtils {
   /** Marks insertion points of new nodes if previous template transformations returned an empty result. */
   class InsertionMarker extends Elem(null, "insertionMarker", new UnprefixedAttribute("class", "clearable", scala.xml.Null), xml.TopScope)
   /** Marks nodes which should always be skipped once this marker was added. */
-  class SkipMarker  extends Elem(null, "skipMarker", new UnprefixedAttribute("class", "clearable", scala.xml.Null), xml.TopScope)
+  class SkipMarker extends Elem(null, "skipMarker", new UnprefixedAttribute("class", "clearable", scala.xml.Null), xml.TopScope)
   
   final val attribute = "^(?:data(?:-clear)?-)?(.*)".r
 
