@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<?eclipse version="3.4"?>
+<plugin>
+   <extension
+         point="net.enilink.komma.model.uriMapRules">
+      <rule
+            pattern="http://www.loa-cnr.it/ontologies/DUL.owl"
+            priority="30"
+            replacement="platform:/plugin/net.enilink.core/META-INF/ontologies/misc/DUL">
+      </rule>
+      <rule
+            pattern="http://purl.oclc.org/NET/ssnx/ssn"
+            priority="30"
+            replacement="platform:/plugin/net.enilink.core/META-INF/ontologies/misc/ssn">
+      </rule>
+      <rule
+            pattern="http://enilink.net/vocab/"
+            priority="30"
+            replacement="platform:/plugin/net.enilink.core/META-INF/ontologies/enilink.net/vocab/">
+      </rule>
+   </extension>
+</plugin>

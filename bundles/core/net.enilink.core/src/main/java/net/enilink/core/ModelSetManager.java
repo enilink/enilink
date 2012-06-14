@@ -124,6 +124,9 @@ public class ModelSetManager {
 		measurementsModel.getManager().setNamespace("structure",
 				structureModel.getURI().appendFragment(""));
 
+		modelSet.createModel(URIImpl
+				.createURI("http://enilink.net/vocab/manufacturing"));
+
 		// try {
 		// model.load(new HashMap<Object, Object>());
 		// } catch (IOException e) {

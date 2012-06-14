@@ -1,7 +1,7 @@
 Manifest-Version: 1.0
 Bundle-ManifestVersion: 2
 Bundle-Name: eniLINK Core
-Bundle-SymbolicName: net.enilink.core
+Bundle-SymbolicName: net.enilink.core;singleton:=true
 Bundle-Version: 1.0.0.qualifier
 Bundle-Activator: net.enilink.core.Activator
 Require-Bundle: org.eclipse.core.runtime,
