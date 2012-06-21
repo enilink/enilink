@@ -1,20 +1,15 @@
 package net.enilink.web.snippet
 
-import java.io.IOException
-
 import scala.Array.canBuildFrom
 import scala.collection._
 import scala.collection.JavaConversions.mapAsJavaMap
 import scala.xml.Node
 import scala.xml.NodeSeq.seqToNodeSeq
 import scala.xml.Text
-
 import org.eclipse.core.runtime.Platform
 import org.eclipse.equinox.security.auth.LoginContextFactory
-
 import net.enilink.rap.security.callbacks.RealmCallback
 import net.enilink.rap.security.callbacks.RedirectCallback
-import net.enilink.rap.security.callbacks.ResponseCallback
 import javax.security.auth.Subject
 import javax.security.auth.callback.Callback
 import javax.security.auth.callback.CallbackHandler
@@ -30,8 +25,14 @@ import net.liftweb.common.Full
 import net.liftweb.http.S
 import net.liftweb.http.SHtml
 import net.liftweb.http.js.JsCmds._
-import net.liftweb.util.ClearClearable
 import net.liftweb.util.Helpers.strToCssBindPromoter
+import net.liftweb.util.Helpers
+import net.enilink.rap.security.callbacks.ResponseCallback
+import java.io.IOException
+import java.util.Properties
+import java.io.StringReader
+import java.io.StringWriter
+import net.liftweb.http.provider.HTTPCookie
 
 object Login {
   val SUBJECT_KEY = "javax.security.auth.subject";
@@ -39,18 +40,70 @@ object Login {
   val REQUIRE_LOGIN = false || "true"
     .equalsIgnoreCase(System.getProperty("enilink.loginrequired"))
 
-  def value(name: String) = S.param(name) match {
+  val loginMethods = List(("IWU Share", "CMIS"), ("OpenID", "OpenID"))
+
+  /**
+   * Retrieve a HTTP param while omitting empty strings.
+   */
+  def value(name: String, loginData: Properties = null) = (S.param(name) match {
     case Full(value) if value.length > 0 => Full(value)
     case _ => Empty
+  }) or (if (loginData != null) Box.legacyNullTest(loginData.getProperty(name)) else Empty)
+
+  /**
+   * Creates a menu for choosing the login method (OpenID, Kerberos, etc.).
+   */
+  def createMethodButtons(currentMethod: (String, String)) = {
+    <div class="clearfix" style="margin-bottom: 20px">
+      <input type="hidden" id="method" name="method" value={ currentMethod._2 }/>
+      <div class="btn-group pull-right">
+        <a class="btn dropdown-toggle" data-toggle="dropdown" href="#">
+          { currentMethod._1 }
+          <span class="caret"></span>
+        </a>
+        <ul class="dropdown-menu">
+          {
+            loginMethods.filter(_ != currentMethod).flatMap {
+              case (label, name) =>
+                <li><a href="javascript:void(0)" onclick={
+                  (SetValById("method", name) & Run("$('#login-form').submit()")).toJsCmd
+                }>{ label }</a></li>
+            }
+          }
+        </ul>
+      </div>
+    </div>
+  }
+
+  def loadLoginData = {
+    val loginData = new Properties
+    // initialize login data from cookie
+    try {
+      S.cookieValue("loginData").map(v => loginData.load(new StringReader(v)))
+    } catch {
+      case e: IOException => // ignore
+    }
+    loginData
+  }
+
+  def saveLoginData(loginData: Properties) {
+    val writer = new StringWriter; loginData.store(writer, "")
+    S.addCookie(HTTPCookie("loginData", writer.toString).setMaxAge(3600 * 24 * 90 /* 3 months */ ))
   }
 
   def render = {
+    val loginData = loadLoginData
+    val currentMethod = S.param("method").orElse(Box.legacyNullTest(loginData.getProperty("method"))).flatMap {
+      mParam => loginMethods.collectFirst { case m @ (_, name) if name == mParam => m }
+    } getOrElse loginMethods(0)
+    loginData.setProperty("method", currentMethod._2)
+
     var form: Seq[Node] = Nil
     var buttons: Seq[Node] = <button class="btn btn-primary" type="submit">Sign in</button>
 
     def hidden(name: String, value: String) { form ++= <input type="hidden" name={ name } value={ value }/> }
     def handleUserCallback(cb: Callback, field: String, hide: Boolean) = {
-      var vbox = value(field)
+      var vbox = value(field, loginData)
       vbox map { v =>
         cb match {
           case cb: TextInputCallback => cb.setText(v)
@@ -75,21 +128,27 @@ object Login {
       }
     }
 
-    val subject: Subject = S.session.get.httpSession.get.attribute(SUBJECT_KEY) match {
+    val session = S.session.get.httpSession.get
+    val subject: Subject = session.attribute(SUBJECT_KEY) match {
       case s: Subject => s // already logged in
       case _ => {
+        var redirectTo: String = null
         var requiresInput = false
         val cfgUrl = Platform.getBundle("net.enilink.core")
           .getResource(JAAS_CONFIG_FILE);
         val sCtx = LoginContextFactory.createContext(
-          "OpenID", cfgUrl, new CallbackHandler {
+          currentMethod._2, cfgUrl, new CallbackHandler {
             var stage = 0
-            def fieldName(index: Int) = "f" + stage + "-" + index
+            def fieldName(index: Int) = "f-" + currentMethod._2 + "-" + stage + "-" + index
             def handle(callbacks: Array[Callback]) = {
               requiresInput = callbacks.zipWithIndex.foldLeft(false) {
                 case (reqInput, (cb, index)) => reqInput || (
                   cb match {
-                    case cb @ (_: TextInputCallback | _: NameCallback | _: PasswordCallback) => value(fieldName(index)).isEmpty
+                    case (_: TextInputCallback | _: NameCallback) => {
+                      val field = fieldName(index)
+                      value(fieldName(index)).map(loginData.setProperty(field, _)).isEmpty
+                    }
+                    case (_: PasswordCallback) => value(fieldName(index)).isEmpty
                     case _ => false
                   })
               }
@@ -107,10 +166,11 @@ object Login {
                     case cb @ (_: TextInputCallback | _: NameCallback | _: PasswordCallback) => handleUserCallback(cb, name, !requiresInput)
                     // special callbacks introduced by enilink
                     case cb: RedirectCallback =>
-                      S.redirectTo(cb.getRedirectTo)
+                      requiresInput = true
+                      redirectTo = cb.getRedirectTo
                     case cb: RealmCallback =>
-                      cb.setContextUrl(S.hostName)
-                      cb.setApplicationUrl(S.uri)
+                      cb.setContextUrl(S.hostAndPath)
+                      cb.setApplicationUrl(Helpers.appendParams(S.hostAndPath + S.uri, List(("method", currentMethod._2))))
                     case cb: ResponseCallback =>
                       val params = S.request.map(_._params.map(e => (e._1, e._2.toArray))) openOr Map.empty
                       cb.setResponseParameters(params)
@@ -121,11 +181,13 @@ object Login {
               if (requiresInput) throw new IOException("need more user information")
             }
           });
+
         try {
           sCtx.login
+          session.setAttribute(SUBJECT_KEY, sCtx.getSubject)
           sCtx.getSubject
         } catch {
-          case e: LoginException if requiresInput => null // more user input required
+          case e: LoginException if requiresInput => if (redirectTo != null) { saveLoginData(loginData); S.redirectTo(redirectTo) }; null // user interaction required
           case e: LoginException => {
             form = <div class="alert alert-error"><div><strong>Login failed</strong></div>{ e.getMessage }</div>
             buttons = <button class="btn btn-primary" type="submit">Retry</button>
@@ -136,8 +198,11 @@ object Login {
     }
     if (subject != null) {
       form ++= <div class="alert alert-success"><strong>You are logged in.</strong></div>
-      buttons = Nil
+      buttons = SHtml.button("Logout", () => session.removeAttribute(SUBJECT_KEY), ("class", "btn btn-primary"))
+    } else {
+      form = createMethodButtons(currentMethod) ++ form
     }
+    saveLoginData(loginData)
     "#fields *" #> form & "#buttons *" #> buttons
   }
 }

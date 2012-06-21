@@ -65,7 +65,7 @@
 		</div>
 
 		<!-- add some editing support -->
-		<script type="text/javascript">
+		<script type="text/javascript" data-lift="head">
 			var rdfAttributes = [ "about", "typeof", "rel", "rev", "property",
 					"href", "resource", "src" ];
 
@@ -92,14 +92,15 @@
 
 										var parentOffset = buttons.parent()
 												.offset();
+										// position buttons to the right of target
 										buttons.css({
 											position : "absolute",
 											marginLeft : 0,
 											marginTop : 0,
-											top : e.pageY - parentOffset.top
-													- 10,
-											left : e.pageX - parentOffset.left
-													+ 10
+											top : target.offset().top,
+											left : target.offset().left
+													+ target.innerWidth()
+													- buttons.outerWidth()
 										});
 										buttons.css("display", "block");
 									}
@@ -181,15 +182,20 @@
 				}
 			}
 		</script>
+		<style type="text/css" data-lift="head">
+			/* make buttons slightly transparent */
+			#buttons .btn { opacity: 0.6 }
+			#buttons .btn:hover { opacity: 1 }
+		</style>
 		<div id="buttons" class="btn-toolbar" style="display: none">
 			<div class="btn-group">
-				<button class="btn" title="Edit" onclick="edit()">
+				<button class="btn btn-mini" title="Edit" onclick="edit()">
 					<i class="icon-edit"></i>
 				</button>
-				<button class="btn" title="Remove" onclick="remove()">
+				<button class="btn btn-mini" title="Remove" onclick="remove()">
 					<i class="icon-remove"></i>
 				</button>
-				<button class="btn" title="Show RDF" onclick="showRdf()">
+				<button class="btn btn-mini" title="Show RDF" onclick="showRdf()">
 					<i class="icon-eye-open"></i>
 				</button>
 			</div>
