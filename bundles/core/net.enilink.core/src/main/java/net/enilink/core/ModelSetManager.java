@@ -67,7 +67,7 @@ public class ModelSetManager {
 				MODELS.NAMESPACE_URI.appendLocalPart(//
 						"OwlimModelSet" //
 						// "VirtuosoModelSet" //
-						// "AGraphModelSet"
+//						 "AGraphModelSet"
 						),
 				URIImpl.createURI(MODELS.NAMESPACE + "ProjectModelSet"));
 
