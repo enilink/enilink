@@ -1,23 +1,31 @@
 package net.enilink.web.rest
 
 import java.io.ByteArrayOutputStream
-import scala.collection.JavaConversions._
+import scala.Array.canBuildFrom
+import scala.collection.JavaConversions.mapAsJavaMap
 import org.eclipse.core.runtime.Platform
 import org.eclipse.core.runtime.QualifiedName
 import org.eclipse.core.runtime.content.IContentDescription
 import org.eclipse.core.runtime.content.IContentType
 import net.enilink.komma.model.ModelCore
+import net.enilink.komma.core.URI
 import net.enilink.komma.core.URIImpl
 import net.enilink.core.ModelSetManager
+import net.enilink.lift.util.Globals
+import net.liftweb.common.Box
+import net.liftweb.common.Box.option2Box
+import net.liftweb.common.Full
 import net.liftweb.http.ContentType
 import net.liftweb.http.InMemoryResponse
 import net.liftweb.http.LiftResponse
-import net.liftweb.http.LiftResponse
+import net.liftweb.http.LiftRules
+import net.liftweb.http.LiftRulesMocker.toLiftRules
 import net.liftweb.http.NotFoundResponse
 import net.liftweb.http.Req
+import net.liftweb.http.S
 import net.liftweb.http.rest.RestHelper
-import net.liftweb.common.Box
-import net.liftweb.common.Full
+import net.liftweb.common.Empty
+import net.liftweb.http.ForbiddenResponse
 
 object ModelsRest extends RestHelper {
   /**
@@ -59,14 +67,14 @@ object ModelsRest extends RestHelper {
   }
 
   /**
-   * Find best matching content type for the request using accept headers.
+   * Find best matching content type for the given requested types.
    */
-  def matchTypeByWeight(r: Req) = {
+  def matchType(requestedTypes: List[ContentType]) = {
     object FindContentType {
       // extractor for partial function below
       def unapply(ct: ContentType) = rdfContentTypes.find(e => ct.matches(e._1))
     }
-    r.weightedAccept.collectFirst { case FindContentType(key, value) => (key, value) }
+    requestedTypes.collectFirst { case FindContentType(key, value) => (key, value) }
   }
 
   /**
@@ -76,40 +84,63 @@ object ModelsRest extends RestHelper {
     rdfContentTypes.find(_._2.getFileSpecs(IContentType.FILE_EXTENSION_SPEC).contains(extension))
   }
 
-  def getResponseContentType(r: Req) = {
-    val uri = getUri(r)
-    if ((r.weightedAccept.isEmpty || r.acceptsStarStar) && uri.fileExtension != null && defaultGetAsRdfXml) {
-      Some(Platform.getContentTypeManager.getContentType("net.enilink.komma.contenttype.rdfxml"))
-    } else {
-      (if (uri.fileExtension != null) matchTypeByExtension(uri.fileExtension) else None) match {
-        case Some((mimeType, cType)) if r.acceptsStarStar || r.weightedAccept.find(_.matches(mimeType)).isDefined => Some(cType)
-        case _ => matchTypeByWeight(r).map(_._2)
+  def getResponseContentType(r: Req): Option[IContentType] = {
+    // use list given by "type" parameter
+    S.param("type").map(ContentType.parse(_)).flatMap(matchType(_).map(_._2)) or {
+      // use file extension or accept-header content negotiation
+      val uri = getUri(r)
+      if ((r.weightedAccept.isEmpty || r.acceptsStarStar) && uri.fileExtension == null && defaultGetAsRdfXml) {
+        Some(Platform.getContentTypeManager.getContentType("net.enilink.komma.contenttype.rdfxml"))
+      } else {
+        (if (uri.fileExtension != null) matchTypeByExtension(uri.fileExtension) else None) match {
+          case Some((mimeType, cType)) if r.acceptsStarStar || r.weightedAccept.find(_.matches(mimeType)).isDefined => Some(cType)
+          case _ => matchType(r.weightedAccept).map(_._2)
+        }
       }
     }
   }
 
-  def getUri(r: Req) = URIImpl.createURI( /*r.hostAndPath*/ "http://enilink.net" + r.uri)
+  def acceptsHtml(r: Req) = r.weightedAccept.find(_.matches("text" -> "html")).isDefined
+
+  def getUri(r: Req) = Globals.contextModel.vend.dmap(URIImpl.createURI((r.hostName match {
+    // support replacement for local installations (development mode)
+    case "localhost" | "127.0.0.1" => "http://enilink.net"
+    case _ => r.hostAndPath
+  }) + r.uri): URI)(_.getURI)
+
+  def getModel(modelUri: URI) = {
+    val modelSet = ModelSetManager.INSTANCE.getModelSet
+    Box.legacyNullTest(modelSet.getModel(modelUri, false)) or {
+      if (modelUri.fileExtension != null) Box.legacyNullTest(modelSet.getModel(modelUri.trimFileExtension, false)) else Empty
+    }
+  }
 
   protected lazy val RdfGet = new TestGet with RdfTest
 
   /**
    * Serialize and return RDF data according to the requested content type.
    */
-  def serveRdf(r: Req): Box[LiftResponse] = {
-    val modelUri = getUri(r).trimFileExtension
-    val model = ModelSetManager.INSTANCE.getModelSet.getModel(modelUri, false)
-    if (model == null) Full(new NotFoundResponse("Model " + modelUri + " not found.")) else {
+  def serveRdf(r: Req, modelUri: URI) = {
+    getModel(modelUri).dmap(Full(new NotFoundResponse("Model " + modelUri + " not found.")): Box[LiftResponse])(model =>
       getResponseContentType(r) map (_.getDefaultDescription) match {
         case Some(cd) =>
           val baos = new ByteArrayOutputStream
           model.save(baos, Map(classOf[IContentDescription] -> cd))
           Full(new RdfResponse(baos.toByteArray, cd, Nil, 200))
         case _ => None
-      }
-    }
+      })
   }
 
   serve {
-    case "vocab" :: modelName RdfGet req if !modelName.isEmpty && modelName != List("index") => serveRdf(req)
+    case "vocab" :: modelName RdfGet req if !modelName.isEmpty && modelName != List("index") || Globals.contextModel.vend.isDefined => {
+      val modelUri = getUri(req)
+      if (S.param("type").isEmpty && acceptsHtml(req)) Globals.contextModel.doWith(getModel(modelUri)) {
+        LiftRules.convertResponse(S.runTemplate(List("static", "ontology")), Nil, S.responseCookies, req)
+      }
+      else {
+        // until real permission management is implemented, disallow download of data models for now
+        if (modelUri.segment(0) == "vocab") serveRdf(req, modelUri) else new ForbiddenResponse("Download of model " + modelUri + " is currently not allowed.")
+      }
+    }
   }
 }

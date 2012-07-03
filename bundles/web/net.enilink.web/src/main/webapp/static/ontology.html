@@ -14,8 +14,13 @@
 				<section class="optional union">
 					<h3>Ontology</h3>
 					<div class="row-fluid">
-						<div class="span12">
+						<div class="span10">
 							&lt;<span class="lift:rdf.ref"></span>&gt;
+						</div>
+						<div class="span2">
+							<span style="font-weight: bold">Download</span>
+							<a href="/vocab?model={}&type=application/rdf+xml" data-lift="rdf.ref?to=href" type="application/rdf+xml">RDF/XML</a>
+							<a href="/vocab?model={}&type=application/x-turtle" data-lift="rdf.ref?to=href" type="application/x-turtle">Turtle</a>
 						</div>
 					</div>
 
@@ -28,8 +33,8 @@
 						<div class="span9">
 							<div class="row-fluid asc" rel="owl:imports" resource="?imported">
 								<div class="span12">
-									<a href="/static/ontology?model={}"
-										class="lift:rdf:ref?to=href">&lt;<span
+									<a href="?model={}"
+										class="lift:rdf.ref?to=href">&lt;<span
 										class="lift:rdf.ref"></span>&gt;
 									</a>
 								</div>

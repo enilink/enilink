@@ -90,8 +90,6 @@
 										target.addClass("focused");
 										buttons.data("target", target);
 
-										var parentOffset = buttons.parent()
-												.offset();
 										// position buttons to the right of target
 										buttons.css({
 											position : "absolute",
@@ -162,13 +160,27 @@
 					var firstText = getFirstText(target.get(0));
 					if (firstText) {
 						firstText = $(firstText);
-						var input = $("<input type='text' name='edit'></input>");
+						var input = $("<textarea />")
+						.width(target.width())
+						.height(target.height());
 						input.val($.trim(firstText.text()));
-
+						input.autogrow();
+						
 						var toReplace = firstText.closest("a");
 						if (toReplace.length == 0)
 							toReplace = firstText
 						toReplace.replaceWith(input);
+						
+						// focus input and move caret to end of text
+						input.caretToEnd();
+						
+						// discard changes if pressing esc
+		                input.keydown(function(e) {
+		                    if (e.keyCode == 27) {
+		                        e.preventDefault();
+		                        input.replaceWith(toReplace);
+		                    }
+		                });
 					}
 				}
 			}
@@ -183,10 +195,15 @@
 			}
 		</script>
 		<style type="text/css" data-lift="head">
-			/* make buttons slightly transparent */
-			#buttons .btn { opacity: 0.6 }
-			#buttons .btn:hover { opacity: 1 }
-		</style>
+/* make buttons slightly transparent */
+#buttons .btn {
+	opacity: 0.6
+}
+
+#buttons .btn:hover {
+	opacity: 1
+}
+</style>
 		<div id="buttons" class="btn-toolbar" style="display: none">
 			<div class="btn-group">
 				<button class="btn btn-mini" title="Edit" onclick="edit()">
@@ -201,6 +218,7 @@
 			</div>
 		</div>
 		<span data-lift="Edit"></span>
+		<span data-lift="JSUtil.edit"></span>
 	</div>
 </body>
 </html>
