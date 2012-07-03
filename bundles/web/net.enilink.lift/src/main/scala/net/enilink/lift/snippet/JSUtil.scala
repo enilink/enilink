@@ -13,23 +13,18 @@ object JSUtil extends DispatchSnippet {
   def dispatch: DispatchIt = {
     case "bootstrap" => _ => bootstrap
     case "rdfa" => _ => rdfa
+    case "edit" => _ => edit
   }
 
-  def bootstrap: NodeSeq = {
-    <script src={
-      "/" + LiftRules.resourceServerPath +
-        "/bootstrap/js/bootstrap.min.js"
-    } type="text/javascript"></script>
-    <script src={
-      "/" + LiftRules.resourceServerPath +
-        "/bootstrap/js/bootstrap-ext.js"
-    } type="text/javascript"></script>
+  private def script(src: String) = <script src={ src } type="text/javascript" data-lift="head"></script>
+
+  def bootstrap: NodeSeq = List("bootstrap.min", "bootstrap-ext").flatMap {
+    lib => script("/" + LiftRules.resourceServerPath + "/bootstrap/js/" + lib + ".js")
   }
 
-  def rdfa: NodeSeq = {
-    <script src={
-      "/" + LiftRules.resourceServerPath +
-        "/rdfa/jquery.rdfquery.rdfa.js"
-    } type="text/javascript"></script>
+  def rdfa: NodeSeq = script("/" + LiftRules.resourceServerPath + "/rdfa/jquery.rdfquery.rdfa.js")
+
+  def edit: NodeSeq = List("jquery.autogrow", "jquery.caret").flatMap {
+    lib => script("/" + LiftRules.resourceServerPath + "/edit/" + lib + ".js")
   }
 }

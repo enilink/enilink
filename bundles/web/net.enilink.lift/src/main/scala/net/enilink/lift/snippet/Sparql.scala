@@ -6,7 +6,6 @@ import scala.xml.Elem
 import scala.xml.NodeSeq
 import scala.xml.NodeSeq.seqToNodeSeq
 import scala.xml.UnprefixedAttribute
-
 import net.enilink.komma.core.IBindings
 import net.enilink.komma.core.IEntity
 import net.enilink.komma.core.IGraph
@@ -21,6 +20,7 @@ import net.liftweb.common.Full
 import net.liftweb.http.PageName
 import net.liftweb.http.S
 import net.liftweb.util.ClearClearable
+import net.enilink.komma.core.IValue
 
 class Sparql extends RDFaTemplates {
   val selection = Globals.contextResource.vend.openOr(null)
@@ -48,7 +48,7 @@ class Sparql extends RDFaTemplates {
       CurrentContext.value.get.subject match {
         case entity: IEntity =>
           val query = entity.getEntityManager.createQuery(sparql).setParameter("this", entity)
-          query.evaluate match {
+          query.bindResultType(null: String, classOf[IValue]).evaluate match {
             case r: IGraphResult =>
               n1 //renderGraph(new LinkedHashGraph(r.toList()))
             case r: ITupleResult[_] =>
@@ -57,7 +57,7 @@ class Sparql extends RDFaTemplates {
               val toRender = (if (distInferred) {
                 // query explicit statements and prepend them to the results
                 entity.getEntityManager.createQuery(sparql, false).setParameter("this", entity)
-                  .evaluate.asInstanceOf[ITupleResult[_]]
+                  .bindResultType(null: String, classOf[IValue]).evaluate.asInstanceOf[ITupleResult[_]]
                   .map { row => (toBindings(firstBinding, row), false) } ++ allTuples
               } else allTuples)
               val result = renderTuples(n1, toRender)

@@ -62,6 +62,7 @@ class LiftModule extends Logger {
     ResourceServer.allow {
       case bs @ ("bootstrap" :: _) if bs.last.endsWith(".css") || bs.last.endsWith(".png") || bs.last.endsWith(".js") => true
       case rdfa @ ("rdfa" :: _) if rdfa.last.endsWith(".js") => true
+      case edit @ ("edit" :: _) if edit.last.endsWith(".js") => true
     }
 
     // Make a unit of work span the whole HTTP request

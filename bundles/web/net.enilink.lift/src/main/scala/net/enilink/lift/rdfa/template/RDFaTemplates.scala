@@ -15,6 +15,10 @@ import net.liftweb.http.S
 import net.liftweb.util.Helpers.pairToUnprefixed
 import net.liftweb.util.Helpers.strToSuperArrowAssoc
 import net.enilink.lift.rdfa.RDFaUtils
+import net.enilink.komma.core.ILiteral
+import scala.xml.Null
+import net.enilink.lift.snippet.RdfContext
+import net.enilink.komma.core.URI
 
 trait RDFaTemplates extends RDFaUtils {
   /**
@@ -43,7 +47,7 @@ trait RDFaTemplates extends RDFaUtils {
   }
 
   private val rdfaAttributes = withPrefixes(List("data-", "data-clear-"), Set("about", "src", "rel", "rev", "property", "href", "resource", "content")) + "data-if"
-  private val Variable = "^\\?(.*)".r
+  private val Variable = "^\\?([^=]+)$".r
 
   // isTemplate is required for disambiguation because xml.Node extends Seq[xml.Node]
   class Key(val ctxs: Seq[RdfContext], val nodeOrNodeSeq: AnyRef, val isTemplate: Boolean = false) {
@@ -68,10 +72,17 @@ trait RDFaTemplates extends RDFaUtils {
   class InsertionMarker extends Elem(null, "insertionMarker", new UnprefixedAttribute("class", "clearable", scala.xml.Null), xml.TopScope)
   /** Marks nodes which should always be skipped once this marker was added. */
   class SkipMarker extends Elem(null, "skipMarker", new UnprefixedAttribute("class", "clearable", scala.xml.Null), xml.TopScope)
-  
+
   final val attribute = "^(?:data(?:-clear)?-)?(.*)".r
 
   def transform(ctx: RdfContext, template: Seq[xml.Node])(bindings: IBindings[_], inferred: Boolean, existing: mutable.Map[Key, Seq[xml.Node]]): Seq[xml.Node] = {
+    def shorten(uri: URI, currentCtx: RdfContext, elem: xml.Elem) = {
+      val namespace = uri.namespace.toString
+      lazy val uriStr = uri.toString
+      var prefix = currentCtx.prefix.getPrefix(namespace)
+      if (prefix == null) prefix = elem.scope.getPrefix(namespace)
+      if (prefix == null) uri.toString else prefix + ":" + uriStr.substring(scala.math.min(namespace.length, uriStr.length))
+    }
     def internalTransform(ctxs: Seq[RdfContext], template: Seq[xml.Node]): Seq[xml.Node] = {
       var replacedNodes: mutable.Map[xml.Node, xml.Node] = null
 
@@ -97,7 +108,7 @@ trait RDFaTemplates extends RDFaUtils {
                         removeNode = true
                       } else attributes = attributes.remove(meta.key)
                     }
-                    // fill variables for nodes of type <span about="?someVar>Data about some subject.</span>
+                    // fill variables for nodes of type <span about="?someVar">Data about some subject.</span>
                     case Variable(v) => {
                       val rdfValue = if (v == "this") ctx.subject else bindings.get(v)
                       if (rdfValue != null) {
@@ -114,22 +125,23 @@ trait RDFaTemplates extends RDFaUtils {
                         case ref: IReference => {
                           val uri = ref.getURI()
                           if (uri == null) ref
-                          else if (uri.localPart.isEmpty || (meta.key match { case attribute("href" | "src") => true case _ => false })) {
-                            uri
-                          } else {
-                            val namespace = uri.namespace.toString
-                            lazy val uriStr = uri.toString
-                            var prefix = currentCtx.prefix.getPrefix(namespace)
-                            if (prefix == null) prefix = tElem.scope.getPrefix(namespace)
-                            if (prefix == null) uri else prefix + ":" + uriStr.substring(scala.math.min(namespace.length, uriStr.length))
+                          else if (uri.localPart.isEmpty || (meta.key match { case attribute("href" | "src") => true case _ => false })) uri
+                          else shorten(uri, currentCtx, tElem)
+                        }
+                        case literal: ILiteral => {
+                          // add datatype and lang attributes
+                          if (literal.getDatatype != null) {
+                            attributes = attributes.append(new UnprefixedAttribute("datatype", shorten(literal.getDatatype, currentCtx, tElem), Null))
+                          } else if (literal.getLanguage != null) {
+                            attributes = attributes.append(new UnprefixedAttribute("lang", literal.getLanguage, Null))
                           }
+                          literal.getLabel
                         }
                         case other => other
                       }
 
                       if (attValue == null) attributes = null
-                      else if (meta.key.startsWith("data-clear-") || meta.key == "data-if")
-                        attributes = attributes.remove(meta.key)
+                      else if (meta.key.startsWith("data-clear-") || meta.key == "data-if") attributes = attributes.remove(meta.key)
                       else attributes = attributes.append(new UnprefixedAttribute(meta.key, attValue.toString, meta.next))
                     }
                     case _ =>
