@@ -135,7 +135,9 @@ object ModelsRest extends RestHelper {
     case "vocab" :: modelName RdfGet req if !modelName.isEmpty && modelName != List("index") || Globals.contextModel.vend.isDefined => {
       val modelUri = getUri(req)
       if (S.param("type").isEmpty && acceptsHtml(req)) Globals.contextModel.doWith(getModel(modelUri)) {
-        LiftRules.convertResponse(S.runTemplate(List("static", "ontology")), Nil, S.responseCookies, req)
+        Globals.contextResource.doWith(Globals.contextModel.vend.map(_.resolve(modelUri))) {
+          LiftRules.convertResponse(S.runTemplate(List("static", "ontology")), Nil, S.responseCookies, req)
+        }
       }
       else {
         // until real permission management is implemented, disallow download of data models for now
