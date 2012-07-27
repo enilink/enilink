@@ -144,24 +144,33 @@ class RDFaToSparql()(implicit s: Scope = new Scope()) extends RDFaParser {
     }
   }
 
-  override def transformResource(e: xml.Elem, subjProp: String, subj: Reference, objProp: String, obj: Reference): xml.Elem = {
-    val newE = super.transformResource(e, subjProp, subj, objProp, obj)
+  override def subjectObject(obj1: Reference, e: xml.Elem, base: String,
+    norel: Boolean,
+    types: Iterable[Reference], props: Iterable[Reference]): (xml.Elem, Reference, Reference, Boolean) = {
+    val (e1, subj, obj, skip) = super.subjectObject(obj1, e, base, norel, types, props)
 
-    // add order by modifier
-    val orderTarget = if (obj != undef && obj.isInstanceOf[Variable]) obj else if (subj != undef && subj.isInstanceOf[Variable]) subj else null
-    if (orderTarget != null) {
-      lazy val orderAsc = hasCssClass(newE, "asc")
-      lazy val orderDesc = hasCssClass(newE, "desc")
+    if (!skip && props.isEmpty) {
+      val orderTarget = if (obj != undef && obj.isInstanceOf[Variable]) obj else if (subj != undef && subj.isInstanceOf[Variable]) subj else null
+      addToOrderBy(e1, orderTarget)
+    }
+
+    if (obj != undef) {
+      thisStack.push(new ThisScope(obj, e1))
+    }
+
+    return (e1, subj, obj, skip)
+  }
+
+  /** Adds orderBy modifier for the given variable */
+  def addToOrderBy(e: xml.Elem, orderTarget: Reference) = {
+    if (orderTarget.isInstanceOf[Variable]) {
+      lazy val orderAsc = hasCssClass(e, "asc")
+      lazy val orderDesc = hasCssClass(e, "desc")
       (if (orderAsc) toString(orderTarget) else if (orderDesc) "desc(" + toString(orderTarget) + ")" else null) match {
         case modifier: Any => orderBy.add(modifier)
         case _ =>
       }
     }
-
-    if (obj != undef) {
-      thisStack.push(new ThisScope(obj, e))
-    }
-    newE
   }
 
   override def transformLiteral(e: xml.Elem, content: NodeSeq, literal: Literal): (xml.Elem, Node) = {
@@ -179,6 +188,10 @@ class RDFaToSparql()(implicit s: Scope = new Scope()) extends RDFaParser {
         case PlainLiteral(variable(l), _) => literal1 = createVariable(l).get
         case _ =>
       }
+    }
+    literal1 match {
+      case v: Variable => addToOrderBy(e1, v)
+      case _ =>
     }
     (e1, literal1)
   }
@@ -198,3 +211,4 @@ class RDFaToSparql()(implicit s: Scope = new Scope()) extends RDFaParser {
     v
   }
 }
+

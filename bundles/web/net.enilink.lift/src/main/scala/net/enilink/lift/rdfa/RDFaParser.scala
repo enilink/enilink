@@ -189,15 +189,11 @@ class RDFaParser()(implicit val s: Scope = new Scope()) extends CURIE with RDFaU
     val subj45 = if (subj45x != undef) subj45x else obj1
     val skip = norel && (subj45x == undef) && props.isEmpty
 
-    return ((if (skip) e2 else transformResource(e2, subjProp, subj45, objProp, objref5)), subj45, objref5, skip)
+    return (e2, subj45, objref5, skip)
   }
 
   def handleArcs(e: xml.Elem, arcs: Stream[Arc]) = {
     arcs
-  }
-
-  def transformResource(e: xml.Elem, subjProp: String, subj: Reference, objProp: String, obj: Reference): xml.Elem = {
-    e
   }
 
   def transformLiteral(e: xml.Elem, content: NodeSeq, literal: Literal): (xml.Elem, Node) = {
