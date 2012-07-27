@@ -46,7 +46,7 @@ trait RDFaTemplates extends RDFaUtils {
     values ++ values.flatMap(v => prefixes.map(_ + v))
   }
 
-  private val rdfaAttributes = withPrefixes(List("data-", "data-clear-"), Set("about", "src", "rel", "rev", "property", "href", "resource", "content")) + "data-if"
+  private val rdfaAttributes = withPrefixes(List("data-", "data-clear-"), Set("about", "src", "rel", "rev", "property", "href", "resource", "content")) ++ List("data-if", "data-unless")
   private val Variable = "^\\?([^=]+)$".r
 
   // isTemplate is required for disambiguation because xml.Node extends Seq[xml.Node]
@@ -140,8 +140,9 @@ trait RDFaTemplates extends RDFaUtils {
                         case other => other
                       }
 
-                      if (attValue == null) attributes = null
+                      if (attValue == null) { if (meta.key == "data-unless") attributes = attributes.remove(meta.key) else attributes = null }
                       else if (meta.key.startsWith("data-clear-") || meta.key == "data-if") attributes = attributes.remove(meta.key)
+                      else if (meta.key == "data-unless") { attributes = null; removeNode = true }
                       else attributes = attributes.append(new UnprefixedAttribute(meta.key, attValue.toString, meta.next))
                     }
                     case _ =>
