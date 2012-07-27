@@ -94,7 +94,10 @@ class Sparql extends RDFaTemplates {
 
   def renderTuples(template: Seq[xml.Node], r: Iterator[(IBindings[_], Boolean)]) = {
     val existing = new mutable.HashMap[Key, Seq[xml.Node]]
-    var result = r.foldLeft(Nil: NodeSeq)((transformed, row) => transform(CurrentContext.value.get, template)(row._1, row._2, existing))
+    var result = {
+      // ensure one iteration with empty bindings set
+      if (r.hasNext) r else List((new LinkedHashBindings[AnyRef], false))
+    }.foldLeft(Nil: NodeSeq)((transformed, row) => transform(CurrentContext.value.get, template)(row._1, row._2, existing))
     result = ClearClearable.apply(S.session.get.processSurroundAndInclude(PageName.get, processSurroundAndInclude(result)))
     result.map(_ match {
       case e: Elem => {
