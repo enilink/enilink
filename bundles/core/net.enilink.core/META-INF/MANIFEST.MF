@@ -12,5 +12,5 @@ Bundle-ActivationPolicy: lazy
 Bundle-RequiredExecutionEnvironment: JavaSE-1.6
 Import-Package: com.google.inject,
  org.eclipse.core.resources,
- org.eclipse.rwt
+ org.eclipse.rap.rwt
 Export-Package: net.enilink.core

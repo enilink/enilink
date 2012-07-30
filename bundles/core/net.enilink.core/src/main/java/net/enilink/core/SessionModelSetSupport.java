@@ -4,7 +4,7 @@ import java.util.Collections;
 import java.util.Map;
 import java.util.WeakHashMap;
 
-import org.eclipse.rwt.SessionSingletonBase;
+import org.eclipse.rap.rwt.SingletonUtil;
 import net.enilink.composition.annotations.parameterTypes;
 import net.enilink.composition.annotations.precedes;
 import net.enilink.composition.concepts.Message;
@@ -32,7 +32,7 @@ public abstract class SessionModelSetSupport implements IModelSet,
 	@Override
 	public IAdapterSet adapters() {
 		// TODO currently only works for RAP -> support Lift
-		Key key = (Key) SessionSingletonBase.getInstance(Key.class);
+		Key key = (Key) SingletonUtil.getSessionInstance(Key.class);
 
 		IAdapterSet adapterSet = sessionScopedAdapterSets.get(key);
 		if (adapterSet == null) {
