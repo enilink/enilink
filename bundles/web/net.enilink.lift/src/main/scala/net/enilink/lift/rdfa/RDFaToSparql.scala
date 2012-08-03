@@ -100,7 +100,9 @@ private class RDFaToSparqlParser(e: xml.Elem, base: String)(implicit s: Scope = 
     // end of subquery
 
     result.append(sparql)
-    result.append("}\n").toString
+    result.append("}\n")
+    modifiers(e, result)
+    result.toString
   }
 
   def getCountQuery(bindingName: String) = {
