@@ -8,8 +8,9 @@ Bundle-ClassPath: .,
  bin/
 Require-Bundle: net.enilink.core,
  net.enilink.lift,
- org.eclipse.core.runtime,
- net.enilink.komma.model;bundle-version="1.0.0"
+ net.enilink.auth,
+ net.enilink.komma.model,
+ org.eclipse.core.runtime
 Bundle-ActivationPolicy: lazy
 Import-Package: net.enilink.rap.security.callbacks,
  org.eclipse.core.resources,

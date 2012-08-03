@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html>
+<body class="lift:content_id=main">
+	<div id="main">
+		<style type="text/css" class="lift:head">
+/* Override some defaults */
+body {
+	background-color: #eee;
+}
+
+/* The white background content wrapper */
+.login-form {
+	background-color: #fff;
+	padding: 20px;
+	-webkit-border-radius: 10px 10px 10px 10px;
+	-moz-border-radius: 10px 10px 10px 10px;
+	border-radius: 10px 10px 10px 10px;
+	-webkit-box-shadow: 0 1px 2px rgba(0, 0, 0, .15);
+	-moz-box-shadow: 0 1px 2px rgba(0, 0, 0, .15);
+	box-shadow: 0 1px 2px rgba(0, 0, 0, .15);
+}
+
+input,textarea,select {
+	width: 100%;
+}
+
+legend {
+	margin-right: -50px;
+	font-weight: bold;
+	color: #404040;
+}
+</style>
+		<section>
+			<div id="login-form-div" class="row-fluid" data-lift="login">
+				<div id="login-form-label" class="span2">
+					<h2>Login</h2> or <a href="/register">Sign up</a>
+				</div>
+				<div class="login-form span4">
+					<form id="login-form" action="" method="post">
+						<fieldset id="fields"></fieldset>
+						<div id="buttons" style="padding-top: 10px"></div>
+					</form>
+				</div>
+			</div>
+		</section>
+	</div>
+</body>
+</html>

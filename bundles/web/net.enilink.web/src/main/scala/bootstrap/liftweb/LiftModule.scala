@@ -20,6 +20,7 @@ import net.liftweb.sitemap.Loc._
 import scala.xml.Text
 import javax.security.auth.Subject
 import net.liftweb.http.RedirectResponse
+import net.enilink.auth.UserPrincipal
 
 /**
  * A class that's instantiated early and run.  It allows the application
@@ -27,12 +28,13 @@ import net.liftweb.http.RedirectResponse
  */
 class LiftModule {
   object Right extends MenuCssClass("pull-right")
-  
+
   def sitemapMutator: SiteMap => SiteMap = {
     val entries = List[Menu](Menu.i("enilink") / "" >> Application submenus (
       Menu("enilink.Home", S ? "Home") / "index",
       Menu("enilink.Vocabulary", S ? "Vocabulary") / "vocab",
       Menu("enilink.Login", S ? "Login") / "login" >> Right >> If(() => !loggedIn, S.??("already.loggedin")),
+      Menu("enilink.SignUp", S ? "Sign up") / "register" >> Right >> Hidden >> If(() => !loggedIn, S.??("already.loggedin")),
       Menu("enilink.Logout", S ? "Logout") / "logout" >> Right >> If(() => loggedIn, S.??("not.loggedin"))
       >> EarlyResponse(() => { logout; Full(RedirectResponse("/")) })))
 
@@ -40,7 +42,7 @@ class LiftModule {
   }
 
   def loggedIn = S.session.flatMap(_.httpSession.map(_.attribute("javax.security.auth.subject"))) match {
-    case Full(_: Subject) => true
+    case Full(s: Subject) => !s.getPrincipals(classOf[UserPrincipal]).isEmpty
     case _ => false
   }
 

@@ -33,9 +33,20 @@ import java.util.Properties
 import java.io.StringReader
 import java.io.StringWriter
 import net.liftweb.http.provider.HTTPCookie
+import net.enilink.rap.security.callbacks.RegisterCallback
+import org.eclipse.equinox.security.auth.ILoginContextListener
+import java.security.PrivilegedAction
 
-object Login {
+trait SubjectHelper {
   val SUBJECT_KEY = "javax.security.auth.subject";
+
+  def getSubjectFromSession: Box[Subject] = S.session.get.httpSession.get.attribute(SUBJECT_KEY) match {
+    case s: Subject => Full(s)
+    case _ => Empty
+  }
+}
+
+class Login extends SubjectHelper {
   val JAAS_CONFIG_FILE = "/resources/jaas.conf";
   val REQUIRE_LOGIN = false || "true"
     .equalsIgnoreCase(System.getProperty("enilink.loginrequired"))
@@ -93,7 +104,7 @@ object Login {
 
   def render = {
     val loginData = loadLoginData
-    val currentMethod = S.param("method").orElse(Box.legacyNullTest(loginData.getProperty("method"))).flatMap {
+    var currentMethod = S.param("method").orElse(Box.legacyNullTest(loginData.getProperty("method"))).flatMap {
       mParam => loginMethods.collectFirst { case m @ (_, name) if name == mParam => m }
     } getOrElse loginMethods(0)
     loginData.setProperty("method", currentMethod._2)
@@ -127,10 +138,11 @@ object Login {
         }
       }
     }
+    val isRegister = S.attr("mode").exists(_ == "register")
 
     val session = S.session.get.httpSession.get
-    val subject: Subject = session.attribute(SUBJECT_KEY) match {
-      case s: Subject => s // already logged in
+    val subject = getSubjectFromSession match {
+      case Full(s) => s // already logged in
       case _ => {
         var redirectTo: String = null
         var requiresInput = false
@@ -165,12 +177,15 @@ object Login {
                     }>{ cb.getMessage }</div>
                     case cb @ (_: TextInputCallback | _: NameCallback | _: PasswordCallback) => handleUserCallback(cb, name, !requiresInput)
                     // special callbacks introduced by enilink
+                    case cb: RegisterCallback =>
+                      cb.setRegister(isRegister)
                     case cb: RedirectCallback =>
                       requiresInput = true
                       redirectTo = cb.getRedirectTo
                     case cb: RealmCallback =>
                       cb.setContextUrl(S.hostAndPath)
-                      cb.setApplicationUrl(Helpers.appendParams(S.hostAndPath + S.uri, List(("method", currentMethod._2))))
+                      var params = List(("method", currentMethod._2)) ++ S.param("mode").map(("mode", _))
+                      cb.setApplicationUrl(Helpers.appendParams(S.hostAndPath + S.uri, params))
                     case cb: ResponseCallback =>
                       val params = S.request.map(_._params.map(e => (e._1, e._2.toArray))) openOr Map.empty
                       cb.setResponseParameters(params)
@@ -197,12 +212,18 @@ object Login {
       }
     }
     if (subject != null) {
+      if (isRegister) S.redirectTo(S.hostAndPath + S.uri)
+      
       form ++= <div class="alert alert-success"><strong>You are logged in.</strong></div>
       buttons = SHtml.button("Logout", () => session.removeAttribute(SUBJECT_KEY), ("class", "btn btn-primary"))
     } else {
       form = createMethodButtons(currentMethod) ++ form
     }
     saveLoginData(loginData)
-    "#fields *" #> form & "#buttons *" #> buttons
+    var selectors = "form [action]" #> (S.contextPath + S.uri) &
+      "#fields *" #> form &
+      "#buttons *" #> buttons
+    if (isRegister) selectors &= "#login-form-label *" #> <xml:group><h2>Sign up with</h2>Use an external identity provider.</xml:group>
+    selectors
   }
 }
