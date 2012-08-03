@@ -34,12 +34,24 @@ trait CURIEExpander extends CURIE {
   }
 }
 
-class RDFaToSparql()(implicit s: Scope = new Scope()) extends RDFaParser {
+object SparqlFromRDFa {
+  def apply(e: xml.Elem, base: String): SparqlFromRDFa = return new RDFaToSparqlParser(e, base)
+}
+
+trait SparqlFromRDFa {
+  def getQuery: String
+  def getElement: xml.Elem
+
+  def getPaginatedQuery(bindingName: String, offset: Any, limit: Any): String
+  def getCountQuery(bindingName: String): String
+}
+
+private class RDFaToSparqlParser(e: xml.Elem, base: String)(implicit s: Scope = new Scope()) extends RDFaParser with SparqlFromRDFa {
   import scala.collection.mutable
   class ThisScope(val thisNode: Reference = Variable("this", None), val elem: xml.Elem = null)
   val thisStack = new mutable.Stack[ThisScope].push(new ThisScope)
 
-  val sparql: StringBuilder = new StringBuilder()
+  val sparql: StringBuilder = new StringBuilder
   val selectVars = new LinkedHashSet[Variable]
   val orderBy = new LinkedHashSet[String]
   val bindings: IBindings[_] = new LinkedHashBindings
@@ -47,7 +59,21 @@ class RDFaToSparql()(implicit s: Scope = new Scope()) extends RDFaParser {
 
   var indentation = 0
   def indent { indentation = indentation + 1 }
-  def dedent() { indentation = indentation - 1 }
+  def dedent { indentation = indentation - 1 }
+
+  var resultElem: xml.Elem = _
+  var resultQuery: String = _
+
+  {
+    val (e1, _) = walk(e, base, uri(base), undef, Nil, Nil, null)
+    val result = new StringBuilder
+    selectVars.map(toString).addString(result, "select distinct ", " ", " where {\n")
+    result.append(sparql)
+    result.append("}\n")
+    modifiers(e, result)
+    resultQuery = result.toString
+    resultElem = e1
+  }
 
   def addLine(s: String, pos: Int = sparql.length) = {
     val line = new StringBuilder(indentation + s.length() + 1)
@@ -56,28 +82,46 @@ class RDFaToSparql()(implicit s: Scope = new Scope()) extends RDFaParser {
     sparql.insertAll(pos, line)
   }
 
-  def toSparql(e: xml.Elem, base: String): (xml.Elem, String) = {
-    val (e1, _) = walk(e, base, uri(base), undef, Nil, Nil, null)
+  def getQuery = resultQuery
+  def getElement = resultElem
+
+  def getPaginatedQuery(bindingName: String, offset: Any, limit: Any) = {
     val result = new StringBuilder
-    (e1, {
-      selectVars.map(toString _).addString(result, "select distinct ", " ", " where {\n")
-      result.append(sparql)
-      result.append("}\n")
-      modifiers(e, result)
-      result.toString
-    })
+    selectVars.map(toString).addString(result, "select distinct ", " ", " where {\n")
+
+    // subquery to limit the solutions for given binding name
+    result.append("{ select ?").append(bindingName).append(" where {\n")
+    result.append(sparql)
+    result.append("}\n")
+    modifiers(e, result, false)
+    result.append("offset ").append(offset).append("\n")
+    result.append("limit ").append(limit).append("\n")
+    result.append("}\n")
+    // end of subquery
+
+    result.append(sparql)
+    result.append("}\n").toString
   }
 
-  def modifiers(e: xml.Elem, sb: StringBuilder) {
+  def getCountQuery(bindingName: String) = {
+    val result = new StringBuilder
+    result.append("select (count(distinct ?").append(bindingName).append(") as ?count) where {\n")
+    result.append(sparql)
+    result.append("}\n").toString
+  }
+
+  def modifiers(e: xml.Elem, sb: StringBuilder, includeLimitOffset: Boolean = true) {
     if (!orderBy.isEmpty) {
       orderBy.addString(sb, "order by ", " ", "\n")
     }
 
-    val limit = (e \ "@data-limit").text
-    if (!limit.isEmpty) sb.append("limit ").append(limit).append('\n')
+    if (includeLimitOffset) {
+      val limit = (e \ "@data-limit").text
+      if (!limit.isEmpty) sb.append("limit ").append(limit).append('\n')
 
-    val offset = (e \ "@data-offset").text
-    if (!offset.isEmpty) sb.append("offset ").append(offset).append('\n')
+      val offset = (e \ "@data-offset").text
+      if (!offset.isEmpty) sb.append("offset ").append(offset).append('\n')
+    }
   }
 
   def hasCssClass(e: xml.Elem, pattern: String) = {
@@ -119,7 +163,6 @@ class RDFaToSparql()(implicit s: Scope = new Scope()) extends RDFaParser {
       if (isUnion && sparql.length > start) {
         addLine(if (prependUnion) "union {" else "{", start)
         addLine("}")
-
         prependUnion = true
       }
 

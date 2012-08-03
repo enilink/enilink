@@ -21,6 +21,8 @@ import net.liftweb.http.PageName
 import net.liftweb.http.S
 import net.liftweb.util.ClearClearable
 import net.enilink.komma.core.IValue
+import net.liftweb.http.PaginatorSnippet
+import net.enilink.komma.core.IEntityManager
 
 class Sparql extends RDFaTemplates {
   val selection = Globals.contextResource.vend.openOr(null)
@@ -44,9 +46,9 @@ class Sparql extends RDFaTemplates {
         }
       }
 
-      lazy val (n1, sparql) = toSparql(n)
       CurrentContext.value.get.subject match {
         case entity: IEntity =>
+          val (n1, sparql) = toSparql(n, entity.getEntityManager)
           val query = entity.getEntityManager.createQuery(sparql).setParameter("this", entity)
           query.bindResultType(null: String, classOf[IValue]).evaluate match {
             case r: IGraphResult =>
@@ -64,7 +66,7 @@ class Sparql extends RDFaTemplates {
               result
             case _ => n1
           }
-        case _ => n1
+        case _ => n
       }
     }
 
@@ -84,7 +86,7 @@ class Sparql extends RDFaTemplates {
     }
   }
 
-  def toSparql(n: NodeSeq): (NodeSeq, String) = {
+  def toSparql(n: NodeSeq, em: IEntityManager): (NodeSeq, String) = {
     (n, n.head.child.foldLeft("")((q, c) => c match { case scala.xml.Text(t) => q + t case _ => q }))
   }
 

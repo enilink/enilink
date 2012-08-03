@@ -95,3 +95,7 @@
 .focused {
     border: 1px solid rgba(82, 168, 236, 0.8);
 }
+
+.pagination a {
+	line-height : 24px;
+}
