@@ -71,7 +71,7 @@ class Rdfa extends Sparql with EditRdfa {
           def page = Nil
 
           override def paginate(ns: NodeSeq) = {
-            // super lower case tags
+            // support lower case tags
             bind(navPrefix, super.paginate(ns),
               "recordsfrom" -> Text(recordsFrom),
               "recordsto" -> Text(recordsTo),

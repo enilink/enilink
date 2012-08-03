@@ -85,12 +85,12 @@ trait RDFaTemplates extends RDFaUtils {
     }
     def internalTransform(ctxs: Seq[RdfContext], template: Seq[xml.Node]): Seq[xml.Node] = {
       var replacedNodes: mutable.Map[xml.Node, xml.Node] = null
-
       val ctx = ctxs.last
-      val newNodesForTemplate = template.flatMap(tNode => {
+      template.flatMap(tNode => {
+        if (replacedNodes != null) replacedNodes.clear
         var currentCtx = ctx
 
-        tNode match {
+        val newNodesForTemplate = tNode match {
           case tElem: Elem => {
             val (result, skipNode) = if (tElem.attributes.isEmpty) (tElem, false) else {
               var removeNode = false
@@ -209,19 +209,19 @@ trait RDFaTemplates extends RDFaUtils {
             }
           }
         }
+
+        val key = new Key(ctxs, tNode, true)
+        val nodesForTemplate = existing.getOrElse(key, Nil).flatMap {
+          n =>
+            (if (replacedNodes == null) None else replacedNodes.get(n)) match {
+              case Some(replacement) => if (replacement != null) replacement else Nil
+              case None => n
+            }
+        } ++ newNodesForTemplate
+        existing(key) = nodesForTemplate
+        
+        nodesForTemplate
       })
-
-      val key = new Key(ctxs, template, true)
-      val nodesForTemplate = existing.getOrElse(key, Nil).flatMap {
-        n =>
-          (if (replacedNodes == null) None else replacedNodes.get(n)) match {
-            case Some(replacement) => if (replacement != null) replacement else Nil
-            case None => n
-          }
-      } ++ newNodesForTemplate
-      existing(key) = nodesForTemplate
-
-      nodesForTemplate
     }
 
     internalTransform(List(ctx), template)
