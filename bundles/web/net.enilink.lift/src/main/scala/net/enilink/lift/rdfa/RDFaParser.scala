@@ -9,17 +9,17 @@ import scala.collection.mutable.ListBuffer
 import scala.xml.NodeSeq
 import scala.xml.TopScope
 import scala.xml.NamespaceBinding
-import scala.xml.NamespaceBinding
-import scala.xml.NamespaceBinding
+import net.enilink.komma.core.URIImpl
 
 object RDFaParser extends RDFaParser()(new Scope())
 
 trait RDFaUtils {
   private val PREFIX_PATTERN = "([\\S]+)\\s*:\\s*([\\S]+)".r
-  
+
   def findPrefixes(e: xml.Elem, bindings: NamespaceBinding = null) = {
-    val prefixes = PREFIX_PATTERN.findAllIn((e \ "@prefix").text).matchData.foldLeft(if (bindings == null) e.scope else bindings) {(
-      (previous, mapping) => new NamespaceBinding(mapping.group(1), mapping.group(2), previous))
+    val prefixes = PREFIX_PATTERN.findAllIn((e \ "@prefix").text).matchData.foldLeft(if (bindings == null) e.scope else bindings) {
+      (
+        (previous, mapping) => new NamespaceBinding(mapping.group(1), mapping.group(2), previous))
     }
     prefixes
   }
@@ -273,7 +273,7 @@ trait CURIE extends RDFNodeBuilder {
     "prefix", "reference")
   final val parts2 = new Regex("""^\[(?:([^:]*)?:)?(.*)\]$""",
     "prefix", "reference")
-  final val variable = "^\\?(.*)".r
+  final val variable = "^\\?(.*)$".r
 
   /**
    * expand one safe curie or URI reference
@@ -335,27 +335,37 @@ trait CURIE extends RDFNodeBuilder {
     var expanded = false
     val refs = "\\s+".r.split((e \ attr).text) flatMap {
       case token if (bare && reserved.contains(token.toLowerCase)) =>
-        List(uri(xhv + token.toLowerCase))
+        Some(uri(xhv + token.toLowerCase))
 
-      case parts(p, l) if (p == null) => l match {
-        case variable(v) => createVariable(v) match {
-          case Some(newVar) => List(newVar)
-          case None => Nil
-        } // ?foo
-        case _ => Nil // foo
-      }
+      case variable(v) => createVariable(v) // ?foo
 
       case parts(p, l) if (p == "_") => Nil // _:foo
 
       case parts(p, l) if (p == "xml") => Nil // xml:foo
 
-      case parts(p, l) => try {
-        val ref = List(uri(expand(p, l, e)))
-        expanded = true
-        ref
-      } catch {
-        case e: NotDefinedError => Nil
-      }
+      case token @ parts(p, l) =>
+        val result = if (p != null) {
+          // if prefix and local part is given then try to expand the CURIE
+          try {
+            val ref = Some(uri(expand(p, l, e)))
+            expanded = true
+            ref
+          } catch {
+            case e: NotDefinedError => None
+          }
+        } else None
+        result match {
+          // this is the case if token is an absolute IRI  
+          case None if !token.isEmpty => try {
+            // test if token is a valid IRI
+            URIImpl.createURI(token)
+            Some(uri(token))
+          } catch {
+            // token is not a valid IRI
+            case _ => Nil
+          }
+          case other => other
+        }
 
       case _ => Nil
     }

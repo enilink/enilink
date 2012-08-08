@@ -23,6 +23,7 @@ import net.liftweb.util.ClearClearable
 import net.enilink.komma.core.IValue
 import net.liftweb.http.PaginatorSnippet
 import net.enilink.komma.core.IEntityManager
+import net.enilink.komma.core.URIImpl
 
 class Sparql extends RDFaTemplates {
   val selection = Globals.contextResource.vend.openOr(null)
@@ -49,7 +50,9 @@ class Sparql extends RDFaTemplates {
       CurrentContext.value.get.subject match {
         case entity: IEntity =>
           val (n1, sparql) = toSparql(n, entity.getEntityManager)
-          val query = entity.getEntityManager.createQuery(sparql).setParameter("this", entity)
+          val query = entity.getEntityManager.createQuery(sparql)
+          query.setParameter("this", entity)
+          query.setParameter("currentUser", Globals.contextUser.vend.getOrElse(URIImpl.createURI("urn:jaas:principal:unknown")))
           query.bindResultType(null: String, classOf[IValue]).evaluate match {
             case r: IGraphResult =>
               n1 //renderGraph(new LinkedHashGraph(r.toList()))
