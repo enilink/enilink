@@ -1,10 +1,8 @@
 package net.enilink.lift
 
 import java.util.concurrent.atomic.AtomicReference
-
 import scala.Option.option2Iterable
 import scala.collection.JavaConversions._
-
 import org.eclipse.equinox.http.servlet.ExtendedHttpService
 import org.osgi.framework.ServiceReference
 import org.osgi.framework.Bundle
@@ -14,7 +12,6 @@ import org.osgi.framework.BundleEvent
 import org.osgi.service.http.HttpContext
 import org.osgi.util.tracker.BundleTracker
 import org.osgi.util.tracker.ServiceTracker
-
 import javax.servlet.http.HttpServletRequest
 import javax.servlet.http.HttpServletResponse
 import javax.servlet.FilterChain
@@ -30,11 +27,17 @@ import net.liftweb.http.LiftRules
 import net.liftweb.osgi.OsgiBootable
 import net.liftweb.sitemap.SiteMap
 import net.liftweb.util.ClassHelpers
+import net.enilink.core.ISession
+import net.liftweb.http.S
+import org.osgi.framework.ServiceRegistration
+import net.enilink.core.ISessionProvider
 
 class Activator extends BundleActivator {
   private var bundleTracker: BundleTracker[LiftBundleConfig] = _
   private val httpServiceHolder = new AtomicReference[ExtendedHttpService]
-  private var context : BundleContext = _
+  private var context: BundleContext = _
+
+  private var sessionServiceReg: ServiceRegistration[_] = _
 
   class HttpServiceTracker(context: BundleContext) extends ServiceTracker[ExtendedHttpService, ExtendedHttpService](context, classOf[ExtendedHttpService].getName, null) {
     override def addingService(serviceRef: ServiceReference[ExtendedHttpService]) = {
@@ -61,7 +64,7 @@ class Activator extends BundleActivator {
   def initLift {
     // allow duplicate link names
     SiteMap.enforceUniqueLinks = false
-    
+
     // set context path
     LiftRules.calculateContextPath = () => Empty
 
@@ -76,7 +79,7 @@ class Activator extends BundleActivator {
       siteMapMutator(SiteMap())
     })
   }
-  
+
   def start(context: BundleContext) {
     this.context = context
     initLift
@@ -122,6 +125,16 @@ class Activator extends BundleActivator {
     }
     bundleTracker.open
 
+    sessionServiceReg = context.registerService(classOf[ISessionProvider],
+      new ISessionProvider {
+        val session = new ISession {
+          def getAttribute(name: String) = S.session.flatMap(_.httpSession.map(_.attribute(name).asInstanceOf[AnyRef])) openOr null
+          def setAttribute(name: String, value: AnyRef) = S.session.foreach(_.httpSession.foreach(_.setAttribute(name, value)))
+          def removeAttribute(name: String) = S.session.foreach(_.httpSession.foreach(_.removeAttribute(name)))
+        }
+        def get = S.session.flatMap(_.httpSession.map(_ => session)) getOrElse null
+      }, null)
+
     httpServiceTracker = new HttpServiceTracker(context)
     httpServiceTracker.open
   }
@@ -137,6 +150,10 @@ class Activator extends BundleActivator {
     if (httpServiceTracker != null) {
       httpServiceTracker.close
       httpServiceTracker = null
+    }
+    if (sessionServiceReg != null) {
+      sessionServiceReg.unregister
+      sessionServiceReg = null
     }
     if (bundleTracker != null) {
       bundleTracker.close
