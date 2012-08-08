@@ -2,9 +2,15 @@ package net.enilink.core;
 
 import org.eclipse.core.resources.IProject;
 import org.eclipse.core.resources.ResourcesPlugin;
+import org.osgi.framework.BundleContext;
+import org.osgi.framework.InvalidSyntaxException;
+import org.osgi.framework.ServiceReference;
 
+import com.google.inject.AbstractModule;
 import com.google.inject.Guice;
 import com.google.inject.Injector;
+import com.google.inject.Provides;
+import com.google.inject.Singleton;
 
 import net.enilink.vocab.rdf.RDF;
 import net.enilink.komma.concepts.IResource;
@@ -41,7 +47,42 @@ public class ModelSetManager {
 		module.addConcept(IProjectModelSet.class);
 		module.addBehaviour(ProjectModelSetSupport.class);
 
-		injector = Guice.createInjector(new ModelSetModule(module));
+		injector = Guice.createInjector(new ModelSetModule(module),
+				new AbstractModule() {
+					@Override
+					protected void configure() {
+					}
+
+					@Provides
+					@Singleton
+					protected ISessionProvider provideSessionProvider() {
+						return new ISessionProvider() {
+							@Override
+							public ISession get() {
+								try {
+									// get the first valid session from any
+									// registered session provider service
+									BundleContext context = Activator
+											.getContext();
+									for (ServiceReference<ISessionProvider> spRef : context
+											.getServiceReferences(
+													ISessionProvider.class,
+													null)) {
+										ISession session = context.getService(
+												spRef).get();
+										context.ungetService(spRef);
+										if (session != null) {
+											return session;
+										}
+									}
+								} catch (InvalidSyntaxException ise) {
+									// ignore
+								}
+								return null;
+							}
+						};
+					}
+				});
 	}
 
 	protected IModelSet createModelSet() {
@@ -67,7 +108,7 @@ public class ModelSetManager {
 				MODELS.NAMESPACE_URI.appendLocalPart(//
 						"OwlimModelSet" //
 						// "VirtuosoModelSet" //
-//						 "AGraphModelSet"
+						// "AGraphModelSet"
 						),
 				URIImpl.createURI(MODELS.NAMESPACE + "ProjectModelSet"));
 

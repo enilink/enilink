@@ -4,11 +4,12 @@ import java.util.Collections;
 import java.util.Map;
 import java.util.WeakHashMap;
 
-import org.eclipse.rap.rwt.SingletonUtil;
 import net.enilink.composition.annotations.parameterTypes;
 import net.enilink.composition.annotations.precedes;
 import net.enilink.composition.concepts.Message;
 import net.enilink.composition.traits.Behaviour;
+
+import com.google.inject.Inject;
 
 import net.enilink.komma.common.adapter.AdapterSet;
 import net.enilink.komma.common.adapter.IAdapterSet;
@@ -29,10 +30,18 @@ public abstract class SessionModelSetSupport implements IModelSet,
 	private ComposedAdapterFactory adapterFactory = new ComposedAdapterFactory(
 			ComposedAdapterFactory.IDescriptor.IRegistry.INSTANCE);
 
+	@Inject
+	protected ISessionProvider sessionProvider;
+
 	@Override
 	public IAdapterSet adapters() {
-		// TODO currently only works for RAP -> support Lift
-		Key key = (Key) SingletonUtil.getSessionInstance(Key.class);
+		// use key to make adapter set session scoped
+		ISession session = sessionProvider.get();
+		Key key = (Key) session.getAttribute(Key.class.getName());
+		if (key == null) {
+			key = new Key();
+			session.setAttribute(Key.class.getName(), key);
+		}
 
 		IAdapterSet adapterSet = sessionScopedAdapterSets.get(key);
 		if (adapterSet == null) {
