@@ -36,6 +36,8 @@ import net.liftweb.http.provider.HTTPCookie
 import net.enilink.rap.security.callbacks.RegisterCallback
 import org.eclipse.equinox.security.auth.ILoginContextListener
 import java.security.PrivilegedAction
+import org.eclipse.equinox.security.auth.ILoginContext
+import net.liftweb.http.SessionVar
 
 trait SubjectHelper {
   val SUBJECT_KEY = "javax.security.auth.subject";
@@ -45,6 +47,22 @@ trait SubjectHelper {
     case _ => Empty
   }
 }
+
+class DelegatingCallbackHandler extends CallbackHandler {
+  var delegate: CallbackHandler = _
+  def handle(callbacks: Array[Callback]) = delegate.handle(callbacks)
+}
+
+/**
+ * Captures a login context instance for storing it in a user session.
+ */
+class State {
+  var method: String = _
+  var context: ILoginContext = _
+  var handler: DelegatingCallbackHandler = new DelegatingCallbackHandler
+}
+
+object loginState extends SessionVar[Box[State]](Empty)
 
 class Login extends SubjectHelper {
   val JAAS_CONFIG_FILE = "/resources/jaas.conf";
@@ -148,63 +166,94 @@ class Login extends SubjectHelper {
         var requiresInput = false
         val cfgUrl = Platform.getBundle("net.enilink.core")
           .getResource(JAAS_CONFIG_FILE);
-        val sCtx = LoginContextFactory.createContext(
-          currentMethod._2, cfgUrl, new CallbackHandler {
-            var stage = 0
-            def fieldName(index: Int) = "f-" + currentMethod._2 + "-" + stage + "-" + index
-            def handle(callbacks: Array[Callback]) = {
-              requiresInput = callbacks.zipWithIndex.foldLeft(false) {
-                case (reqInput, (cb, index)) => reqInput || (
-                  cb match {
-                    case (_: TextInputCallback | _: NameCallback) => {
-                      val field = fieldName(index)
-                      value(fieldName(index)).map(loginData.setProperty(field, _)).isEmpty
-                    }
-                    case (_: PasswordCallback) => value(fieldName(index)).isEmpty
-                    case _ => false
-                  })
-              }
-              callbacks.zipWithIndex foreach {
-                case (cb, index) =>
-                  val name = fieldName(index)
-                  cb match {
-                    case cb: TextOutputCallback => form ++= <div class={
-                      "alert" + (cb.getMessageType match {
-                        case TextOutputCallback.INFORMATION => " alert-info"
-                        case TextOutputCallback.ERROR => " alert-error"
-                        case _ => ""
-                      })
-                    }>{ cb.getMessage }</div>
-                    case cb @ (_: TextInputCallback | _: NameCallback | _: PasswordCallback) => handleUserCallback(cb, name, !requiresInput)
-                    // special callbacks introduced by enilink
-                    case cb: RegisterCallback =>
-                      cb.setRegister(isRegister)
-                    case cb: RedirectCallback =>
-                      requiresInput = true
-                      redirectTo = cb.getRedirectTo
-                    case cb: RealmCallback =>
-                      cb.setContextUrl(S.hostAndPath)
-                      var params = List(("method", currentMethod._2)) ++ S.param("mode").map(("mode", _))
-                      cb.setApplicationUrl(Helpers.appendParams(S.hostAndPath + S.uri, params))
-                    case cb: ResponseCallback =>
-                      val params = S.request.map(_._params.map(e => (e._1, e._2.toArray))) openOr Map.empty
-                      cb.setResponseParameters(params)
-                    case _ => // ignore unknown callback
+
+        // use login context from session or create a new one
+        val state = loginState.get match {
+          case Full(state) if state.method == currentMethod._2 => state
+          case _ => {
+            val state = new State
+            state.method = currentMethod._2
+            state.context = LoginContextFactory.createContext(state.method, cfgUrl, state.handler)
+            loginState.set(Full(state))
+            state
+          }
+        }
+        val sCtx = state.context
+        // update handler, since the handle method is actually a closure over some variables of this snippet instance
+        state.handler.delegate = new CallbackHandler {
+          var stage = 0
+          def fieldName(index: Int) = "f-" + currentMethod._2 + "-" + stage + "-" + index
+          def handle(callbacks: Array[Callback]) = {
+            requiresInput = callbacks.zipWithIndex.foldLeft(false) {
+              case (reqInput, (cb, index)) => reqInput || (
+                cb match {
+                  case (_: TextInputCallback | _: NameCallback) => {
+                    val field = fieldName(index)
+                    value(fieldName(index)).map(loginData.setProperty(field, _)).isEmpty
                   }
-              }
-              stage += 1
-              if (requiresInput) throw new IOException("need more user information")
+                  case (_: PasswordCallback) => value(fieldName(index)).isEmpty
+                  case _ => false
+                })
             }
-          });
+            callbacks.zipWithIndex foreach {
+              case (cb, index) =>
+                val name = fieldName(index)
+                cb match {
+                  case cb: TextOutputCallback => form ++= <div class={
+                    "alert" + (cb.getMessageType match {
+                      case TextOutputCallback.INFORMATION => " alert-info"
+                      case TextOutputCallback.ERROR => " alert-error"
+                      case _ => ""
+                    })
+                  }>{ cb.getMessage }</div>
+                  case cb @ (_: TextInputCallback | _: NameCallback | _: PasswordCallback) => handleUserCallback(cb, name, !requiresInput)
+                  // special callbacks introduced by enilink
+                  case cb: RegisterCallback =>
+                    cb.setRegister(isRegister)
+                  case cb: RedirectCallback =>
+                    requiresInput = true
+                    redirectTo = cb.getRedirectTo
+                  case cb: RealmCallback =>
+                    cb.setContextUrl(S.hostAndPath)
+                    var params = List(("method", currentMethod._2)) ++ S.param("mode").map(("mode", _)) ++
+                      // TODO maybe store these values in the session
+                      // append field values as parameters
+                      S.request.map(_._params.collect {
+                        case (k, v :: Nil) if k.startsWith("f-") => (k, v)
+                      } toList).openOr(Nil)
+                    cb.setApplicationUrl(Helpers.appendParams(S.hostAndPath + S.uri, params))
+                  case cb: ResponseCallback =>
+                    val params = S.request.map(_._params.map(e => (e._1, e._2.toArray))) openOr Map.empty
+                    cb.setResponseParameters(params)
+                    // add parameters for fields as hidden inputs
+                    S.request.map(_._params.foreach {
+                      case (k, v :: Nil) if k.startsWith("f-") => hidden(k, v)
+                      case _ =>
+                    })
+                  case _ => // ignore unknown callback
+                }
+            }
+            stage += 1
+            if (requiresInput) throw new IOException("need more user information")
+          }
+        }
 
         try {
           sCtx.login
           session.setAttribute(SUBJECT_KEY, sCtx.getSubject)
+          loginState.remove
           sCtx.getSubject
         } catch {
           case e: LoginException if requiresInput => if (redirectTo != null) { saveLoginData(loginData); S.redirectTo(redirectTo) }; null // user interaction required
           case e: LoginException => {
-            form = <div class="alert alert-error"><div><strong>Login failed</strong></div>{ e.getMessage }</div>
+            var cause = e
+            // required for Equinox security to retrieve the
+            // real cause for this exception
+            if (cause.getCause.isInstanceOf[LoginException]) {
+              cause = cause.getCause.asInstanceOf[LoginException]
+            }
+
+            form = <div class="alert alert-error"><div><strong>Login failed</strong></div>{ cause.getMessage }</div>
             buttons = <button class="btn btn-primary" type="submit">Retry</button>
             null
           }
@@ -213,7 +262,7 @@ class Login extends SubjectHelper {
     }
     if (subject != null) {
       if (isRegister) S.redirectTo(S.hostAndPath + S.uri)
-      
+
       form ++= <div class="alert alert-success"><strong>You are logged in.</strong></div>
       buttons = SHtml.button("Logout", () => session.removeAttribute(SUBJECT_KEY), ("class", "btn btn-primary"))
     } else {
