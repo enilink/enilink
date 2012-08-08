@@ -21,6 +21,8 @@ import scala.xml.Text
 import javax.security.auth.Subject
 import net.liftweb.http.RedirectResponse
 import net.enilink.auth.UserPrincipal
+import net.enilink.lift.util.Globals
+import net.liftweb.common.Empty
 
 /**
  * A class that's instantiated early and run.  It allows the application
@@ -41,14 +43,21 @@ class LiftModule {
     SiteMap.sitemapMutator { Map.empty }(SiteMap.addMenusAtEndMutator(entries))
   }
 
-  def loggedIn = S.session.flatMap(_.httpSession.map(_.attribute("javax.security.auth.subject"))) match {
-    case Full(s: Subject) => !s.getPrincipals(classOf[UserPrincipal]).isEmpty
-    case _ => false
-  }
+  def loggedIn = Globals.contextUser.vend.isDefined
 
   def logout() { S.session.map(_.httpSession.map(_.removeAttribute("javax.security.auth.subject"))) }
 
   def boot {
+    // set context user from UserPrincipal contained in the HTTP session after successful login
+    Globals.contextUser.default.set(() => {
+      S.session.flatMap(_.httpSession.map(_.attribute("javax.security.auth.subject")) match {
+        case Full(s: Subject) =>
+          val userPrincipals = s.getPrincipals(classOf[UserPrincipal])
+          if (!userPrincipals.isEmpty) Full(userPrincipals.iterator.next.asInstanceOf[UserPrincipal].getId) else Empty
+        case _ => Empty
+      })
+    })
+
     LiftRules.httpAuthProtectedResource.prepend {
       case Req("services" :: _, _, _) => Full(AuthRole("rest"))
     }

@@ -13,6 +13,7 @@ Require-Bundle: net.enilink.core,
  org.eclipse.core.runtime
 Bundle-ActivationPolicy: lazy
 Import-Package: net.enilink.rap.security.callbacks,
+ net.enilink.vocab.foaf,
  org.eclipse.core.resources,
  org.eclipse.equinox.security.auth
 Export-Package: net.enilink.web.rest

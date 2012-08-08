@@ -17,20 +17,30 @@ import javax.security.auth.callback.Callback
 import java.util.HashMap
 import net.enilink.auth.UserPrincipal
 import net.enilink.auth.AccountHelper
+import net.enilink.komma.concepts.IResource
+import net.enilink.vocab.foaf.FOAF
 
 class Register extends SubjectHelper {
   def linkUserName(s: Subject, name: String): Box[String] = {
     val userId = URIImpl.createURI("http://enilink.net/users").appendLocalPart(URIImpl.encodeOpaquePart(name, false))
 
     val em = ModelSetManager.INSTANCE.getModelSet.getMetaDataManager
-    if (em.createQuery("ask { ?user ?p ?o }").setParameter("user", userId).getBooleanResult) {
-      Full("A user with this name already exists.")
-    } else {
-      val externalIds = AccountHelper.getExternalIds(s)
-      AccountHelper.linkExternalIds(em, userId, externalIds)
-      s.getPrincipals.add(new UserPrincipal(userId))
-      Empty
+    val result = synchronized {
+      // TODO Is it possible to use database locking here?
+      if (em.createQuery("ask { ?user ?p ?o }").setParameter("user", userId).getBooleanResult) {
+        Full("A user with this name already exists.")
+      } else {
+        val externalIds = AccountHelper.getExternalIds(s)
+        AccountHelper.linkExternalIds(em, userId, externalIds)
+        s.getPrincipals.add(new UserPrincipal(userId))
+        Empty
+      }
     }
+    if (result.isEmpty) {
+      // store the user name
+      em.find(userId, classOf[IResource]).addProperty(FOAF.PROPERTY_NICK, name)
+    }
+    result
   }
 
   def render = {

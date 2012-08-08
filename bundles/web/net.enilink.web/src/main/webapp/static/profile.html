@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta content="text/html; charset=UTF-8" http-equiv="content-type" />
+<title>Profile</title>
+</head>
+<body class="lift:content_id=main"
+	xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"
+	xmlns:owl="http://www.w3.org/2002/07/owl#"
+	xmlns:rdfs="http://www.w3.org/2000/01/rdf-schema#"
+	xmlns:foaf="http://xmlns.com/foaf/0.1/">
+	<div id="main" class="lift:surround?with=default;at=content">
+		<div about="?currentUser" data-lift="rdfa?target=meta"
+			class="row-fluid">
+			<h3>
+				Profile <span data-if="?nick"> of </span><span property="foaf:nick" class="optional" content="?nick" data-lift="rdf.label"></span>
+			</h3>
+			<section class="union">
+				<div class="row-fluid">
+					<div class="span5">Name</div>
+					<div class="span7">
+						<span property="foaf:name" data-lift="rdf.label"></span>
+					</div>
+				</div>
+				<div class="row-fluid">
+					<div class="span5">External IDs</div>
+					<div class="span7">
+						<span rel="http://enilink.net/vocab/auth#externalId"
+							resource="?externalId" data-lift="rdf.ref"></span>
+					</div>
+				</div>
+			</section>
+		</div>
+		
+		<div data-lift="embed?what=editsupport"></div>
+	</div>
+</body>
+</html>
