@@ -12,11 +12,16 @@ import net.enilink.composition.traits.Behaviour;
 import com.google.inject.Inject;
 
 import net.enilink.komma.common.adapter.AdapterSet;
+import net.enilink.komma.common.adapter.IAdapterFactory;
 import net.enilink.komma.common.adapter.IAdapterSet;
+import net.enilink.komma.concepts.IClass;
+import net.enilink.komma.edit.KommaEditPlugin;
 import net.enilink.komma.edit.command.EditingDomainCommandStack;
 import net.enilink.komma.edit.domain.AdapterFactoryEditingDomain;
 import net.enilink.komma.edit.provider.ComposedAdapterFactory;
+import net.enilink.komma.edit.provider.ReflectiveItemProviderAdapterFactory;
 import net.enilink.komma.model.IModelSet;
+import net.enilink.komma.core.URI;
 
 @precedes(IModelSet.class)
 public abstract class SessionModelSetSupport implements IModelSet,
@@ -28,7 +33,44 @@ public abstract class SessionModelSetSupport implements IModelSet,
 			.synchronizedMap(new WeakHashMap<Object, IAdapterSet>());
 
 	private ComposedAdapterFactory adapterFactory = new ComposedAdapterFactory(
-			ComposedAdapterFactory.IDescriptor.IRegistry.INSTANCE);
+			ComposedAdapterFactory.IDescriptor.IRegistry.INSTANCE) {
+		/**
+		 * Default adapter factory for all namespaces
+		 */
+		class DefaultItemProviderAdapterFactory extends
+				ReflectiveItemProviderAdapterFactory {
+			public DefaultItemProviderAdapterFactory() {
+				super(KommaEditPlugin.getPlugin());
+			}
+
+			@Override
+			public Object adapt(Object object, Object type) {
+				if (object instanceof IClass) {
+					// do not override the adapter for classes
+					return null;
+				}
+				return super.adapt(object, type);
+			}
+
+			public boolean isFactoryForType(Object type) {
+				// support any namespace
+				return type instanceof URI || supportedTypes.contains(type);
+			}
+		}
+
+		DefaultItemProviderAdapterFactory defaultAdapterFactory;
+		{
+			defaultAdapterFactory = new DefaultItemProviderAdapterFactory();
+			defaultAdapterFactory.setParentAdapterFactory(this);
+		}
+
+		@Override
+		protected IAdapterFactory getDefaultAdapterFactory(Object type) {
+			// provide a default adapter factory as fallback if no
+			// specific adapter factory was found
+			return defaultAdapterFactory;
+		}
+	};
 
 	@Inject
 	protected ISessionProvider sessionProvider;

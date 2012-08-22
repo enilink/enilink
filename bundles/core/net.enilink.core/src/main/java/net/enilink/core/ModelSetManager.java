@@ -9,8 +9,10 @@ import org.osgi.framework.ServiceReference;
 import com.google.inject.AbstractModule;
 import com.google.inject.Guice;
 import com.google.inject.Injector;
+import com.google.inject.Module;
 import com.google.inject.Provides;
 import com.google.inject.Singleton;
+import com.google.inject.util.Modules;
 
 import net.enilink.vocab.rdf.RDF;
 import net.enilink.komma.concepts.IResource;
@@ -29,16 +31,64 @@ import net.enilink.komma.core.KommaModule;
 import net.enilink.komma.core.LinkedHashGraph;
 import net.enilink.komma.core.URI;
 import net.enilink.komma.core.URIImpl;
+import net.enilink.komma.util.UnitOfWork;
 import net.enilink.komma.workbench.IProjectModelSet;
 import net.enilink.komma.workbench.ProjectModelSetSupport;
 
 public class ModelSetManager {
 	public static final ModelSetManager INSTANCE = new ModelSetManager();
 
-	private Injector injector;
+	static class SessionProviderModule extends AbstractModule {
+		@Override
+		protected void configure() {
+		}
+
+		@Provides
+		@Singleton
+		protected ISessionProvider provideSessionProvider() {
+			return new ISessionProvider() {
+				@Override
+				public ISession get() {
+					try {
+						// get the first valid session from any
+						// registered session provider service
+						BundleContext context = Activator.getContext();
+						for (ServiceReference<ISessionProvider> spRef : context
+								.getServiceReferences(ISessionProvider.class,
+										null)) {
+							ISession session = context.getService(spRef).get();
+							context.ungetService(spRef);
+							if (session != null) {
+								return session;
+							}
+						}
+					} catch (InvalidSyntaxException ise) {
+						// ignore
+					}
+					return null;
+				}
+			};
+		}
+	}
+
+	private UnitOfWork uow = new UnitOfWork();
 	private IModelSet modelSet;
 
 	private ModelSetManager() {
+	}
+
+	protected Module createModelSetGuiceModule(KommaModule module) {
+		return Modules.override(new ModelSetModule(module)).with(
+				new AbstractModule() {
+					@Override
+					protected void configure() {
+						bind(UnitOfWork.class).toInstance(uow);
+						bind(IUnitOfWork.class).toInstance(uow);
+					}
+				});
+	}
+
+	protected KommaModule createDataModelSetModule() {
 		KommaModule module = ModelCore.createModelSetModule(getClass()
 				.getClassLoader());
 		module.addBehaviour(SessionModelSetSupport.class);
@@ -46,71 +96,80 @@ public class ModelSetManager {
 
 		module.addConcept(IProjectModelSet.class);
 		module.addBehaviour(ProjectModelSetSupport.class);
+		return module;
+	}
 
-		injector = Guice.createInjector(new ModelSetModule(module),
-				new AbstractModule() {
-					@Override
-					protected void configure() {
-					}
+	protected IGraph createModelSetConfig(URI ms) {
+		IGraph graph = new LinkedHashGraph();
+		graph.add(ms, RDF.PROPERTY_TYPE, MODELS.TYPE_MODELSET);
 
-					@Provides
-					@Singleton
-					protected ISessionProvider provideSessionProvider() {
-						return new ISessionProvider() {
-							@Override
-							public ISession get() {
-								try {
-									// get the first valid session from any
-									// registered session provider service
-									BundleContext context = Activator
-											.getContext();
-									for (ServiceReference<ISessionProvider> spRef : context
-											.getServiceReferences(
-													ISessionProvider.class,
-													null)) {
-										ISession session = context.getService(
-												spRef).get();
-										context.ungetService(spRef);
-										if (session != null) {
-											return session;
-										}
-									}
-								} catch (InvalidSyntaxException ise) {
-									// ignore
-								}
-								return null;
-							}
-						};
-					}
-				});
+		graph.add(ms, MODELS.NAMESPACE_URI.appendLocalPart("server"),
+		// URIImpl.createURI("http://localhost:10035") // Allegrograph
+				URIImpl.createURI("http://localhost:8080/openrdf-sesame") // Sesame
+		// URIImpl.createURI("jdbc:virtuoso://localhost:1111") // Virtuoso
+
+		);
+		// graph.add(ms, MODELS.NAMESPACE_URI.appendLocalPart("username"), //
+		// "super" //
+		// );
+		// graph.add(ms, MODELS.NAMESPACE_URI.appendLocalPart("password"), //
+		// "super" //
+		// );
+
+		// store meta data in repository
+		// graph.add(ms, MODELS.PROPERTY_METADATACONTEXT,
+		// URIImpl.createURI("urn:komma:metadata"));
+		return graph;
+	}
+
+	protected IModelSet createMetaModelSet() {
+		KommaModule module = ModelCore.createModelSetModule(getClass()
+				.getClassLoader());
+		Injector injector = Guice.createInjector(
+				createModelSetGuiceModule(module), new SessionProviderModule());
+		URI msUri = URIImpl.createURI("urn:enilink:modelset");
+		IGraph graph = createModelSetConfig(msUri);
+		graph.add(msUri, MODELS.NAMESPACE_URI.appendLocalPart("repository"),
+				"enilink-meta");
+
+		IModelSetFactory factory = injector.getInstance(IModelSetFactory.class);
+		IModelSet metaModelSet = factory.createModelSet(graph,
+				MODELS.NAMESPACE_URI.appendLocalPart("RemoteModelSet"));
+
+		// include model behaviors into meta model set
+		metaModelSet.getModule().includeModule(createDataModelSetModule());
+		return metaModelSet;
+	}
+
+	protected IModelSet createModelSet(IModel metaDataModel) {
+		URI msUri = URIImpl.createURI("urn:enilink:modelset");
+		IGraph graph = createModelSetConfig(msUri);
+		graph.add(msUri, MODELS.NAMESPACE_URI.appendLocalPart("repository"),
+				"enilink");
+		metaDataModel.getManager().add(graph);
+		IModelSet.Internal modelSet = (IModelSet.Internal) metaDataModel
+				.getManager().createNamed(msUri, MODELS.TYPE_MODELSET,
+						MODELS.NAMESPACE_URI.appendLocalPart("RemoteModelSet"));
+		modelSet.create();
+		return modelSet;
 	}
 
 	protected IModelSet createModelSet() {
+		KommaModule module = createDataModelSetModule();
+		Injector injector = Guice.createInjector(
+				createModelSetGuiceModule(module), new SessionProviderModule());
 		IModelSetFactory factory = injector.getInstance(IModelSetFactory.class);
 
-		IGraph graph = new LinkedHashGraph();
-		URI msUri = URIImpl.createURI("urn:virtusoso:modelset");
-		graph.add(msUri, RDF.PROPERTY_TYPE, MODELS.TYPE_MODELSET);
-		graph.add(msUri, MODELS.NAMESPACE_URI.appendLocalPart("metaDataModel"),
-				URIImpl.createURI("urn:komma:metaData"));
-		graph.add(msUri, MODELS.NAMESPACE_URI.appendLocalPart("host"), //
-				"localhost" //
-		);
-		graph.add(msUri, MODELS.NAMESPACE_URI.appendLocalPart("port"), //
-				// 1111 // Virtuoso
-				10035 // Allegrograph
-		);
-		// store meta data in Virtuoso repository
-		// graph.add(msUri, MODELS.PROPERTY_METADATACONTEXT,
-		// URIImpl.createURI("urn:komma:metadata"));
-
+		URI msUri = URIImpl.createURI("urn:enilink:modelset");
+		IGraph graph = createModelSetConfig(msUri);
 		IModelSet modelSet = factory.createModelSet(graph,
 				MODELS.NAMESPACE_URI.appendLocalPart(//
 						"OwlimModelSet" //
 						// "VirtuosoModelSet" //
-						// "AGraphModelSet"
+						// "AGraphModelSet" //
+						// "RemoteModelSet" //
 						),
-				URIImpl.createURI(MODELS.NAMESPACE + "ProjectModelSet"));
+				MODELS.NAMESPACE_URI.appendLocalPart("ProjectModelSet"));
 
 		return modelSet;
 	}
@@ -179,12 +238,16 @@ public class ModelSetManager {
 	}
 
 	public synchronized IUnitOfWork getUnitOfWork() {
-		return injector.getInstance(IUnitOfWork.class);
+		return uow;
 	}
 
 	public synchronized IModelSet getModelSet() {
 		if (modelSet == null) {
-			modelSet = createModelSet();
+			IModelSet metaModelSet = createMetaModelSet();
+			IModel metaDataModel = metaModelSet.createModel(URIImpl
+					.createURI("urn:enilink:metadata"));
+			modelSet = createModelSet(metaDataModel);
+
 			createModels(modelSet);
 		}
 		return modelSet;
