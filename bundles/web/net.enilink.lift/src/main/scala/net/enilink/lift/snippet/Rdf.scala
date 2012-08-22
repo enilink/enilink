@@ -25,6 +25,8 @@ import net.liftweb.util.HttpHelpers
 import net.liftweb.util.HttpHelpers
 import scala.xml.NamespaceBinding
 import scala.xml.TopScope
+import net.enilink.komma.model.IObject
+import net.enilink.komma.core.IReference
 
 class RdfContext(val subject: Any, val predicate: Any, val prefix: NamespaceBinding = TopScope) {
   override def equals(that: Any): Boolean = that match {
@@ -100,10 +102,16 @@ class Rdf extends DispatchSnippet with RDFaTemplates {
           attributes = attributes.append(new UnprefixedAttribute(replaceAttr.get, newAttrValue, attributes))
           n.asInstanceOf[Elem].copy(attributes = attributes)
         } else {
-          val selector = if (n.attributes.isEmpty) "*" else "* *"
+          val selector = if (n.attributes.isEmpty || n.attributes.size == 1 && n.attribute("data-tid").isDefined) "*" else "* *"
           (method match {
             case "ref" => selector #> target.toString
-            case "manchester" => selector #> new ManchesterSyntaxGenerator().generateText(target)
+            case "manchester" => selector #> new ManchesterSyntaxGenerator() {
+              override def getPrefix(reference: IReference) = reference match {
+                case o: IObject if o.getURI != null &&
+                  o.getModel.getURI.trimFragment.equals(o.getURI.namespace.trimFragment) => ""
+                case _ => super.getPrefix(reference)
+              }
+            }.generateText(target)
             case "label" => selector #> ModelUtil.getLabel(target)
             case _ => tryo(target.getClass.getMethod(method)) match {
               case Full(meth) => meth.invoke(target) match {

@@ -48,7 +48,8 @@ Bundle-ClassPath: lib_managed/jars/com.thoughtworks.paranamer/paranamer/paraname
  .,
  bin/
 Bundle-Activator: net.enilink.lift.Activator
-Import-Package: net.enilink.komma.http,
+Import-Package: com.google.inject,
+ net.enilink.komma.http,
  javax.servlet,
  javax.servlet.http;version="2.5.0",
  javax.servlet.resources;version="2.5.0",

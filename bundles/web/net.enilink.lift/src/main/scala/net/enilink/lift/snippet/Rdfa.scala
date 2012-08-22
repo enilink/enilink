@@ -29,7 +29,7 @@ trait EditRdfa extends HasRender {
     def withTemplateIds(n: NodeSeq): NodeSeq = n.flatMap {
       _ match {
         case e: Elem =>
-          val newE = e.attribute("tid") match {
+          val newE = e.attribute("data-tid") match {
             case Some(id) => e
             case None => e % ("data-tid" -> { tid = tid + 1; tid })
           }
@@ -67,7 +67,8 @@ class Rdfa extends Sparql with EditRdfa {
               <li><a href={ pageUrl(newFirst) }>{ ns }</a></li>
 
           override def itemsPerPage = try { (ns \ "@data-items").text.toInt } catch { case _ => 20 }
-          def count = em.createQuery(sparqlFromRdfa.getCountQuery(bindingName)).getSingleResult(classOf[Long])
+          lazy val cachedCount = em.createQuery(sparqlFromRdfa.getCountQuery(bindingName)).getSingleResult(classOf[Long])
+          def count = cachedCount
           def page = Nil
 
           override def paginate(ns: NodeSeq) = {
