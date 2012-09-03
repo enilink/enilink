@@ -15,6 +15,7 @@ import net.liftweb.util.Helpers
 import net.liftweb.util.Helpers.strToCssBindPromoter
 import net.liftweb.http.Templates
 import net.liftweb.common.Full
+import net.liftweb.http.S
 
 /**
  * Required to call super.render in EditRdfa trait
@@ -54,6 +55,11 @@ class Rdfa extends Sparql with EditRdfa {
       var bindingName = (ns \ "@data-for").text.stripPrefix("?")
       if (!bindingName.isEmpty) {
         val paginator = new PaginatorSnippet[AnyRef] {
+          override def pageUrl(offset: Long): String = {
+            val params = S.request.map(_._params.collect { case (name, value :: Nil) if name != offsetParam => (name, value) }) openOr Map.empty
+            appendParams(S.uri, params.toList ++ List(offsetParam -> offset.toString))
+          }
+
           val Nr = "([0-9]+)".r
           override def pageXml(newFirst: Long, ns: NodeSeq): NodeSeq =
             if (first == newFirst || newFirst < 0 || newFirst >= count)
