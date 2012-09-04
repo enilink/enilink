@@ -21,6 +21,7 @@ import net.enilink.komma.edit.domain.AdapterFactoryEditingDomain;
 import net.enilink.komma.edit.provider.ComposedAdapterFactory;
 import net.enilink.komma.edit.provider.ReflectiveItemProviderAdapterFactory;
 import net.enilink.komma.model.IModelSet;
+import net.enilink.komma.core.EntityVar;
 import net.enilink.komma.core.URI;
 
 @precedes(IModelSet.class)
@@ -29,51 +30,52 @@ public abstract class SessionModelSetSupport implements IModelSet,
 	public static class Key {
 	};
 
-	private Map<Object, IAdapterSet> sessionScopedAdapterSets = Collections
-			.synchronizedMap(new WeakHashMap<Object, IAdapterSet>());
-
-	private ComposedAdapterFactory adapterFactory = new ComposedAdapterFactory(
-			ComposedAdapterFactory.IDescriptor.IRegistry.INSTANCE) {
-		/**
-		 * Default adapter factory for all namespaces
-		 */
-		class DefaultItemProviderAdapterFactory extends
-				ReflectiveItemProviderAdapterFactory {
-			public DefaultItemProviderAdapterFactory() {
-				super(KommaEditPlugin.getPlugin());
-			}
-
-			@Override
-			public Object adapt(Object object, Object type) {
-				if (object instanceof IClass) {
-					// do not override the adapter for classes
-					return null;
-				}
-				return super.adapt(object, type);
-			}
-
-			public boolean isFactoryForType(Object type) {
-				// support any namespace
-				return type instanceof URI || supportedTypes.contains(type);
-			}
-		}
-
-		DefaultItemProviderAdapterFactory defaultAdapterFactory;
-		{
-			defaultAdapterFactory = new DefaultItemProviderAdapterFactory();
-			defaultAdapterFactory.setParentAdapterFactory(this);
-		}
-
-		@Override
-		protected IAdapterFactory getDefaultAdapterFactory(Object type) {
-			// provide a default adapter factory as fallback if no
-			// specific adapter factory was found
-			return defaultAdapterFactory;
-		}
-	};
+	private EntityVar<Map<Object, IAdapterSet>> sessionScopedAdapterSets;
 
 	@Inject
 	protected ISessionProvider sessionProvider;
+
+	private ComposedAdapterFactory createAdapterFactory() {
+		return new ComposedAdapterFactory(
+				ComposedAdapterFactory.IDescriptor.IRegistry.INSTANCE) {
+			/**
+			 * Default adapter factory for all namespaces
+			 */
+			class DefaultItemProviderAdapterFactory extends
+					ReflectiveItemProviderAdapterFactory {
+				public DefaultItemProviderAdapterFactory() {
+					super(KommaEditPlugin.getPlugin());
+				}
+
+				@Override
+				public Object adapt(Object object, Object type) {
+					if (object instanceof IClass) {
+						// do not override the adapter for classes
+						return null;
+					}
+					return super.adapt(object, type);
+				}
+
+				public boolean isFactoryForType(Object type) {
+					// support any namespace
+					return type instanceof URI || supportedTypes.contains(type);
+				}
+			}
+
+			DefaultItemProviderAdapterFactory defaultAdapterFactory;
+			{
+				defaultAdapterFactory = new DefaultItemProviderAdapterFactory();
+				defaultAdapterFactory.setParentAdapterFactory(this);
+			}
+
+			@Override
+			protected IAdapterFactory getDefaultAdapterFactory(Object type) {
+				// provide a default adapter factory as fallback if no
+				// specific adapter factory was found
+				return defaultAdapterFactory;
+			}
+		};
+	}
 
 	@Override
 	public IAdapterSet adapters() {
@@ -85,19 +87,29 @@ public abstract class SessionModelSetSupport implements IModelSet,
 			session.setAttribute(Key.class.getName(), key);
 		}
 
-		IAdapterSet adapterSet = sessionScopedAdapterSets.get(key);
-		if (adapterSet == null) {
+		Map<Object, IAdapterSet> adapterSets = sessionScopedAdapterSets.get();
+		if (adapterSets == null) {
 			synchronized (sessionScopedAdapterSets) {
-				adapterSet = sessionScopedAdapterSets.get(key);
-				if (adapterSet == null) {
-					adapterSet = new AdapterSet(getBehaviourDelegate());
-					sessionScopedAdapterSets.put(key, adapterSet);
-
-					initializeAdapters();
+				adapterSets = sessionScopedAdapterSets.get();
+				if (adapterSets == null) {
+					adapterSets = Collections
+							.synchronizedMap(new WeakHashMap<Object, IAdapterSet>());
+					sessionScopedAdapterSets.set(adapterSets);
 				}
 			}
 		}
 
+		IAdapterSet adapterSet = adapterSets.get(key);
+		if (adapterSet == null) {
+			synchronized (adapterSets) {
+				adapterSet = adapterSets.get(key);
+				if (adapterSet == null) {
+					adapterSet = new AdapterSet(getBehaviourDelegate());
+					adapterSets.put(key, adapterSet);
+					initializeAdapters();
+				}
+			}
+		}
 		return adapterSet;
 	}
 
@@ -111,9 +123,8 @@ public abstract class SessionModelSetSupport implements IModelSet,
 		// are
 		// executed.
 		EditingDomainCommandStack commandStack = new EditingDomainCommandStack();
-
 		AdapterFactoryEditingDomain editingDomain = new AdapterFactoryEditingDomain(
-				adapterFactory, commandStack, getBehaviourDelegate());
+				createAdapterFactory(), commandStack, getBehaviourDelegate());
 		commandStack.setEditingDomain(editingDomain);
 		// editingDomain
 		// .setModelToReadOnlyMap(new java.util.WeakHashMap<IModel, Boolean>());

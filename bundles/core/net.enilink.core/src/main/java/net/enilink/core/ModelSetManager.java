@@ -29,6 +29,7 @@ import net.enilink.komma.core.IGraph;
 import net.enilink.komma.core.IUnitOfWork;
 import net.enilink.komma.core.KommaModule;
 import net.enilink.komma.core.LinkedHashGraph;
+import net.enilink.komma.core.StatementPattern;
 import net.enilink.komma.core.URI;
 import net.enilink.komma.core.URIImpl;
 import net.enilink.komma.util.UnitOfWork;
@@ -103,19 +104,6 @@ public class ModelSetManager {
 		IGraph graph = new LinkedHashGraph();
 		graph.add(ms, RDF.PROPERTY_TYPE, MODELS.TYPE_MODELSET);
 
-		graph.add(ms, MODELS.NAMESPACE_URI.appendLocalPart("server"),
-		// URIImpl.createURI("http://localhost:10035") // Allegrograph
-				URIImpl.createURI("http://localhost:8080/openrdf-sesame") // Sesame
-		// URIImpl.createURI("jdbc:virtuoso://localhost:1111") // Virtuoso
-
-		);
-		// graph.add(ms, MODELS.NAMESPACE_URI.appendLocalPart("username"), //
-		// "super" //
-		// );
-		// graph.add(ms, MODELS.NAMESPACE_URI.appendLocalPart("password"), //
-		// "super" //
-		// );
-
 		// store meta data in repository
 		// graph.add(ms, MODELS.PROPERTY_METADATACONTEXT,
 		// URIImpl.createURI("urn:komma:metadata"));
@@ -129,6 +117,12 @@ public class ModelSetManager {
 				createModelSetGuiceModule(module), new SessionProviderModule());
 		URI msUri = URIImpl.createURI("urn:enilink:modelset");
 		IGraph graph = createModelSetConfig(msUri);
+		graph.add(msUri, MODELS.NAMESPACE_URI.appendLocalPart("server"),
+		// URIImpl.createURI("http://localhost:10035") // Allegrograph
+				URIImpl.createURI("http://localhost:8080/openrdf-sesame") // Sesame
+		// URIImpl.createURI("jdbc:virtuoso://localhost:1111") // Virtuoso
+
+		);
 		graph.add(msUri, MODELS.NAMESPACE_URI.appendLocalPart("repository"),
 				"enilink-meta");
 
@@ -143,13 +137,27 @@ public class ModelSetManager {
 
 	protected IModelSet createModelSet(IModel metaDataModel) {
 		URI msUri = URIImpl.createURI("urn:enilink:modelset");
+
 		IGraph graph = createModelSetConfig(msUri);
+		graph.add(msUri, MODELS.NAMESPACE_URI.appendLocalPart("server"),
+		// URIImpl.createURI("http://localhost:10035") // Allegrograph
+				URIImpl.createURI("http://localhost:8080/openrdf-sesame") // Sesame
+		// URIImpl.createURI("jdbc:virtuoso://localhost:1111") // Virtuoso
+
+		);
 		graph.add(msUri, MODELS.NAMESPACE_URI.appendLocalPart("repository"),
 				"enilink");
+		metaDataModel.getManager().remove(
+				new StatementPattern(msUri, MODELS.NAMESPACE_URI
+						.appendLocalPart("server"), null));
+
 		metaDataModel.getManager().add(graph);
 		IModelSet.Internal modelSet = (IModelSet.Internal) metaDataModel
 				.getManager().createNamed(msUri, MODELS.TYPE_MODELSET,
-						MODELS.NAMESPACE_URI.appendLocalPart("RemoteModelSet"));
+						MODELS.NAMESPACE_URI.appendLocalPart(//
+								// "AGraphModelSet" //
+								"RemoteModelSet" //
+								));
 		modelSet.create();
 		return modelSet;
 	}
