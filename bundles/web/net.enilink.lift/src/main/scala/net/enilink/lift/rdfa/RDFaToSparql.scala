@@ -20,6 +20,8 @@ import net.enilink.lift.rdf.Vocabulary
 import net.enilink.lift.rdf.XmlLiteral
 import net.enilink.lift.rdf.PlainLiteral
 import net.liftweb.util.Helpers._
+import scala.xml.NamespaceBinding
+import scala.xml.NamespaceBinding
 
 /**
  * Can be used to replace relative CURIEs with absolute URIs
@@ -35,7 +37,7 @@ trait CURIEExpander extends CURIE {
 }
 
 object SparqlFromRDFa {
-  def apply(e: xml.Elem, base: String): SparqlFromRDFa = return new RDFaToSparqlParser(e, base)
+  def apply(e: xml.Elem, base: String): SparqlFromRDFa = return new RDFaToSparqlParser(e, base) with CURIEExpander
 }
 
 trait SparqlFromRDFa {
@@ -67,12 +69,22 @@ private class RDFaToSparqlParser(e: xml.Elem, base: String)(implicit s: Scope = 
   {
     val (e1, _) = walk(e, base, uri(base), undef, Nil, Nil, null)
     val result = new StringBuilder
+    addPrefixDecls(result, e1.scope)
     selectVars.map(toString).addString(result, "select distinct ", " ", " where {\n")
     result.append(sparql)
     result.append("}\n")
     modifiers(e, result)
     resultQuery = result.toString
     resultElem = e1
+  }
+
+  def addPrefixDecls(query: StringBuilder, scope: NamespaceBinding) {
+    scope match {
+      case xml.TopScope | null => // do nothing
+      case NamespaceBinding(prefix, uri, parent) =>
+        query.append("prefix ").append(prefix).append(": <").append(uri).append(">\n")
+        addPrefixDecls(query, parent)
+    }
   }
 
   def addLine(s: String, pos: Int = sparql.length) = {
@@ -87,6 +99,7 @@ private class RDFaToSparqlParser(e: xml.Elem, base: String)(implicit s: Scope = 
 
   def getPaginatedQuery(bindingName: String, offset: Any, limit: Any) = {
     val result = new StringBuilder
+    addPrefixDecls(result, resultElem.scope)
     selectVars.map(toString).addString(result, "select distinct ", " ", " where {\n")
 
     // subquery to limit the solutions for given binding name

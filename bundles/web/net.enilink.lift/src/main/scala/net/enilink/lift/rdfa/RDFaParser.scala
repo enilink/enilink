@@ -168,7 +168,7 @@ class RDFaParser()(implicit val s: Scope = new Scope()) extends CURIE with RDFaU
     types: Iterable[Reference], props: Iterable[Reference]): (xml.Elem, Reference, Reference, Boolean) = {
     val (e1, about) = ref1(e, "@about", base)
     lazy val src = e \ "@src"
-    lazy val (e2, resource) = ref1(e, "@resource", base)
+    lazy val (e2, resource) = ref1(e1, "@resource", base)
     lazy val href = e \ "@href"
 
     val (subjProp, subj45x) = {
@@ -235,7 +235,6 @@ class RDFaParser()(implicit val s: Scope = new Scope()) extends CURIE with RDFaU
           case parts(p, l) if p != null => {
             try {
               val dt = expand(p, l, e)
-
               if (dt == Vocabulary.XMLLiteral) (e, xmllit(e.child), true)
               else (e, typed(lex, dt), false)
             } catch {
@@ -271,32 +270,21 @@ trait CURIE extends RDFNodeBuilder {
    */
   final val parts = new Regex("""^(?:([^:]*)?:)?(.*)$""",
     "prefix", "reference")
-  final val parts2 = new Regex("""^\[(?:([^:]*)?:)?(.*)\]$""",
-    "prefix", "reference")
+  final val safeCurie = new Regex("""^\[(.*)\]$""", "curie")
   final val variable = "^\\?(.*)$".r
 
   /**
    * expand one safe curie or URI reference
    */
   def ref1(e: xml.Elem, attr: String, base: String)(implicit s: Scope): (xml.Elem, Option[Reference]) = {
-    var expanded = false
     val attrval = e \ attr
-    val ref = if (attrval.isEmpty) None
-    else attrval.text match {
-      case parts2(p, l) if p == null => None
-      case parts2("_", "") => Some(byName("_"))
-      // TODO: encode arbitrary strings as XML names
-      case parts2("_", l) if l.startsWith("_") => Some(byName(l))
-      case parts2("_", l) => Some(byName(l))
-      case parts2(p, l) => {
-        val ref = Some(uri(expand(p, l, e)))
-        expanded = true
-        ref
+    val (ref, expanded) = if (attrval.isEmpty) (None, false)
+    else {
+      val curieOrIri = attrval.text match {
+        case safeCurie(curie) => curie
+        case other => other
       }
-      case ref => ref match {
-        case variable(v) => createVariable(v)
-        case _ => Some(uri(combine(base, ref)))
-      }
+      expandCurie(e, curieOrIri)
     }
     (if (expanded && ref.isDefined) setExpandedReference(e, attr, ref.get) else e, ref)
   }
@@ -331,25 +319,26 @@ trait CURIE extends RDFNodeBuilder {
     "up")
   final val xhv = "http://www.w3.org/1999/xhtml/vocab#"
 
-  def refN(e: xml.Elem, attr: String, bare: Boolean)(implicit s: Scope): (xml.Elem, Iterable[Reference]) = {
+  def expandCurie(e: xml.Elem, curieOrIri: String)(implicit s: Scope): (Option[Reference], Boolean) = {
     var expanded = false
-    val refs = "\\s+".r.split((e \ attr).text) flatMap {
-      case token if (bare && reserved.contains(token.toLowerCase)) =>
-        Some(uri(xhv + token.toLowerCase))
-
+    val ref: Option[Reference] = curieOrIri match {
+      // support for SPARQL variables
       case variable(v) => createVariable(v) // ?foo
-
-      case parts(p, l) if (p == "_") => Nil // _:foo
-
-      case parts(p, l) if (p == "xml") => Nil // xml:foo
+      case parts(p, l) if (p == null) => None
+      case parts(p, l) if (p == "xml") => None // xml:foo
+      
+      // support for blank node variables
+      case parts("_", "") => Some(byName("_"))
+      case parts("_", l) if l.startsWith("_") => Some(byName(l))
+      case parts("_", l) => Some(byName(l))
 
       case token @ parts(p, l) =>
         val result = if (p != null) {
           // if prefix and local part is given then try to expand the CURIE
           try {
-            val ref = Some(uri(expand(p, l, e)))
+            val exandedRef = Some(uri(expand(p, l, e)))
             expanded = true
-            ref
+            exandedRef
           } catch {
             case e: NotDefinedError => None
           }
@@ -362,12 +351,24 @@ trait CURIE extends RDFNodeBuilder {
             Some(uri(token))
           } catch {
             // token is not a valid IRI
-            case _ => Nil
+            case _ => None
           }
           case other => other
         }
+      case _ => None
+    }
+    (ref, expanded)
+  }
 
-      case _ => Nil
+  def refN(e: xml.Elem, attr: String, bare: Boolean)(implicit s: Scope): (xml.Elem, Iterable[Reference]) = {
+    var expanded = false
+    val refs = "\\s+".r.split((e \ attr).text) flatMap { token =>
+      if (bare && reserved.contains(token.toLowerCase)) Some(uri(xhv + token.toLowerCase))
+      else {
+        val (ref, refExpanded) = expandCurie(e, token)
+        expanded &= refExpanded
+        ref
+      }
     }
     (if (expanded) setExpandedReferences(e, attr, refs) else e, refs)
   }

@@ -19,6 +19,8 @@ import net.enilink.komma.core.ILiteral
 import scala.xml.Null
 import net.enilink.lift.snippet.RdfContext
 import net.enilink.komma.core.URI
+import net.enilink.komma.core.IEntity
+import net.enilink.komma.core.URIImpl
 
 trait RDFaTemplates extends RDFaUtils {
   /**
@@ -89,6 +91,16 @@ trait RDFaTemplates extends RDFaUtils {
       template.flatMap(tNode => {
         if (replacedNodes != null) replacedNodes.clear
         var currentCtx = ctx
+        def changeContext(attributeName: String, rdfValue: Any) {
+          // check if context needs to be changed for children
+          attributeName match {
+            case "data-if" => // does not change context
+            case attribute("rel" | "rev" | "property") =>
+              currentCtx = currentCtx.copy(predicate = rdfValue)
+            case _ =>
+              currentCtx = currentCtx.copy(subject = rdfValue)
+          }
+        }
 
         val newNodesForTemplate = tNode match {
           case tElem: Elem => {
@@ -99,6 +111,13 @@ trait RDFaTemplates extends RDFaUtils {
               if (prefixes ne tElem.scope) currentCtx = currentCtx.copy(prefix = prefixes)
               tElem.attributes.foreach(meta =>
                 if (attributes != null && !meta.isPrefixed && rdfaAttributes.contains(meta.key)) {
+                  def shortRef(ref: IReference) = {
+                    val uri = ref.getURI
+                    if (uri == null) ref
+                    else if (uri.localPart.isEmpty || (meta.key match { case attribute("href" | "src") => true case _ => false })) uri
+                    else shorten(uri, currentCtx, tElem)
+                  }
+
                   meta.value.text match {
                     // remove nodes of type <span data-if="inferred">This data is inferred or explicit.</span>
                     // if we are currently processing explicit bindings
@@ -111,23 +130,9 @@ trait RDFaTemplates extends RDFaUtils {
                     // fill variables for nodes of type <span about="?someVar">Data about some subject.</span>
                     case Variable(v) => {
                       val rdfValue = if (v == "this") ctx.subject else bindings.get(v)
-                      if (rdfValue != null) {
-                        // check if context needs to be changed for children
-                        meta.key match {
-                          case "data-if" => // does not change context
-                          case attribute("rel" | "rev" | "property") =>
-                            currentCtx = currentCtx.copy(predicate = rdfValue)
-                          case _ =>
-                            currentCtx = currentCtx.copy(subject = rdfValue)
-                        }
-                      }
+                      if (rdfValue != null) changeContext(meta.key, rdfValue)
                       val attValue = rdfValue match {
-                        case ref: IReference => {
-                          val uri = ref.getURI()
-                          if (uri == null) ref
-                          else if (uri.localPart.isEmpty || (meta.key match { case attribute("href" | "src") => true case _ => false })) uri
-                          else shorten(uri, currentCtx, tElem)
-                        }
+                        case ref: IReference => shortRef(ref)
                         case literal: ILiteral => {
                           // add datatype and lang attributes
                           if (literal.getDatatype != null) {
@@ -145,6 +150,23 @@ trait RDFaTemplates extends RDFaUtils {
                       else if (meta.key == "data-unless") { attributes = null; removeNode = true }
                       else attributes = attributes.append(new UnprefixedAttribute(meta.key, attValue.toString, meta.next))
                     }
+                    case iriStr if !iriStr.isEmpty =>
+                      try {
+                        val Iri = URIImpl.createURI(iriStr)
+                        if (!Iri.isRelative()) {
+                          // do also switch contexts for given constant CURIEs
+                          val rdfValue = ctx.subject match {
+                            case e: IEntity => e.getEntityManager.find(Iri)
+                            case _ => null
+                          }
+                          if (rdfValue != null) {
+                            changeContext(meta.key, rdfValue)
+                            attributes = attributes.append(new UnprefixedAttribute(meta.key, String.valueOf(shortRef(rdfValue)), meta.next))
+                          }
+                        }
+                      } catch {
+                        case iae: IllegalArgumentException => // ignore, iriStr is an invalid IRI
+                      }
                     case _ =>
                   }
                 })
@@ -219,7 +241,7 @@ trait RDFaTemplates extends RDFaUtils {
             }
         } ++ newNodesForTemplate
         existing(key) = nodesForTemplate
-        
+
         nodesForTemplate
       })
     }

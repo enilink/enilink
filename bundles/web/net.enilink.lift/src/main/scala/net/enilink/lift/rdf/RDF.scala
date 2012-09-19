@@ -17,7 +17,9 @@ case class TypedLiteral(lex: String, dt: Label) extends Literal
 case class XmlLiteral(content: scala.xml.NodeSeq) extends Literal
 
 case class Reference extends Node
-case class Label(n: String) extends Reference
+case class Label(n: String) extends Reference {
+  override def toString() = n
+}
 case class BlankNode extends Reference
 
 case class Variable(val n: String, val qual: Option[Int]) extends Reference {

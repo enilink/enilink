@@ -59,6 +59,9 @@ class LiftModule extends Logger {
     LiftRules.htmlProperties.default.set((r: Req) =>
       new Html5Properties(r.userAgent))
 
+    // Force the request to be UTF-8
+    LiftRules.early.append(_.setCharacterEncoding("UTF-8"))
+
     ResourceServer.allow {
       case bs @ ("bootstrap" :: _) if bs.last.endsWith(".css") || bs.last.endsWith(".png") || bs.last.endsWith(".js") => true
       case rdfa @ ("rdfa" :: _) if rdfa.last.endsWith(".js") => true
