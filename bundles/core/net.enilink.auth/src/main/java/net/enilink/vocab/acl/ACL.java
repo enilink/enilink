@@ -14,6 +14,14 @@ public interface ACL {
 			.appendLocalPart("Access");
 
 	/**
+	 * Append mode.
+	 * 
+	 * append to the contents without deleting existing data
+	 */
+	public static final URI TYPE_APPEND = NAMESPACE_URI
+			.appendLocalPart("Append");
+
+	/**
 	 * Write mode.
 	 * 
 	 * overwrite the contents (including deleting it, or modifying part of it)
@@ -75,7 +83,7 @@ public interface ACL {
 
 	/**
 	 * The person or other agent which owns this. For example, the owner of a
-	 * file in a filesystem. There is a sense of right to control. Typically
+	 * file in a file system. There is a sense of right to control. Typically
 	 * defaults to the agent who created something but can be changed.
 	 */
 	public static final URI PROPERTY_OWNER = NAMESPACE_URI

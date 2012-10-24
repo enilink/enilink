@@ -1,5 +1,7 @@
 package net.enilink.vocab.acl;
 
+import java.util.Set;
+
 import net.enilink.vocab.foaf.Agent;
 
 import net.enilink.composition.annotations.Iri;
@@ -16,12 +18,12 @@ public interface Authorization {
 	 * A mode of access such as read or write.
 	 */
 	@Iri("http://www.w3.org/ns/auth/acl#mode")
-	net.enilink.vocab.rdfs.Class getAclMode();
+	Set<net.enilink.vocab.rdfs.Class> getAclMode();
 
 	/**
 	 * A mode of access such as read or write.
 	 */
-	void setAclMode(net.enilink.vocab.rdfs.Class mode);
+	void setAclMode(Set<net.enilink.vocab.rdfs.Class> mode);
 
 	/**
 	 * The information resource to which access is being granted.

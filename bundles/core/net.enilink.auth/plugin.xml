@@ -8,5 +8,11 @@
             class="net.enilink.auth.EnilinkLoginModule">
       </loginModule>
    </extension>
+   <extension
+         point="net.enilink.komma.model.modules">
+      <module
+            class="net.enilink.auth.AuthModule">
+      </module>
+   </extension>
 
 </plugin>
