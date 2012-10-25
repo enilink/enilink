@@ -19,4 +19,11 @@
             replacement="platform:/plugin/net.enilink.core/META-INF/ontologies/enilink.net/vocab/">
       </rule>
    </extension>
+      <extension
+         id="EnilinkLoginModule"
+         point="org.eclipse.equinox.security.loginModule">
+      <loginModule
+            class="net.enilink.core.jaas.EnilinkLoginModule">
+      </loginModule>
+   </extension>
 </plugin>

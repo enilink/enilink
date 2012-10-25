@@ -115,7 +115,7 @@ public class ModelSetManager {
 				.getClassLoader());
 		Injector injector = Guice.createInjector(
 				createModelSetGuiceModule(module), new SessionProviderModule());
-		URI msUri = URIImpl.createURI("urn:enilink:modelset");
+		URI msUri = URIImpl.createURI("urn:enilink:metamodelset");
 		IGraph graph = createModelSetConfig(msUri);
 		graph.add(msUri, MODELS.NAMESPACE_URI.appendLocalPart("server"),
 		// URIImpl.createURI("http://localhost:10035") // Allegrograph
@@ -164,6 +164,7 @@ public class ModelSetManager {
 
 	protected IModelSet createModelSet() {
 		KommaModule module = createDataModelSetModule();
+		module.addBehaviour(SecureModelSetSupport.class);
 		Injector injector = Guice.createInjector(
 				createModelSetGuiceModule(module), new SessionProviderModule());
 		IModelSetFactory factory = injector.getInstance(IModelSetFactory.class);
@@ -252,6 +253,7 @@ public class ModelSetManager {
 	public synchronized IModelSet getModelSet() {
 		if (modelSet == null) {
 			IModelSet metaModelSet = createMetaModelSet();
+			metaModelSet.getModule().addBehaviour(SecureModelSetSupport.class);
 			IModel metaDataModel = metaModelSet.createModel(URIImpl
 					.createURI("urn:enilink:metadata"));
 			modelSet = createModelSet(metaDataModel);

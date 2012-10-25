@@ -7,7 +7,9 @@ Bundle-Activator: net.enilink.core.Activator
 Require-Bundle: org.eclipse.core.runtime,
  net.enilink.komma.model,
  net.enilink.komma.edit,
- net.enilink.komma.workbench
+ net.enilink.komma.workbench,
+ net.enilink.rap.security,
+ net.enilink.auth
 Bundle-ActivationPolicy: lazy
 Bundle-RequiredExecutionEnvironment: JavaSE-1.6
 Import-Package: com.google.inject,
