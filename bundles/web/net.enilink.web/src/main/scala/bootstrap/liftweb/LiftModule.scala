@@ -48,16 +48,6 @@ class LiftModule {
   def logout() { S.session.map(_.httpSession.map(_.removeAttribute("javax.security.auth.subject"))) }
 
   def boot {
-    // set context user from UserPrincipal contained in the HTTP session after successful login
-    Globals.contextUser.default.set(() => {
-      S.session.flatMap(_.httpSession.map(_.attribute("javax.security.auth.subject")) match {
-        case Full(s: Subject) =>
-          val userPrincipals = s.getPrincipals(classOf[UserPrincipal])
-          if (!userPrincipals.isEmpty) Full(userPrincipals.iterator.next.asInstanceOf[UserPrincipal].getId) else Empty
-        case _ => Empty
-      })
-    })
-
     LiftRules.httpAuthProtectedResource.prepend {
       case Req("services" :: _, _, _) => Full(AuthRole("rest"))
     }

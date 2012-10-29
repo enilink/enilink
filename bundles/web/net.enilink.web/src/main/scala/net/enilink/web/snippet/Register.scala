@@ -1,24 +1,21 @@
 package net.enilink.web.snippet
 
+import scala.xml.Node
+
+import net.enilink.komma.concepts.IResource
+import net.enilink.komma.core.URIImpl
 import javax.security.auth.Subject
+import net.enilink.auth.AccountHelper
+import net.enilink.auth.UserPrincipal
+import net.enilink.core.ModelSetManager
+import net.enilink.vocab.foaf.FOAF
+import net.liftweb.common.Box
+import net.liftweb.common.Empty
 import net.liftweb.common.Full
+import net.liftweb.http.S
+import net.liftweb.http.Templates
 import net.liftweb.util.Helpers
 import net.liftweb.util.Helpers.strToCssBindPromoter
-import net.liftweb.http.Templates
-import scala.xml.Node
-import net.liftweb.http.S
-import net.enilink.komma.core.URIImpl
-import net.enilink.core.ModelSetManager
-import net.liftweb.common.Empty
-import net.liftweb.common.Box
-import net.enilink.auth.EnilinkLoginModule
-import javax.security.auth.callback.CallbackHandler
-import javax.security.auth.callback.Callback
-import java.util.HashMap
-import net.enilink.auth.UserPrincipal
-import net.enilink.auth.AccountHelper
-import net.enilink.komma.concepts.IResource
-import net.enilink.vocab.foaf.FOAF
 
 class Register extends SubjectHelper {
   def linkUserName(s: Subject, name: String): Box[String] = {
