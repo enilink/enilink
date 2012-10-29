@@ -1,4 +1,7 @@
-package net.enilink.core;
+package net.enilink.core.security;
+
+import java.util.ArrayList;
+import java.util.List;
 
 import com.google.inject.Inject;
 
@@ -6,21 +9,45 @@ import net.enilink.commons.iterator.IExtendedIterator;
 import net.enilink.komma.dm.IDataManager;
 import net.enilink.komma.dm.IDataManagerQuery;
 import net.enilink.komma.em.ThreadLocalDataManager;
-import net.enilink.komma.model.IModelSet;
 import net.enilink.komma.core.IReference;
 import net.enilink.komma.core.IStatement;
 import net.enilink.komma.core.IStatementPattern;
 import net.enilink.komma.core.IValue;
+import net.enilink.komma.core.URI;
 
 public class SecureDataManager extends ThreadLocalDataManager {
 	@Inject
-	protected IModelSet modelSet;
+	protected ISecureModelSet modelSet;
 
 	protected IReference[] assertWritable(IReference... contexts) {
+		URI userId = SecurityUtil.getUserId();
+		if (userId != null) {
+			List<IReference> accessibleCtxs = new ArrayList<IReference>(
+					contexts.length);
+			for (IReference ctx : contexts) {
+				if (modelSet.isWritableBy(ctx, userId)) {
+					accessibleCtxs.add(ctx);
+				}
+			}
+			contexts = accessibleCtxs.toArray(new IReference[accessibleCtxs
+					.size()]);
+		}
 		return contexts;
 	}
 
 	protected IReference[] assertReadable(IReference... contexts) {
+		URI userId = SecurityUtil.getUserId();
+		if (userId != null) {
+			List<IReference> accessibleCtxs = new ArrayList<IReference>(
+					contexts.length);
+			for (IReference ctx : contexts) {
+				if (modelSet.isReadableBy(ctx, userId)) {
+					accessibleCtxs.add(ctx);
+				}
+			}
+			contexts = accessibleCtxs.toArray(new IReference[accessibleCtxs
+					.size()]);
+		}
 		return contexts;
 	}
 

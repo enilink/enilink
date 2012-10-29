@@ -1,7 +1,11 @@
 package net.enilink.core;
 
+import net.enilink.core.security.SecureModelSetSupport;
+import net.enilink.core.security.SecurePropertySetDescriptorFactory;
+
 import org.eclipse.core.resources.IProject;
 import org.eclipse.core.resources.ResourcesPlugin;
+import net.enilink.composition.properties.PropertySetDescriptorFactory;
 import org.osgi.framework.BundleContext;
 import org.osgi.framework.InvalidSyntaxException;
 import org.osgi.framework.ServiceReference;
@@ -79,14 +83,18 @@ public class ModelSetManager {
 	}
 
 	protected Module createModelSetGuiceModule(KommaModule module) {
-		return Modules.override(new ModelSetModule(module)).with(
-				new AbstractModule() {
-					@Override
-					protected void configure() {
-						bind(UnitOfWork.class).toInstance(uow);
-						bind(IUnitOfWork.class).toInstance(uow);
-					}
-				});
+		return Modules.override(new ModelSetModule(module) {
+			@Override
+			protected Class<? extends PropertySetDescriptorFactory> providePropertySetImplementation() {
+				return SecurePropertySetDescriptorFactory.class;
+			}
+		}).with(new AbstractModule() {
+			@Override
+			protected void configure() {
+				bind(UnitOfWork.class).toInstance(uow);
+				bind(IUnitOfWork.class).toInstance(uow);
+			}
+		});
 	}
 
 	protected KommaModule createDataModelSetModule() {
@@ -97,6 +105,8 @@ public class ModelSetManager {
 
 		module.addConcept(IProjectModelSet.class);
 		module.addBehaviour(ProjectModelSetSupport.class);
+
+		module.addBehaviour(SecureModelSetSupport.class);
 		return module;
 	}
 
@@ -113,6 +123,8 @@ public class ModelSetManager {
 	protected IModelSet createMetaModelSet() {
 		KommaModule module = ModelCore.createModelSetModule(getClass()
 				.getClassLoader());
+		module.addBehaviour(SessionModelSetSupport.class);
+
 		Injector injector = Guice.createInjector(
 				createModelSetGuiceModule(module), new SessionProviderModule());
 		URI msUri = URIImpl.createURI("urn:enilink:metamodelset");
@@ -164,7 +176,7 @@ public class ModelSetManager {
 
 	protected IModelSet createModelSet() {
 		KommaModule module = createDataModelSetModule();
-		module.addBehaviour(SecureModelSetSupport.class);
+
 		Injector injector = Guice.createInjector(
 				createModelSetGuiceModule(module), new SessionProviderModule());
 		IModelSetFactory factory = injector.getInstance(IModelSetFactory.class);
@@ -253,7 +265,6 @@ public class ModelSetManager {
 	public synchronized IModelSet getModelSet() {
 		if (modelSet == null) {
 			IModelSet metaModelSet = createMetaModelSet();
-			metaModelSet.getModule().addBehaviour(SecureModelSetSupport.class);
 			IModel metaDataModel = metaModelSet.createModel(URIImpl
 					.createURI("urn:enilink:metadata"));
 			modelSet = createModelSet(metaDataModel);

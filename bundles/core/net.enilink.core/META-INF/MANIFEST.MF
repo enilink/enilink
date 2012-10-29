@@ -9,11 +9,13 @@ Require-Bundle: org.eclipse.core.runtime,
  net.enilink.komma.edit,
  net.enilink.komma.workbench,
  net.enilink.rap.security,
- net.enilink.auth
+ net.enilink.auth;visibility:=reexport
 Bundle-ActivationPolicy: lazy
 Bundle-RequiredExecutionEnvironment: JavaSE-1.6
 Import-Package: com.google.inject,
  com.google.inject.binder,
  com.google.inject.util,
- org.eclipse.core.resources
-Export-Package: net.enilink.core
+ org.eclipse.core.resources,
+ net.enilink.composition.properties.komma
+Export-Package: net.enilink.core,
+ net.enilink.core.security

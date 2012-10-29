@@ -4,9 +4,12 @@ import java.util.Collections;
 import java.util.Map;
 import java.util.WeakHashMap;
 
+import net.enilink.core.security.SecurePropertySetDescriptorFactory;
+
 import net.enilink.composition.annotations.parameterTypes;
 import net.enilink.composition.annotations.precedes;
 import net.enilink.composition.concepts.Message;
+import net.enilink.composition.properties.PropertySetDescriptorFactory;
 import net.enilink.composition.traits.Behaviour;
 
 import com.google.inject.Inject;
@@ -25,7 +28,7 @@ import net.enilink.komma.core.EntityVar;
 import net.enilink.komma.core.URI;
 
 @precedes(IModelSet.class)
-public abstract class SessionModelSetSupport implements IModelSet,
+public abstract class SessionModelSetSupport implements IModelSet.Internal,
 		Behaviour<IModelSet> {
 	public static class Key {
 	};
@@ -128,5 +131,10 @@ public abstract class SessionModelSetSupport implements IModelSet,
 		commandStack.setEditingDomain(editingDomain);
 		// editingDomain
 		// .setModelToReadOnlyMap(new java.util.WeakHashMap<IModel, Boolean>());
+	}
+
+	@Override
+	public Class<? extends PropertySetDescriptorFactory> providePropertySetImplementation() {
+		return SecurePropertySetDescriptorFactory.class;
 	}
 }
