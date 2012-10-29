@@ -17,6 +17,10 @@ import net.liftweb.util._
 import net.liftweb._
 import net.enilink.lift.sitemap.Application
 import net.liftweb.common.Logger
+import javax.security.auth.Subject
+import net.enilink.auth.UserPrincipal
+import java.security.PrivilegedAction
+import java.security.AccessController
 
 /**
  * A class that's instantiated early and run.  It allows the application
@@ -32,6 +36,16 @@ class LiftModule extends Logger {
   }
 
   def boot {
+    // set context user from UserPrincipal contained in the HTTP session after successful login
+    Globals.contextUser.default.set(() => {
+      Subject.getSubject(AccessController.getContext()) match {
+        case s: Subject =>
+          val userPrincipals = s.getPrincipals(classOf[UserPrincipal])
+          if (!userPrincipals.isEmpty) Full(userPrincipals.iterator.next.asInstanceOf[UserPrincipal].getId) else Empty
+        case _ => Empty
+      }
+    })
+
     //    LiftRules.resourceBundleFactories prepend {
     //      case (basename, locale) => ResourceBundle.getBundle(basename, locale)
     //    }
@@ -139,7 +153,12 @@ class LiftModule extends Logger {
             uow.begin
           }
 
-          f
+          S.session.flatMap(_.httpSession.map(_.attribute("javax.security.auth.subject")) match {
+            case Full(s: Subject) => Full(Subject.doAs(s, new PrivilegedAction[T] {
+              override def run = f
+            }))
+            case _ => Full(f)
+          }).openTheBox
         } finally {
           for (uow <- unitsOfWork) uow.end
         }
