@@ -48,7 +48,8 @@ class Rdfa extends Sparql with EditRdfa {
   }
 
   override def toSparql(n: NodeSeq, em: IEntityManager): (NodeSeq, String) = {
-    val sparqlFromRdfa = SparqlFromRDFa(n.head.asInstanceOf[Elem], "http://example.org#")
+    val nodesWithAcl = (".acl" #> Acl.render _)(n)
+    val sparqlFromRdfa = SparqlFromRDFa(nodesWithAcl.head.asInstanceOf[Elem], "http://example.org#")
     // support for pagination of results
     var paginatedQuery: Box[String] = Empty
     var nodesWithPagination = (".pagination" #> ((ns: NodeSeq) => {

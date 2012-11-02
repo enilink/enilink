@@ -52,7 +52,7 @@ class Sparql extends RDFaTemplates {
           val (n1, sparql) = toSparql(n, entity.getEntityManager)
           val query = entity.getEntityManager.createQuery(sparql)
           query.setParameter("this", entity)
-          query.setParameter("currentUser", Globals.contextUser.vend.getOrElse(URIImpl.createURI("urn:jaas:principal:unknown")))
+          query.setParameter("currentUser", Globals.contextUser.vend)
           query.bindResultType(null: String, classOf[IValue]).evaluate match {
             case r: IGraphResult =>
               n1 //renderGraph(new LinkedHashGraph(r.toList()))

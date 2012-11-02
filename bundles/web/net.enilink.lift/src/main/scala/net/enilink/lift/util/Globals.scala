@@ -11,6 +11,10 @@ import net.liftweb.common._
 import net.enilink.komma.core.IReference
 import net.liftweb.http.S
 import javax.security.auth.Subject
+import net.enilink.komma.core.URIImpl
+import net.enilink.komma.core.URI
+import net.enilink.core.security.ISecureModelSet
+import net.liftweb.http.Req
 
 /**
  * A registry for global variables which are shared throughout the application.
@@ -32,5 +36,19 @@ object Globals extends Factory {
       case _ => Empty
     }
   }: Box[AnyRef]) {}
-  implicit val contextUser = new FactoryMaker(() => Empty: Box[IReference]) {}
+  implicit val contextUser = new FactoryMaker(() => UNKNOWN_USER: IReference) {}
+  implicit val UNKNOWN_USER: URI = URIImpl.createURI("urn:enilink:anonymous")
+}
+
+// extractor to test if access to context model is allowed
+object NotAllowedModel {
+  def unapply(m: IModel): Option[IModel] = m.getModelSet match {
+    case sms: ISecureModelSet if (!sms.isReadableBy(m.getURI, Globals.contextUser.vend)) => Full(m)
+    case _ => Empty // this is not a secure model set
+  }
+
+  def unapply(r: Req): Option[IModel] = Globals.contextModel.vend match {
+    case Full(m) => unapply(m)
+    case _ => Empty // no context model
+  }
 }

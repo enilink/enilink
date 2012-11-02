@@ -1,26 +1,27 @@
 package bootstrap.liftweb
 
+import java.security.AccessController
+import java.security.PrivilegedAction
 import net.enilink.komma.model.IModel
 import net.enilink.komma.model.IObject
 import net.enilink.komma.core.BlankNode
 import net.enilink.komma.core.IUnitOfWork
 import net.enilink.komma.core.URIImpl
-import net.enilink.core.ModelSetManager
-import net.enilink.lift.util.Globals
-import net.liftweb.common._
-import net.liftweb.http.js.jquery.JQueryArtifacts
-import net.liftweb.http._
-import net.liftweb.sitemap.Loc._
-import net.liftweb.sitemap._
-import net.liftweb.util.Helpers._
-import net.liftweb.util._
-import net.liftweb._
-import net.enilink.lift.sitemap.Application
-import net.liftweb.common.Logger
 import javax.security.auth.Subject
 import net.enilink.auth.UserPrincipal
-import java.security.PrivilegedAction
-import java.security.AccessController
+import net.enilink.core.ModelSetManager
+import net.enilink.core.security.ISecureModelSet
+import net.enilink.lift.util.Globals
+import net.liftweb._
+import net.liftweb.common._
+import net.liftweb.common.Logger
+import net.liftweb.http._
+import net.liftweb.http.js.jquery.JQueryArtifacts
+import net.liftweb.sitemap._
+import net.liftweb.sitemap.Loc._
+import net.liftweb.util._
+import net.liftweb.util.Helpers._
+import net.enilink.lift.util.NotAllowedModel
 
 /**
  * A class that's instantiated early and run.  It allows the application
@@ -41,8 +42,8 @@ class LiftModule extends Logger {
       Subject.getSubject(AccessController.getContext()) match {
         case s: Subject =>
           val userPrincipals = s.getPrincipals(classOf[UserPrincipal])
-          if (!userPrincipals.isEmpty) Full(userPrincipals.iterator.next.asInstanceOf[UserPrincipal].getId) else Empty
-        case _ => Empty
+          if (!userPrincipals.isEmpty) userPrincipals.iterator.next.asInstanceOf[UserPrincipal].getId else Globals.UNKNOWN_USER
+        case _ => Globals.UNKNOWN_USER
       }
     })
 
@@ -67,7 +68,7 @@ class LiftModule extends Logger {
       Full(() => LiftRules.jsArtifacts.hide("ajax-loader").cmd)
 
     // What is the function to test if a user is logged in?
-    LiftRules.loggedInTest = Full(() => true) // TODO user is simply regarded as logged in
+    LiftRules.loggedInTest = Full(() => Globals.contextUser.vend != Globals.UNKNOWN_USER)
 
     // Use HTML5 for rendering
     LiftRules.htmlProperties.default.set((r: Req) =>
@@ -75,6 +76,11 @@ class LiftModule extends Logger {
 
     // Force the request to be UTF-8
     LiftRules.early.append(_.setCharacterEncoding("UTF-8"))
+
+    // dispatch function for checking access to context model
+    LiftRules.dispatch.append {
+      case NotAllowedModel(m) => () => Full(ForbiddenResponse("You don't have permissions to access " + m.getURI + "."))
+    }
 
     ResourceServer.allow {
       case bs @ ("bootstrap" :: _) if bs.last.endsWith(".css") || bs.last.endsWith(".png") || bs.last.endsWith(".js") => true
@@ -144,15 +150,13 @@ class LiftModule extends Logger {
           }
           if (model.isDefined) {
             Globals.contextModel.request.set(model)
+            if (modelSet != model.get.getModelSet) {
+              modelSet = model.get.getModelSet
+              var uow = modelSet.getUnitOfWork
+              unitsOfWork = unitsOfWork ++ List(uow)
+              uow.begin
+            }
           }
-
-          if (model.isDefined && modelSet != model.get.getModelSet) {
-            modelSet = model.get.getModelSet
-            var uow = modelSet.getUnitOfWork
-            unitsOfWork = unitsOfWork ++ List(uow)
-            uow.begin
-          }
-
           S.session.flatMap(_.httpSession.map(_.attribute("javax.security.auth.subject")) match {
             case Full(s: Subject) => Full(Subject.doAs(s, new PrivilegedAction[T] {
               override def run = f
