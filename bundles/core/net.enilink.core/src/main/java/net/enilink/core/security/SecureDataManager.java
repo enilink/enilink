@@ -15,6 +15,9 @@ import net.enilink.komma.core.IStatementPattern;
 import net.enilink.komma.core.IValue;
 import net.enilink.komma.core.URI;
 
+/**
+ * Data manager for an {@link ISecureModelSet}.
+ */
 public class SecureDataManager extends ThreadLocalDataManager {
 	@Inject
 	protected ISecureModelSet modelSet;

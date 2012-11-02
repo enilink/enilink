@@ -19,7 +19,6 @@ import net.enilink.komma.dm.IDataManager;
 import net.enilink.komma.model.IModelSet;
 import net.enilink.komma.core.IQuery;
 import net.enilink.komma.core.IReference;
-import net.enilink.komma.core.URI;
 
 public abstract class SecureModelSetSupport implements ISecureModelSet,
 		Behaviour<ISecureModelSet> {
@@ -51,7 +50,7 @@ public abstract class SecureModelSetSupport implements ISecureModelSet,
 		modules.add(compoundModule);
 	}
 
-	protected boolean hasAclMode(IReference model, URI user, URI mode) {
+	protected boolean hasAclMode(IReference model, IReference user, IReference mode) {
 		IQuery<?> query = getMetaDataManager()
 				.createQuery(
 						"prefix acl: <"
@@ -67,7 +66,7 @@ public abstract class SecureModelSetSupport implements ISecureModelSet,
 
 	@Override
 	@Cacheable
-	public boolean isReadableBy(IReference model, URI user) {
+	public boolean isReadableBy(IReference model, IReference user) {
 		if (model == null
 				|| model.equals(((IModelSet.Internal) getBehaviourDelegate())
 						.getDefaultGraph())) {
@@ -78,7 +77,7 @@ public abstract class SecureModelSetSupport implements ISecureModelSet,
 
 	@Override
 	@Cacheable
-	public boolean isWritableBy(IReference model, URI user) {
+	public boolean isWritableBy(IReference model, IReference user) {
 		if (model == null
 				|| model.equals(((IModelSet.Internal) getBehaviourDelegate())
 						.getDefaultGraph())) {

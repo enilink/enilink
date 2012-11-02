@@ -16,6 +16,10 @@ import net.enilink.komma.core.IQuery;
 import net.enilink.komma.core.IReference;
 import net.enilink.komma.core.URI;
 
+/**
+ * A Factory that can be used to create secure property sets. These property
+ * sets consider ACLs when retrieving property values.
+ */
 public class SecurePropertySetDescriptorFactory extends
 		KommaPropertySetDescriptorFactory {
 	@Override
