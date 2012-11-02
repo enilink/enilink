@@ -26,6 +26,7 @@ import net.liftweb.http.S
 import net.liftweb.http.rest.RestHelper
 import net.liftweb.common.Empty
 import net.liftweb.http.ForbiddenResponse
+import net.enilink.lift.util.NotAllowedModel
 
 object ModelsRest extends RestHelper {
   /**
@@ -122,12 +123,15 @@ object ModelsRest extends RestHelper {
    */
   def serveRdf(r: Req, modelUri: URI) = {
     getModel(modelUri).dmap(Full(new NotFoundResponse("Model " + modelUri + " not found.")): Box[LiftResponse])(model =>
-      getResponseContentType(r) map (_.getDefaultDescription) match {
-        case Some(cd) =>
-          val baos = new ByteArrayOutputStream
-          model.save(baos, Map(classOf[IContentDescription] -> cd))
-          Full(new RdfResponse(baos.toByteArray, cd, Nil, 200))
-        case _ => None
+      model match {
+        case NotAllowedModel(_) => Full(ForbiddenResponse("You don't have permissions to access " + model.getURI + "."))
+        case _ => getResponseContentType(r) map (_.getDefaultDescription) match {
+          case Some(cd) =>
+            val baos = new ByteArrayOutputStream
+            model.save(baos, Map(classOf[IContentDescription] -> cd))
+            Full(new RdfResponse(baos.toByteArray, cd, Nil, 200))
+          case _ => None
+        }
       })
   }
 
@@ -139,10 +143,7 @@ object ModelsRest extends RestHelper {
           LiftRules.convertResponse(S.runTemplate(List("static", "ontology")), Nil, S.responseCookies, req)
         }
       }
-      else {
-        // until real permission management is implemented, disallow download of data models for now
-        if (modelUri.segment(0) == "vocab") serveRdf(req, modelUri) else new ForbiddenResponse("Download of model " + modelUri + " is currently not allowed.")
-      }
+      else serveRdf(req, modelUri)
     }
   }
 }

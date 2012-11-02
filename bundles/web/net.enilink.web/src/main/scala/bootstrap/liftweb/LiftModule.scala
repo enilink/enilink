@@ -1,6 +1,7 @@
 package bootstrap.liftweb
 
 import net.enilink.lift.sitemap.Application
+import net.enilink.lift.util.Globals
 import net.enilink.web.rest.ELSRest
 import net.enilink.web.rest.ModelsRest
 import net.liftweb.common.Full
@@ -11,18 +12,13 @@ import net.liftweb.http.S
 import net.liftweb.http.auth.AuthRole
 import net.liftweb.http.auth.HttpBasicAuthentication
 import net.liftweb.http.auth.userRoles
+import net.liftweb.sitemap.Loc._
 import net.liftweb.sitemap.Loc.LinkText.strToLinkText
 import net.liftweb.sitemap.LocPath.stringToLocPath
 import net.liftweb.sitemap.Menu
 import net.liftweb.sitemap.Menu.Menuable.toMenu
 import net.liftweb.sitemap.SiteMap
-import net.liftweb.sitemap.Loc._
-import scala.xml.Text
-import javax.security.auth.Subject
 import net.liftweb.http.RedirectResponse
-import net.enilink.auth.UserPrincipal
-import net.enilink.lift.util.Globals
-import net.liftweb.common.Empty
 
 /**
  * A class that's instantiated early and run.  It allows the application
@@ -32,18 +28,18 @@ class LiftModule {
   object Right extends MenuCssClass("pull-right")
 
   def sitemapMutator: SiteMap => SiteMap = {
+    def profileText = Globals.contextUser.vend.getURI.localPart
+
     val entries = List[Menu](Menu.i("enilink") / "" >> Application submenus (
       Menu("enilink.Home", S ? "Home") / "index",
       Menu("enilink.Vocabulary", S ? "Vocabulary") / "vocab",
-      Menu("enilink.Login", S ? "Login") / "login" >> Right >> If(() => !loggedIn, S.??("already.loggedin")),
-      Menu("enilink.SignUp", S ? "Sign up") / "register" >> Right >> Hidden >> If(() => !loggedIn, S.??("already.loggedin")),
-      Menu("enilink.Logout", S ? "Logout") / "logout" >> Right >> If(() => loggedIn, S.??("not.loggedin"))
-      >> EarlyResponse(() => { logout; Full(RedirectResponse("/")) })))
+      Menu("enilink.Login", S ? "Login") / "login" >> Right >> If(() => !S.loggedIn_?, S.??("already.loggedin")),
+      Menu("enilink.SignUp", S ? "Sign up") / "register" >> Right >> Hidden >> If(() => !S.loggedIn_?, S.??("already.loggedin")),
+      Menu("enilink.Profile", profileText) / "static" / "profile" >> Right >> If(() => S.loggedIn_?, S.??("not.loggedin"))
+      submenus (Menu("enilink.Logout", S ? "Logout") / "logout" >> EarlyResponse(() => { logout; Full(RedirectResponse("/")) }))))
 
     SiteMap.sitemapMutator { Map.empty }(SiteMap.addMenusAtEndMutator(entries))
   }
-
-  def loggedIn = Globals.contextUser.vend.isDefined
 
   def logout() { S.session.map(_.httpSession.map(_.removeAttribute("javax.security.auth.subject"))) }
 
