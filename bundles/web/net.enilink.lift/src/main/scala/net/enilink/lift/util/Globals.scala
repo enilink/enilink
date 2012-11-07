@@ -15,6 +15,7 @@ import net.enilink.komma.core.URIImpl
 import net.enilink.komma.core.URI
 import net.enilink.core.security.ISecureModelSet
 import net.liftweb.http.Req
+import net.enilink.core.security.SecurityUtil
 
 /**
  * A registry for global variables which are shared throughout the application.
@@ -37,7 +38,7 @@ object Globals extends Factory {
     }
   }: Box[AnyRef]) {}
   implicit val contextUser = new FactoryMaker(() => UNKNOWN_USER: IReference) {}
-  implicit val UNKNOWN_USER: URI = URIImpl.createURI("urn:enilink:anonymous")
+  implicit val UNKNOWN_USER: URI = SecurityUtil.UNKNOWN_USER
 }
 
 // extractor to test if access to context model is allowed

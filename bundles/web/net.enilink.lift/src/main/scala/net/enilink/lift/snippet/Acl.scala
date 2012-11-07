@@ -31,7 +31,12 @@ object Acl {
         <span about={ bindingVar } rel="acl:owner" resource="?currentUser"/>
         <!-- or has at least read access to it -->
         <span typeof="acl:Authorization">
-          <span rel="acl:accessTo" resource={ bindingVar }/>
+          <span class="union">
+            <span rel="acl:accessTo" resource={ bindingVar }/>
+            <span rel="acl:accessToClass">
+              <span rev="rdf:type" resource={ bindingVar }/>
+            </span>
+          </span>
           <span rel="acl:mode" resource="acl:Read"/>
           <span class="union">
             <span rel="acl:agent" resource="?currentUser"/>
