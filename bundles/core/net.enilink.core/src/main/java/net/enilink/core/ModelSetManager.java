@@ -1,5 +1,7 @@
 package net.enilink.core;
 
+import net.enilink.core.security.ISecureEntity;
+import net.enilink.core.security.SecureEntitySupport;
 import net.enilink.core.security.SecureModelSetSupport;
 import net.enilink.core.security.SecurePropertySetDescriptorFactory;
 
@@ -107,6 +109,8 @@ public class ModelSetManager {
 		module.addBehaviour(ProjectModelSetSupport.class);
 
 		module.addBehaviour(SecureModelSetSupport.class);
+		module.addConcept(ISecureEntity.class);
+		module.addBehaviour(SecureEntitySupport.class);
 		return module;
 	}
 
@@ -124,6 +128,8 @@ public class ModelSetManager {
 		KommaModule module = ModelCore.createModelSetModule(getClass()
 				.getClassLoader());
 		module.addBehaviour(SessionModelSetSupport.class);
+		module.addConcept(ISecureEntity.class);
+		module.addBehaviour(SecureEntitySupport.class);
 
 		Injector injector = Guice.createInjector(
 				createModelSetGuiceModule(module), new SessionProviderModule());

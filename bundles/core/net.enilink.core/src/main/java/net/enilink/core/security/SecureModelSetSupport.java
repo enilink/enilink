@@ -17,7 +17,6 @@ import com.google.inject.util.Modules;
 
 import net.enilink.komma.dm.IDataManager;
 import net.enilink.komma.model.IModelSet;
-import net.enilink.komma.core.IQuery;
 import net.enilink.komma.core.IReference;
 
 public abstract class SecureModelSetSupport implements ISecureModelSet,
@@ -50,18 +49,10 @@ public abstract class SecureModelSetSupport implements ISecureModelSet,
 		modules.add(compoundModule);
 	}
 
-	protected boolean hasAclMode(IReference model, IReference user, IReference mode) {
-		IQuery<?> query = getMetaDataManager()
-				.createQuery(
-						"prefix acl: <"
-								+ ACL.NAMESPACE
-								+ "> "
-								+ "ask { ?acl acl:accessTo ?target . ?acl acl:mode ?mode . "
-								+ "{ ?acl acl:agent ?agent } union { ?agent a ?agentClass . ?acl acl:agentClass ?agentClass } }");
-		query.setParameter("target", model);
-		query.setParameter("agent", user);
-		query.setParameter("mode", mode);
-		return query.getBooleanResult();
+	protected boolean hasAclMode(IReference model, IReference user,
+			IReference mode) {
+		return getMetaDataManager().findRestricted(model, ISecureEntity.class)
+				.hasAclMode(user, mode);
 	}
 
 	@Override

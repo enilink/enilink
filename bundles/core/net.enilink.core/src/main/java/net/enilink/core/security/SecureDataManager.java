@@ -23,7 +23,7 @@ public class SecureDataManager extends ThreadLocalDataManager {
 	protected ISecureModelSet modelSet;
 
 	protected IReference[] assertWritable(IReference... contexts) {
-		URI userId = SecurityUtil.getUserId();
+		URI userId = SecurityUtil.getUser();
 		if (userId != null) {
 			List<IReference> accessibleCtxs = new ArrayList<IReference>(
 					contexts.length);
@@ -39,7 +39,7 @@ public class SecureDataManager extends ThreadLocalDataManager {
 	}
 
 	protected IReference[] assertReadable(IReference... contexts) {
-		URI userId = SecurityUtil.getUserId();
+		URI userId = SecurityUtil.getUser();
 		if (userId != null) {
 			List<IReference> accessibleCtxs = new ArrayList<IReference>(
 					contexts.length);

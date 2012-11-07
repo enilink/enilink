@@ -35,7 +35,7 @@ public class SecurePropertySetDescriptorFactory extends
 							predicate, (Class<E>) type, rdfValueType) {
 						@Override
 						protected IQuery<?> createElementsQuery() {
-							URI userId = SecurityUtil.getUserId();
+							URI userId = SecurityUtil.getUser();
 							if (userId != null) {
 								return manager
 										.createQuery(
@@ -43,7 +43,7 @@ public class SecurePropertySetDescriptorFactory extends
 														+ ACL.NAMESPACE
 														+ "> "
 														+ "SELECT DISTINCT ?o WHERE { ?s ?p ?o . "
-														+ "?acl acl:accessTo ?o . ?acl acl:mode ?mode . "
+														+ "{ ?acl acl:accessTo ?target } union { ?acl acl:accessToClass ?class . ?target a ?class } . ?acl acl:mode ?mode . "
 														+ "{ ?acl acl:agent ?agent } union { ?agent a ?agentClass . ?acl acl:agentClass ?agentClass }"
 														+ " }")
 										.setParameter("s", bean)
