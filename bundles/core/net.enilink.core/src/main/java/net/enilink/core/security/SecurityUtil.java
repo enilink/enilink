@@ -1,11 +1,18 @@
 package net.enilink.core.security;
 
+import java.security.AccessControlContext;
 import java.security.AccessController;
 import java.util.Set;
 
 import javax.security.auth.Subject;
 
 import net.enilink.auth.UserPrincipal;
+
+import org.eclipse.core.runtime.QualifiedName;
+import org.eclipse.core.runtime.jobs.IJobChangeEvent;
+import org.eclipse.core.runtime.jobs.Job;
+import org.eclipse.core.runtime.jobs.JobChangeAdapter;
+
 import net.enilink.komma.core.URI;
 import net.enilink.komma.core.URIImpl;
 
@@ -16,6 +23,21 @@ public class SecurityUtil {
 	public static final URI UNKNOWN_USER = URIImpl
 			.createURI("urn:enilink:anonymous");
 
+	private static final QualifiedName JOB_CONTEXT = new QualifiedName(
+			"net.enilink.core.security", "Context");
+
+	static {
+		// change listener to propagate access control contexts for jobs
+		Job.getJobManager().addJobChangeListener(new JobChangeAdapter() {
+			@Override
+			public void scheduled(IJobChangeEvent event) {
+				// attach context of current thread to job
+				event.getJob().setProperty(JOB_CONTEXT,
+						AccessController.getContext());
+			}
+		});
+	}
+
 	/**
 	 * Returns the current user or <code>null</code>.
 	 * 
@@ -23,6 +45,17 @@ public class SecurityUtil {
 	 */
 	public static URI getUser() {
 		Subject s = Subject.getSubject(AccessController.getContext());
+		if (s == null) {
+			// try to get subject with context of current running job
+			Job job = Job.getJobManager().currentJob();
+			if (job != null) {
+				AccessControlContext context = (AccessControlContext) job
+						.getProperty(JOB_CONTEXT);
+				if (context != null) {
+					s = Subject.getSubject(context);
+				}
+			}
+		}
 		if (s != null) {
 			Set<UserPrincipal> principals = s
 					.getPrincipals(UserPrincipal.class);
