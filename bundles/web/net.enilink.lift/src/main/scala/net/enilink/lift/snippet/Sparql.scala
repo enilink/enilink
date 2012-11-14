@@ -24,9 +24,18 @@ import net.enilink.komma.core.IValue
 import net.liftweb.http.PaginatorSnippet
 import net.enilink.komma.core.IEntityManager
 import net.enilink.komma.core.URIImpl
+import net.enilink.komma.core.IQuery
 
 class Sparql extends RDFaTemplates {
   val selection = Globals.contextResource.vend.openOr(null)
+
+  def withParameters[T](query: IQuery[T]) = {
+    CurrentContext.value.get.subject match {
+      case entity: IEntity => query.setParameter("this", entity)
+      case _ => // do nothing
+    }
+    query.setParameter("currentUser", Globals.contextUser.vend)
+  }
 
   def render(n: NodeSeq): NodeSeq = {
     // check if inferred statements should be distinguished from explicit statements
@@ -50,9 +59,7 @@ class Sparql extends RDFaTemplates {
       CurrentContext.value.get.subject match {
         case entity: IEntity =>
           val (n1, sparql) = toSparql(n, entity.getEntityManager)
-          val query = entity.getEntityManager.createQuery(sparql)
-          query.setParameter("this", entity)
-          query.setParameter("currentUser", Globals.contextUser.vend)
+          val query = withParameters(entity.getEntityManager.createQuery(sparql))
           query.bindResultType(null: String, classOf[IValue]).evaluate match {
             case r: IGraphResult =>
               n1 //renderGraph(new LinkedHashGraph(r.toList()))
@@ -61,7 +68,7 @@ class Sparql extends RDFaTemplates {
               val allTuples = r.map { row => (toBindings(firstBinding, row), true) }
               val toRender = (if (distInferred) {
                 // query explicit statements and prepend them to the results
-                entity.getEntityManager.createQuery(sparql, false).setParameter("this", entity)
+                withParameters(entity.getEntityManager.createQuery(sparql, false))
                   .bindResultType(null: String, classOf[IValue]).evaluate.asInstanceOf[ITupleResult[_]]
                   .map { row => (toBindings(firstBinding, row), false) } ++ allTuples
               } else allTuples)

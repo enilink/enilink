@@ -26,7 +26,7 @@ object Acl {
   def render(ns: NodeSeq): NodeSeq = {
     var bindingVar = (ns \ "@data-for").text
     if (!bindingVar.isEmpty) {
-      <span xmlns:acl={ ACL.NAMESPACE } xmlns:rdf={ RDF.NAMESPACE } class="union clearable">
+      <span xmlns:acl={ ACL.NAMESPACE } xmlns:rdf={ RDF.NAMESPACE } class="exists union clearable">
         <!-- user either owns the target resource -->
         <span about={ bindingVar } rel="acl:owner" resource="?currentUser"/>
         <!-- or has at least read access to it -->

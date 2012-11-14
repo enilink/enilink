@@ -103,7 +103,7 @@ private class RDFaToSparqlParser(e: xml.Elem, base: String)(implicit s: Scope = 
     selectVars.map(toString).addString(result, "select distinct ", " ", " where {\n")
 
     // subquery to limit the solutions for given binding name
-    result.append("{ select ?").append(bindingName).append(" where {\n")
+    result.append("{ select distinct ?").append(bindingName).append(" where {\n")
     result.append(sparql)
     result.append("}\n")
     modifiers(e, result, false)
@@ -147,10 +147,17 @@ private class RDFaToSparqlParser(e: xml.Elem, base: String)(implicit s: Scope = 
     pending1f: Iterable[Reference], pending1r: Iterable[Reference],
     lang1: Symbol): (xml.Elem, Stream[Arc]) = {
 
-    val isOptional = hasCssClass(e, "optional")
-    if (isOptional) {
+    var close = 0
+    if (hasCssClass(e, "optional")) {
       addLine("optional {")
       indent
+      close += 1
+    }
+
+    if (hasCssClass(e, "exists")) {
+      addLine("filter exists {")
+      indent
+      close += 1
     }
 
     val result = super.walk(e, base, subj1, obj1, pending1f, pending1r, lang1)
@@ -158,9 +165,10 @@ private class RDFaToSparqlParser(e: xml.Elem, base: String)(implicit s: Scope = 
     val filter = (e \ "@data-filter").text
     if (!filter.isEmpty) addLine("filter (" + filter + ")")
 
-    if (isOptional) {
+    while (close > 0) {
       dedent
       addLine("}")
+      close -= 1
     }
 
     if (thisStack.top.elem eq e) thisStack.pop
