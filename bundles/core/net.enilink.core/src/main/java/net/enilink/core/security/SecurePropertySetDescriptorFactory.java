@@ -34,24 +34,26 @@ public class SecurePropertySetDescriptorFactory extends
 					return new KommaPropertySet<E>((IReference) bean,
 							predicate, (Class<E>) type, rdfValueType) {
 						@Override
-						protected IQuery<?> createElementsQuery() {
+						protected IQuery<?> createElementsQuery(String query,
+								String filterPattern, int limit) {
 							URI userId = SecurityUtil.getUser();
 							if (userId != null) {
-								return manager
-										.createQuery(
-												"prefix acl: <"
-														+ ACL.NAMESPACE
-														+ "> "
-														+ "SELECT DISTINCT ?o WHERE { ?s ?p ?o . "
-														+ "{ ?acl acl:accessTo ?target } union { ?acl acl:accessToClass ?class . ?target a ?class } . ?acl acl:mode ?mode . "
-														+ "{ ?acl acl:agent ?agent } union { ?agent a ?agentClass . ?acl acl:agentClass ?agentClass }"
-														+ " }")
-										.setParameter("s", bean)
-										.setParameter("p", property)
+								query = "prefix acl: <"
+										+ ACL.NAMESPACE
+										+ "> "
+										+ "SELECT DISTINCT ?o WHERE { ?s ?p ?o . "
+										+ "{ ?target acl:owner ?agent } union {" //
+										+ "{ ?acl acl:accessTo ?target } union { ?acl acl:accessToClass ?class . ?target a ?class } . ?acl acl:mode ?mode . "
+										+ "{ ?acl acl:agent ?agent } union { ?agent a ?agentClass . ?acl acl:agentClass ?agentClass }"
+										+ "}}";
+								return super
+										.createElementsQuery(query,
+												filterPattern, limit)
 										.setParameter("agent", userId)
 										.setParameter("mode", ACL.TYPE_READ);
 							}
-							return super.createElementsQuery();
+							return super.createElementsQuery(query,
+									filterPattern, limit);
 						}
 
 						@Override

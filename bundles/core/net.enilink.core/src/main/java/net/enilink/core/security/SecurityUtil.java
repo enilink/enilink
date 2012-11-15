@@ -2,6 +2,7 @@ package net.enilink.core.security;
 
 import java.security.AccessControlContext;
 import java.security.AccessController;
+import java.util.Collections;
 import java.util.Set;
 
 import javax.security.auth.Subject;
@@ -23,6 +24,13 @@ public class SecurityUtil {
 	public static final URI UNKNOWN_USER = URIImpl
 			.createURI("urn:enilink:anonymous");
 
+	public static final URI SYSTEM_USER = URIImpl
+			.createURI("urn:enilink:system");
+
+	public static final Subject SYSTEM_USER_SUBJECT = new Subject(true,
+			Collections.singleton(new UserPrincipal(SYSTEM_USER)),
+			Collections.emptySet(), Collections.emptySet());
+
 	private static final QualifiedName JOB_CONTEXT = new QualifiedName(
 			"net.enilink.core.security", "Context");
 
@@ -31,9 +39,17 @@ public class SecurityUtil {
 		Job.getJobManager().addJobChangeListener(new JobChangeAdapter() {
 			@Override
 			public void scheduled(IJobChangeEvent event) {
+				AccessControlContext context = null;
+				Job job = Job.getJobManager().currentJob();
+				if (job != null) {
+					context = (AccessControlContext) job
+							.getProperty(JOB_CONTEXT);
+				}
+				if (context == null) {
+					context = AccessController.getContext();
+				}
 				// attach context of current thread to job
-				event.getJob().setProperty(JOB_CONTEXT,
-						AccessController.getContext());
+				event.getJob().setProperty(JOB_CONTEXT, context);
 			}
 		});
 	}

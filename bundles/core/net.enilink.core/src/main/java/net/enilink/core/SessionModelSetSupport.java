@@ -6,8 +6,8 @@ import java.util.WeakHashMap;
 
 import net.enilink.core.security.SecurePropertySetDescriptorFactory;
 
-import net.enilink.composition.annotations.parameterTypes;
-import net.enilink.composition.annotations.precedes;
+import net.enilink.composition.annotations.ParameterTypes;
+import net.enilink.composition.annotations.Precedes;
 import net.enilink.composition.concepts.Message;
 import net.enilink.composition.properties.PropertySetDescriptorFactory;
 import net.enilink.composition.traits.Behaviour;
@@ -27,7 +27,7 @@ import net.enilink.komma.model.IModelSet;
 import net.enilink.komma.core.EntityVar;
 import net.enilink.komma.core.URI;
 
-@precedes(IModelSet.class)
+@Precedes(IModelSet.class)
 public abstract class SessionModelSetSupport implements IModelSet.Internal,
 		Behaviour<IModelSet> {
 	public static class Key {
@@ -116,7 +116,7 @@ public abstract class SessionModelSetSupport implements IModelSet.Internal,
 		return adapterSet;
 	}
 
-	@parameterTypes({})
+	@ParameterTypes({})
 	public void dispose(Message msg) {
 		// do not dispose this model set
 	}

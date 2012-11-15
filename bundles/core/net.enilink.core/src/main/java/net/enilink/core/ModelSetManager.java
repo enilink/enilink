@@ -1,9 +1,14 @@
 package net.enilink.core;
 
+import java.security.PrivilegedAction;
+
+import javax.security.auth.Subject;
+
 import net.enilink.core.security.ISecureEntity;
 import net.enilink.core.security.SecureEntitySupport;
 import net.enilink.core.security.SecureModelSetSupport;
 import net.enilink.core.security.SecurePropertySetDescriptorFactory;
+import net.enilink.core.security.SecurityUtil;
 
 import org.eclipse.core.resources.IProject;
 import org.eclipse.core.resources.ResourcesPlugin;
@@ -270,12 +275,19 @@ public class ModelSetManager {
 
 	public synchronized IModelSet getModelSet() {
 		if (modelSet == null) {
-			IModelSet metaModelSet = createMetaModelSet();
-			IModel metaDataModel = metaModelSet.createModel(URIImpl
-					.createURI("urn:enilink:metadata"));
-			modelSet = createModelSet(metaDataModel);
-
-			createModels(modelSet);
+			Subject.doAs(SecurityUtil.SYSTEM_USER_SUBJECT,
+					new PrivilegedAction<Object>() {
+						@Override
+						public Object run() {
+							IModelSet metaModelSet = createMetaModelSet();
+							IModel metaDataModel = metaModelSet
+									.createModel(URIImpl
+											.createURI("urn:enilink:metadata"));
+							modelSet = createModelSet(metaDataModel);
+							createModels(modelSet);
+							return null;
+						}
+					});
 		}
 		return modelSet;
 	}

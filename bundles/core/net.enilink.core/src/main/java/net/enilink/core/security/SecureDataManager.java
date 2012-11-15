@@ -13,6 +13,7 @@ import net.enilink.komma.core.IReference;
 import net.enilink.komma.core.IStatement;
 import net.enilink.komma.core.IStatementPattern;
 import net.enilink.komma.core.IValue;
+import net.enilink.komma.core.KommaException;
 import net.enilink.komma.core.URI;
 
 /**
@@ -32,6 +33,10 @@ public class SecureDataManager extends ThreadLocalDataManager {
 					accessibleCtxs.add(ctx);
 				}
 			}
+			if (accessibleCtxs.isEmpty() && contexts.length > 0) {
+				throw new KommaException(
+						"Writing to the default context has been denied.");
+			}
 			contexts = accessibleCtxs.toArray(new IReference[accessibleCtxs
 					.size()]);
 		}
@@ -47,6 +52,10 @@ public class SecureDataManager extends ThreadLocalDataManager {
 				if (modelSet.isReadableBy(ctx, userId)) {
 					accessibleCtxs.add(ctx);
 				}
+			}
+			if (accessibleCtxs.isEmpty() && contexts.length > 0) {
+				throw new KommaException(
+						"Reading without a dataset has been denied.");
 			}
 			contexts = accessibleCtxs.toArray(new IReference[accessibleCtxs
 					.size()]);

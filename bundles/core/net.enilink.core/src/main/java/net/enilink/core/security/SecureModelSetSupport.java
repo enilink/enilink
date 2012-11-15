@@ -4,7 +4,7 @@ import java.util.Collection;
 
 import net.enilink.vocab.acl.ACL;
 
-import net.enilink.composition.annotations.parameterTypes;
+import net.enilink.composition.annotations.ParameterTypes;
 import net.enilink.composition.cache.annotations.Cacheable;
 import net.enilink.composition.concepts.Message;
 import net.enilink.composition.traits.Behaviour;
@@ -24,7 +24,7 @@ public abstract class SecureModelSetSupport implements ISecureModelSet,
 	/**
 	 * Ensures that an ACL aware data manager is used to access the models.
 	 */
-	@parameterTypes({ Collection.class })
+	@ParameterTypes({ Collection.class })
 	public void collectInjectionModules(Message msg) {
 		msg.proceed();
 
