@@ -129,6 +129,8 @@ trait RDFaTemplates extends RDFaUtils {
                     }
                     // fill variables for nodes of type <span about="?someVar">Data about some subject.</span>
                     case Variable(v) => {
+                      // TODO is support for ?this variable required?
+                      // val rdfValue = if (v == "this") ctx.subject else bindings.get(v)
                       val rdfValue = bindings.get(v)
                       if (rdfValue != null) changeContext(meta.key, rdfValue)
                       val attValue = rdfValue match {
