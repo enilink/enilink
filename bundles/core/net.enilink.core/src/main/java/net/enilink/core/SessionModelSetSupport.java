@@ -4,7 +4,9 @@ import java.util.Collections;
 import java.util.Map;
 import java.util.WeakHashMap;
 
+import net.enilink.core.security.ISecureModelSet;
 import net.enilink.core.security.SecurePropertySetDescriptorFactory;
+import net.enilink.core.security.SecurityUtil;
 
 import net.enilink.composition.annotations.ParameterTypes;
 import net.enilink.composition.annotations.Precedes;
@@ -23,8 +25,10 @@ import net.enilink.komma.edit.command.EditingDomainCommandStack;
 import net.enilink.komma.edit.domain.AdapterFactoryEditingDomain;
 import net.enilink.komma.edit.provider.ComposedAdapterFactory;
 import net.enilink.komma.edit.provider.ReflectiveItemProviderAdapterFactory;
+import net.enilink.komma.model.IModel;
 import net.enilink.komma.model.IModelSet;
 import net.enilink.komma.core.EntityVar;
+import net.enilink.komma.core.IReference;
 import net.enilink.komma.core.URI;
 
 @Precedes(IModelSet.class)
@@ -127,7 +131,18 @@ public abstract class SessionModelSetSupport implements IModelSet.Internal,
 		// executed.
 		EditingDomainCommandStack commandStack = new EditingDomainCommandStack();
 		AdapterFactoryEditingDomain editingDomain = new AdapterFactoryEditingDomain(
-				createAdapterFactory(), commandStack, getBehaviourDelegate());
+				createAdapterFactory(), commandStack, getBehaviourDelegate()) {
+			public boolean isReadOnly(IModel model) {
+				URI user = SecurityUtil.getUser();
+				if (user != null
+						&& model.getModelSet() instanceof ISecureModelSet
+						&& !((ISecureModelSet) model.getModelSet())
+								.isReadableBy((IReference) model, user)) {
+					return false;
+				}
+				return super.isReadOnly(model);
+			}
+		};
 		commandStack.setEditingDomain(editingDomain);
 		// editingDomain
 		// .setModelToReadOnlyMap(new java.util.WeakHashMap<IModel, Boolean>());
