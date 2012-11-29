@@ -3,14 +3,16 @@ package net.enilink.core;
 import java.io.IOException;
 import java.util.Collections;
 
+import org.aopalliance.intercept.MethodInvocation;
 import net.enilink.composition.annotations.ParameterTypes;
-import net.enilink.composition.concepts.Message;
 
 import net.enilink.komma.model.IModel;
+import net.enilink.komma.core.KommaModule;
 
 public abstract class LazyModelSupport implements IModel {
 	@ParameterTypes({})
-	public synchronized void getModule(Message msg) {
+	public synchronized KommaModule getModule(MethodInvocation invocation)
+			throws Throwable {
 		if (!isLoaded()) {
 			try {
 				load(Collections.emptyMap());
@@ -19,6 +21,6 @@ public abstract class LazyModelSupport implements IModel {
 				e.printStackTrace();
 			}
 		}
-		msg.proceed();
+		return (KommaModule) invocation.proceed();
 	}
 }

@@ -4,9 +4,9 @@ import java.util.Collection;
 
 import net.enilink.vocab.acl.ACL;
 
+import org.aopalliance.intercept.MethodInvocation;
 import net.enilink.composition.annotations.ParameterTypes;
 import net.enilink.composition.cache.annotations.Cacheable;
-import net.enilink.composition.concepts.Message;
 import net.enilink.composition.traits.Behaviour;
 
 import com.google.inject.AbstractModule;
@@ -25,11 +25,13 @@ public abstract class SecureModelSetSupport implements ISecureModelSet,
 	 * Ensures that an ACL aware data manager is used to access the models.
 	 */
 	@ParameterTypes({ Collection.class })
-	public void collectInjectionModules(Message msg) {
-		msg.proceed();
+	public void collectInjectionModules(MethodInvocation invocation)
+			throws Throwable {
+		invocation.proceed();
 
 		@SuppressWarnings("unchecked")
-		Collection<Module> modules = (Collection<Module>) msg.getParameters()[0];
+		Collection<Module> modules = (Collection<Module>) invocation
+				.getArguments()[0];
 		Module compoundModule = Modules.override(modules).with(
 				new AbstractModule() {
 					final ISecureModelSet self = getBehaviourDelegate();

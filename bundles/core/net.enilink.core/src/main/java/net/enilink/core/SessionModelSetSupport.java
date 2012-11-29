@@ -8,9 +8,9 @@ import net.enilink.core.security.ISecureModelSet;
 import net.enilink.core.security.SecurePropertySetDescriptorFactory;
 import net.enilink.core.security.SecurityUtil;
 
+import org.aopalliance.intercept.MethodInvocation;
 import net.enilink.composition.annotations.ParameterTypes;
 import net.enilink.composition.annotations.Precedes;
-import net.enilink.composition.concepts.Message;
 import net.enilink.composition.properties.PropertySetDescriptorFactory;
 import net.enilink.composition.traits.Behaviour;
 
@@ -121,7 +121,7 @@ public abstract class SessionModelSetSupport implements IModelSet.Internal,
 	}
 
 	@ParameterTypes({})
-	public void dispose(Message msg) {
+	public void dispose(MethodInvocation invocation) {
 		// do not dispose this model set
 	}
 
