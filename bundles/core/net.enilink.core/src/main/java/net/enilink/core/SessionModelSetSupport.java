@@ -11,7 +11,7 @@ import net.enilink.core.security.SecurityUtil;
 import org.aopalliance.intercept.MethodInvocation;
 import net.enilink.composition.annotations.ParameterTypes;
 import net.enilink.composition.annotations.Precedes;
-import net.enilink.composition.properties.PropertySetDescriptorFactory;
+import net.enilink.composition.properties.PropertySetFactory;
 import net.enilink.composition.traits.Behaviour;
 
 import com.google.inject.Inject;
@@ -149,7 +149,7 @@ public abstract class SessionModelSetSupport implements IModelSet.Internal,
 	}
 
 	@Override
-	public Class<? extends PropertySetDescriptorFactory> providePropertySetImplementation() {
+	public Class<? extends PropertySetFactory> providePropertySetImplementation() {
 		return SecurePropertySetDescriptorFactory.class;
 	}
 }

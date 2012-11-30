@@ -12,7 +12,7 @@ import net.enilink.core.security.SecurityUtil;
 
 import org.eclipse.core.resources.IProject;
 import org.eclipse.core.resources.ResourcesPlugin;
-import net.enilink.composition.properties.PropertySetDescriptorFactory;
+import net.enilink.composition.properties.PropertySetFactory;
 import org.osgi.framework.BundleContext;
 import org.osgi.framework.InvalidSyntaxException;
 import org.osgi.framework.ServiceReference;
@@ -92,7 +92,7 @@ public class ModelSetManager {
 	protected Module createModelSetGuiceModule(KommaModule module) {
 		return Modules.override(new ModelSetModule(module) {
 			@Override
-			protected Class<? extends PropertySetDescriptorFactory> providePropertySetImplementation() {
+			protected Class<? extends PropertySetFactory> providePropertySetImplementation() {
 				return SecurePropertySetDescriptorFactory.class;
 			}
 		}).with(new AbstractModule() {

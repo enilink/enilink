@@ -9,7 +9,7 @@ import net.enilink.composition.properties.PropertySet;
 import net.enilink.composition.properties.PropertySetDescriptor;
 import net.enilink.composition.properties.komma.KommaPropertySet;
 import net.enilink.composition.properties.komma.KommaPropertySetDescriptor;
-import net.enilink.composition.properties.komma.KommaPropertySetDescriptorFactory;
+import net.enilink.composition.properties.komma.KommaPropertySetFactory;
 
 import net.enilink.komma.model.MODELS;
 import net.enilink.komma.core.IQuery;
@@ -21,7 +21,7 @@ import net.enilink.komma.core.URI;
  * sets consider ACLs when retrieving property values.
  */
 public class SecurePropertySetDescriptorFactory extends
-		KommaPropertySetDescriptorFactory {
+		KommaPropertySetFactory {
 	@Override
 	public <E> PropertySetDescriptor<E> createDescriptor(
 			PropertyDescriptor property, String uri, boolean readOnly) {
