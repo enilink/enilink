@@ -7,7 +7,7 @@ import javax.security.auth.Subject;
 import net.enilink.core.security.ISecureEntity;
 import net.enilink.core.security.SecureEntitySupport;
 import net.enilink.core.security.SecureModelSetSupport;
-import net.enilink.core.security.SecurePropertySetDescriptorFactory;
+import net.enilink.core.security.SecurePropertySetFactory;
 import net.enilink.core.security.SecurityUtil;
 
 import org.eclipse.core.resources.IProject;
@@ -92,8 +92,8 @@ public class ModelSetManager {
 	protected Module createModelSetGuiceModule(KommaModule module) {
 		return Modules.override(new ModelSetModule(module) {
 			@Override
-			protected Class<? extends PropertySetFactory> providePropertySetImplementation() {
-				return SecurePropertySetDescriptorFactory.class;
+			protected Class<? extends PropertySetFactory> getPropertySetFactoryClass() {
+				return SecurePropertySetFactory.class;
 			}
 		}).with(new AbstractModule() {
 			@Override

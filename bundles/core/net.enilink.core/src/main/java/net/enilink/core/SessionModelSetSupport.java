@@ -5,7 +5,7 @@ import java.util.Map;
 import java.util.WeakHashMap;
 
 import net.enilink.core.security.ISecureModelSet;
-import net.enilink.core.security.SecurePropertySetDescriptorFactory;
+import net.enilink.core.security.SecurePropertySetFactory;
 import net.enilink.core.security.SecurityUtil;
 
 import org.aopalliance.intercept.MethodInvocation;
@@ -149,7 +149,7 @@ public abstract class SessionModelSetSupport implements IModelSet.Internal,
 	}
 
 	@Override
-	public Class<? extends PropertySetFactory> providePropertySetImplementation() {
-		return SecurePropertySetDescriptorFactory.class;
+	public Class<? extends PropertySetFactory> getPropertySetFactoryClass() {
+		return SecurePropertySetFactory.class;
 	}
 }
