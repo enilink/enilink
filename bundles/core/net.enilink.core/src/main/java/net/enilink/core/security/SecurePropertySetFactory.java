@@ -23,7 +23,7 @@ import net.enilink.komma.core.URIImpl;
 public class SecurePropertySetFactory extends KommaPropertySetFactory {
 	@Override
 	public <E> PropertySet<E> createPropertySet(Object bean, String uri,
-			Class<E> elementType, boolean readonly, Annotation... annotations) {
+			Class<E> elementType, Annotation... annotations) {
 		if (bean instanceof ISecureModelSet
 				&& uri.equals(MODELS.PROPERTY_MODEL.toString())) {
 			URI predicate = URIImpl.createURI(uri);
@@ -66,7 +66,6 @@ public class SecurePropertySetFactory extends KommaPropertySetFactory {
 			injector.injectMembers(propertySet);
 			return propertySet;
 		}
-		return super.createPropertySet(bean, uri, elementType, readonly,
-				annotations);
+		return super.createPropertySet(bean, uri, elementType, annotations);
 	}
 }
