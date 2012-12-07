@@ -137,8 +137,8 @@ public abstract class SessionModelSetSupport implements IModelSet.Internal,
 				if (user != null
 						&& model.getModelSet() instanceof ISecureModelSet
 						&& !((ISecureModelSet) model.getModelSet())
-								.isReadableBy((IReference) model, user)) {
-					return false;
+								.isWritableBy((IReference) model, user)) {
+					return true;
 				}
 				return super.isReadOnly(model);
 			}

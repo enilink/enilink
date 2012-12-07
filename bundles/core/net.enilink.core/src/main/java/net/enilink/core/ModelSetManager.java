@@ -49,6 +49,7 @@ import net.enilink.komma.workbench.ProjectModelSetSupport;
 
 public class ModelSetManager {
 	public static final ModelSetManager INSTANCE = new ModelSetManager();
+	private static final boolean USE_OWLIM_REPOSITORY = true;
 
 	static class SessionProviderModule extends AbstractModule {
 		@Override
@@ -109,6 +110,10 @@ public class ModelSetManager {
 				.getClassLoader());
 		module.addBehaviour(SessionModelSetSupport.class);
 		module.addBehaviour(LazyModelSupport.class);
+
+		if (USE_OWLIM_REPOSITORY) {
+			module.addBehaviour(OwlimDialectSupport.class);
+		}
 
 		module.addConcept(IProjectModelSet.class);
 		module.addBehaviour(ProjectModelSetSupport.class);
