@@ -16,6 +16,10 @@ import net.liftweb.util.Helpers.strToCssBindPromoter
 import net.liftweb.http.Templates
 import net.liftweb.common.Full
 import net.liftweb.http.S
+import net.enilink.lift.rdf.DollarVariable
+import net.enilink.komma.core.IReference
+import net.enilink.komma.core.URIImpl
+import scala.util.control.Exception._
 
 /**
  * Required to call super.render in EditRdfa trait
@@ -47,9 +51,17 @@ class Rdfa extends Sparql with EditRdfa {
     super.render(n)
   }
 
-  override def toSparql(n: NodeSeq, em: IEntityManager): (NodeSeq, String) = {
+  override def toSparql(n: NodeSeq, em: IEntityManager): (NodeSeq, String, Map[String, Object]) = {
     val nodesWithAcl = (".acl" #> Acl.render _)(n)
     val sparqlFromRdfa = SparqlFromRDFa(nodesWithAcl.head.asInstanceOf[Elem], "http://example.org#")
+
+    val queryParams = sparqlFromRdfa.getQueryVariables.flatMap {
+      case v: DollarVariable =>
+        val name = v.toString
+        S.param(name) flatMap { value => catching(classOf[IllegalArgumentException]) opt { (name, URIImpl.createURI(value)) } }
+      case _ => Empty
+    }.toMap
+
     // support for pagination of results
     var paginatedQuery: Box[String] = Empty
     var nodesWithPagination = (".pagination" #> ((ns: NodeSeq) => {
@@ -74,7 +86,7 @@ class Rdfa extends Sparql with EditRdfa {
               <li><a href={ pageUrl(newFirst) }>{ ns }</a></li>
 
           override def itemsPerPage = try { (ns \ "@data-items").text.toInt } catch { case _ => 20 }
-          lazy val cachedCount = withParameters(em.createQuery(sparqlFromRdfa.getCountQuery(bindingName))).getSingleResult(classOf[Long])
+          lazy val cachedCount = withParameters(em.createQuery(sparqlFromRdfa.getCountQuery(bindingName)), queryParams).getSingleResult(classOf[Long])
           def count = cachedCount
           def page = Nil
 
@@ -95,7 +107,7 @@ class Rdfa extends Sparql with EditRdfa {
       } else ns
     }))(sparqlFromRdfa.getElement)
 
-    if (paginatedQuery.isDefined) (nodesWithPagination, paginatedQuery.openTheBox)
-    else (sparqlFromRdfa.getElement, sparqlFromRdfa.getQuery)
+    if (paginatedQuery.isDefined) (nodesWithPagination, paginatedQuery.openTheBox, queryParams)
+    else (sparqlFromRdfa.getElement, sparqlFromRdfa.getQuery, queryParams)
   }
 }

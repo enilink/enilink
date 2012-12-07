@@ -32,6 +32,7 @@ case class Variable(val n: String, val qual: Option[Int]) extends Reference {
 
   override def toString() = sym.name
 }
+case class DollarVariable(override val n: String, override val qual: Option[Int]) extends Variable(n, qual)
 
 trait RDFGraphParts {
   /**
@@ -83,7 +84,7 @@ trait RDFNodeBuilder extends RDFGraphParts {
 
 class Scope(val vars: Iterable[Variable]) {
   def this() = this(List())
-  
+
   import scala.collection.mutable
   val varstack = new mutable.Stack[Variable]
   vars foreach {

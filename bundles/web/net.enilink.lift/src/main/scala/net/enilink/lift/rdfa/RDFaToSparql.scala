@@ -15,12 +15,12 @@ import net.enilink.lift.rdf.PlainLiteral
 import net.enilink.lift.rdf.Reference
 import net.enilink.lift.rdf.Scope
 import net.enilink.lift.rdf.TypedLiteral
+import net.enilink.lift.rdf.DollarVariable
 import net.enilink.lift.rdf.Variable
 import net.enilink.lift.rdf.Vocabulary
 import net.enilink.lift.rdf.XmlLiteral
 import net.enilink.lift.rdf.PlainLiteral
 import net.liftweb.util.Helpers._
-import scala.xml.NamespaceBinding
 import scala.xml.NamespaceBinding
 
 /**
@@ -41,6 +41,7 @@ object SparqlFromRDFa {
 }
 
 trait SparqlFromRDFa {
+  def getQueryVariables: Set[Variable]
   def getQuery: String
   def getElement: xml.Elem
 
@@ -95,6 +96,7 @@ private class RDFaToSparqlParser(e: xml.Elem, base: String)(implicit s: Scope = 
   }
 
   def getQuery = resultQuery
+  def getQueryVariables = selectVars.toSet
   def getElement = resultElem
 
   def getPaginatedQuery(bindingName: String, offset: Any, limit: Any) = {
@@ -269,7 +271,10 @@ private class RDFaToSparqlParser(e: xml.Elem, base: String)(implicit s: Scope = 
       //        case v: Variable => select(v)
       //        case other => other
       //      })
-      case _ => Some(select(new Variable(name, None)))
+      case _ => {
+        val v = if (name.startsWith("$")) new DollarVariable(name.substring(1), None) else new Variable(name.substring(1), None)
+        Some(select(v))
+      }
     }
   }
 

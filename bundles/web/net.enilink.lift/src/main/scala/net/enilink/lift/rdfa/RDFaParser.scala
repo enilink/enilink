@@ -271,7 +271,7 @@ trait CURIE extends RDFNodeBuilder {
   final val parts = new Regex("""^(?:([^:]*)?:)?(.*)$""",
     "prefix", "reference")
   final val safeCurie = new Regex("""^\[(.*)\]$""", "curie")
-  final val variable = "^\\?(.*)$".r
+  final val variable = "^([?$].*)$".r
 
   /**
    * expand one safe curie or URI reference
@@ -323,7 +323,7 @@ trait CURIE extends RDFNodeBuilder {
     var expanded = false
     val ref: Option[Reference] = curieOrIri match {
       // support for SPARQL variables
-      case variable(v) => createVariable(v) // ?foo
+      case variable(v) => createVariable(v) // ?foo or $foo
       case parts(p, l) if (p == null) => None
       case parts(p, l) if (p == "xml") => None // xml:foo
       

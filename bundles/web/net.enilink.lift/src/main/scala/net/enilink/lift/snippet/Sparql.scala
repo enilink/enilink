@@ -29,7 +29,7 @@ import net.enilink.komma.core.IQuery
 class Sparql extends RDFaTemplates {
   val selection = Globals.contextResource.vend.openOr(null)
 
-  def withParameters[T](query: IQuery[T]) = {
+  def withParameters[T](query: IQuery[T], params : Map[String, _]) = {
     CurrentContext.value.get.subject match {
       case entity: IEntity => query.setParameter("this", entity)
       case _ => // do nothing
@@ -38,11 +38,13 @@ class Sparql extends RDFaTemplates {
   }
 
   def render(n: NodeSeq): NodeSeq = {
+    val includeInferred =  S.attr("inferred", _ != "false", true)
+    
     // check if inferred statements should be distinguished from explicit statements
     def distinguishInferred(ns: NodeSeq): Boolean = {
       ns.foldLeft(false) { (distInf, n) => distInf | (n \ "@data-if").text == "inferred" | distinguishInferred(n.child) }
     }
-    val distInferred = distinguishInferred(n)
+    val distInferred = includeInferred && distinguishInferred(n)
 
     def renderResults = {
       def toBindings(firstBinding: String, row: Any) = {
@@ -58,17 +60,17 @@ class Sparql extends RDFaTemplates {
 
       CurrentContext.value.get.subject match {
         case entity: IEntity =>
-          val (n1, sparql) = toSparql(n, entity.getEntityManager)
-          val query = withParameters(entity.getEntityManager.createQuery(sparql))
+          val (n1, sparql, params) = toSparql(n, entity.getEntityManager)
+          val query = withParameters(entity.getEntityManager.createQuery(sparql), params)
           query.bindResultType(null: String, classOf[IValue]).evaluate match {
             case r: IGraphResult =>
               n1 //renderGraph(new LinkedHashGraph(r.toList()))
             case r: ITupleResult[_] =>
               val firstBinding = r.getBindingNames.get(0)
-              val allTuples = r.map { row => (toBindings(firstBinding, row), true) }
+              val allTuples = r.map { row => (toBindings(firstBinding, row), includeInferred) }
               val toRender = (if (distInferred) {
                 // query explicit statements and prepend them to the results
-                withParameters(entity.getEntityManager.createQuery(sparql, false))
+                withParameters(entity.getEntityManager.createQuery(sparql, false), params)
                   .bindResultType(null: String, classOf[IValue]).evaluate.asInstanceOf[ITupleResult[_]]
                   .map { row => (toBindings(firstBinding, row), false) } ++ allTuples
               } else allTuples)
@@ -96,8 +98,8 @@ class Sparql extends RDFaTemplates {
     }
   }
 
-  def toSparql(n: NodeSeq, em: IEntityManager): (NodeSeq, String) = {
-    (n, n.head.child.foldLeft("")((q, c) => c match { case scala.xml.Text(t) => q + t case _ => q }))
+  def toSparql(n: NodeSeq, em: IEntityManager): (NodeSeq, String, Map[String, Object]) = {
+    (n, n.head.child.foldLeft("")((q, c) => c match { case scala.xml.Text(t) => q + t case _ => q }), Map.empty)
   }
 
   def renderGraph(r: IGraph) = {
