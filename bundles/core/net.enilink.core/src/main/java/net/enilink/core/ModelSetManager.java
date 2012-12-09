@@ -4,11 +4,15 @@ import java.security.PrivilegedAction;
 
 import javax.security.auth.Subject;
 
+import net.enilink.auth.AuthModule;
 import net.enilink.core.security.ISecureEntity;
 import net.enilink.core.security.SecureEntitySupport;
 import net.enilink.core.security.SecureModelSetSupport;
 import net.enilink.core.security.SecurePropertySetFactory;
 import net.enilink.core.security.SecurityUtil;
+import net.enilink.vocab.acl.ACL;
+import net.enilink.vocab.acl.Authorization;
+import net.enilink.vocab.foaf.Agent;
 
 import org.eclipse.core.resources.IProject;
 import org.eclipse.core.resources.ResourcesPlugin;
@@ -36,6 +40,7 @@ import net.enilink.komma.model.ModelSetModule;
 import net.enilink.komma.model.base.IURIMapRule;
 import net.enilink.komma.model.base.SimpleURIMapRule;
 import net.enilink.komma.model.concepts.Model;
+import net.enilink.komma.core.IEntityManager;
 import net.enilink.komma.core.IGraph;
 import net.enilink.komma.core.IUnitOfWork;
 import net.enilink.komma.core.KommaModule;
@@ -49,7 +54,14 @@ import net.enilink.komma.workbench.ProjectModelSetSupport;
 
 public class ModelSetManager {
 	public static final ModelSetManager INSTANCE = new ModelSetManager();
-	private static final boolean USE_OWLIM_REPOSITORY = true;
+	private static final String REPOSITORY_TYPE;
+	static {
+		String repoType = System.getProperty("net.enilink.repository.type");
+		if (repoType == null) {
+			repoType = "owlim";
+		}
+		REPOSITORY_TYPE = repoType.toLowerCase();
+	}
 
 	static class SessionProviderModule extends AbstractModule {
 		@Override
@@ -111,7 +123,7 @@ public class ModelSetManager {
 		module.addBehaviour(SessionModelSetSupport.class);
 		module.addBehaviour(LazyModelSupport.class);
 
-		if (USE_OWLIM_REPOSITORY) {
+		if ("owlim".endsWith(REPOSITORY_TYPE)) {
 			module.addBehaviour(OwlimDialectSupport.class);
 		}
 
@@ -192,6 +204,7 @@ public class ModelSetManager {
 
 	protected IModelSet createModelSet() {
 		KommaModule module = createDataModelSetModule();
+		module.includeModule(new AuthModule());
 
 		Injector injector = Guice.createInjector(
 				createModelSetGuiceModule(module), new SessionProviderModule());
@@ -284,11 +297,35 @@ public class ModelSetManager {
 					new PrivilegedAction<Object>() {
 						@Override
 						public Object run() {
-							IModelSet metaModelSet = createMetaModelSet();
-							IModel metaDataModel = metaModelSet
-									.createModel(URIImpl
-											.createURI("urn:enilink:metadata"));
-							modelSet = createModelSet(metaDataModel);
+							if ("memory".equals(REPOSITORY_TYPE)) {
+								modelSet = createModelSet();
+								IEntityManager em = modelSet
+										.getMetaDataManager();
+								Authorization auth = em
+										.create(Authorization.class);
+								auth.setAclAccessToClass(em
+										.find(MODELS.TYPE_MODEL,
+												net.enilink.vocab.rdfs.Class.class));
+								auth.setAclAgent(em.find(
+										SecurityUtil.UNKNOWN_USER, Agent.class));
+								auth.getAclMode()
+										.add(em.find(
+												ACL.TYPE_READ,
+												net.enilink.vocab.rdfs.Class.class));
+								auth.getAclMode()
+										.add(em.find(
+												ACL.TYPE_WRITE,
+												net.enilink.vocab.rdfs.Class.class));
+								auth.getAclMode()
+										.add(em.find(
+												ACL.TYPE_CONTROL,
+												net.enilink.vocab.rdfs.Class.class));
+							} else {
+								IModelSet metaModelSet = createMetaModelSet();
+								IModel metaDataModel = metaModelSet.createModel(URIImpl
+										.createURI("urn:enilink:metadata"));
+								modelSet = createModelSet(metaDataModel);
+							}
 							createModels(modelSet);
 							return null;
 						}
