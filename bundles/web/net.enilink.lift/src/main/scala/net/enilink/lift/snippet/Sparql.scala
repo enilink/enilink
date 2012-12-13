@@ -35,6 +35,8 @@ class Sparql extends RDFaTemplates {
       case _ => // do nothing
     }
     query.setParameter("currentUser", Globals.contextUser.vend)
+    params.foreach { p => query.setParameter(p._1, p._2) }
+    query
   }
 
   def render(n: NodeSeq): NodeSeq = {

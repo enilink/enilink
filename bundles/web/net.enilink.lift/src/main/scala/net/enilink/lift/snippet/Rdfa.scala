@@ -65,7 +65,7 @@ class Rdfa extends Sparql with EditRdfa {
     // support for pagination of results
     var paginatedQuery: Box[String] = Empty
     var nodesWithPagination = (".pagination" #> ((ns: NodeSeq) => {
-      var bindingName = (ns \ "@data-for").text.stripPrefix("?")
+      var bindingName = (ns \ "@data-for").text.stripPrefix("?").stripPrefix("$")
       if (!bindingName.isEmpty) {
         val paginator = new PaginatorSnippet[AnyRef] {
           override def pageUrl(offset: Long): String = {

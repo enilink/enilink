@@ -49,7 +49,7 @@ trait RDFaTemplates extends RDFaUtils {
   }
 
   private val rdfaAttributes = withPrefixes(List("data-", "data-clear-"), Set("about", "src", "rel", "rev", "property", "href", "resource", "content")) ++ List("data-if", "data-unless")
-  private val Variable = "^\\?([^=]+)$".r
+  private val Variable = "^[?$]([^=]+)$".r
 
   // isTemplate is required for disambiguation because xml.Node extends Seq[xml.Node]
   class Key(val ctxs: Seq[RdfContext], val nodeOrNodeSeq: AnyRef, val isTemplate: Boolean = false) {
