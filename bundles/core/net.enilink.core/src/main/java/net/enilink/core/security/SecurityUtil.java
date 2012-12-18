@@ -60,17 +60,18 @@ public class SecurityUtil {
 	 * @return The id of the current user or <code>null</code>.
 	 */
 	public static URI getUser() {
-		Subject s = Subject.getSubject(AccessController.getContext());
-		if (s == null) {
-			// try to get subject with context of current running job
-			Job job = Job.getJobManager().currentJob();
-			if (job != null) {
-				AccessControlContext context = (AccessControlContext) job
-						.getProperty(JOB_CONTEXT);
-				if (context != null) {
-					s = Subject.getSubject(context);
-				}
+		Subject s = null;
+		// try to get subject with context of current running job
+		Job job = Job.getJobManager().currentJob();
+		if (job != null) {
+			AccessControlContext context = (AccessControlContext) job
+					.getProperty(JOB_CONTEXT);
+			if (context != null) {
+				s = Subject.getSubject(context);
 			}
+		}
+		if (s == null) {
+			s = Subject.getSubject(AccessController.getContext());
 		}
 		if (s != null) {
 			Set<UserPrincipal> principals = s
