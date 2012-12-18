@@ -86,7 +86,7 @@ class Rdfa extends Sparql with EditRdfa {
               <li><a href={ pageUrl(newFirst) }>{ ns }</a></li>
 
           override def itemsPerPage = try { (ns \ "@data-items").text.toInt } catch { case _ => 20 }
-          lazy val cachedCount = withParameters(em.createQuery(sparqlFromRdfa.getCountQuery(bindingName)), queryParams).getSingleResult(classOf[Long])
+          lazy val cachedCount = withParameters(em.createQuery(sparqlFromRdfa.getCountQuery(bindingName), includeInferred), queryParams).getSingleResult(classOf[Long])
           def count = cachedCount
           def page = Nil
 

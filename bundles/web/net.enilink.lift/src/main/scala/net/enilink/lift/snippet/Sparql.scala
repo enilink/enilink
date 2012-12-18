@@ -38,10 +38,10 @@ class Sparql extends RDFaTemplates {
     params.foreach { p => query.setParameter(p._1, p._2) }
     query
   }
+  
+  def includeInferred = S.attr("inferred", _ != "false", true)
 
   def render(n: NodeSeq): NodeSeq = {
-    val includeInferred =  S.attr("inferred", _ != "false", true)
-    
     // check if inferred statements should be distinguished from explicit statements
     def distinguishInferred(ns: NodeSeq): Boolean = {
       ns.foldLeft(false) { (distInf, n) => distInf | (n \ "@data-if").text == "inferred" | distinguishInferred(n.child) }
