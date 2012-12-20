@@ -19,6 +19,7 @@ import net.liftweb.sitemap.Menu
 import net.liftweb.sitemap.Menu.Menuable.toMenu
 import net.liftweb.sitemap.SiteMap
 import net.liftweb.http.RedirectResponse
+import net.liftweb.sitemap.Loc
 
 /**
  * A class that's instantiated early and run.  It allows the application
@@ -36,7 +37,10 @@ class LiftModule {
       Menu("enilink.Login", S ? "Login") / "login" >> Right >> If(() => !S.loggedIn_?, S.??("already.loggedin")),
       Menu("enilink.SignUp", S ? "Sign up") / "register" >> Right >> Hidden >> If(() => !S.loggedIn_?, S.??("already.loggedin")),
       Menu("enilink.Profile", profileText) / "static" / "profile" >> Right >> If(() => S.loggedIn_?, S.??("not.loggedin"))
-      submenus (Menu("enilink.Logout", S ? "Logout") / "logout" >> EarlyResponse(() => { logout; Full(RedirectResponse("/")) }))))
+      submenus (Menu("enilink.Logout", S ? "Logout") / "logout" >> EarlyResponse(() => { logout; Full(RedirectResponse("/")) })),
+      // /static path to be visible
+      Menu(Loc("Static", Link(List("static"), true, "/static/index"),
+        "Static Content", Hidden))))
 
     SiteMap.sitemapMutator { Map.empty }(SiteMap.addMenusAtEndMutator(entries))
   }

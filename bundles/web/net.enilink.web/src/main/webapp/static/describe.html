@@ -26,7 +26,7 @@
 
 					<div class="row-fluid" data-clear-rel="?property">
 						<div class="span3" style="font-weight: bold">
-							<a href="/static/describe?model={model}&resource={}"
+							<a href="{app}/static/describe?model={model}&resource={}"
 								class="lift:rdf.p:ref?to=href"><span
 								class="lift:rdf.p:label"></span></a>
 						</div>
@@ -34,7 +34,7 @@
 							<div class="row-fluid asc" rel="?property" resource="?oResource"
 								data-filter="!isLiteral(?oResource)">
 								<div class="span12">
-									<a href="/static/describe?model={model}&resource={}"
+									<a href="{app}/static/describe?model={model}&resource={}"
 										class="lift:rdf:ref?to=href"><span
 										class="lift:rdf:manchester"></span></a> <span data-if="inferred"><i
 										class="icon-share-alt" style="opacity: 0.5"></i></span>
@@ -62,7 +62,7 @@
 						<span rel="owl:onProperty" resource="?relevantProp"></span>
 					</span>
 					<ul about="?relevantProp">
-						<li><a href="/static/describe?model={model}&resource={}"
+						<li><a href="{app}/static/describe?model={model}&resource={}"
 							class="lift:rdf:ref?to=href"><span class="lift:rdf:label"></span></a></li>
 					</ul>
 				</section>

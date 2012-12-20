@@ -57,6 +57,7 @@ class DelegatingCallbackHandler extends CallbackHandler {
  * Captures a login context instance for storing it in a user session.
  */
 class State {
+  var referer: Box[String] = Empty
   var method: String = _
   var context: ILoginContext = _
   var handler: DelegatingCallbackHandler = new DelegatingCallbackHandler
@@ -172,6 +173,7 @@ class Login extends SubjectHelper {
           case Full(state) if state.method == currentMethod._2 => state
           case _ => {
             val state = new State
+            state.referer = S.referer flatMap { r => if (r.startsWith(S.hostAndPath)) Full(r) else Empty }
             state.method = currentMethod._2
             state.context = LoginContextFactory.createContext(state.method, cfgUrl, state.handler)
             loginState.set(Full(state))
@@ -242,9 +244,12 @@ class Login extends SubjectHelper {
           sCtx.login
           session.setAttribute(SUBJECT_KEY, sCtx.getSubject)
           loginState.remove
+          // redirect to origin if login is successful
+          if (!isRegister) S.redirectTo(state.referer openOr "/")
           sCtx.getSubject
         } catch {
-          case e: LoginException if requiresInput => if (redirectTo != null) { saveLoginData(loginData); S.redirectTo(redirectTo) }; null // user interaction required
+          case e: LoginException if requiresInput =>
+            if (redirectTo != null) { saveLoginData(loginData); S.redirectTo(redirectTo) }; null // user interaction required
           case e: LoginException => {
             var cause = e
             // required for Equinox security to retrieve the
@@ -262,7 +267,6 @@ class Login extends SubjectHelper {
     }
     if (subject != null) {
       if (isRegister) S.redirectTo(S.hostAndPath + S.uri)
-
       form ++= <div class="alert alert-success"><strong>You are logged in.</strong></div>
       buttons = SHtml.button("Logout", () => session.removeAttribute(SUBJECT_KEY), ("class", "btn btn-primary"))
     } else {
