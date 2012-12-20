@@ -13,7 +13,7 @@
 }
 
 body {
-	padding-top: 96px;
+	padding-top: 60px;
 	padding-bottom: 40px;
 }
 /* ]]> */
@@ -36,9 +36,15 @@ body {
 	</div>
 	<span class="lift:Bootstrap.submenu"></span>
 	<div class="container">
-		<div class="row" style="position: fixed; top: 50px; opacity: 0.7">
+		<div class="row">
 			<div id="notification-area" class="span11"
-				style="height: 80px; overflow: auto;"></div>
+				style="margin: 0px 5px 10px 5px; max-height: 120px; overflow: auto;">
+				<div data-lift="Msgs?showAll=false">
+					<lift:error_msg class="alert alert-error"></lift:error_msg>
+					<lift:warning_msg class="alert"></lift:warning_msg>
+					<lift:notice_msg class="alert-info"></lift:notice_msg>
+				</div>
+			</div>
 			<div class="span1" style="float: right;">
 				<img alt="" id="ajax-loader" style="display: none"
 					src="/images/ajax-loader.gif"></img>

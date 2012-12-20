@@ -31,6 +31,9 @@ import net.enilink.core.ISession
 import net.liftweb.http.S
 import org.osgi.framework.ServiceRegistration
 import net.enilink.core.ISessionProvider
+import net.enilink.lift.sitemap.Application
+import java.util.Arrays
+import net.enilink.lift.util.Globals
 
 class Activator extends BundleActivator {
   private var bundleTracker: BundleTracker[LiftBundleConfig] = _
@@ -193,7 +196,7 @@ class Activator extends BundleActivator {
   }
 
   /**
-   * Special HttpContext that delegates resource lookups to observerd
+   * Special HttpContext that delegates resource lookups to observed
    * Lift-powered bundles and other methods to wrapped HttpContext.
    */
   private case class LiftHttpContext(context: HttpContext) extends HttpContext with Logger {
@@ -203,16 +206,25 @@ class Activator extends BundleActivator {
 
     override def getResource(s: String) = {
       debug("""Asked for resource "%s".""" format s)
-      val liftBundles = bundleTracker.getTracked.entrySet.toSeq.projection
-      // TODO: The following probably could be done better!
-      liftBundles flatMap {
-        liftBundle =>
-          liftBundle.getKey getResource (liftBundle.getValue mapResource s) match {
+
+      // also search common places by converting paths in the form of
+      // /[application path]/some/resource to /some/resource
+      val places = List(s) ++ (for (
+        app <- Globals.application.vend;
+        resourcePath = s.stripPrefix("/").split("/").toList;
+        appPath = app.link.uriList if resourcePath.startsWith(appPath)
+      ) yield resourcePath.drop(appPath.length).mkString("/", "/", ""))
+
+      val liftBundles = bundleTracker.getTracked.entrySet.toSeq.view
+      places.view.flatMap { place =>
+        liftBundles flatMap { b =>
+          b.getKey getResource (b.getValue mapResource place) match {
             case null => None
             case res =>
-              debug("""Lift-powered bundle "%s" answered for resource "%s".""".format(liftBundle.getKey.getSymbolicName, s))
+              debug("""Lift-powered bundle "%s" answered for resource "%s".""".format(b.getKey.getSymbolicName, s))
               Some(res)
           }
+        } headOption
       } headOption match {
         case None => null
         case Some(res) => res

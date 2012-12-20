@@ -8,4 +8,3 @@ import net.liftweb.sitemap.Loc
  * will still be accessible.
  */
 case object Application extends AnyLocParam 
-

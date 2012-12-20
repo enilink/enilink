@@ -97,6 +97,8 @@ class Rdf extends DispatchSnippet with RDFaTemplates {
           // insert current model into the attribute
           val modelName = Globals.contextModel.vend.dmap("")(_.toString)
           newAttrValue = newAttrValue.replaceAll("\\{model\\}", encode(modelName))
+          val appPath = Globals.applicationPath.vend
+          newAttrValue = newAttrValue.replaceAll("\\{app\\}", if (appPath == "/") "" else appPath)
 
           attributes = attributes.remove(replaceAttr.get)
           attributes = attributes.append(new UnprefixedAttribute(replaceAttr.get, newAttrValue, attributes))

@@ -28,14 +28,6 @@ import net.enilink.lift.util.NotAllowedModel
  * to modify lift's environment
  */
 class LiftModule extends Logger {
-  def sitemapMutator: SiteMap => SiteMap = {
-    val entries = List[Menu]( // /static path to be visible
-      Menu(Loc("Static", Link(List("static"), true, "/static/index"),
-        "Static Content", Hidden)))
-
-    SiteMap.sitemapMutator { Map.empty }(SiteMap.addMenusAtEndMutator(entries))
-  }
-
   def boot {
     // set context user from UserPrincipal contained in the HTTP session after successful login
     Globals.contextUser.default.set(() => {

@@ -16,12 +16,20 @@ import net.enilink.komma.core.URI
 import net.enilink.core.security.ISecureModelSet
 import net.liftweb.http.Req
 import net.enilink.core.security.SecurityUtil
+import net.enilink.lift.sitemap.Application
 
 /**
  * A registry for global variables which are shared throughout the application.
  */
 object Globals extends Factory {
   implicit val time = new FactoryMaker(Helpers.now _) {}
+  implicit val application = new FactoryMaker(() => {
+    for (
+      loc <- S.location;
+      app <- loc.breadCrumbs.find(_.params.contains(Application))
+    ) yield app
+  }) {}
+  implicit val applicationPath = new FactoryMaker(() => { application.vend.dmap("/")(_.link.uriList.mkString("/", "/", "")) }) {}
   implicit val contextModel = new FactoryMaker(() => { Empty: Box[IModel] }) {}
   implicit val contextResource = new FactoryMaker(() => {
     Platform.getExtensionRegistry.getExtensionPoint("net.enilink.lift.selectionProviders").getConfigurationElements.flatMap {
