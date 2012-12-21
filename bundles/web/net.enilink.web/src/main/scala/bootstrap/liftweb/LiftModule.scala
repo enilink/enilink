@@ -34,9 +34,9 @@ class LiftModule {
     val entries = List[Menu](Menu.i("enilink") / "" >> Application submenus (
       Menu("enilink.Home", S ? "Home") / "index",
       Menu("enilink.Vocabulary", S ? "Vocabulary") / "vocab",
-      Menu("enilink.Login", S ? "Login") / "login" >> Right >> If(() => !S.loggedIn_?, S.??("already.loggedin")),
-      Menu("enilink.SignUp", S ? "Sign up") / "register" >> Right >> Hidden >> If(() => !S.loggedIn_?, S.??("already.loggedin")),
-      Menu("enilink.Profile", profileText) / "static" / "profile" >> Right >> If(() => S.loggedIn_?, S.??("not.loggedin"))
+      Menu("enilink.Login", S ? "Login") / "login" >> Right >> If(() => !S.loggedIn_?, S.??("logged.in")),
+      Menu("enilink.SignUp", S ? "Sign up") / "register" >> Right >> Hidden >> If(() => !S.loggedIn_?, S.??("logged.in")),
+      Menu("enilink.Profile", profileText) / "static" / "profile" >> Right >> If(() => S.loggedIn_?, S.??("must.be.logged.in"))
       submenus (Menu("enilink.Logout", S ? "Logout") / "logout" >> EarlyResponse(() => { logout; Full(RedirectResponse("/")) })),
       // /static path to be visible
       Menu(Loc("Static", Link(List("static"), true, "/static/index"),
