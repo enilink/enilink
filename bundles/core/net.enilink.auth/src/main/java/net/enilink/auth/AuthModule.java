@@ -1,14 +1,13 @@
 package net.enilink.auth;
 
 import net.enilink.vocab.acl.Authorization;
+import net.enilink.vocab.foaf.FoafModule;
 import net.enilink.komma.core.KommaModule;
-import net.enilink.komma.util.RoleClassLoader;
 
 public class AuthModule extends KommaModule {
 	{
 		// include FOAF concepts
-		RoleClassLoader loader = new RoleClassLoader(this);
-		loader.load();
+		includeModule(new FoafModule());
 
 		// include ACL concepts
 		addConcept(Authorization.class);

@@ -8,10 +8,10 @@ import java.util.List;
 import javax.security.auth.Subject;
 
 import net.enilink.vocab.auth.AUTH;
-
 import net.enilink.commons.iterator.IMap;
 import net.enilink.commons.iterator.WrappedIterator;
 import net.enilink.komma.core.IEntityManager;
+import net.enilink.komma.core.IReference;
 import net.enilink.komma.core.IStatement;
 import net.enilink.komma.core.Statement;
 import net.enilink.komma.core.URI;
@@ -58,8 +58,8 @@ public class AccountHelper {
 	 * @param externalIds
 	 *            List of external IDs
 	 */
-	public static void linkExternalIds(IEntityManager em, final URI userId,
-			List<URI> externalIds) {
+	public static void linkExternalIds(IEntityManager em,
+			final IReference userId, List<URI> externalIds) {
 		em.add(WrappedIterator.create(externalIds.iterator()).mapWith(
 				new IMap<URI, IStatement>() {
 					@Override
