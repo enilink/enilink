@@ -1,32 +1,34 @@
 package net.enilink.web.rest
 
 import java.io.ByteArrayOutputStream
+
 import scala.Array.canBuildFrom
 import scala.collection.JavaConversions.mapAsJavaMap
+
 import org.eclipse.core.runtime.Platform
 import org.eclipse.core.runtime.QualifiedName
 import org.eclipse.core.runtime.content.IContentDescription
 import org.eclipse.core.runtime.content.IContentType
+
 import net.enilink.komma.model.ModelCore
 import net.enilink.komma.core.URI
 import net.enilink.komma.core.URIImpl
 import net.enilink.core.ModelSetManager
 import net.enilink.lift.util.Globals
+import net.enilink.lift.util.NotAllowedModel
 import net.liftweb.common.Box
+import net.liftweb.common.Box.box2Option
 import net.liftweb.common.Box.option2Box
+import net.liftweb.common.Empty
 import net.liftweb.common.Full
 import net.liftweb.http.ContentType
+import net.liftweb.http.ForbiddenResponse
 import net.liftweb.http.InMemoryResponse
 import net.liftweb.http.LiftResponse
-import net.liftweb.http.LiftRules
-import net.liftweb.http.LiftRulesMocker.toLiftRules
 import net.liftweb.http.NotFoundResponse
 import net.liftweb.http.Req
 import net.liftweb.http.S
 import net.liftweb.http.rest.RestHelper
-import net.liftweb.common.Empty
-import net.liftweb.http.ForbiddenResponse
-import net.enilink.lift.util.NotAllowedModel
 
 object ModelsRest extends RestHelper {
   /**
@@ -101,13 +103,7 @@ object ModelsRest extends RestHelper {
     }
   }
 
-  def acceptsHtml(r: Req) = r.weightedAccept.find(_.matches("text" -> "html")).isDefined
-
-  def getUri(r: Req) = Globals.contextModel.vend.dmap(URIImpl.createURI((r.hostName match {
-    // support replacement for local installations (development mode)
-    case "localhost" | "127.0.0.1" => "http://enilink.net"
-    case _ => r.hostAndPath
-  }) + r.uri): URI)(_.getURI)
+  def getUri(r: Req) = Globals.contextModel.vend.dmap(URIImpl.createURI(r.hostAndPath + r.uri): URI)(_.getURI)
 
   def getModel(modelUri: URI) = {
     val modelSet = ModelSetManager.INSTANCE.getModelSet
@@ -138,12 +134,7 @@ object ModelsRest extends RestHelper {
   serve {
     case "vocab" :: modelName RdfGet req if !modelName.isEmpty && modelName != List("index") || Globals.contextModel.vend.isDefined => {
       val modelUri = getUri(req)
-      if (S.param("type").isEmpty && acceptsHtml(req)) Globals.contextModel.doWith(getModel(modelUri)) {
-        Globals.contextResource.doWith(Globals.contextModel.vend.map(_.resolve(modelUri))) {
-          LiftRules.convertResponse(S.runTemplate(List("static", "ontology")), Nil, S.responseCookies, req)
-        }
-      }
-      else serveRdf(req, modelUri)
+      serveRdf(req, modelUri)
     }
   }
 }

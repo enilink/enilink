@@ -13,7 +13,8 @@
 		<div about="?currentUser" data-lift="rdfa?target=meta"
 			class="row-fluid">
 			<h3>
-				Profile <span data-if="?nick"> of </span><span property="foaf:nick" class="optional" content="?nick" data-lift="rdf.label"></span>
+				Profile <span data-if="?nick"> of </span><span property="foaf:nick"
+					class="optional" content="?nick" data-lift="rdf.label"></span>
 			</h3>
 			<section class="union">
 				<div class="row-fluid">
@@ -25,13 +26,16 @@
 				<div class="row-fluid">
 					<div class="span5">External IDs</div>
 					<div class="span7">
-						<span rel="http://enilink.net/vocab/auth#externalId"
-							resource="?externalId" data-lift="rdf.ref"></span>
+						<div class="row-fluid"
+							rel="http://enilink.net/vocab/auth#externalId"
+							resource="?externalId">
+							<div data-lift="rdf.ref" class="span12"></div>
+						</div>
 					</div>
 				</div>
 			</section>
 		</div>
-		
+
 		<div data-lift="embed?what=editsupport"></div>
 	</div>
 </body>

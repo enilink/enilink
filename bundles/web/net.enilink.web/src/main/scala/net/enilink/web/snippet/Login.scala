@@ -161,7 +161,7 @@ class Login extends SubjectHelper {
 
     val session = S.session.get.httpSession.get
     val subject = getSubjectFromSession match {
-      case Full(s) => s // already logged in
+      case Full(s) if !isRegister => s // already logged in
       case _ => {
         var redirectTo: String = null
         var requiresInput = false

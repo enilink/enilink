@@ -53,7 +53,7 @@
 				</section>
 
 				<section class="optional union row-fluid"
-					data-filter="regex(str(?c), str(?this)) || regex(str(?p), str(?this))">
+					data-filter="regex(str(?c), concat(str(?this), &quot;[/#][^/#]+$&quot;)) || regex(str(?p), concat(str(?this), &quot;[/#][^/#]+$&quot;))">
 
 					<div class="span6">
 						<h3>Classes</h3>

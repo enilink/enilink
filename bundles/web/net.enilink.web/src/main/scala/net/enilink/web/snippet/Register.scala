@@ -1,7 +1,6 @@
 package net.enilink.web.snippet
 
 import scala.xml.Node
-
 import net.enilink.komma.concepts.IResource
 import net.enilink.komma.core.URIImpl
 import javax.security.auth.Subject
@@ -16,12 +15,17 @@ import net.liftweb.http.S
 import net.liftweb.http.Templates
 import net.liftweb.util.Helpers
 import net.liftweb.util.Helpers.strToCssBindPromoter
+import net.enilink.lift.util.Globals
+import scala.xml.NodeSeq
+import net.liftweb.util.ClearNodes
 
 class Register extends SubjectHelper {
+  def getEntityManager = ModelSetManager.INSTANCE.getModelSet.getMetaDataManager
+
   def linkUserName(s: Subject, name: String): Box[String] = {
     val userId = URIImpl.createURI("http://enilink.net/users").appendLocalPart(URIImpl.encodeOpaquePart(name, false))
 
-    val em = ModelSetManager.INSTANCE.getModelSet.getMetaDataManager
+    val em = getEntityManager
     val result = synchronized {
       // TODO Is it possible to use database locking here?
       if (em.createQuery("ask { ?user ?p ?o }").setParameter("user", userId).getBooleanResult) {
@@ -40,9 +44,12 @@ class Register extends SubjectHelper {
     result
   }
 
-  def render = {
+  def render: NodeSeq => NodeSeq = {
+    val currentUser = Globals.contextUser.vend
+    // store user id in session for linking of other external ids
+    if (currentUser != Globals.UNKNOWN_USER) Globals.contextUser.session.set(() => currentUser)
     getSubjectFromSession match {
-      case Full(s) => {
+      case Full(s) if currentUser == Globals.UNKNOWN_USER => {
         var form: Seq[Node] = Nil
         var buttons: Seq[Node] = <button class="btn btn-primary" type="submit">Sign up</button>
 
@@ -64,6 +71,13 @@ class Register extends SubjectHelper {
         // reuse the existing loginform template
         "*" #> selectors(Templates("templates-hidden" :: "loginform" :: Nil).openTheBox)
       }
+      case Full(s) if s.getPrincipals(classOf[UserPrincipal]).isEmpty =>
+        // simply link new external ids to existing id
+        AccountHelper.linkExternalIds(getEntityManager, currentUser, AccountHelper.getExternalIds(s))
+        s.getPrincipals.add(new UserPrincipal(currentUser.getURI))
+        Globals.contextUser.session.remove
+        S.redirectTo("/static/profile")
+        ClearNodes
       case _ => "*" #> <div data-lift="embed?what=loginform;mode=register"></div>
     }
   }
