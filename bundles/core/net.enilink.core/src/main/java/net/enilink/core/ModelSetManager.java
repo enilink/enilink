@@ -13,6 +13,7 @@ import net.enilink.core.security.SecurityUtil;
 import net.enilink.vocab.acl.ACL;
 import net.enilink.vocab.acl.Authorization;
 import net.enilink.vocab.foaf.Agent;
+import net.enilink.vocab.foaf.FOAF;
 
 import org.eclipse.core.resources.IProject;
 import org.eclipse.core.resources.ResourcesPlugin;
@@ -326,6 +327,8 @@ public class ModelSetManager {
 										.createURI("urn:enilink:metadata"));
 								modelSet = createModelSet(metaDataModel);
 							}
+							modelSet.getMetaDataManager().createNamed(
+									SecurityUtil.UNKNOWN_USER, FOAF.TYPE_AGENT);
 							createModels(modelSet);
 							return null;
 						}

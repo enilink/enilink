@@ -45,8 +45,8 @@ public class SecurePropertySetFactory extends KommaPropertySetFactory {
 								+ ACL.NAMESPACE
 								+ "> "
 								+ "SELECT DISTINCT ?o WHERE { ?s ?p ?o . "
-								+ "{ ?target acl:owner ?agent } union {" //
-								+ "{ ?acl acl:accessTo ?target } union { ?acl acl:accessToClass ?class . ?target a ?class } . ?acl acl:mode ?mode . "
+								+ "{ ?o acl:owner ?agent } union {" //
+								+ "{ ?acl acl:accessTo ?o } union { ?acl acl:accessToClass ?class . ?o a ?class } . ?acl acl:mode ?mode . "
 								+ "{ ?acl acl:agent ?agent } union { ?agent a ?agentClass . ?acl acl:agentClass ?agentClass }"
 								+ "}}";
 						return super
