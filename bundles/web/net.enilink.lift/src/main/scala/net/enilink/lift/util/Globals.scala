@@ -29,7 +29,13 @@ object Globals extends Factory {
       app <- loc.breadCrumbs.find(_.params.contains(Application))
     ) yield app
   }) {}
-  implicit val applicationPath = new FactoryMaker(() => { application.vend.dmap("/")(_.link.uriList.mkString("/", "/", "")) }) {}
+  implicit val applicationPath = new FactoryMaker(() => {
+    S.getHeader("X-Forwarded-For") match {
+      // this is a virtual host hence application is at "/"
+      case Full(_) => "/"
+      case _ => application.vend.dmap("/")(_.link.uriList.mkString("/", "/", ""))
+    }
+  }) {}
   implicit val contextModel = new FactoryMaker(() => { Empty: Box[IModel] }) {}
   implicit val contextResource = new FactoryMaker(() => {
     Platform.getExtensionRegistry.getExtensionPoint("net.enilink.lift.selectionProviders").getConfigurationElements.flatMap {

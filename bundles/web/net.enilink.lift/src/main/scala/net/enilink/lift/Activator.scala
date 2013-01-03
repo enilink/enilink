@@ -4,35 +4,33 @@ import java.util.concurrent.atomic.AtomicReference
 import scala.Option.option2Iterable
 import scala.collection.JavaConversions._
 import org.eclipse.equinox.http.servlet.ExtendedHttpService
-import org.osgi.framework.ServiceReference
 import org.osgi.framework.Bundle
 import org.osgi.framework.BundleActivator
 import org.osgi.framework.BundleContext
 import org.osgi.framework.BundleEvent
+import org.osgi.framework.ServiceReference
+import org.osgi.framework.ServiceRegistration
 import org.osgi.service.http.HttpContext
 import org.osgi.util.tracker.BundleTracker
 import org.osgi.util.tracker.ServiceTracker
-import javax.servlet.http.HttpServletRequest
-import javax.servlet.http.HttpServletResponse
 import javax.servlet.FilterChain
 import javax.servlet.ServletRequest
 import javax.servlet.ServletResponse
+import javax.servlet.http.HttpServletRequest
+import javax.servlet.http.HttpServletResponse
+import net.enilink.core.ISession
+import net.enilink.core.ISessionProvider
 import net.liftweb.common.Box
 import net.liftweb.common.Empty
 import net.liftweb.common.Full
 import net.liftweb.common.Logger
-import net.liftweb.http.LiftRulesMocker.toLiftRules
 import net.liftweb.http.LiftFilter
 import net.liftweb.http.LiftRules
+import net.liftweb.http.LiftRulesMocker.toLiftRules
+import net.liftweb.http.S
 import net.liftweb.osgi.OsgiBootable
 import net.liftweb.sitemap.SiteMap
 import net.liftweb.util.ClassHelpers
-import net.enilink.core.ISession
-import net.liftweb.http.S
-import org.osgi.framework.ServiceRegistration
-import net.enilink.core.ISessionProvider
-import net.enilink.lift.sitemap.Application
-import java.util.Arrays
 import net.enilink.lift.util.Globals
 
 class Activator extends BundleActivator {
@@ -147,7 +145,6 @@ class Activator extends BundleActivator {
       case null =>
       case httpService => {
         httpService.unregisterFilter(OsgiLiftFilter)
-        httpService.unregister("/lift")
       }
     }
     if (httpServiceTracker != null) {
@@ -172,19 +169,13 @@ class Activator extends BundleActivator {
     override def bootLift(loader: Box[String]) {
       super.bootLift(Full(classOf[OsgiBootable].getName))
     }
+
     override def doFilter(req: ServletRequest, res: ServletResponse, chain: FilterChain) {
       if (isLiftRequest(req.asInstanceOf[HttpServletRequest])) super.doFilter(req, res, chain) else chain.doFilter(req, res)
     }
 
-    val pathStartsWith = "/([^/]+).*".r
-    def isLiftRequest(req: HttpServletRequest) = {
-      val path = req.getContextPath + req.getServletPath
-      path match {
-        // do not handle known application contexts
-        case pathStartsWith("enilink" | "rwt-resources" | "eclipse-resources") => false
-        case _ => true
-      }
-    }
+    // any request that is not handled by a specific servlet is handled by Lift
+    def isLiftRequest(req: HttpServletRequest) = req.getServletPath == ""
   }
 
   /**
