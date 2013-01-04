@@ -31,6 +31,7 @@ import com.google.inject.Singleton;
 import com.google.inject.util.Modules;
 
 import net.enilink.vocab.rdf.RDF;
+import net.enilink.vocab.rdfs.RDFS;
 import net.enilink.komma.concepts.IResource;
 import net.enilink.komma.model.IModel;
 import net.enilink.komma.model.IModelSet;
@@ -327,6 +328,8 @@ public class ModelSetManager {
 										.createURI("urn:enilink:metadata"));
 								modelSet = createModelSet(metaDataModel);
 							}
+							modelSet.getMetaDataManager().createNamed(
+									FOAF.TYPE_AGENT, RDFS.TYPE_CLASS);
 							modelSet.getMetaDataManager().createNamed(
 									SecurityUtil.UNKNOWN_USER, FOAF.TYPE_AGENT);
 							createModels(modelSet);
