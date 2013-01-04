@@ -69,16 +69,15 @@ class LiftModule {
     LiftRules.statelessRewrite.append({
       case RewriteRequest(
         ParsePath("vocab" :: info :: _, _, _, _), _, req) if info != "index" && req.param("model").isEmpty =>
-        RewriteResponse(ParsePath("vocab" :: Nil, "", false, true),
-          Map("model" -> {
-            if (req.serverName == "localhost" || req.serverName == "127.0.0.1") "http://enilink.net" + req.uri else req.url
-          }))
+        RewriteResponse("vocab" :: Nil, Map("model" -> {
+          if (req.serverName == "localhost" || req.serverName == "127.0.0.1") "http://enilink.net" + req.uri else req.url
+        }))
     })
-    LiftRules.statelessRewrite.append({
+    LiftRules.statefulRewrite.append({
       case RewriteRequest(
-        ParsePath("vocab" :: Nil, _, _, endSlash), GetRequest, req) if req.param("type").isEmpty &&
-        req.headers("accept").find(_.toLowerCase.startsWith("text/html")).isDefined &&
-        (endSlash || !req.param("model").isEmpty) =>
+        ParsePath("vocab" :: Nil, _, _, _), GetRequest, req) if req.param("type").isEmpty &&
+        Globals.contextModel.vend.isDefined &&
+        req.headers("accept").find(_.toLowerCase.contains("text/html")).isDefined =>
         RewriteResponse("static" :: "ontology" :: Nil)
     })
   }
