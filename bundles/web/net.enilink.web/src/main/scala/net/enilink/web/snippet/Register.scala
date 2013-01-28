@@ -16,32 +16,26 @@ import net.liftweb.http.Templates
 import net.liftweb.util.Helpers
 import net.liftweb.util.Helpers.strToCssBindPromoter
 import net.enilink.lift.util.Globals
+import scala.util.control.Exception._
 import scala.xml.NodeSeq
 import net.liftweb.util.ClearNodes
+import net.enilink.vocab.rdf.RDF
 
 class Register extends SubjectHelper {
   def getEntityManager = ModelSetManager.INSTANCE.getModelSet.getMetaDataManager
 
-  def linkUserName(s: Subject, name: String): Box[String] = {
-    val userId = URIImpl.createURI("http://enilink.net/users").appendLocalPart(URIImpl.encodeOpaquePart(name, false))
-
+  def createUser(s: Subject, name: String): Box[String] = {
     val em = getEntityManager
-    val result = synchronized {
-      // TODO Is it possible to use database locking here?
-      if (em.createQuery("ask { ?user ?p ?o }").setParameter("user", userId).getBooleanResult) {
-        Full("A user with this name already exists.")
-      } else {
-        val externalIds = AccountHelper.getExternalIds(s)
-        AccountHelper.linkExternalIds(em, userId, externalIds)
-        s.getPrincipals.add(new UserPrincipal(userId))
-        Empty
-      }
+    try {
+      val user = AccountHelper.createUser(em, name)
+      // link external IDs
+      val externalIds = AccountHelper.getExternalIds(s)
+      AccountHelper.linkExternalIds(em, user, externalIds)
+      s.getPrincipals.add(new UserPrincipal(user.getURI))
+      Empty
+    } catch {
+      case iae: IllegalArgumentException => Full("A user with this name already exists.")
     }
-    if (result.isEmpty) {
-      // store the user name
-      em.find(userId, classOf[IResource]).addProperty(FOAF.PROPERTY_NICK, name)
-    }
-    result
   }
 
   def render: NodeSeq => NodeSeq = {
@@ -54,7 +48,7 @@ class Register extends SubjectHelper {
         var buttons: Seq[Node] = <button class="btn btn-primary" type="submit">Sign up</button>
 
         val username = S.param("f-username")
-        if (username.isDefined) username.flatMap(linkUserName(s, _)) match {
+        if (username.isDefined) username.flatMap(createUser(s, _)) match {
           case Full(msg) => form ++= <div class="alert alert-error">{ msg }</div>
           case _ =>
         }

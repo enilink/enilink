@@ -70,7 +70,7 @@ class Login extends SubjectHelper {
   val REQUIRE_LOGIN = false || "true"
     .equalsIgnoreCase(System.getProperty("enilink.loginrequired"))
 
-  val loginMethods = List(("IWU Share", "CMIS"), ("OpenID", "OpenID"))
+  val loginMethods = List(("eniLINK", "eniLINK"), ("IWU Share", "CMIS"), ("OpenID", "OpenID"))
 
   /**
    * Retrieve a HTTP param while omitting empty strings.
