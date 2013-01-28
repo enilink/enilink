@@ -2,6 +2,7 @@ package net.enilink.lift.rdf
 import scala.xml.MetaData
 import scala.xml.TopScope
 import scala.xml.NamespaceBinding
+import scala.collection.mutable
 
 /**
  * RDF abstract syntax per <cite><a
@@ -32,7 +33,6 @@ case class Variable(val n: String, val qual: Option[Int]) extends Reference {
 
   override def toString() = sym.name
 }
-case class DollarVariable(override val n: String, override val qual: Option[Int]) extends Variable(n, qual)
 
 trait RDFGraphParts {
   /**
@@ -84,6 +84,8 @@ trait RDFNodeBuilder extends RDFGraphParts {
 
 class Scope(val vars: Iterable[Variable]) {
   def this() = this(List())
+
+  val namespaces = new mutable.Stack[NamespaceBinding]
 
   import scala.collection.mutable
   val varstack = new mutable.Stack[Variable]

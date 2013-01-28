@@ -22,6 +22,8 @@ import net.liftweb.sitemap.Loc._
 import net.liftweb.util._
 import net.liftweb.util.Helpers._
 import net.enilink.lift.util.NotAllowedModel
+import net.enilink.lift.html.Html5ParserWithRDFaPrefixes
+import net.enilink.lift.html.Html5ParserWithRDFaPrefixes
 
 /**
  * A class that's instantiated early and run.  It allows the application
@@ -62,9 +64,11 @@ class LiftModule extends Logger {
     // What is the function to test if a user is logged in?
     LiftRules.loggedInTest = Full(() => Globals.contextUser.vend != Globals.UNKNOWN_USER)
 
-    // Use HTML5 for rendering
+    // add @prefix support to HTML parser
+    object Html5ParserForRDFa extends Html5ParserWithRDFaPrefixes
+    // Use HTML5 for parsing and rendering
     LiftRules.htmlProperties.default.set((r: Req) =>
-      new Html5Properties(r.userAgent))
+      new Html5Properties(r.userAgent).setHtmlParser(Html5ParserForRDFa.parse _))
 
     // Force the request to be UTF-8
     LiftRules.early.append(_.setCharacterEncoding("UTF-8"))

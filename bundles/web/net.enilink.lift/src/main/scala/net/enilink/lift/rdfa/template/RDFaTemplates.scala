@@ -107,7 +107,7 @@ trait RDFaTemplates extends RDFaUtils {
             val (result, skipNode) = if (tElem.attributes.isEmpty) (tElem, false) else {
               var removeNode = false
               var attributes = tElem.attributes
-              val prefixes = findPrefixes(tElem, tElem.scope)
+              val prefixes = findPrefixMappings((tElem \ "@prefix").text, tElem.scope)
               if (prefixes ne tElem.scope) currentCtx = currentCtx.copy(prefix = prefixes)
               tElem.attributes.foreach(meta =>
                 if (attributes != null && !meta.isPrefixed && rdfaAttributes.contains(meta.key)) {

@@ -14,10 +14,10 @@ import net.enilink.komma.core.URIImpl
 object RDFaParser extends RDFaParser()(new Scope())
 
 trait RDFaUtils {
-  private val PREFIX_PATTERN = "([\\S]+)\\s*:\\s*([\\S]+)".r
+  private val PREFIX_PATTERN = "([^\\s:]+):\\s+([\\S]+)".r
 
-  def findPrefixes(e: xml.Elem, bindings: NamespaceBinding = null) = {
-    val prefixes = PREFIX_PATTERN.findAllIn((e \ "@prefix").text).matchData.foldLeft(if (bindings == null) e.scope else bindings) {
+  def findPrefixMappings(prefixValue: String, bindings: NamespaceBinding) = {
+    val prefixes = PREFIX_PATTERN.findAllIn(prefixValue).matchData.foldLeft(bindings) {
       (
         (previous, mapping) => new NamespaceBinding(mapping.group(1), mapping.group(2), previous))
     }
@@ -63,9 +63,11 @@ class RDFaParser()(implicit val s: Scope = new Scope()) extends CURIE with RDFaU
     assert(subj1 != undef) // with NotNull doesn't seem to work. scalaq?
 
     // step 2., URI mappings, xmlns is taken care of by scala.xml
-    // support for the @prefix attribute+
-    val prefixes = findPrefixes(e)
-    val eWithPrefixes = if (prefixes ne e.scope) e.copy(scope = prefixes) else e
+    // support for the @prefix attribute
+    val namespaces = findPrefixMappings((e \ "@prefix").text, e.scope)
+    val hasPrefixMappings = namespaces ne e.scope
+    if (hasPrefixMappings) s.namespaces.push(namespaces)
+    val eWithPrefixes = if (hasPrefixMappings) e.copy(scope = namespaces) else e
 
     // step 3. [current language]
     val lang2 = eWithPrefixes \ "@{http://www.w3.org/XML/1998/namespace}lang"
@@ -152,6 +154,7 @@ class RDFaParser()(implicit val s: Scope = new Scope()) extends CURIE with RDFaU
       childArcs
     } else Stream.empty)
 
+    if (hasPrefixMappings) s.namespaces.pop
     (newE, arcs ++ childArcs)
   }
 
@@ -326,7 +329,7 @@ trait CURIE extends RDFNodeBuilder {
       case variable(v) => createVariable(v) // ?foo or $foo
       case parts(p, l) if (p == null) => None
       case parts(p, l) if (p == "xml") => None // xml:foo
-      
+
       // support for blank node variables
       case parts("_", "") => Some(byName("_"))
       case parts("_", l) if l.startsWith("_") => Some(byName(l))
@@ -379,12 +382,12 @@ trait CURIE extends RDFNodeBuilder {
 
   def expand(p: String, l: String, e: xml.Elem)(implicit s: Scope): String = {
     val ns = if (p == "") xhv else {
-      e.getNamespace(p)
-      // use scope to get the prefix
-      //      s.prefixes.getURI(p) match {
-      //        case uri : String => uri
-      //        case _ => e.getNamespace(p)
-      //      }
+      var ns: String = null
+      // use local namespace bindings (extracted from @prefix) to lookup prefix 
+      if (!s.namespaces.isEmpty) ns = s.namespaces.top.getURI(p)
+      // use default XML namespaces
+      if (ns == null) ns = e.getNamespace(p)
+      ns
     }
 
     if (ns == null) {

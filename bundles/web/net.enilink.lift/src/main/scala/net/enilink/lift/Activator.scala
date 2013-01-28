@@ -32,6 +32,7 @@ import net.liftweb.osgi.OsgiBootable
 import net.liftweb.sitemap.SiteMap
 import net.liftweb.util.ClassHelpers
 import net.enilink.lift.util.Globals
+import java.io.File
 
 class Activator extends BundleActivator {
   private var bundleTracker: BundleTracker[LiftBundleConfig] = _
@@ -191,6 +192,11 @@ class Activator extends BundleActivator {
    * Lift-powered bundles and other methods to wrapped HttpContext.
    */
   private case class LiftHttpContext(context: HttpContext) extends HttpContext with Logger {
+    val resourcePaths = System.getProperty("net.enilink.lift.resourcePaths") match {
+      case null => Nil
+      case paths => paths.split("\\s+\\s").map(new File(_)).toList
+    }
+
     assert(context != null, "HttpContext must not be null!")
 
     override def getMimeType(s: String) = context getMimeType s
@@ -207,7 +213,7 @@ class Activator extends BundleActivator {
       ) yield resourcePath.drop(appPath.length).mkString("/", "/", ""))
 
       val liftBundles = bundleTracker.getTracked.entrySet.toSeq.view
-      places.view.flatMap { place =>
+      (places.view.flatMap { place =>
         liftBundles flatMap { b =>
           b.getKey getResource (b.getValue mapResource place) match {
             case null => None
@@ -216,10 +222,17 @@ class Activator extends BundleActivator {
               Some(res)
           }
         } headOption
-      } headOption match {
-        case None => null
-        case Some(res) => res
-      }
+      } headOption) orElse (
+        // try to find resource at external location
+        places.view.flatMap { place =>
+          resourcePaths.view.flatMap { path =>
+            val file = new File(path, place.stripPrefix("/"))
+            if (file.exists) Some(file.toURI.toURL) else None
+          }
+        } headOption) match {
+          case None => null
+          case Some(res) => res
+        }
     }
 
     override def handleSecurity(req: HttpServletRequest, res: HttpServletResponse) =

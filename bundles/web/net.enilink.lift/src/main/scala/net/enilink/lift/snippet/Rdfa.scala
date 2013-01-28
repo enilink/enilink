@@ -16,7 +16,6 @@ import net.liftweb.util.Helpers.strToCssBindPromoter
 import net.liftweb.http.Templates
 import net.liftweb.common.Full
 import net.liftweb.http.S
-import net.enilink.lift.rdf.DollarVariable
 import net.enilink.komma.core.IReference
 import net.enilink.komma.core.URIImpl
 import scala.util.control.Exception._
@@ -55,12 +54,7 @@ class Rdfa extends Sparql with EditRdfa {
     val nodesWithAcl = (".acl" #> Acl.render _)(n)
     val sparqlFromRdfa = SparqlFromRDFa(nodesWithAcl.head.asInstanceOf[Elem], "http://example.org#")
 
-    val queryParams = sparqlFromRdfa.getQueryVariables.flatMap {
-      case v: DollarVariable =>
-        val name = v.toString
-        S.param(name) flatMap { value => catching(classOf[IllegalArgumentException]) opt { (name, URIImpl.createURI(value)) } }
-      case _ => Empty
-    }.toMap
+    val queryParams = bindParams(extractBindParams(n))
 
     // support for pagination of results
     var paginatedQuery: Box[String] = Empty

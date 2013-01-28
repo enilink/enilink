@@ -2,6 +2,7 @@ package net.enilink.lift.snippet
 
 import scala.collection.JavaConversions.asScalaIterator
 import scala.collection.mutable
+import scala.util.control.Exception._
 import scala.xml.Elem
 import scala.xml.NodeSeq
 import scala.xml.NodeSeq.seqToNodeSeq
@@ -25,11 +26,12 @@ import net.liftweb.http.PaginatorSnippet
 import net.enilink.komma.core.IEntityManager
 import net.enilink.komma.core.URIImpl
 import net.enilink.komma.core.IQuery
+import scala.xml.Null
 
 class Sparql extends RDFaTemplates {
   val selection = Globals.contextResource.vend.openOr(null)
 
-  def withParameters[T](query: IQuery[T], params : Map[String, _]) = {
+  def withParameters[T](query: IQuery[T], params: Map[String, _]) = {
     CurrentContext.value.get.subject match {
       case entity: IEntity => query.setParameter("this", entity)
       case _ => // do nothing
@@ -38,7 +40,7 @@ class Sparql extends RDFaTemplates {
     params.foreach { p => query.setParameter(p._1, p._2) }
     query
   }
-  
+
   def includeInferred = S.attr("inferred", _ != "false", true)
 
   def render(n: NodeSeq): NodeSeq = {
@@ -100,12 +102,19 @@ class Sparql extends RDFaTemplates {
     }
   }
 
-  def toSparql(n: NodeSeq, em: IEntityManager): (NodeSeq, String, Map[String, Object]) = {
-    (n, n.head.child.foldLeft("")((q, c) => c match { case scala.xml.Text(t) => q + t case _ => q }), Map.empty)
+  def extractBindParams(ns: NodeSeq) = (ns \ "@data-bind").text.split("\\s+").filterNot(_.isEmpty).map(_.stripPrefix("?").stripPrefix("$")).toSeq
+
+  def bindParams(params: Seq[String]) = {
+    params flatMap { name =>
+      S.param(name) flatMap {
+        // TODO allow to bind literal values
+        value => catching(classOf[IllegalArgumentException]) opt { (name, URIImpl.createURI(value)) }
+      }
+    } toMap
   }
 
-  def renderGraph(r: IGraph) = {
-    "Test"
+  def toSparql(n: NodeSeq, em: IEntityManager): (NodeSeq, String, Map[String, Object]) = {
+    (n, n.head.child.foldLeft("")((q, c) => c match { case scala.xml.Text(t) => q + t case _ => q }), bindParams(extractBindParams(n)))
   }
 
   def renderTuples(template: Seq[xml.Node], r: Iterator[(IBindings[_], Boolean)]) = {
@@ -126,7 +135,7 @@ class Sparql extends RDFaTemplates {
               (sb, mapping) =>
                 if (sb.length > 0) sb.append(" ")
                 sb.append(mapping._1).append(": ").append(mapping._2)
-            }.toString, e.attributes))
+            }.toString, Null))
           // add legacy xmlns attributes
           attributes = xmlns.foldLeft(attributes) { (attrs, mapping) => attrs.append(new UnprefixedAttribute("xmlns:" + mapping._1, mapping._2, attrs)) }
           e.copy(attributes = attributes)

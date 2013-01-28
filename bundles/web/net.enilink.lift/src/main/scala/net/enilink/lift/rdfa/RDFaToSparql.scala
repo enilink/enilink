@@ -15,7 +15,6 @@ import net.enilink.lift.rdf.PlainLiteral
 import net.enilink.lift.rdf.Reference
 import net.enilink.lift.rdf.Scope
 import net.enilink.lift.rdf.TypedLiteral
-import net.enilink.lift.rdf.DollarVariable
 import net.enilink.lift.rdf.Variable
 import net.enilink.lift.rdf.Vocabulary
 import net.enilink.lift.rdf.XmlLiteral
@@ -79,12 +78,12 @@ private class RDFaToSparqlParser(e: xml.Elem, base: String)(implicit s: Scope = 
     resultElem = e1
   }
 
-  def addPrefixDecls(query: StringBuilder, scope: NamespaceBinding) {
+  def addPrefixDecls(query: StringBuilder, scope: NamespaceBinding, seen : Set[String] = Set.empty) {
     scope match {
       case xml.TopScope | null => // do nothing
       case NamespaceBinding(prefix, uri, parent) =>
-        query.append("prefix ").append(prefix).append(": <").append(uri).append(">\n")
-        addPrefixDecls(query, parent)
+        if (!seen.contains(prefix)) query.append("prefix ").append(prefix).append(": <").append(uri).append(">\n")
+        addPrefixDecls(query, parent, seen + prefix)
     }
   }
 
@@ -144,6 +143,8 @@ private class RDFaToSparqlParser(e: xml.Elem, base: String)(implicit s: Scope = 
   def hasCssClass(e: xml.Elem, pattern: String) = {
     ("(?:^|\\s)" + pattern).r.findFirstIn((e \ "@class").text) != None
   }
+  
+  val EndsWithBraceOrDot = ".*[}.]\\s+".r
 
   override def walk(e: xml.Elem, base: String, subj1: Reference, obj1: Reference,
     pending1f: Iterable[Reference], pending1r: Iterable[Reference],
@@ -161,7 +162,13 @@ private class RDFaToSparqlParser(e: xml.Elem, base: String)(implicit s: Scope = 
       indent
       close += 1
     }
-
+    
+    val pattern = (e \ "@data-pattern").text
+    if (!pattern.isEmpty) addLine(pattern match {
+      case EndsWithBraceOrDot => pattern
+      case _ => pattern + " . "
+    })
+ 
     val result = super.walk(e, base, subj1, obj1, pending1f, pending1r, lang1)
 
     val filter = (e \ "@data-filter").text
@@ -271,10 +278,7 @@ private class RDFaToSparqlParser(e: xml.Elem, base: String)(implicit s: Scope = 
       //        case v: Variable => select(v)
       //        case other => other
       //      })
-      case _ => {
-        val v = if (name.startsWith("$")) new DollarVariable(name.substring(1), None) else new Variable(name.substring(1), None)
-        Some(select(v))
-      }
+      case _ => Some(select(new Variable(name.substring(1), None)))
     }
   }
 
