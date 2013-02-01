@@ -125,7 +125,7 @@ public class ModelSetManager {
 		module.addBehaviour(SessionModelSetSupport.class);
 		module.addBehaviour(LazyModelSupport.class);
 
-		if ("owlim".endsWith(REPOSITORY_TYPE)) {
+		if ("owlim".equals(REPOSITORY_TYPE)) {
 			module.addBehaviour(OwlimDialectSupport.class);
 		}
 
