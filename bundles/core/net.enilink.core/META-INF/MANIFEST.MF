@@ -16,6 +16,7 @@ Import-Package: com.google.inject,
  com.google.inject.binder,
  com.google.inject.util,
  org.aopalliance.intercept,
+ org.apache.commons.codec.binary,
  org.eclipse.core.resources,
  net.enilink.composition.properties.komma
 Export-Package: net.enilink.core,
