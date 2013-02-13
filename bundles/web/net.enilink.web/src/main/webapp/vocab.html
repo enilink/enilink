@@ -4,14 +4,17 @@
 <meta content="text/html; charset=UTF-8" http-equiv="content-type" />
 <title>Home</title>
 </head>
-<body class="lift:content_id=main" prefix="
+<body class="lift:content_id=main"
+	prefix="
 	rdf: http://www.w3.org/1999/02/22-rdf-syntax-ns#
 	owl: http://www.w3.org/2002/07/owl#
 	rdfs: http://www.w3.org/2000/01/rdf-schema#
 	models: http://enilink.net/vocab/komma/models#">
 	<div id="main" class="lift:surround?with=default;at=content">
-		<div class="lift:rdfa?target=meta">
+		<div class="lift:rdfa?target=meta" data-search="?model">
 			<h3>Ontologies</h3>
+			<div class="search-form"></div>
+			<div class="search-patterns clearable"></div>
 			<div about="?model" typeof="models:Model" class="row-fluid asc">
 				<section class="optional">
 					<div class="row-fluid union">
@@ -41,6 +44,5 @@
 			<div data-for="?model" class="pagination"></div>
 		</div>
 	</div>
-
 </body>
 </html>
