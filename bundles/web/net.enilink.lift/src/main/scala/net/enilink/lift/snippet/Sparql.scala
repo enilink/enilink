@@ -1,18 +1,13 @@
 package net.enilink.lift.snippet
 
 import scala.collection.JavaConversions.asScalaIterator
-import scala.collection.mutable
+import scala.collection._
 import scala.util.control.Exception._
 import scala.xml.Elem
 import scala.xml.NodeSeq
 import scala.xml.NodeSeq.seqToNodeSeq
 import scala.xml.UnprefixedAttribute
-import net.enilink.komma.core.IBindings
-import net.enilink.komma.core.IEntity
-import net.enilink.komma.core.IGraph
-import net.enilink.komma.core.IGraphResult
-import net.enilink.komma.core.ITupleResult
-import net.enilink.komma.core.LinkedHashBindings
+import net.enilink.komma.core._
 import net.enilink.core.ModelSetManager
 import net.enilink.lift.rdfa.template.RDFaTemplates
 import net.enilink.lift.util.Globals
@@ -23,13 +18,32 @@ import net.liftweb.http.S
 import net.liftweb.util.ClearClearable
 import net.enilink.komma.core.IValue
 import net.liftweb.http.PaginatorSnippet
-import net.enilink.komma.core.IEntityManager
-import net.enilink.komma.core.URIImpl
-import net.enilink.komma.core.IQuery
 import scala.xml.Null
+import net.liftweb.http.RequestVar
 
-class Sparql extends RDFaTemplates {
+/**
+ * Global SPARQL parameters that can be shared between different snippets.
+ */
+object QueryParams extends RequestVar[immutable.Map[String, _]](Map.empty)
+
+object RdfHelpers {
+  implicit def bindingsToMap(bindings: IBindings[_]): immutable.Map[String, _] = bindings.getKeys.iterator.map(k => k -> bindings.get(k)).toMap
+}
+
+trait SparqlHelper {
   val selection = Globals.contextResource.vend.openOr(null)
+  val isMetaQuery = (S.attr("target") openOr null) == "meta"
+
+  def extractBindParams(ns: NodeSeq) = (ns \ "@data-bind").text.split("\\s+").filterNot(_.isEmpty).map(_.stripPrefix("?")).toSeq
+
+  def bindParams(params: Seq[String]) = {
+    params flatMap { name =>
+      S.param(name) flatMap {
+        // TODO allow to bind literal values
+        value => catching(classOf[IllegalArgumentException]) opt { (name, URIImpl.createURI(value)) }
+      }
+    } toMap
+  }
 
   def withParameters[T](query: IQuery[T], params: Map[String, _]) = {
     CurrentContext.value.get.subject match {
@@ -37,10 +51,25 @@ class Sparql extends RDFaTemplates {
       case _ => // do nothing
     }
     query.setParameter("currentUser", Globals.contextUser.vend)
-    params.foreach { p => query.setParameter(p._1, p._2) }
+    QueryParams foreach { p => query.setParameter(p._1, p._2) }
+    params foreach { p => query.setParameter(p._1, p._2) }
     query
   }
 
+  def withRdfContext[S](f: => S): S = {
+    CurrentContext.value match {
+      case Full(_) if !isMetaQuery => f
+      case _ =>
+        val target = if (isMetaQuery) ModelSetManager.INSTANCE.getModelSet else selection
+        target match {
+          case resource: Any => CurrentContext.withValue(Full(new RdfContext(resource, null))) { f }
+          case _ => f
+        }
+    }
+  }
+}
+
+class Sparql extends SparqlHelper with RDFaTemplates {
   def includeInferred = S.attr("inferred", _ != "false", true)
 
   def render(n: NodeSeq): NodeSeq = {
@@ -61,59 +90,36 @@ class Sparql extends RDFaTemplates {
           }
         }
       }
-
-      CurrentContext.value.get.subject match {
-        case entity: IEntity =>
-          val (n1, sparql, params) = toSparql(n, entity.getEntityManager)
-          val query = withParameters(entity.getEntityManager.createQuery(sparql), params)
-          query.bindResultType(null: String, classOf[IValue]).evaluate match {
-            case r: IGraphResult =>
-              n1 //renderGraph(new LinkedHashGraph(r.toList()))
-            case r: ITupleResult[_] =>
-              val firstBinding = r.getBindingNames.get(0)
-              val allTuples = r.map { row => (toBindings(firstBinding, row), includeInferred) }
-              val toRender = (if (distInferred) {
-                // query explicit statements and prepend them to the results
-                withParameters(entity.getEntityManager.createQuery(sparql, false), params)
-                  .bindResultType(null: String, classOf[IValue]).evaluate.asInstanceOf[ITupleResult[_]]
-                  .map { row => (toBindings(firstBinding, row), false) } ++ allTuples
-              } else allTuples)
-              val result = renderTuples(n1, toRender)
-              result
-            case _ => n1
-          }
-        case _ => n
-      }
-    }
-
-    val isMetaQuery = (S.attr("target") openOr null) == "meta"
-
-    CurrentContext.value match {
-      case Full(_) if !isMetaQuery => renderResults
-      case _ =>
-        val target = if (isMetaQuery) ModelSetManager.INSTANCE.getModelSet else selection
-        target match {
-          case resource: Any =>
-            CurrentContext.withValue(Full(new RdfContext(resource, null))) {
-              renderResults
+      CurrentContext.value match {
+        case Full(rdfCtx) => rdfCtx.subject match {
+          case entity: IEntity =>
+            val (n1, sparql, params) = toSparql(n, entity.getEntityManager)
+            val query = withParameters(entity.getEntityManager.createQuery(sparql), params)
+            query.bindResultType(null: String, classOf[IValue]).evaluate match {
+              case r: IGraphResult =>
+                n1 //renderGraph(new LinkedHashGraph(r.toList()))
+              case r: ITupleResult[_] =>
+                val firstBinding = r.getBindingNames.get(0)
+                val allTuples = r.map { row => (toBindings(firstBinding, row), includeInferred) }
+                val toRender = (if (distInferred) {
+                  // query explicit statements and prepend them to the results
+                  withParameters(entity.getEntityManager.createQuery(sparql, false), params)
+                    .bindResultType(null: String, classOf[IValue]).evaluate.asInstanceOf[ITupleResult[_]]
+                    .map { row => (toBindings(firstBinding, row), false) } ++ allTuples
+                } else allTuples)
+                val result = renderTuples(n1, toRender)
+                result
+              case _ => n1
             }
           case _ => n
         }
-    }
-  }
-
-  def extractBindParams(ns: NodeSeq) = (ns \ "@data-bind").text.split("\\s+").filterNot(_.isEmpty).map(_.stripPrefix("?").stripPrefix("$")).toSeq
-
-  def bindParams(params: Seq[String]) = {
-    params flatMap { name =>
-      S.param(name) flatMap {
-        // TODO allow to bind literal values
-        value => catching(classOf[IllegalArgumentException]) opt { (name, URIImpl.createURI(value)) }
+        case _ => n
       }
-    } toMap
+    }
+    withRdfContext(renderResults)
   }
 
-  def toSparql(n: NodeSeq, em: IEntityManager): (NodeSeq, String, Map[String, Object]) = {
+  def toSparql(n: NodeSeq, em: IEntityManager): (NodeSeq, String, Map[String, _]) = {
     (n, n.head.child.foldLeft("")((q, c) => c match { case scala.xml.Text(t) => q + t case _ => q }), bindParams(extractBindParams(n)))
   }
 

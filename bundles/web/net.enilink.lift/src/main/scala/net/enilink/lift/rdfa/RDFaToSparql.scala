@@ -42,6 +42,7 @@ object SparqlFromRDFa {
 trait SparqlFromRDFa {
   def getQueryVariables: Set[Variable]
   def getQuery: String
+  def getQuery(bindingName: String, offset: Any, limit: Any) : String
   def getElement: xml.Elem
 
   def getPaginatedQuery(bindingName: String, offset: Any, limit: Any): String
@@ -78,7 +79,7 @@ private class RDFaToSparqlParser(e: xml.Elem, base: String)(implicit s: Scope = 
     resultElem = e1
   }
 
-  def addPrefixDecls(query: StringBuilder, scope: NamespaceBinding, seen : Set[String] = Set.empty) {
+  def addPrefixDecls(query: StringBuilder, scope: NamespaceBinding, seen: Set[String] = Set.empty) {
     scope match {
       case xml.TopScope | null => // do nothing
       case NamespaceBinding(prefix, uri, parent) =>
@@ -98,19 +99,24 @@ private class RDFaToSparqlParser(e: xml.Elem, base: String)(implicit s: Scope = 
   def getQueryVariables = selectVars.toSet
   def getElement = resultElem
 
+  def getQuery(bindingName: String, offset: Any, limit: Any) = {
+    val result = new StringBuilder
+    result.append("select distinct ?").append(bindingName).append(" where {\n")
+    result.append(sparql)
+    result.append("}\n")
+    modifiers(e, result, false)
+    result.append("offset ").append(offset).append("\n")
+    result.append("limit ").append(limit).append("\n")
+    result.toString
+  }
+
   def getPaginatedQuery(bindingName: String, offset: Any, limit: Any) = {
     val result = new StringBuilder
     addPrefixDecls(result, resultElem.scope)
     selectVars.map(toString).addString(result, "select distinct ", " ", " where {\n")
 
     // subquery to limit the solutions for given binding name
-    result.append("{ select distinct ?").append(bindingName).append(" where {\n")
-    result.append(sparql)
-    result.append("}\n")
-    modifiers(e, result, false)
-    result.append("offset ").append(offset).append("\n")
-    result.append("limit ").append(limit).append("\n")
-    result.append("}\n")
+    result.append("{ ").append(getQuery(bindingName, offset, limit)).append("}\n")
     // end of subquery
 
     result.append(sparql)
@@ -143,7 +149,7 @@ private class RDFaToSparqlParser(e: xml.Elem, base: String)(implicit s: Scope = 
   def hasCssClass(e: xml.Elem, pattern: String) = {
     ("(?:^|\\s)" + pattern).r.findFirstIn((e \ "@class").text) != None
   }
-  
+
   val EndsWithBraceOrDot = ".*[}.]\\s+".r
 
   override def walk(e: xml.Elem, base: String, subj1: Reference, obj1: Reference,
@@ -162,13 +168,13 @@ private class RDFaToSparqlParser(e: xml.Elem, base: String)(implicit s: Scope = 
       indent
       close += 1
     }
-    
+
     val pattern = (e \ "@data-pattern").text
     if (!pattern.isEmpty) addLine(pattern match {
       case EndsWithBraceOrDot => pattern
       case _ => pattern + " . "
     })
- 
+
     val result = super.walk(e, base, subj1, obj1, pending1f, pending1r, lang1)
 
     val filter = (e \ "@data-filter").text
