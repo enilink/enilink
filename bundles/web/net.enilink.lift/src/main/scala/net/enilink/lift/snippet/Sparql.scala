@@ -20,6 +20,7 @@ import net.enilink.komma.core.IValue
 import net.liftweb.http.PaginatorSnippet
 import scala.xml.Null
 import net.liftweb.http.RequestVar
+import net.liftweb.util.TimeHelpers
 
 /**
  * Global SPARQL parameters that can be shared between different snippets.
@@ -123,13 +124,12 @@ class Sparql extends SparqlHelper with RDFaTemplates {
     (n, n.head.child.foldLeft("")((q, c) => c match { case scala.xml.Text(t) => q + t case _ => q }), bindParams(extractBindParams(n)))
   }
 
-  def renderTuples(template: Seq[xml.Node], r: Iterator[(IBindings[_], Boolean)]) = {
-    val existing = new mutable.HashMap[Key, Seq[xml.Node]]
-    var result = {
-      // ensure one iteration with empty bindings set
-      if (r.hasNext) r else List((new LinkedHashBindings[AnyRef], false))
-    }.foldLeft(Nil: NodeSeq)((transformed, row) => transform(CurrentContext.value.get, template)(row._1, row._2, existing))
-    result = ClearClearable.apply(S.session.get.processSurroundAndInclude(PageName.get, processSurroundAndInclude(result)))
+  def renderTuples(ns: Seq[xml.Node], r: Iterator[(IBindings[_], Boolean)]) = {
+    var template = createTemplate(ClearClearable.apply(ns))
+    ( // ensure one iteration with empty bindings set
+      if (r.hasNext) r else List((new LinkedHashBindings[AnyRef], false))).foreach { row => template.transform(CurrentContext.value.get, row._1, row._2) }
+
+    val result = ClearClearable.apply(S.session.get.processSurroundAndInclude(PageName.get, template.render))
     result.map(_ match {
       case e: Elem => {
         // add RDFa prefix declarations
