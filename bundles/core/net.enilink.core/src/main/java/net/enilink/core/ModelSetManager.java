@@ -56,7 +56,7 @@ import net.enilink.komma.workbench.ProjectModelSetSupport;
 
 public class ModelSetManager {
 	public static final ModelSetManager INSTANCE = new ModelSetManager();
-	private static final String REPOSITORY_TYPE;
+	public static final String REPOSITORY_TYPE;
 	static {
 		String repoType = System.getProperty("net.enilink.repository.type");
 		if (repoType == null) {
@@ -275,7 +275,6 @@ public class ModelSetManager {
 				null);
 		measurementsModel.getManager().setNamespace("structure",
 				structureModel.getURI().appendFragment(""));
-
 		modelSet.createModel(URIImpl
 				.createURI("http://enilink.net/vocab/manufacturing"));
 

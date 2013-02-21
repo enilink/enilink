@@ -19,17 +19,27 @@ public abstract class OwlimDialectSupport implements IModelSet,
 		IModelSet.Internal, Behaviour<IModelSet> {
 	static class OwlimDialect extends SparqlStandardDialect {
 		@Override
-		public QueryFragment fullTextSearch(String bindingName, int flags,
+		public QueryFragment fullTextSearch(
+				Collection<? extends String> bindingNames, int flags,
 				String... patterns) {
 			String matchFunc = (flags & CASE_INSENSITIVE) != 0 ? "prefixMatchIgnoreCase"
 					: "prefixMatch";
-			StringBuilder sb = new StringBuilder("<");
+			StringBuilder patternsAsURI = new StringBuilder("<");
 			for (String pattern : patterns) {
-				sb.append(pattern.replaceAll("[*?<>]", "")).append(":");
+				patternsAsURI.append(pattern.replaceAll("[*?<>]", "")).append(
+						":");
 			}
-			sb.append("> ");
-			sb.append("<http://www.ontotext.com/owlim/fts#").append(matchFunc)
-					.append("> ?").append(bindingName).append(" . ");
+			patternsAsURI.append(">");
+			StringBuilder sb = new StringBuilder();
+			for (String bindingName : bindingNames) {
+				if (sb.length() > 0) {
+					sb.append(" union ");
+				}
+				sb.append("{ ").append(patternsAsURI)
+						.append(" <http://www.ontotext.com/owlim/fts#")
+						.append(matchFunc).append("> ?").append(bindingName)
+						.append(" }");
+			}
 			return new QueryFragment(sb.toString());
 		}
 	}
