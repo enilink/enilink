@@ -1,9 +1,6 @@
 package net.enilink.lift.snippet
 
-import scala.xml.Elem
-import scala.xml.NodeSeq
-import scala.xml.Text
-import scala.xml.Text
+import scala.xml._
 import net.enilink.komma.core.IEntityManager
 import net.enilink.lift.rdfa.SparqlFromRDFa
 import net.liftweb.common.Box
@@ -67,7 +64,7 @@ trait Search extends HasRender with SparqlHelper with SparqlExtractor {
   /**
    * Generates an Ajax function for auto-completion that can be executed by using a named Javascript function.
    */
-  def autoCompleteJs(bindingName: String, ns: NodeSeq) = {
+  def autoCompleteJs(bindingNames: Seq[String], ns: NodeSeq) = {
     /**
      * Converts search results to candidate tokens for auto-completion.
      *
@@ -75,7 +72,7 @@ trait Search extends HasRender with SparqlHelper with SparqlExtractor {
      */
     def toTokens(query: String, v: Any): Seq[String] = {
       (v match {
-        case ref: IReference if ref.getURI != null => ref.getURI.segments
+        case ref: IReference if ref.getURI != null => ref.getURI.segments ++ List(ref.getURI.localPart)
         case other => other.toString.split("\\s+")
       }).filter(_.toLowerCase.contains(query))
     }
@@ -88,14 +85,17 @@ trait Search extends HasRender with SparqlHelper with SparqlExtractor {
             case Full(rdfCtx) => rdfCtx.subject match {
               case entity: IEntity => {
                 val em = entity.getEntityManager
-                // add search patterns to template
-                val fragment = em.getFactory.getDialect.fullTextSearch(bindingName, IDialect.ANY, query)
-                val nsWithPatterns = (".search-patterns" #> <div data-pattern={ fragment.toString } class="clearable"></div>)(ns)
-                val sparqlFromRdfa = extractSparql(nsWithPatterns)
-                val queryParams = bindParams(extractBindParams(ns)) ++ bindingsToMap(fragment.bindings)
-                val sparql = sparqlFromRdfa.getQuery(bindingName, 0, 100)
-                val results = withParameters(em.createQuery(sparql), queryParams).evaluate
-                JsonResponse(JArray(JString(query) :: results.iterator.flatMap(toTokens(query.toLowerCase, _)).toSet[String].map(JString(_)).toList))
+                val keywords = bindingNames.flatMap { bindingName =>
+                  // add search patterns to template
+                  val fragment = em.getFactory.getDialect.fullTextSearch(List(bindingName), IDialect.ANY, query)
+                  val nsWithPatterns = (".search-patterns" #> <div data-pattern={ fragment.toString } class="clearable"></div>)(ns)
+                  val sparqlFromRdfa = extractSparql(nsWithPatterns)
+                  val queryParams = bindParams(extractBindParams(ns)) ++ bindingsToMap(fragment.bindings)
+                  val sparql = sparqlFromRdfa.getQuery(bindingName, 0, 100)
+                  val results = withParameters(em.createQuery(sparql), queryParams).evaluate
+                  results.iterator.flatMap(toTokens(query.toLowerCase, _))
+                }
+                JsonResponse(JArray(JString(query) :: keywords.toSet[String].map(JString(_)).toList))
               }
               case _ => default
             }
@@ -109,16 +109,16 @@ trait Search extends HasRender with SparqlHelper with SparqlExtractor {
   }
 
   abstract override def render(ns: NodeSeq): NodeSeq = {
-    val bindingName = Option((ns \ "@data-search").text.stripPrefix("?")).filter(_.nonEmpty)
-    if (bindingName.isDefined) {
-      S.putInHead(<script type="text/javascript">{ autoCompleteJs(bindingName.get, ns) }</script>)
+    val bindingNames = (ns \ "@data-search").text.split("\\s+").filter(_.nonEmpty).map(_.stripPrefix("?")).toList
+    if (bindingNames.nonEmpty) {
+      S.putInHead(<script type="text/javascript">{ autoCompleteJs(bindingNames, ns) }</script>)
       val searchString = S.param("q").filter(_.nonEmpty)
       var transformers = ".search-form" #> Templates("templates-hidden" :: "search" :: Nil).map {
         "@q [value]" #> searchString
       }
       if (searchString.isDefined) {
         val em = Globals.contextModel.vend.dmap(ModelSetManager.INSTANCE.getModelSet.getMetaDataManager)(_.getManager)
-        val fragment = em.getFactory.getDialect.fullTextSearch(bindingName.get, IDialect.ANY, searchString.openTheBox)
+        val fragment = em.getFactory.getDialect.fullTextSearch(bindingNames, IDialect.ANY, searchString.openTheBox)
         val results = (transformers andThen ".search-patterns" #> <div data-pattern={ fragment.toString } class="clearable"></div>)(ns)
         QueryParams.doWith(fragment.bindings)(super.render(results))
       } else super.render(transformers(ns))

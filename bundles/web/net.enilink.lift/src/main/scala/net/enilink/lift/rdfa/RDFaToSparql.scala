@@ -42,7 +42,7 @@ object SparqlFromRDFa {
 trait SparqlFromRDFa {
   def getQueryVariables: Set[Variable]
   def getQuery: String
-  def getQuery(bindingName: String, offset: Any, limit: Any) : String
+  def getQuery(bindingName: String, offset: Any, limit: Any): String
   def getElement: xml.Elem
 
   def getPaginatedQuery(bindingName: String, offset: Any, limit: Any): String
@@ -157,17 +157,9 @@ private class RDFaToSparqlParser(e: xml.Elem, base: String)(implicit s: Scope = 
     lang1: Symbol): (xml.Elem, Stream[Arc]) = {
 
     var close = 0
-    if (hasCssClass(e, "optional")) {
-      addLine("optional {")
-      indent
-      close += 1
-    }
-
-    if (hasCssClass(e, "exists")) {
-      addLine("filter exists {")
-      indent
-      close += 1
-    }
+    if (hasCssClass(e, "optional")) { addLine("optional {"); indent; close += 1 }
+    if (hasCssClass(e, "exists")) { addLine("filter exists {"); indent; close += 1 }
+    if (hasCssClass(e, "not-exists")) { addLine("filter not exists {"); indent; close += 1 }
 
     val pattern = (e \ "@data-pattern").text
     if (!pattern.isEmpty) addLine(pattern match {

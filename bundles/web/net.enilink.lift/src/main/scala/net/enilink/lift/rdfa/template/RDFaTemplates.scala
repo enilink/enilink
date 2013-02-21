@@ -27,7 +27,7 @@ import scala.xml.Node
 import net.enilink.lift.rdfa.RDFaUtils
 
 trait Binder {
-  final val Attribute = "^(?:data-(?:clear-))?(.+)".r
+  final val Attribute = "^(?:data-(?:clear-)?)?(.+)".r
 
   def shorten(uri: URI, currentCtx: RdfContext, elem: xml.Elem) = {
     val namespace = uri.namespace.toString
@@ -109,6 +109,7 @@ class IriBinder(val e: Elem, val attr: String, val Iri: URI) extends Binder {
 }
 
 object TemplateNode extends RDFaUtils {
+  val ignoreAttributes = Set("data-search", "data-for", "data-bind")
   val variable = "^[?]([^=]+)$".r
 
   def unapply(n: Node): Option[(Elem, Seq[Binder])] = {
@@ -121,7 +122,7 @@ object TemplateNode extends RDFaUtils {
             case "inferred" if meta.key == "data-if" => Some(new IfInferredBinder(meta.key))
             case "inferred" if meta.key == "data-unless" => Some(new UnlessInferredBinder(meta.key))
             // fill variables for nodes of type <span about="?someVar">Data about some subject.</span>
-            case variable(v) => if (meta.key != "data-search" && meta.key != "data-for") Some(new VarBinder(e, meta.key, v)) else None
+            case variable(v) => if (!ignoreAttributes.contains(meta.key)) Some(new VarBinder(e, meta.key, v)) else None
             case iriStr if !iriStr.isEmpty => {
               try {
                 val Iri = URIImpl.createURI(iriStr)
@@ -147,7 +148,7 @@ class TemplateNode(
   scope: NamespaceBinding,
   val binders: Seq[Binder],
   child: xml.Node*) extends Elem(prefix, label, attributes, scope, child: _*) with RDFaUtils {
-  val instances: mutable.Map[MetaData, Elem] = new LinkedHashMap
+  val instances: mutable.Map[(MetaData, RdfContext), Elem] = new LinkedHashMap
 
   override def copy(
     prefix: String = this.prefix,
@@ -176,9 +177,13 @@ class Template(val ns: NodeSeq) {
               } else (attrs, ctx, removeNode)
           }
           if (rAttrs != null) {
-            t.instances.get(rAttrs) match {
+            // the RDF context is also required as key value since
+            // some attributes like "data-clear-rel" are completely removed
+            // after their value was bound
+            val key = (rAttrs, rCtx)
+            t.instances.get(key) match {
               case Some(null) =>
-              case _ if removeNode => t.instances.put(rAttrs, null)
+              case _ if removeNode => t.instances.put(key, null)
               case Some(e: Elem) => internalTransform(rCtx, e.child)
               case None => {
                 val instance = if (rCtx == ctx) {
@@ -186,7 +191,7 @@ class Template(val ns: NodeSeq) {
                 } else {
                   new ElemWithRdfa(rCtx, t.prefix, t.label, rAttrs, t.scope, deepCopy(t.child): _*)
                 }
-                t.instances.put(rAttrs, instance)
+                t.instances.put(key, instance)
                 internalTransform(rCtx, instance.child)
               }
             }
