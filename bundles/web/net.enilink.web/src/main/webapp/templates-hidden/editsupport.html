@@ -3,6 +3,14 @@
 <body class="lift:content_id=main">
 	<div id="main">
 		<!-- add some editing support -->
+		<link href="/classpath/bootstrap-editable/css/bootstrap-editable.css"
+			rel="stylesheet" data-lift="head">
+		<script src="/classpath/bootstrap-editable/js/bootstrap-editable.js"
+			data-lift="head"></script>
+		<link href="/classpath/select2/select2.css" rel="stylesheet"
+			data-lift="head">
+		<script src="/classpath/select2/select2.js" data-lift="head"></script>
+
 		<script type="text/javascript" data-lift="head">
 			var rdfAttributes = [ "about", "typeof", "rel", "rev", "property",
 					"href", "resource", "src" ];
@@ -16,8 +24,8 @@
 						.hover(
 								function(e) {
 									e.stopPropagation();
-									var target = $(e.target);
-									target = target.closest("[rel],[property]");
+									var target = $(e.target).closest(
+											"[rel],[property]");
 									if (!target.is(buttons.data("target"))
 											|| !buttons.is(":visible")) {
 										var lastTarget = buttons.data("target");
@@ -55,81 +63,101 @@
 								});
 			});
 
+			function updateModel(rdfBefore, rdfAfter) {
+				var toDelete = rdfBefore.databank.except(rdfAfter.databank)
+						.dump({
+							serialize : true,
+							format : "application/rdf+xml"
+						});
+				var toAdd = rdfAfter.databank.except(rdfBefore.databank).dump({
+					serialize : true,
+					format : "application/rdf+xml"
+				});
+				console.log("Adding: " + toAdd);
+				console.log("Delete: " + toDelete);
+				updateTriples("updateCallback", toAdd, toDelete);
+			}
+
+			var updateDeferred = [];
+			function updateCallback(successful) {
+				var d = updateDeferred.shift();
+				if (successful) {
+					d.resolve();
+				} else {
+					d.fail("Update failed.");
+				}
+			}
+
 			function remove() {
 				var target = $("#buttons").data("target");
 				if (target) {
 					var body = $("body");
 					var rdfBefore = body.rdf();
 					target.remove();
-					var rdfAfter = body.rdf();
-
-					var data = rdfBefore.databank.except(rdfAfter.databank)
-							.dump({
-								serialize : true,
-								format : "application/rdf+xml"
-							});
-					console.log(data);
-					//deleteTriples("removeCallback", data);
+					updateModel(rdfBefore, body.rdf());
 				}
 				$("#buttons").hide();
-			}
-
-			function removeCallback() {
-				notifications.notify("removed");
-			}
-
-			function edit() {
-				function getFirstText(node) {
-					if (node.nodeType == 3) {
-						if ($.trim(node.nodeValue).length > 0)
-							return node;
-					} else {
-						for ( var i = 0, len = node.childNodes.length; i < len; ++i) {
-							var textNode = getFirstText(node.childNodes[i]);
-							if (textNode)
-								return textNode;
-						}
-					}
-					return null;
-				}
-
-				var target = $("#buttons").data("target");
-				if (target) {
-					var firstText = getFirstText(target.get(0));
-					if (firstText) {
-						firstText = $(firstText);
-						var input = $("<textarea />").width(target.width())
-								.height(target.height());
-						input.val($.trim(firstText.text()));
-						input.autogrow();
-
-						var toReplace = firstText.closest("a");
-						if (toReplace.length == 0)
-							toReplace = firstText
-						toReplace.replaceWith(input);
-
-						// focus input and move caret to end of text
-						input.caretToEnd();
-
-						// discard changes if pressing esc
-						input.keydown(function(e) {
-							if (e.keyCode == 27) {
-								e.preventDefault();
-								input.replaceWith(toReplace);
-							}
-						});
-					}
-				}
 			}
 
 			function showRdf() {
 				var target = $("#buttons").data("target");
 				if (target) {
-					var body = $("body");
-					var rdf = body.rdf();
+					var rdf = target.closest("[resource], [about]").rdf();
 					console.log(rdf.databank);
 				}
 			}
+
+			$(function() {
+				$("#buttons .buttons-edit")
+						.click(
+								function(e) {
+									function getFirstNodeWithText(node) {
+										if (node.nodeType == 3) {
+											if ($.trim(node.nodeValue).length > 0) {
+												return node.parentNode;
+											}
+										} else {
+											for ( var i = 0, len = node.childNodes.length; i < len; ++i) {
+												var textNode = getFirstNodeWithText(node.childNodes[i]);
+												if (textNode) {
+													return textNode;
+												}
+											}
+										}
+										return null;
+									}
+
+									e.stopPropagation();
+									e.preventDefault();
+									var target = $("#buttons").data("target");
+									if (target) {
+										var editNode = $(getFirstNodeWithText(target
+												.get(0))
+												|| target.get(0));
+										var resourceNode = target
+												.closest("[resource], [about]");
+										var rdfBefore = resourceNode.rdf();
+										editNode.editable({
+											type : "textarea",
+											mode : "inline",
+											toggle : "manual",
+											title : "Edit value",
+											url : function(params) {
+												target.closest("[content]")
+														.attr("content",
+																params.value);
+												updateModel(rdfBefore,
+														resourceNode.rdf());
+
+												var d = new $.Deferred;
+												updateDeferred.push(d);
+												return d.promise();
+											}
+										});
+										editNode.editable("toggle");
+									}
+								});
+			});
 		</script>
 		<style type="text/css" data-lift="head">
 /* make buttons slightly transparent */
@@ -143,7 +171,7 @@
 </style>
 		<div id="buttons" class="btn-toolbar" style="display: none">
 			<div class="btn-group">
-				<button class="btn btn-mini" title="Edit" onclick="edit()">
+				<button class="btn btn-mini buttons-edit" title="Edit">
 					<i class="icon-edit"></i>
 				</button>
 				<button class="btn btn-mini" title="Remove" onclick="remove()">
@@ -155,7 +183,7 @@
 			</div>
 		</div>
 		<div data-lift="Edit"></div>
-		<div data-lift="JSUtil.edit"></div>
+		<div data-lift="JS.edit"></div>
 	</div>
 </body>
 </html>
