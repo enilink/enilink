@@ -224,36 +224,22 @@ class RDFaParser()(implicit val s: Scope = new Scope()) extends CURIE with RDFaU
 
   def createLiteral(e: xml.Elem, lang: Symbol, datatype: NodeSeq, content: NodeSeq): (xml.Elem, Literal, Boolean) = {
     lazy val lex = if (!content.isEmpty) content.text else e.text
-    lazy val alltext = e.child.forall {
-      case t: xml.Text => true; case _ => false
-    }
-
     def txt(s: String) = if (lang == null) plain(s, None) else plain(s, Some(lang))
-
-    (!datatype.isEmpty, !content.isEmpty) match {
-      case (true, _) if datatype.text == "" => (e, txt(lex), false)
-
-      case (true, _) => {
-        datatype.text match {
-          case parts(p, l) if p != null => {
-            try {
-              val dt = expand(p, l, e)
-              if (dt == Vocabulary.XMLLiteral) (e, xmllit(e.child), true)
-              else (e, typed(lex, dt), false)
-            } catch {
-              case nde: NotDefinedError => (e, null, false)
-            }
-          }
-          /* TODO: update handling of goofy datatype values based on WG
-           * response to 3 Feb comment. */
-          case _ => (e, null, false)
+    if (datatype.isEmpty || datatype.text.isEmpty) {
+      // literals without @datatype are always handled as plain literals
+      (e, txt(lex), false)
+    } else datatype.text match {
+      case parts(p, l) if p != null => {
+        try {
+          val dt = expand(p, l, e)
+          if (dt == Vocabulary.XMLLiteral) (e, xmllit(e.child), true) else (e, typed(lex, dt), false)
+        } catch {
+          case nde: NotDefinedError => (e, null, false)
         }
       }
-
-      case (_, true) => (e, txt(content.text), false)
-      case (_, _) if alltext => (e, txt(e.text), false)
-      case (_, _) if e.child.isEmpty => (e, txt(""), false)
-      case (_, _) => (e, xmllit(e.child), true)
+      /* TODO: update handling of goofy datatype values based on WG
+           * response to 3 Feb comment. */
+      case _ => (e, null, false)
     }
   }
 }

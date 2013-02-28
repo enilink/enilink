@@ -25,10 +25,19 @@ import net.enilink.komma.model.IModel
 import net.liftweb.http.StatefulSnippet
 import net.liftweb.http.S
 import net.liftweb.http.js.JsonCall
+import scala.collection.mutable.ListBuffer
+import net.liftweb.json.JsonDSL
+import net.liftweb.json.JValue
+import net.liftweb.json.JValue
+import net.liftweb.http.js.JE.JsRaw
+
+case class JsonCallExt(override val funcId : String) extends JsonCall(funcId) {
+  
+}
 
 class JsonCallHandler {
   val handlers: (JsonCall, JsCmd) = S.buildJsonFunc(this.apply)
-  def call: JsonCall = handlers._1
+  def call: JsonCall = JsonCallExt(handlers._1.funcId)
   def jsCmd: JsCmd = handlers._2
 
   val model: Box[IModel] = Globals.contextModel.vend
@@ -36,22 +45,38 @@ class JsonCallHandler {
   def apply(in: Any): JsCmd = in match {
     case JsonCmd("noParam", callback, _, _) =>
       Call(callback)
-    case JsonCmd("deleteTriples", callback, rdf: String, _) => {
-      doDelete(rdf)
-      Call(callback)
+    case JsonCmd("updateTriples", callback, params: Map[String, String], _) => {
+      var successful = false
+      for (
+        model <- model ?~ "No active model found"
+      ) {
+        val em = model.getManager
+        try {
+          em.getTransaction.begin
+          params.get("add") filter (_.nonEmpty) foreach { add => process(add, em.add _) }
+          // TODO recursive removal of BNodes
+          params.get("remove") filter (_.nonEmpty) foreach { remove => process(remove, em.remove _) }
+          em.getTransaction.commit
+          S.notice("Update was sucessful.")
+          successful = true
+        } catch {
+          case e: Exception => if (em.getTransaction.isActive) em.getTransaction.rollback
+        }
+      }
+      Call(callback, successful)
     }
     case _ => Noop
   }
 
-  def doDelete(rdf: String) {
-    for (model <- model ?~ "No active model found") {
-      val em = model.getManager
-      ModelUtil.readData(new ByteArrayInputStream(rdf.getBytes("UTF-8")), "", null, true, new IDataVisitor[Void]() {
-        override def visitBegin = { em.getTransaction.begin; null }
-        override def visitEnd = { em.getTransaction.commit; null }
-        override def visitStatement(stmt: IStatement) = { em.remove(stmt); null }
-      })
-    }
+  def process(rdf: String, f: java.lang.Iterable[_ <: IStatement] => Unit) {
+    import scala.collection.JavaConversions._
+    val stmts = new ListBuffer[IStatement]
+    ModelUtil.readData(new ByteArrayInputStream(rdf.getBytes("UTF-8")), "", null, true, new IDataVisitor[Unit]() {
+      override def visitBegin {}
+      override def visitEnd {}
+      override def visitStatement(stmt: IStatement) = stmts += stmt
+    })
+    f(stmts)
   }
 }
 
@@ -60,13 +85,8 @@ class Edit extends DispatchSnippet {
   def buildFuncs(in: NodeSeq): NodeSeq = {
     val handler = new JsonCallHandler
     Script(handler.jsCmd &
-      Function("noParam", List("callback"),
-        handler.call("noParam",
-          JsVar("callback"),
-          JsObj()))
-        & Function("deleteTriples", List("callback", "rdf"),
-          handler.call("deleteTriples",
-            JsVar("callback"),
-            JsVar("rdf"))))
+      Function("noParam", List("callback"), handler.call("noParam", JsVar("callback"), JsObj()))
+      & Function("updateTriples", List("callback", "add", "remove"),
+        handler.call("updateTriples", JsVar("callback"), JsRaw("{ 'add' : add, 'remove' : remove }"))))
   }
 }

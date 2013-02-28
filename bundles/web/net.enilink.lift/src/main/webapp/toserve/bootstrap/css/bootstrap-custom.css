@@ -93,7 +93,7 @@
 }
 
 .focused {
-    border: 1px solid rgba(82, 168, 236, 0.8);
+    background-color: rgba(82, 168, 236, 0.3);
 }
 
 .pagination a {

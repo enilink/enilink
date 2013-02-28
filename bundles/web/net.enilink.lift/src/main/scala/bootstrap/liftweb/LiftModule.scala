@@ -23,7 +23,6 @@ import net.liftweb.util._
 import net.liftweb.util.Helpers._
 import net.enilink.lift.util.NotAllowedModel
 import net.enilink.lift.html.Html5ParserWithRDFaPrefixes
-import net.enilink.lift.html.Html5ParserWithRDFaPrefixes
 
 /**
  * A class that's instantiated early and run.  It allows the application
@@ -53,13 +52,21 @@ class LiftModule extends Logger {
       }
     }
 
-    //Show the spinny image when an Ajax call starts
+    // Show the spinny image when an Ajax call starts
     LiftRules.ajaxStart =
       Full(() => LiftRules.jsArtifacts.show("ajax-loader").cmd)
 
     // Make the spinny image go away when it ends
     LiftRules.ajaxEnd =
       Full(() => LiftRules.jsArtifacts.hide("ajax-loader").cmd)
+
+    // fade out information notices
+    LiftRules.noticesAutoFadeOut.default.set((notices: NoticeType.Value) => {
+      notices match {
+        case NoticeType.Notice => Full((3 seconds, 2 seconds))
+        case _ => Empty
+      }
+    })
 
     // What is the function to test if a user is logged in?
     LiftRules.loggedInTest = Full(() => Globals.contextUser.vend != Globals.UNKNOWN_USER)
@@ -79,7 +86,8 @@ class LiftModule extends Logger {
     }
 
     ResourceServer.allow {
-      case bs @ (("bootstrap" | "bootstrap-editable") :: _) => true
+      case ("select2" :: _) => true
+      case (("bootstrap" | "bootstrap-editable") :: _) => true
       case rdfa @ ("rdfa" :: _) if rdfa.last.endsWith(".js") => true
       case edit @ ("edit" :: _) if edit.last.endsWith(".js") => true
     }

@@ -47,23 +47,14 @@ class RdfContext(val subject: Any, val predicate: Any, val prefix: NamespaceBind
 object CurrentContext extends DynamicVariable[Box[RdfContext]](Empty)
 
 class Rdf extends DispatchSnippet with RDFaTemplates {
-  val VarAndMethod = "([^:]+):(.*)".r
-
   def dispatch: DispatchIt = {
-    case VarAndMethod(v, method) => CurrentContext.value match {
-      case Full(c) => v match {
-        case "p" => execMethod(c.predicate, method)
-        case _ => ClearNodes //TODO support access to variables
-      }
-      // no current RDF context
-      case _ => method match {
-        // simply return template content
-        case "label" | "manchester" => ((n: NodeSeq) => n)
-        case _ => ClearNodes
-      }
-    }
     case method => CurrentContext.value match {
-      case Full(c) => execMethod(c.subject, method)
+      case Full(c) => {
+        (if (S.attr("for").exists(_ == "predicate")) c.predicate else c.subject) match {
+          case null => ClearNodes
+          case other => execMethod(other, method)
+        }
+      }
       // no current RDF context
       case _ => method match {
         // simply return template content
@@ -107,13 +98,7 @@ class Rdf extends DispatchSnippet with RDFaTemplates {
           val selector = if (n.attributes.isEmpty || n.attributes.size == 1 && n.attribute("data-tid").isDefined) "*" else "* *"
           (method match {
             case "ref" => selector #> target.toString
-            case "manchester" => selector #> new ManchesterSyntaxGenerator() {
-              override def getPrefix(reference: IReference) = reference match {
-                case o: IObject if o.getURI != null &&
-                  o.getModel.getURI.trimFragment.equals(o.getURI.namespace.trimFragment) => ""
-                case _ => super.getPrefix(reference)
-              }
-            }.generateText(target)
+            case "manchester" => selector #> new ManchesterSyntaxGenerator().generateText(target)
             case "label" => selector #> ModelUtil.getLabel(target)
             case _ => tryo(target.getClass.getMethod(method)) match {
               case Full(meth) => meth.invoke(target) match {
