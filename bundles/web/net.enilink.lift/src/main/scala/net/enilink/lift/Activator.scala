@@ -34,6 +34,10 @@ import net.liftweb.util.ClassHelpers
 import net.enilink.lift.util.Globals
 import java.io.File
 
+object Activator {
+  val PLUGIN_ID = "net.enilink.lift";
+}
+
 class Activator extends BundleActivator {
   private var bundleTracker: BundleTracker[LiftBundleConfig] = _
   private val httpServiceHolder = new AtomicReference[ExtendedHttpService]

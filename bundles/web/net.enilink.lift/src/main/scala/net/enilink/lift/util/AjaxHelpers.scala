@@ -7,6 +7,7 @@ import net.liftweb.common._
 import net.liftweb.http.js.JsCmds
 import net.liftweb.http.LiftRules
 import net.liftweb.http.js.JE._
+import net.liftweb.http.js.JsExp._
 import net.liftweb.http.SHtml
 import net.liftweb.http.AjaxContext
 import net.liftweb.json.JsonParser
@@ -62,7 +63,7 @@ object AjaxHelpers {
       val jsonObjs = result.collect { case v: JValue => v }
       JsonResponse(JsObj(
         ("result", if (jsonObjs.isEmpty || jsonObjs.size > 1) JArray(jsonObjs) else jsonObjs.head),
-        ("script", JString(jsCmds.reduceLeft(_ & _).toJsCmd))))
+        ("script", jsCmds.reduceLeft(_ & _).toJsCmd)))
     }
 
     val af: AFuncHolder = jsonCallback _
@@ -73,12 +74,12 @@ object AjaxHelpers {
             AjaxContext.json(
               Full("""function(json) {
 if (json) {
+    if (json.result && typeof callback === "function") {
+        callback(json.result);
+    }
     if (json.script) {
         eval(json.script);
     }
-    if (json.result && typeof callback === "function") {
-        callback(json.result); 
-    }    
 }
 }"""), onError.map(f => JsCmds.Run("function () { " + f.toJsCmd + " }") //
 ))).cmd
