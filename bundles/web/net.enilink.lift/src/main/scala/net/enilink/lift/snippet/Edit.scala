@@ -28,6 +28,7 @@ import org.eclipse.core.runtime.Status
 import net.enilink.komma.common.command.AbortExecutionException
 import net.enilink.lift.Activator
 import net.enilink.komma.core.Statement
+import net.enilink.komma.core.IStatementPattern
 
 class JsonCallHandler {
   implicit val formats = DefaultFormats
@@ -40,12 +41,16 @@ class JsonCallHandler {
     override def getStatement(element: AnyRef) = {
       val stmt = element.asInstanceOf[IStatement]
       val em = model.get.getManager
-      new Statement(em.find(stmt.getSubject), em.find(stmt.getPredicate), null)
+      new Statement(em.find(stmt.getSubject), em.find(stmt.getPredicate), stmt.getObject)
     }
 
     override def getEditingDomain = model.get.getModelSet.adapters.getAdapter(classOf[IEditingDomainProvider]) match {
       case p: IEditingDomainProvider => p.getEditingDomain
       case _ => null
+    }
+    
+    override def getPropertyEditingSupport(stmt : IStatement) = {
+      super.getPropertyEditingSupport(stmt)
     }
 
     override def setProperty(element: Any, property: IProperty) {}
@@ -86,7 +91,7 @@ class JsonCallHandler {
           }
           // TODO recursive removal of BNodes
           (params \ "remove") match {
-            case JString(remove) => em.remove(statements(remove))
+            case JString(remove) => em.remove(statements(remove): java.lang.Iterable[IStatementPattern])
             case _ =>
           }
           em.getTransaction.commit

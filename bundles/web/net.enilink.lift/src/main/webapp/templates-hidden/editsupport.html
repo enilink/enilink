@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html>
+<body class="lift:content_id=main">
+	<div id="main">
+		<!-- add some editing support -->
+		<link href="/classpath/bootstrap-editable/css/bootstrap-editable.css"
+			rel="stylesheet" data-lift="head">
+		<script src="/classpath/bootstrap-editable/js/bootstrap-editable.js"
+			data-lift="head"></script>
+		<link href="/classpath/select2/select2.css" rel="stylesheet"
+			data-lift="head">
+		<script src="/classpath/select2/select2.js" data-lift="head"></script>
+
+		<script type="text/javascript" data-lift="head">
+			var rdfAttributes = [ "about", "typeof", "rel", "rev", "property",
+					"href", "resource", "src" ];
+
+			$(function() {
+				var buttons = $("#buttons");
+				// relocate buttons for absolute positioning
+				buttons.appendTo("body");
+
+				$("[rel],[property]")
+						.hover(
+								function(e) {
+									e.stopPropagation();
+									var target = $(e.target).closest(
+											"[rel],[property]");
+									if (!target.is(buttons.data("target"))
+											|| !buttons.is(":visible")) {
+										var lastTarget = buttons.data("target");
+										if (lastTarget) {
+											lastTarget.removeClass("focused");
+										}
+
+										target.addClass("focused");
+										buttons.data("target", target);
+
+										// position buttons to the right of target
+										buttons.css({
+											position : "absolute",
+											marginLeft : 0,
+											marginTop : 0,
+											top : target.offset().top,
+											left : target.offset().left
+													+ target.innerWidth()
+													- buttons.outerWidth()
+										});
+										buttons.css("display", "block");
+									}
+								},
+								function(e) {
+									var relatedTarget = $(e.relatedTarget);
+									if (!relatedTarget
+											|| (relatedTarget != buttons && relatedTarget
+													.closest("#buttons").length == 0)) {
+										var lastTarget = buttons.data("target");
+										if (lastTarget) {
+											lastTarget.removeClass("focused");
+										}
+										buttons.css("display", "none");
+									}
+								});
+			});
+
+			function updateModel(rdfBefore, rdfAfter, callback) {
+				var toDelete = rdfBefore.databank.except(rdfAfter.databank)
+						.dump({
+							serialize : true,
+							format : "application/rdf+xml"
+						});
+				var toAdd = rdfAfter.databank.except(rdfBefore.databank).dump({
+					serialize : true,
+					format : "application/rdf+xml"
+				});
+				console.log("Adding: " + toAdd);
+				console.log("Delete: " + toDelete);
+				updateTriples(toAdd, toDelete, callback);
+			}
+
+			function remove() {
+				var target = $("#buttons").data("target");
+				if (target) {
+					var body = $("body");
+					var rdfBefore = body.rdf();
+					target.remove();
+					updateModel(rdfBefore, body.rdf());
+				}
+				$("#buttons").hide();
+			}
+
+			function showRdf() {
+				var target = $("#buttons").data("target");
+				if (target) {
+					var rdf = target.closest("[resource], [about]").rdf();
+					console.log(rdf.databank);
+				}
+			}
+
+			$(function() {
+				$("#buttons .buttons-edit")
+						.click(
+								function(e) {
+									function getFirstNodeWithText(node) {
+										if (node.nodeType == 3) {
+											if ($.trim(node.nodeValue).length > 0) {
+												return node.parentNode;
+											}
+										} else {
+											for ( var i = 0, len = node.childNodes.length; i < len; ++i) {
+												var textNode = getFirstNodeWithText(node.childNodes[i]);
+												if (textNode) {
+													return textNode;
+												}
+											}
+										}
+										return null;
+									}
+
+									e.stopPropagation();
+									e.preventDefault();
+									var target = $("#buttons").data("target");
+									if (target) {
+										var editNode = $(getFirstNodeWithText(target
+												.get(0))
+												|| target.get(0));
+
+										editNode
+												.editable({
+													type : "textarea",
+													mode : "inline",
+													toggle : "manual",
+													title : "Edit value",
+													url : function(params) {
+														var rdfStmts = target
+																.rdf().databank
+																.dump({
+																	serialize : true,
+																	format : "application/rdf+xml"
+																});
+														console.log(rdfStmts);
+														var d = new $.Deferred;
+														setValue(
+																rdfStmts,
+																params.value,
+																function(msg) {
+																	if (msg) {
+																		d
+																				.fail(msg);
+																	} else {
+																		d
+																				.resolve();
+																	}
+																});
+														return d.promise();
+													}
+												});
+										editNode.editable("toggle");
+									}
+								});
+			});
+		</script>
+		<style type="text/css" data-lift="head">
+/* make buttons slightly transparent */
+#buttons .btn {
+	opacity: 0.6
+}
+
+#buttons .btn:hover {
+	opacity: 1
+}
+</style>
+		<div id="buttons" class="btn-toolbar" style="display: none">
+			<div class="btn-group">
+				<button class="btn btn-mini buttons-edit" title="Edit">
+					<i class="icon-edit"></i>
+				</button>
+				<button class="btn btn-mini" title="Remove" onclick="remove()">
+					<i class="icon-remove"></i>
+				</button>
+				<button class="btn btn-mini" title="Show RDF" onclick="showRdf()">
+					<i class="icon-eye-open"></i>
+				</button>
+			</div>
+		</div>
+		<div data-lift="Edit"></div>
+		<div data-lift="JS.edit"></div>
+	</div>
+</body>
+</html>
