@@ -29,6 +29,21 @@ import net.enilink.komma.common.command.AbortExecutionException
 import net.enilink.lift.Activator
 import net.enilink.komma.core.Statement
 import net.enilink.komma.core.IStatementPattern
+import net.enilink.lift.util.TemplateHelpers
+import net.liftweb.http.Templates
+import net.enilink.lift.rdfa.template.RDFaTemplates
+import net.enilink.lift.rdfa.template.TemplateNode
+import net.enilink.komma.common.command.CommandResult
+import net.liftweb.common.Full
+import net.liftweb.common.Empty
+import net.liftweb.util.LiftFlowOfControlException
+import scala.xml.Group
+import net.enilink.komma.core.IReference
+import net.enilink.komma.core.URIImpl
+
+case class ProposeInput(rdf: String, query: String, index: Int)
+case class SetValueInput(rdf: String, value: String, templateName: Option[String])
+case class SetValueResult(msg: Option[String] = None, html: Option[String] = None, script: Option[String] = None)
 
 class JsonCallHandler {
   implicit val formats = DefaultFormats
@@ -36,6 +51,7 @@ class JsonCallHandler {
   val (call, jsCmd) = AjaxHelpers.createJsonFunc(this.apply)
 
   val model: Box[IModel] = Globals.contextModel.vend
+  val path = S.request map (_.path)
 
   def createHelper = new PropertyEditingHelper(false) {
     override def getStatement(element: AnyRef) = {
@@ -48,8 +64,8 @@ class JsonCallHandler {
       case p: IEditingDomainProvider => p.getEditingDomain
       case _ => null
     }
-    
-    override def getPropertyEditingSupport(stmt : IStatement) = {
+
+    override def getPropertyEditingSupport(stmt: IStatement) = {
       super.getPropertyEditingSupport(stmt)
     }
 
@@ -58,18 +74,19 @@ class JsonCallHandler {
     override def execute(command: ICommand) = command match {
       case c: ICommand if c.canExecute => try {
         c.execute(null, null)
+        c.getCommandResult
       } catch {
         case e: AbortExecutionException =>
           command.dispose
-          Status.CANCEL_STATUS
+          CommandResult.newCancelledCommandResult
         case rte: RuntimeException =>
           command.dispose
-          new Status(IStatus.ERROR, Activator.PLUGIN_ID, "Command execution failed", rte)
+          CommandResult.newErrorCommandResult(rte)
       }
       case c: ICommand =>
         c.dispose
-        Status.CANCEL_STATUS
-      case _ => Status.CANCEL_STATUS
+        CommandResult.newCancelledCommandResult
+      case _ => CommandResult.newCancelledCommandResult
     }
   }
 
@@ -103,18 +120,77 @@ class JsonCallHandler {
       }
       JBool(successful)
     }
+    case JsonCommand("propose", _, params) => {
+      import net.liftweb.json.JsonDSL._
+      val proposals = for (
+        ProposeInput(rdf, query, index) <- params.extractOpt[ProposeInput];
+        stmt <- statements(rdf).headOption;
+        proposalSupport <- Option(createHelper.getProposalSupport(stmt));
+        proposalProvider <- Option(proposalSupport.getProposalProvider)
+      ) yield {
+        proposalProvider.getProposals(query, index) map { p =>
+          ("label", p.getLabel) ~ ("content", p.getContent) ~ ("description", p.getDescription) ~
+            ("cursorPosition", p.getCursorPosition) ~ ("isInsert", p.isInsert)
+        } toList
+      }
+      proposals map (JArray(_)) getOrElse JArray(Nil)
+    }
     case JsonCommand("setValue", _, params) => {
-      case class Data(rdf: String, editorValue: String)
-      params.extractOpt[Data] map {
-        case Data(rdf, editorValue) =>
+      import scala.collection.JavaConversions._
+      import net.enilink.lift.util.TemplateHelpers._
+      import net.liftweb.util.Helpers._
+
+      lazy val okResult = SetValueResult
+      val result = params.extractOpt[SetValueInput] map {
+        case SetValueInput(rdf, value, templateName) =>
           statements(rdf) match {
             case stmt :: _ => {
-              val status = createHelper.setValue(stmt, editorValue)
-              if (status.isOK) JNull else JString(status.getMessage)
+              val cmdResult = createHelper.setValue(stmt, value.trim)
+              val status = cmdResult.getStatus
+              if (status.isOK) {
+                templateName match {
+                  case Some(tname) =>
+                    val template = for (
+                      p <- path; ns <- Templates(p.wholePath);
+                      body <- {
+                        var rdfaBody: Box[NodeSeq] = Empty
+                        tryo {
+                          S.eval(ns, ("rdfa", ns => {
+                            rdfaBody = Full(ns)
+                            throw new LiftFlowOfControlException("Found template")
+                          }))
+                        }
+                        rdfaBody
+                      }
+                    ) yield extractTemplate(withTemplateNames(body), tname)
+
+                    (template flatMap { ns =>
+                      println("Template: " + ns)
+                      val resultValue = cmdResult.getReturnValues.headOption
+                      val isResource = resultValue.isInstanceOf[IReference]
+                      val relVars = ns \\ (if (isResource) "@rel" else "@property") map (_.text) collect { case TemplateNode.variable(name) => name }
+                      val objectVars = ns \\ (if (isResource) "@resource" else "@content") map (_.text) collect { case TemplateNode.variable(name) => name }
+                      Globals.contextResource.doWith(Full(model.get.getManager.find(stmt.getSubject))) {
+                        QueryParams.doWith(relVars.map((_, stmt.getPredicate())) ++ resultValue flatMap { v => objectVars.map((_, v)) } toMap) {
+                          TemplateHelpers.render(<div about="?this" data-lift="rdfa">{ ns }</div>)
+                        }
+                      }
+                    }) match {
+                      case Full((html, script)) => {
+                        val w = new java.io.StringWriter
+                        S.htmlProperties.htmlWriter(Group(html \ "_"), w)
+                        SetValueResult(html = Some(w.toString), script = script)
+                      }
+                      case _ => okResult
+                    }
+                  case _ => okResult
+                }
+              } else SetValueResult(Some(status.getMessage))
             }
-            case _ => JNull
+            case _ => okResult
           }
-      } getOrElse JNull
+      } getOrElse okResult
+      Extraction.decompose(result)
     }
   }
 
@@ -138,7 +214,7 @@ class Edit extends DispatchSnippet {
       Function("noParam", List("callback"), handler.call("noParam", JsObj(), JsVar("callback")))
       & Function("updateTriples", List("add", "remove", "callback"),
         handler.call("updateTriples", JsRaw("{ 'add' : add, 'remove' : remove }"), JsVar("callback")))
-        & Function("setValue", List("rdf", "editorValue", "callback"),
-          handler.call("setValue", JsRaw("{ 'rdf' : rdf, 'editorValue' : editorValue }"), JsVar("callback"))))
+        & Function("setValue", List("data", "callback"), handler.call("setValue", JsVar("data"), JsVar("callback")))
+        & Function("propose", List("data", "callback"), handler.call("propose", JsVar("data"), JsVar("callback"))))
   }
 }

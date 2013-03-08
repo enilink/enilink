@@ -27,6 +27,7 @@ import scala.xml.Node
 import net.enilink.lift.rdfa.RDFaUtils
 
 trait Binder {
+  type Result = (MetaData, RdfContext, Boolean)
   final val Attribute = "^(?:data-(?:clear-)?)?(.+)".r
 
   def shorten(uri: URI, currentCtx: RdfContext, elem: xml.Elem) = {
@@ -52,23 +53,19 @@ trait Binder {
     case _ => ctx
   }
 
-  def bind(attrs: MetaData, ctx: RdfContext, bindings: IBindings[_], inferred: Boolean): (MetaData, RdfContext, Boolean)
+  def bind(attrs: MetaData, ctx: RdfContext, bindings: IBindings[_], inferred: Boolean): Result
 }
 
 class IfInferredBinder(val key: String) extends Binder {
-  def bind(attrs: MetaData, ctx: RdfContext, bindings: IBindings[_], inferred: Boolean): (MetaData, RdfContext, Boolean) = {
-    (attrs.remove(key), ctx, !inferred)
-  }
+  def bind(attrs: MetaData, ctx: RdfContext, bindings: IBindings[_], inferred: Boolean): Result = (attrs.remove(key), ctx, !inferred)
 }
 
 class UnlessInferredBinder(val key: String) extends Binder {
-  def bind(attrs: MetaData, ctx: RdfContext, bindings: IBindings[_], inferred: Boolean): (MetaData, RdfContext, Boolean) = {
-    (attrs.remove(key), ctx, inferred)
-  }
+  def bind(attrs: MetaData, ctx: RdfContext, bindings: IBindings[_], inferred: Boolean): Result = (attrs.remove(key), ctx, inferred)
 }
 
 class VarBinder(val e: Elem, val attr: String, val name: String) extends Binder {
-  def bind(attrs: MetaData, ctx: RdfContext, bindings: IBindings[_], inferred: Boolean): (MetaData, RdfContext, Boolean) = {
+  def bind(attrs: MetaData, ctx: RdfContext, bindings: IBindings[_], inferred: Boolean): Result = {
     var attributes = attrs
     val rdfValue = bindings.get(name)
     var currentCtx = ctx
@@ -87,8 +84,9 @@ class VarBinder(val e: Elem, val attr: String, val name: String) extends Binder 
       case other => other
     }
 
-    if (attValue == null) { if (attr == "data-unless") attributes = attributes.remove(attr) else attributes = null }
-    else if (attr.startsWith("data-clear-") || attr == "data-if") attributes = attributes.remove(attr)
+    if (attValue == null) {
+      if (attr == "data-unless") attributes = attributes.remove(attr) else attributes = null
+    } else if (attr.startsWith("data-clear-") || attr == "data-if") attributes = attributes.remove(attr)
     else if (attr == "data-unless") { attributes = null }
     else attributes = attributes.append(new UnprefixedAttribute(attr, attValue.toString, Null))
     (attributes, currentCtx, false)
@@ -96,7 +94,7 @@ class VarBinder(val e: Elem, val attr: String, val name: String) extends Binder 
 }
 
 class IriBinder(val e: Elem, val attr: String, val Iri: URI) extends Binder {
-  def bind(attrs: MetaData, ctx: RdfContext, bindings: IBindings[_], inferred: Boolean): (MetaData, RdfContext, Boolean) = {
+  def bind(attrs: MetaData, ctx: RdfContext, bindings: IBindings[_], inferred: Boolean): Result = {
     // do also switch contexts for given constant CURIEs
     val rdfValue = ctx.subject match {
       case e: IEntity => e.getEntityManager.find(Iri)

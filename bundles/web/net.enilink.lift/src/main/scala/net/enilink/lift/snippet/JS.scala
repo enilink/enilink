@@ -18,6 +18,7 @@ import net.liftweb.http.JavaScriptResponse
 import net.liftweb.json._
 import scala.xml.Elem
 import net.liftweb.http.NotFoundResponse
+import net.enilink.lift.util.TemplateHelpers
 
 /**
  * Snippets for embedding of JS scripts.
@@ -42,38 +43,15 @@ object JS extends DispatchSnippet {
     lib => script("/" + LiftRules.resourceServerPath + "/edit/" + lib + ".js")
   }
 
-  private object FindScript {
-    def unapply(in: NodeSeq): Option[Elem] = in match {
-      case e: Elem => e.attribute("type").map(_.text).filter(_ == "text/javascript").flatMap {
-        a => if (e.attribute("src").isEmpty) Some(e) else None
-      }
-      case _ => None
-    }
-  }
-
   def templates: NodeSeq = JsCmds.Script(JsCmds.Function("renderTemplate", List("name", "params", "target"),
     (S.fmapFunc({ name: String =>
-      Templates(name.stripPrefix("/").split("/").toList) map { ns =>
-        import net.liftweb.util.Helpers._
-
-        val html = S.session.map(s => s.fixHtml(s.processSurroundAndInclude("renderTemplate", ns))).openOr(ns)
-        import scala.collection.mutable.ListBuffer
-        val cmds = new ListBuffer[JsCmd]
-        val revised = ("script" #> ((ns: NodeSeq) => {
-          ns match {
-            case FindScript(e) => {
-              cmds += JE.JsRaw(ns.text).cmd
-              NodeSeq.Empty
-            }
-            case x => x
-          }
-        }))(html)
-        val w = new java.io.StringWriter
-        S.htmlProperties.htmlWriter(Group(revised), w)
-        val fields = List(JField("html", JString(w.toString))) ++ {
-          if (cmds.nonEmpty) List(JField("script", JString(cmds.reduceLeft(_ & _).toJsCmd))) else Nil
+      TemplateHelpers.render(name.stripPrefix("/").split("/").toList) map {
+        case (ns, script) => {
+          val w = new java.io.StringWriter
+          S.htmlProperties.htmlWriter(Group(ns), w)
+          val fields = List(JField("html", JString(w.toString))) ++ script.map(js => JField("script", JString(js)))
+          JsonResponse(JObject(fields))
         }
-        JsonResponse(JObject(fields))
       } openOr JsonResponse(JObject(List()))
     }))({ name =>
       JsRaw("""var paramStr = ""; $.each(params, function (i, val) { paramStr += "&" + i + "=" + encodeURIComponent(val); })""").cmd &

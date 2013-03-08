@@ -1558,7 +1558,11 @@
     appendText = function (parent, text) {
       var doc = parent.ownerDocument,
         t;
-      t = doc.createTextNode(text);
+      if (/^\s+/.test(text) || /\s+$/.test(text)) {
+    	t = doc.createCDATASection(text);  
+      } else {
+      	t = doc.createTextNode(text);
+      }
       parent.appendChild(t);
       return parent;
     },

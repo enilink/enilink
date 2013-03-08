@@ -179,7 +179,6 @@ private class RDFaToSparqlParser(e: xml.Elem, base: String)(implicit s: Scope = 
     }
 
     if (thisStack.top.elem eq e) thisStack.pop
-
     result
   }
 

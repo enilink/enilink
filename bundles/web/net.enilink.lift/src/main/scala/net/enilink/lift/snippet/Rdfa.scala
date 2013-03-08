@@ -29,36 +29,12 @@ import net.liftweb.http.AjaxContext
 import net.enilink.komma.core.IEntity
 import scala.collection.JavaConversions._
 import net.enilink.komma.core.URI
-
-/**
- * Required to call super.render in EditRdfa trait
- */
-trait HasRender {
-  def render(n: NodeSeq): NodeSeq
-}
-
-trait EditRdfa extends HasRender {
-  abstract override def render(n: NodeSeq): NodeSeq = {
-    var tid = 0
-    def withTemplateIds(n: NodeSeq): NodeSeq = n.flatMap {
-      _ match {
-        case e: Elem =>
-          val newE = e.attribute("data-tid") match {
-            case Some(id) => e
-            case None => e % ("data-tid" -> { tid = tid + 1; tid })
-          }
-          if (newE.child.isEmpty) newE else newE.copy(child = withTemplateIds(newE.child))
-        case other => other
-      }
-    }
-    super.render(withTemplateIds(n))
-  }
-}
+import net.enilink.lift.util.TemplateHelpers
 
 /**
  * Support full-text search for RDFa templates.
  */
-trait Search extends HasRender with SparqlHelper with SparqlExtractor {
+object Search extends SparqlHelper with SparqlExtractor {
   import RdfHelpers._
 
   /**
@@ -73,7 +49,7 @@ trait Search extends HasRender with SparqlHelper with SparqlExtractor {
     def toTokens(query: String, v: Any): Seq[String] = {
       (v match {
         case ref: IReference if ref.getURI != null => ref.getURI.segments ++ List(ref.getURI.localPart)
-        case other => other.toString.split("\\s+")
+        case other => other.toString.split("[^\\p{L}\\d_]+")
       }).filter(_.toLowerCase.contains(query))
     }
 
@@ -91,7 +67,7 @@ trait Search extends HasRender with SparqlHelper with SparqlExtractor {
                   val nsWithPatterns = (".search-patterns" #> <div data-pattern={ fragment.toString } class="clearable"></div>)(ns)
                   val sparqlFromRdfa = extractSparql(nsWithPatterns)
                   val queryParams = bindParams(extractBindParams(ns)) ++ bindingsToMap(fragment.bindings)
-                  val sparql = sparqlFromRdfa.getQuery(bindingName, 0, 100)
+                  val sparql = sparqlFromRdfa.getQuery(bindingName, 0, 1000)
                   val results = withParameters(em.createQuery(sparql), queryParams).evaluate
                   results.iterator.flatMap(toTokens(query.toLowerCase, _))
                 }
@@ -108,7 +84,7 @@ trait Search extends HasRender with SparqlHelper with SparqlExtractor {
       }) + "; }")).toJsCmd
   }
 
-  abstract override def render(ns: NodeSeq): NodeSeq = {
+  def apply(ns: NodeSeq, render: NodeSeq => NodeSeq): NodeSeq = {
     val bindingNames = (ns \ "@data-search").text.split("\\s+").filter(_.nonEmpty).map(_.stripPrefix("?")).toList
     if (bindingNames.nonEmpty) {
       S.putInHead(<script type="text/javascript">{ autoCompleteJs(bindingNames, ns) }</script>)
@@ -120,9 +96,9 @@ trait Search extends HasRender with SparqlHelper with SparqlExtractor {
         val em = Globals.contextModel.vend.dmap(ModelSetManager.INSTANCE.getModelSet.getMetaDataManager)(_.getManager)
         val fragment = em.getFactory.getDialect.fullTextSearch(bindingNames, IDialect.ANY, searchString.openTheBox)
         val results = (transformers andThen ".search-patterns" #> <div data-pattern={ fragment.toString } class="clearable"></div>)(ns)
-        QueryParams.doWith(fragment.bindings)(super.render(results))
-      } else super.render(transformers(ns))
-    } else super.render(ns)
+        QueryParams.doWith(fragment.bindings)(render(results))
+      } else render(transformers(ns))
+    } else render(ns)
   }
 }
 
@@ -136,9 +112,10 @@ trait SparqlExtractor {
   }
 }
 
-class Rdfa extends Sparql with SparqlExtractor with Search with EditRdfa {
+class Rdfa extends Sparql with SparqlExtractor {
   override def render(n: NodeSeq): NodeSeq = {
-    super.render(n)
+    val transformers = prepare _ andThen TemplateHelpers.withTemplateNames _
+    Search(transformers(n), super.renderWithoutPrepare _)
   }
 
   def paginate(sparqlFromRdfa: SparqlFromRDFa, queryParams: Map[String, _], em: IEntityManager) = {

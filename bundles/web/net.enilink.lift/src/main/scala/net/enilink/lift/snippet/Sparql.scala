@@ -21,6 +21,11 @@ import net.liftweb.http.PaginatorSnippet
 import scala.xml.Null
 import net.liftweb.http.RequestVar
 import net.liftweb.util.TimeHelpers
+import net.enilink.lift.rdfa.template.TemplateNode
+import scala.xml.Text
+import net.liftweb.util.CssSel
+import scala.xml.MetaData
+import net.liftweb.util.CssBindImpl
 
 /**
  * Global SPARQL parameters that can be shared between different snippets.
@@ -41,7 +46,7 @@ trait SparqlHelper {
     params flatMap { name =>
       S.param(name) flatMap {
         // TODO allow to bind literal values
-        value => catching(classOf[IllegalArgumentException]) opt { (name, URIImpl.createURI(value)) }
+        value => catching(classOf[IllegalArgumentException]) opt { (name, URIImpl.createURI(value)) } filter (!_._2.isRelative)
       }
     } toMap
   }
@@ -73,7 +78,9 @@ trait SparqlHelper {
 class Sparql extends SparqlHelper with RDFaTemplates {
   def includeInferred = S.attr("inferred", _ != "false", true)
 
-  def render(n: NodeSeq): NodeSeq = {
+  def render(ns: NodeSeq) = renderWithoutPrepare(prepare(ns))
+
+  def renderWithoutPrepare(n: NodeSeq): NodeSeq = {
     // check if inferred statements should be distinguished from explicit statements
     def distinguishInferred(ns: NodeSeq): Boolean = {
       ns.foldLeft(false) { (distInf, n) => distInf | (n \ "@data-if").text == "inferred" | distinguishInferred(n.child) }
@@ -108,7 +115,7 @@ class Sparql extends SparqlHelper with RDFaTemplates {
                     .bindResultType(null: String, classOf[IValue]).evaluate.asInstanceOf[ITupleResult[_]]
                     .map { row => (toBindings(firstBinding, row), false) } ++ allTuples
                 } else allTuples)
-                val result = renderTuples(n1, toRender)
+                val result = renderTuples(ClearClearable(n1), toRender)
                 result
               case _ => n1
             }
@@ -124,8 +131,67 @@ class Sparql extends SparqlHelper with RDFaTemplates {
     (n, n.head.child.foldLeft("")((q, c) => c match { case scala.xml.Text(t) => q + t case _ => q }), bindParams(extractBindParams(n)))
   }
 
+  def prepare(ns: NodeSeq) = {
+    import net.liftweb.util.Helpers._
+    object Transform {
+      def unapply(value: String): Option[(NodeSeq) => NodeSeq] = value.split("\\s*#>\\s*") match {
+        case Array(left, right) => {
+          if (left.startsWith("_ ")) Some((ns: NodeSeq) => {
+            // apply transformation only to current node
+            val e = ns.asInstanceOf[Elem]; val child = e.child
+            (("*" + left.substring(1)) #> right)(e.copy(child = Nil)) map {
+              case newE: Elem if child.nonEmpty => newE.copy(child = child)
+              case other => other
+            }
+          })
+          else Some(left #> right)
+        }
+        case _ => None
+      }
+    }
+
+    def paramExists(name: String) = S.param(name) filter (_.nonEmpty) isDefined
+
+    def transform(e: Elem, attr: String, matched: Boolean): NodeSeq = {
+      def removeAttrs(meta: MetaData) = meta.remove(attr).remove("data-then").remove("data-else")
+      lazy val thenRule = e \ "@data-then"
+      lazy val elseRule = e \ "@data-else"
+      lazy val hasRules = thenRule.nonEmpty || elseRule.nonEmpty
+      val rule = if (matched) thenRule else elseRule
+      if (rule.nonEmpty) {
+        rule.text match {
+          case Transform(f) => f(e.copy(attributes = removeAttrs(e.attributes)))
+          case _ => e.copy(attributes = removeAttrs(e.attributes), child = applyRules(e.child))
+        }
+      } else if (matched || hasRules) e.copy(attributes = removeAttrs(e.attributes), child = applyRules(e.child))
+      else Nil
+    }
+
+    def applyRules(ns: NodeSeq): NodeSeq = {
+      ns flatMap {
+        case e: Elem =>
+          var ns: NodeSeq = e
+          val notTransformed = List(true, false) forall { isIf =>
+            val attr = if (isIf) "data-if-param" else "data-unless-param"
+            val value = e \ ("@" + attr)
+            if (value.nonEmpty) {
+              ns = value.text match {
+                case TemplateNode.variable(v) => transform(e, attr, if (isIf) paramExists(v) else !paramExists(v))
+                case _ => e.copy(child = applyRules(e.child))
+              }
+              false
+            } else true
+          }
+          if (notTransformed) ns = e.copy(child = applyRules(e.child))
+          ns
+        case other => other
+      }
+    }
+    applyRules(ns)
+  }
+
   def renderTuples(ns: Seq[xml.Node], r: Iterator[(IBindings[_], Boolean)]) = {
-    var template = createTemplate(ClearClearable.apply(ns))
+    var template = createTemplate(ns)
     ( // ensure one iteration with empty bindings set
       if (r.hasNext) r else List((new LinkedHashBindings[AnyRef], false))).foreach { row => template.transform(CurrentContext.value.get, row._1, row._2) }
 

@@ -74,7 +74,7 @@ object AjaxHelpers {
             AjaxContext.json(
               Full("""function(json) {
 if (json) {
-    if (json.result && typeof callback === "function") {
+    if (json.result !== undefined && typeof callback === "function") {
         callback(json.result);
     }
     if (json.script) {
