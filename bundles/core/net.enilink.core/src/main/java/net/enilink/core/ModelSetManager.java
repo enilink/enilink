@@ -104,6 +104,29 @@ public class ModelSetManager {
 	private ModelSetManager() {
 	}
 
+	protected void addServerInfo(URI modelSet, IGraph config) {
+		String serverUrl = System.getProperty("net.enilink.repository.server");
+		if (serverUrl == null) {
+			// serverUrl = "http://localhost:10035"; // Allegrograph
+			// serverUrl = "jdbc:virtuoso://localhost:1111"; // Virtuoso
+			serverUrl = "http://localhost:8080/openrdf-sesame";
+		}
+		config.add(modelSet, MODELS.NAMESPACE_URI.appendLocalPart("server"),
+				URIImpl.createURI(serverUrl));
+		String username = System.getProperty("net.enilink.repository.username");
+		if (username != null) {
+			config.add(modelSet,
+					MODELS.NAMESPACE_URI.appendLocalPart("username"), username);
+			String password = System
+					.getProperty("net.enilink.repository.password");
+			if (password != null) {
+				config.add(modelSet,
+						MODELS.NAMESPACE_URI.appendLocalPart("password"),
+						password);
+			}
+		}
+	}
+
 	protected Module createModelSetGuiceModule(KommaModule module) {
 		return Modules.override(new ModelSetModule(module) {
 			@Override
@@ -159,12 +182,7 @@ public class ModelSetManager {
 				createModelSetGuiceModule(module), new SessionProviderModule());
 		URI msUri = URIImpl.createURI("urn:enilink:metamodelset");
 		IGraph graph = createModelSetConfig(msUri);
-		graph.add(msUri, MODELS.NAMESPACE_URI.appendLocalPart("server"),
-		// URIImpl.createURI("http://localhost:10035") // Allegrograph
-				URIImpl.createURI("http://localhost:8080/openrdf-sesame") // Sesame
-		// URIImpl.createURI("jdbc:virtuoso://localhost:1111") // Virtuoso
-
-		);
+		addServerInfo(msUri, graph);
 		graph.add(msUri, MODELS.NAMESPACE_URI.appendLocalPart("repository"),
 				"enilink-meta");
 
@@ -181,12 +199,7 @@ public class ModelSetManager {
 		URI msUri = URIImpl.createURI("urn:enilink:modelset");
 
 		IGraph graph = createModelSetConfig(msUri);
-		graph.add(msUri, MODELS.NAMESPACE_URI.appendLocalPart("server"),
-		// URIImpl.createURI("http://localhost:10035") // Allegrograph
-				URIImpl.createURI("http://localhost:8080/openrdf-sesame") // Sesame
-		// URIImpl.createURI("jdbc:virtuoso://localhost:1111") // Virtuoso
-
-		);
+		addServerInfo(msUri, graph);
 		graph.add(msUri, MODELS.NAMESPACE_URI.appendLocalPart("repository"),
 				"enilink");
 		metaDataModel.getManager().remove(
@@ -214,9 +227,12 @@ public class ModelSetManager {
 
 		URI msUri = URIImpl.createURI("urn:enilink:modelset");
 		IGraph graph = createModelSetConfig(msUri);
+		graph.add(msUri, MODELS.NAMESPACE_URI.appendFragment("inference"),
+				false);
 		IModelSet modelSet = factory.createModelSet(graph,
 				MODELS.NAMESPACE_URI.appendLocalPart(//
-						"OwlimModelSet" //
+						// "OwlimModelSet" //
+						"MemoryModelSet" //
 						// "VirtuosoModelSet" //
 						// "AGraphModelSet" //
 						// "RemoteModelSet" //
@@ -298,8 +314,19 @@ public class ModelSetManager {
 					new PrivilegedAction<Object>() {
 						@Override
 						public Object run() {
-							if ("memory".equals(REPOSITORY_TYPE)) {
+							boolean isMemoryRepo = "memory"
+									.equals(REPOSITORY_TYPE);
+							if (isMemoryRepo) {
 								modelSet = createModelSet();
+							} else {
+								IModelSet metaModelSet = createMetaModelSet();
+								IModel metaDataModel = metaModelSet.createModel(URIImpl
+										.createURI("urn:enilink:metadata"));
+								modelSet = createModelSet(metaDataModel);
+							}
+							if (isMemoryRepo
+									|| "all".equals(System
+											.getProperty("net.enilink.acl.anonymous"))) {
 								IEntityManager em = modelSet
 										.getMetaDataManager();
 								Authorization auth = em
@@ -321,11 +348,6 @@ public class ModelSetManager {
 										.add(em.find(
 												ACL.TYPE_CONTROL,
 												net.enilink.vocab.rdfs.Class.class));
-							} else {
-								IModelSet metaModelSet = createMetaModelSet();
-								IModel metaDataModel = metaModelSet.createModel(URIImpl
-										.createURI("urn:enilink:metadata"));
-								modelSet = createModelSet(metaDataModel);
 							}
 							modelSet.getMetaDataManager().createNamed(
 									FOAF.TYPE_AGENT, RDFS.TYPE_CLASS);
