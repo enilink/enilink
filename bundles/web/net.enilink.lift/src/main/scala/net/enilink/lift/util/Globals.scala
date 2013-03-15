@@ -20,13 +20,15 @@ import net.enilink.lift.sitemap.Application
 import net.liftweb.http.ParsePath
 import net.liftweb.http.LiftRules
 import net.liftweb.http.ParsePath
+import net.liftweb.sitemap.Loc
 
 /**
  * A registry for global variables which are shared throughout the application.
  */
 object Globals extends Factory {
   implicit val time = new FactoryMaker(Helpers.now _) {}
-  implicit val application = new FactoryMaker(() => {
+  implicit val application = new FactoryMaker(() => Empty: Box[Loc[_]]) {}
+  application.default.set(() => {
     for (
       loc <- S.location or {
         S.request match {
@@ -37,8 +39,12 @@ object Globals extends Factory {
         }
       };
       app <- loc.breadCrumbs.find(_.params.contains(Application))
-    ) yield app
-  }) {}
+    ) yield {
+      // cache app in request var
+      application.request.set(Full(app))
+      app
+    }
+  })
   implicit val applicationPath = new FactoryMaker(() => {
     S.getHeader("X-Forwarded-For") match {
       // this is a virtual host hence application is at "/"
@@ -49,7 +55,7 @@ object Globals extends Factory {
       })
     }
   }) {}
-  implicit val contextModel = new FactoryMaker(() => { Empty: Box[IModel] }) {}
+  implicit val contextModel = new FactoryMaker(() => Empty: Box[IModel]) {}
   implicit val contextResource = new FactoryMaker(() => {
     Platform.getExtensionRegistry.getExtensionPoint("net.enilink.lift.selectionProviders").getConfigurationElements.flatMap {
       element =>

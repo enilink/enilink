@@ -11,6 +11,10 @@ import scala.xml.Group
 import scala.xml.Elem
 import net.liftweb.http.js.JE
 import net.liftweb.util.Helpers._
+import net.liftweb.http.ParsePath
+import net.liftweb.http.LiftRules
+import net.enilink.lift.sitemap.Application
+import net.liftweb.sitemap.Loc
 
 object TemplateHelpers {
   private object FindScript {
@@ -25,7 +29,17 @@ object TemplateHelpers {
   type RenderResult = (NodeSeq, Box[String])
 
   def render(path: List[String], snips: (String, NodeSeq => NodeSeq)*): Box[RenderResult] = {
-    Templates(path) flatMap (render(_, snips: _*))
+    def doRender = Templates(path) flatMap (render(_, snips: _*))
+    // try to determine current application based on the given template path
+    val app: Box[Loc[_]] = if (S.location.isEmpty && path.length > 1) {
+      for (
+        req <- S.request;
+        newReq = req.withNewPath(ParsePath(path(0) :: Nil, "", true, false));
+        loc <- LiftRules.siteMap.flatMap(_.findLoc(newReq));
+        app <- loc.breadCrumbs.find(_.params.contains(Application))
+      ) yield app
+    } else Empty
+    if (app.isDefined) Globals.application.doWith(app)(doRender) else doRender
   }
 
   def render(template: NodeSeq, snips: (String, NodeSeq => NodeSeq)*): Box[RenderResult] = {

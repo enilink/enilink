@@ -98,50 +98,67 @@
 				}
 				$("#buttons .buttons-show").click(showRdf);
 
-				$("#buttons .buttons-edit").click(function(e) {
-					e.stopPropagation();
-					e.preventDefault();
-					var target = $("#buttons").data("target");
-					if (target) {
-						target.editable({
-							type : "textarea",
-							inputclass : "input-xxlarge",
-							mode : "inline",
-							display : function(value, response) {
-								if (response.html) {
-									var newNode = $(response.html);
-									target.replaceWith(newNode);
-									makeEditable(newNode);
-								} else {
-									target.html(value);
-								}
-							},
-							toggle : "manual",
-							title : "Edit value",
-							url : function(params) {
-								var rdfStmts = target.rdf().databank.dump({
-									serialize : true,
-									format : "application/rdf+xml"
-								});
-								console.log(rdfStmts);
-								var d = new $.Deferred;
-								setValue({
-									rdf : rdfStmts,
-									value : params.value,
-									templateName : target.attr("data-t")
-								}, function(result) {
-									if (result.msg) {
-										d.reject(result.msg);
-									} else {
-										d.resolve(result);
+				$("#buttons .buttons-edit")
+						.click(
+								function(e) {
+									e.stopPropagation();
+									e.preventDefault();
+									var target = $("#buttons").data("target");
+									if (target) {
+										target
+												.editable({
+													type : "textarea",
+													inputclass : "input-xxlarge",
+													mode : "inline",
+													value : target.closest(
+															"[content]").attr(
+															"content")
+															|| target.text()
+																	.trim(),
+													display : function(value,
+															response) {
+														if (response.html) {
+															var newNode = $(response.html);
+															target
+																	.replaceWith(newNode);
+															makeEditable(newNode);
+														} else {
+															target.html(value);
+														}
+													},
+													toggle : "manual",
+													title : "Edit value",
+													url : function(params) {
+														var rdfStmts = target
+																.rdf().databank
+																.dump({
+																	serialize : true,
+																	format : "application/rdf+xml"
+																});
+														console.log(rdfStmts);
+														var d = new $.Deferred;
+														setValue(
+																{
+																	rdf : rdfStmts,
+																	value : params.value,
+																	templateName : target
+																			.attr("data-t")
+																},
+																function(result) {
+																	if (result.msg) {
+																		d
+																				.reject(result.msg);
+																	} else {
+																		d
+																				.resolve(result);
+																	}
+																});
+														return d.promise();
+													}
+												});
+										target.editable("toggle");
 									}
 								});
-								return d.promise();
-							}
-						});
-						target.editable("toggle");
-					}
-				});
 				$("[data-create]")
 						.click(
 								function(e) {
