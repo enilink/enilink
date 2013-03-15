@@ -17,6 +17,9 @@ import net.enilink.core.security.ISecureModelSet
 import net.liftweb.http.Req
 import net.enilink.core.security.SecurityUtil
 import net.enilink.lift.sitemap.Application
+import net.liftweb.http.ParsePath
+import net.liftweb.http.LiftRules
+import net.liftweb.http.ParsePath
 
 /**
  * A registry for global variables which are shared throughout the application.
@@ -25,7 +28,14 @@ object Globals extends Factory {
   implicit val time = new FactoryMaker(Helpers.now _) {}
   implicit val application = new FactoryMaker(() => {
     for (
-      loc <- S.location;
+      loc <- S.location or {
+        S.request match {
+          // support URLs like /classpath/[app]/bootstrap.css
+          case Full(r @ Req(mainPath :: app :: "bootstrap" :: _, _, _)) if (mainPath == LiftRules.resourceServerPath) =>
+            LiftRules.siteMap.flatMap(_.findLoc(r.withNewPath(ParsePath(List(app), "", true, true))))
+          case _ => Empty
+        }
+      };
       app <- loc.breadCrumbs.find(_.params.contains(Application))
     ) yield app
   }) {}
@@ -33,7 +43,10 @@ object Globals extends Factory {
     S.getHeader("X-Forwarded-For") match {
       // this is a virtual host hence application is at "/"
       case Full(_) => "/"
-      case _ => application.vend.dmap("/")(_.link.uriList.mkString("/", "/", ""))
+      case _ => application.vend.dmap("/")(_.link.uriList.mkString("/", "/", "") match {
+        case "/" => "/"
+        case other => other + "/"
+      })
     }
   }) {}
   implicit val contextModel = new FactoryMaker(() => { Empty: Box[IModel] }) {}

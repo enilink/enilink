@@ -33,6 +33,7 @@ import net.liftweb.sitemap.SiteMap
 import net.liftweb.util.ClassHelpers
 import net.enilink.lift.util.Globals
 import java.io.File
+import net.liftweb.http.ResourceServer
 
 object Activator {
   val PLUGIN_ID = "net.enilink.lift";
@@ -213,8 +214,15 @@ class Activator extends BundleActivator {
       val places = List(s) ++ (for (
         app <- Globals.application.vend;
         resourcePath = s.stripPrefix("/").split("/").toList;
-        appPath = app.link.uriList if resourcePath.startsWith(appPath)
-      ) yield resourcePath.drop(appPath.length).mkString("/", "/", ""))
+        appPath = app.link.uriList;
+        altPath <- {
+          if (resourcePath.startsWith(appPath)) Some(resourcePath.drop(appPath.length))
+          // support paths in the form of /toserve/[application path]/some/resource
+          else if (resourcePath.startsWith(ResourceServer.baseResourceLocation :: appPath))
+            Some(ResourceServer.baseResourceLocation :: resourcePath.drop(1 + appPath.length))
+          else None
+        }
+      ) yield altPath.mkString("/", "/", ""))
 
       val liftBundles = bundleTracker.getTracked.entrySet.toSeq.view
       (places.view.flatMap { place =>

@@ -11,21 +11,17 @@ import net.enilink.komma.core._
 import net.enilink.core.ModelSetManager
 import net.enilink.lift.rdfa.template.RDFaTemplates
 import net.enilink.lift.util.Globals
-import net.liftweb.common.Box.box2Option
 import net.liftweb.common.Full
 import net.liftweb.http.PageName
 import net.liftweb.http.S
 import net.liftweb.util.ClearClearable
 import net.enilink.komma.core.IValue
-import net.liftweb.http.PaginatorSnippet
 import scala.xml.Null
 import net.liftweb.http.RequestVar
-import net.liftweb.util.TimeHelpers
 import net.enilink.lift.rdfa.template.TemplateNode
 import scala.xml.Text
-import net.liftweb.util.CssSel
 import scala.xml.MetaData
-import net.liftweb.util.CssBindImpl
+import net.liftweb.util.Helpers._
 
 /**
  * Global SPARQL parameters that can be shared between different snippets.
@@ -102,7 +98,7 @@ class Sparql extends SparqlHelper with RDFaTemplates {
         case Full(rdfCtx) => rdfCtx.subject match {
           case entity: IEntity =>
             val (n1, sparql, params) = toSparql(n, entity.getEntityManager)
-            val query = withParameters(entity.getEntityManager.createQuery(sparql), params)
+            val query = withParameters(entity.getEntityManager.createQuery(sparql, includeInferred), params)
             query.bindResultType(null: String, classOf[IValue]).evaluate match {
               case r: IGraphResult =>
                 n1 //renderGraph(new LinkedHashGraph(r.toList()))
@@ -115,7 +111,8 @@ class Sparql extends SparqlHelper with RDFaTemplates {
                     .bindResultType(null: String, classOf[IValue]).evaluate.asInstanceOf[ITupleResult[_]]
                     .map { row => (toBindings(firstBinding, row), false) } ++ allTuples
                 } else allTuples)
-                val result = renderTuples(ClearClearable(n1), toRender)
+                val transformers = (".query *" #> sparql) & ClearClearable
+                val result = renderTuples(transformers(n1), toRender)
                 result
               case _ => n1
             }
@@ -132,7 +129,6 @@ class Sparql extends SparqlHelper with RDFaTemplates {
   }
 
   def prepare(ns: NodeSeq) = {
-    import net.liftweb.util.Helpers._
     object Transform {
       def unapply(value: String): Option[(NodeSeq) => NodeSeq] = value.split("\\s*#>\\s*") match {
         case Array(left, right) => {

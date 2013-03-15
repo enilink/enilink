@@ -114,16 +114,20 @@ trait SparqlExtractor {
 
 class Rdfa extends Sparql with SparqlExtractor {
   override def render(n: NodeSeq): NodeSeq = {
-    val transformers = prepare _ andThen TemplateHelpers.withTemplateNames _
-    Search(transformers(n), super.renderWithoutPrepare _)
+    logTime("RDFa template") {
+      val transformers = prepare _ andThen TemplateHelpers.withTemplateNames _
+      Search(transformers(n), super.renderWithoutPrepare _)
+    }
   }
 
   def paginate(sparqlFromRdfa: SparqlFromRDFa, queryParams: Map[String, _], em: IEntityManager) = {
     // support for pagination of results
     var paginatedQuery: Box[String] = Empty
+    var countQuery: String = null
     var nodesWithPagination = (".pagination" #> ((ns: NodeSeq) => {
       var bindingName = (ns \ "@data-for").text.stripPrefix("?")
       if (!bindingName.isEmpty) {
+        countQuery = sparqlFromRdfa.getCountQuery(bindingName)
         val paginator = new PaginatorSnippet[AnyRef] {
           override def pageUrl(offset: Long): String = {
             val params = S.request.map(_._params.collect { case (name, value :: Nil) if name != offsetParam => (name, value) }) openOr Map.empty
@@ -143,7 +147,7 @@ class Rdfa extends Sparql with SparqlExtractor {
               <li><a href={ pageUrl(newFirst) }>{ ns }</a></li>
 
           override def itemsPerPage = try { (ns \ "@data-items").text.toInt } catch { case _ => 20 }
-          lazy val cachedCount = withParameters(em.createQuery(sparqlFromRdfa.getCountQuery(bindingName), includeInferred), queryParams).getSingleResult(classOf[Long])
+          lazy val cachedCount = withParameters(em.createQuery(countQuery, includeInferred), queryParams).getSingleResult(classOf[Long])
           def count = cachedCount
           def page = Nil
 
@@ -163,7 +167,7 @@ class Rdfa extends Sparql with SparqlExtractor {
       } else ns
     }))(sparqlFromRdfa.getElement)
 
-    if (paginatedQuery.isDefined) (nodesWithPagination, paginatedQuery.openTheBox, queryParams)
+    if (paginatedQuery.isDefined) ((".count-query *" #> countQuery)(nodesWithPagination), paginatedQuery.openTheBox, queryParams)
     else (sparqlFromRdfa.getElement, sparqlFromRdfa.getQuery, queryParams)
   }
 

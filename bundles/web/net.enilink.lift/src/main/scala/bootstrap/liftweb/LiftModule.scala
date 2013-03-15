@@ -87,7 +87,7 @@ class LiftModule extends Logger {
 
     ResourceServer.allow {
       case ("select2" :: _) => true
-      case (("bootstrap" | "bootstrap-editable") :: _) => true
+      case (("bootstrap" | "bootstrap-editable") :: _) | (_ :: "bootstrap" :: _) => true
       case rdfa @ ("rdfa" :: _) if rdfa.last.endsWith(".js") => true
       case edit @ ("edit" :: _) if edit.last.endsWith(".js") => true
     }
