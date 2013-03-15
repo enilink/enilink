@@ -329,8 +329,9 @@ public class ModelSetManager {
 											.getProperty("net.enilink.acl.anonymous"))) {
 								IEntityManager em = modelSet
 										.getMetaDataManager();
-								Authorization auth = em
-										.create(Authorization.class);
+								Authorization auth = em.createNamed(URIImpl
+										.createURI("urn:auth:anonymousAll"),
+										Authorization.class);
 								auth.setAclAccessToClass(em
 										.find(MODELS.TYPE_MODEL,
 												net.enilink.vocab.rdfs.Class.class));
