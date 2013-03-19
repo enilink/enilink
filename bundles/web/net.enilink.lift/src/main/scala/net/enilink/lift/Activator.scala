@@ -89,8 +89,6 @@ class Activator extends BundleActivator {
 
   def start(context: BundleContext) {
     this.context = context
-    initLift
-
     bundleTracker = new BundleTracker[LiftBundleConfig](context, Bundle.RESOLVED | Bundle.STARTING | Bundle.ACTIVE, null) with Logger {
       override def addingBundle(bundle: Bundle, event: BundleEvent) = {
         bundle.getHeaders.get("Lift-Packages") match {
@@ -131,6 +129,8 @@ class Activator extends BundleActivator {
       }
     }
     bundleTracker.open
+    
+    initLift
 
     sessionServiceReg = context.registerService(classOf[ISessionProvider],
       new ISessionProvider {

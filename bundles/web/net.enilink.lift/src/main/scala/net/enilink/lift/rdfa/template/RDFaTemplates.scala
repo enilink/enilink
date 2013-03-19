@@ -49,9 +49,11 @@ trait Binder {
     case Attribute("rel" | "rev" | "property") =>
       ctx.copy(predicate = rdfValue)
     case Attribute("about" | "src" | "href" | "resource" | "content") =>
-      ctx.copy(subject = rdfValue)
+      ctx.copy(subject = rdfValue, predicate = null)
     case _ => ctx
   }
+
+  def priority: Int = 0
 
   def bind(attrs: MetaData, ctx: RdfContext, bindings: IBindings[_], inferred: Boolean): Result
 }
@@ -64,12 +66,25 @@ class UnlessInferredBinder(val key: String) extends Binder {
   def bind(attrs: MetaData, ctx: RdfContext, bindings: IBindings[_], inferred: Boolean): Result = (attrs.remove(key), ctx, inferred)
 }
 
-class VarBinder(val e: Elem, val attr: String, val name: String) extends Binder {
+trait RdfAttributeBinder extends Binder {
+  val attr: String
+
+  /**
+   * Correctly change RDF context by executing bindings in correct order.
+   */
+  override def priority = attr match {
+    case Attribute("rel" | "rev" | "property") => 5
+    case Attribute("resource" | "content") => 10
+    case _ => 0
+  }
+}
+
+class VarBinder(val e: Elem, val attr: String, val name: String) extends RdfAttributeBinder {
   def bind(attrs: MetaData, ctx: RdfContext, bindings: IBindings[_], inferred: Boolean): Result = {
     var attributes = attrs
     val rdfValue = bindings.get(name)
     var currentCtx = ctx
-    if (rdfValue != null) currentCtx = changeContext(ctx, attr, rdfValue)
+    if (rdfValue != null) currentCtx = changeContext(currentCtx, attr, rdfValue)
     val attValue = rdfValue match {
       case ref: IReference => shortRef(ctx, e, attr, ref)
       case literal: ILiteral => {
@@ -93,7 +108,7 @@ class VarBinder(val e: Elem, val attr: String, val name: String) extends Binder 
   }
 }
 
-class IriBinder(val e: Elem, val attr: String, val Iri: URI) extends Binder {
+class IriBinder(val e: Elem, val attr: String, val Iri: URI) extends RdfAttributeBinder {
   def bind(attrs: MetaData, ctx: RdfContext, bindings: IBindings[_], inferred: Boolean): Result = {
     // do also switch contexts for given constant CURIEs
     val rdfValue = ctx.subject match {
@@ -103,6 +118,14 @@ class IriBinder(val e: Elem, val attr: String, val Iri: URI) extends Binder {
     if (rdfValue != null) {
       (attrs.append(new UnprefixedAttribute(attr, String.valueOf(shortRef(ctx, e, attr, rdfValue)), Null)), changeContext(ctx, attr, rdfValue), false)
     } else (attrs, ctx, false)
+  }
+
+  /**
+   * Correctly change RDF context by executing resource or content bindings last.
+   */
+  override def priority = attr match {
+    case Attribute("resource" | "content") => 10
+    case _ => 0
   }
 }
 
@@ -132,7 +155,7 @@ object TemplateNode extends RDFaUtils {
             case _ => None
           }
         }
-        if (binders.isEmpty) None else Some((e, binders.toSeq))
+        if (binders.isEmpty) None else Some((e, binders.toSeq.sortBy(_.priority)))
       }
       case _ => None
     }

@@ -151,7 +151,7 @@ class JsonCallHandler {
                 templateName match {
                   case Some(tname) =>
                     val template = for (
-                      p <- path; ns <- Templates(p.wholePath);
+                      p <- path; ns <- TemplateHelpers.find(p.wholePath);
                       body <- {
                         var rdfaBody: Box[NodeSeq] = Empty
                         tryo {

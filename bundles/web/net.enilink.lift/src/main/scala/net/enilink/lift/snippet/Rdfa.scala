@@ -60,6 +60,7 @@ object Search extends SparqlHelper with SparqlExtractor {
           CurrentContext.value match {
             case Full(rdfCtx) => rdfCtx.subject match {
               case entity: IEntity => {
+                println(entity)
                 val em = entity.getEntityManager
                 val keywords = bindingNames.flatMap { bindingName =>
                   // add search patterns to template
@@ -150,6 +151,9 @@ class Rdfa extends Sparql with SparqlExtractor {
           lazy val cachedCount = withParameters(em.createQuery(countQuery, includeInferred), queryParams).getSingleResult(classOf[Long])
           def count = cachedCount
           def page = Nil
+          
+          // select last page if count < offset
+          override def first = super.first min (count / itemsPerPage * itemsPerPage)
 
           override def paginate(ns: NodeSeq) = {
             // support lower case tags

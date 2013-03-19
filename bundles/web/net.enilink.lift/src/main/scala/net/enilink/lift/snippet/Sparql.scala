@@ -33,7 +33,7 @@ object RdfHelpers {
 }
 
 trait SparqlHelper {
-  val selection = Globals.contextResource.vend.openOr(null)
+  val selection = Globals.contextResource.vend openOr null
   val isMetaQuery = (S.attr("target") openOr null) == "meta"
 
   def extractBindParams(ns: NodeSeq) = (ns \ "@data-bind").text.split("\\s+").filterNot(_.isEmpty).map(_.stripPrefix("?")).toSeq

@@ -28,8 +28,7 @@ object TemplateHelpers {
 
   type RenderResult = (NodeSeq, Box[String])
 
-  def render(path: List[String], snips: (String, NodeSeq => NodeSeq)*): Box[RenderResult] = {
-    def doRender = Templates(path) flatMap (render(_, snips: _*))
+  def find(path: List[String]): Box[NodeSeq] = {
     // try to determine current application based on the given template path
     val app: Box[Loc[_]] = if (S.location.isEmpty && path.length > 1) {
       for (
@@ -39,8 +38,10 @@ object TemplateHelpers {
         app <- loc.breadCrumbs.find(_.params.contains(Application))
       ) yield app
     } else Empty
-    if (app.isDefined) Globals.application.doWith(app)(doRender) else doRender
+    if (app.isDefined) Globals.application.doWith(app) { Templates(path) } else Templates(path)
   }
+
+  def render(path: List[String], snips: (String, NodeSeq => NodeSeq)*): Box[RenderResult] = find(path) flatMap (render(_, snips: _*))
 
   def render(template: NodeSeq, snips: (String, NodeSeq => NodeSeq)*): Box[RenderResult] = {
     S.eval(template, snips: _*) map { ns => S.session.map(_.fixHtml(ns)) openOr ns } map { ns =>
