@@ -24,21 +24,25 @@ public abstract class OwlimDialectSupport implements IModelSet,
 				String... patterns) {
 			String matchFunc = (flags & CASE_INSENSITIVE) != 0 ? "prefixMatchIgnoreCase"
 					: "prefixMatch";
-			StringBuilder patternsAsURI = new StringBuilder("<");
+			StringBuilder patternsAsURI = new StringBuilder();
 			for (String pattern : patterns) {
+				if (pattern.isEmpty()) {
+					continue;
+				}
 				patternsAsURI.append(pattern.replaceAll("[*?<>]", "")).append(
 						":");
 			}
-			patternsAsURI.append(">");
 			StringBuilder sb = new StringBuilder();
-			for (String bindingName : bindingNames) {
-				if (sb.length() > 0) {
-					sb.append(" union ");
+			if (patternsAsURI.length() > 0) {
+				for (String bindingName : bindingNames) {
+					if (sb.length() > 0) {
+						sb.append(" union ");
+					}
+					sb.append("{ <").append(patternsAsURI).append(">")
+							.append(" <http://www.ontotext.com/owlim/fts#")
+							.append(matchFunc).append("> ?")
+							.append(bindingName).append(" }");
 				}
-				sb.append("{ ").append(patternsAsURI)
-						.append(" <http://www.ontotext.com/owlim/fts#")
-						.append(matchFunc).append("> ?").append(bindingName)
-						.append(" }");
 			}
 			return new QueryFragment(sb.toString());
 		}
