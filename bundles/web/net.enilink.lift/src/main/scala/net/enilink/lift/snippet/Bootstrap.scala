@@ -79,7 +79,7 @@ class Bootstrap extends DispatchSnippet {
       }
     }
     val items = menuEntries
-    def pullRight(item : MenuItem) = item.cssClass.exists(_ == "pull-right")
+    def pullRight(item: MenuItem) = item.cssClass.exists(_ == "pull-right")
     <ul class="nav"> { for (item <- items.filterNot(pullRight(_))) yield renderItem(item) } </ul>
     <ul class="nav pull-right"> { for (item <- items.filter(pullRight(_))) yield renderItem(item) } </ul>
   }
@@ -87,16 +87,20 @@ class Bootstrap extends DispatchSnippet {
   def submenu: NodeSeq = {
     menuEntries.find { e => e.path && !e.kids.isEmpty } match {
       case Some(item) => {
-        <div class="subnav subnav-fixed">
-          <ul class="nav nav-pills">
-            {
-              for (kid <- item.kids) yield {
-                var styles = kid.cssClass openOr ""
-                if (kid.current || kid.path) styles += " active"
-                <li class={ styles }><a href={ kid.uri }>{ kid.text }</a></li>
-              }
-            }
-          </ul>
+        <div class="subnav navbar navbar-fixed-top">
+          <div class="navbar-inner">
+            <div class="container">
+              <ul class="nav nav-pills">
+                {
+                  for (kid <- item.kids) yield {
+                    var styles = kid.cssClass openOr ""
+                    if (kid.current || kid.path) styles += " active"
+                    <li class={ styles }><a href={ kid.uri }>{ kid.text }</a></li>
+                  }
+                }
+              </ul>
+            </div>
+          </div>
         </div>
       }
       case _ => NodeSeq.Empty

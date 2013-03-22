@@ -275,7 +275,7 @@ private class RDFaToSparqlParser(e: xml.Elem, base: String)(implicit s: Scope = 
       //        case v: Variable => select(v)
       //        case other => other
       //      })
-      case _ => Some(select(new Variable(name.substring(1), None)))
+      case _ => Some(select(Variable(name.substring(1), None)))
     }
   }
 

@@ -2,14 +2,16 @@
 <html>
 <body class="lift:content_id=main">
 	<div id="main">
-		<!-- add some editing support -->
+		<script src="/classpath/require/require.js" data-lift="head"></script>
+
 		<link href="/classpath/bootstrap-editable/css/bootstrap-editable.css"
 			rel="stylesheet" data-lift="head">
 		<script src="/classpath/bootstrap-editable/js/bootstrap-editable.js"
 			data-lift="head"></script>
-		<link href="/classpath/select2/select2.css" rel="stylesheet"
+		<link href="/classpath/orion/built-editor.css" rel="stylesheet"
 			data-lift="head">
-		<script src="/classpath/select2/select2.js" data-lift="head"></script>
+		<script src="/classpath/orion/editable/editable-input-orion.js"
+			data-lift="head"></script>
 
 		<script type="text/javascript" data-lift="head">
 			var rdfAttributes = [ "about", "typeof", "rel", "rev", "property",
@@ -43,7 +45,7 @@
 										+ target.innerWidth()
 										- buttons.outerWidth()
 							});
-							buttons.css("display", "block");
+							buttons.show();
 						}
 					}, function(e) {
 						var relatedTarget = $(e.relatedTarget);
@@ -54,7 +56,7 @@
 							if (lastTarget) {
 								lastTarget.removeClass("focused");
 							}
-							buttons.css("display", "none");
+							buttons.hide();
 						}
 					})
 				}
@@ -98,145 +100,179 @@
 				}
 				$("#buttons .buttons-show").click(showRdf);
 
-				$("#buttons .buttons-edit")
-						.click(
-								function(e) {
-									e.stopPropagation();
-									e.preventDefault();
-									var target = $("#buttons").data("target");
-									if (target) {
-										target
-												.editable({
-													type : "textarea",
-													inputclass : "input-xxlarge",
-													mode : "inline",
-													value : target.closest(
-															"[content]").attr(
-															"content")
-															|| target.text()
-																	.trim(),
-													display : function(value,
-															response) {
-														if (response.html) {
-															var newNode = $(response.html);
-															target
-																	.replaceWith(newNode);
-															makeEditable(newNode);
-														} else {
-															target.html(value);
-														}
-													},
-													toggle : "manual",
-													title : "Edit value",
-													url : function(params) {
-														var rdfStmts = target
-																.rdf().databank
-																.dump({
-																	serialize : true,
-																	format : "application/rdf+xml"
-																});
-														console.log(rdfStmts);
-														var d = new $.Deferred;
-														setValue(
-																{
-																	rdf : rdfStmts,
-																	value : params.value,
-																	templateName : target
-																			.attr("data-t")
-																},
-																function(result) {
-																	if (result.msg) {
-																		d
-																				.reject(result.msg);
-																	} else {
-																		d
-																				.resolve(result);
-																	}
-																});
-														return d.promise();
-													}
-												});
-										target.editable("toggle");
+				function createEditableOptions(rdfStmts) {
+					var resourceProposal;
+					return {
+						type : "orion",
+						onblur : "ignore",
+						inputclass : "input-xxlarge",
+						mode : "inline",
+						toggle : "manual",
+						params : function(params) {
+							var value = $.trim(params.value);
+							if (resourceProposal
+									&& resourceProposal.proposal == value) {
+								// use selected resource as value
+								params.value = "<" + resourceProposal.resource + ">";
+							}
+							return params;
+						},
+						contentAssistProposalApplied : function(proposal) {
+							if (proposal.resource) {
+								resourceProposal = proposal;
+							}
+						},
+						contentAssistProviders : [ {
+							computeProposals : function(buffer, offset, context) {
+								var dfd = new $.Deferred();
+								propose(
+										{
+											rdf : rdfStmts,
+											query : buffer.substring(0, offset),
+											index : offset
+										},
+										function(results) {
+											var proposals = [];
+											$
+													.each(
+															results,
+															function(index,
+																	value) {
+																var positions = [];
+																var escapePosition = value.insert ? offset
+																		+ value.content.length
+																		: value.content.length;
+																var proposal = {
+																	proposal : value.content,
+																	description : value.description,
+																	escapePosition : escapePosition,
+																	insert : value.insert
+																};
+																if (value.resource) {
+																	// this is a resource proposal
+																	proposal.resource = value.resource;
+																}
+																proposals
+																		.push(proposal);
+															});
+											dfd.resolve(proposals);
+										});
+								return dfd.promise();
+							}
+						} ]
+					};
+				}
+
+				function doEdit(e) {
+					e.stopPropagation();
+					e.preventDefault();
+					var target = $("#buttons").data("target");
+					if (target) {
+						var rdfStmts = target.rdf().databank.dump({
+							serialize : true,
+							format : "application/rdf+xml"
+						});
+						var options = createEditableOptions(rdfStmts);
+						options = $.extend(options, {
+							title : "Edit value",
+							value : target.closest("[content]").attr("content")
+									|| target.text().trim(),
+							display : function(value, response) {
+								if (response && response.html) {
+									var newNode = $(response.html);
+									// replaceWith does not work for some reason here
+									//target.replaceWith(newNode);
+									newNode.insertAfter(target);
+									target.remove();
+									makeEditable(newNode);
+								} else {
+									target.html(value);
+								}
+							},
+							url : function(params) {
+								var d = new $.Deferred();
+								setValue({
+									rdf : rdfStmts,
+									value : params.value,
+									templateName : target.attr("data-t")
+								}, function(result) {
+									if (result.msg) {
+										d.reject(result.msg);
+									} else {
+										d.resolve(result);
 									}
 								});
-				$("[data-create]")
-						.click(
-								function(e) {
-									e.stopPropagation();
-									e.preventDefault();
+								return d.promise();
+							}
+						});
+						target.editable(options);
+						target.editable("toggle");
+					}
+				}
+				$("#buttons .buttons-edit").click(doEdit);
 
-									var self = $(this);
-									var e = self
-											.closest("[property], [data-property]")
-									var property = e.attr("property")
-											|| e.attr("data-property");
-									var predicate = property;
-									if (!predicate) {
-										e = self.closest("[rel], [data-rel]");
-										predicate = e.attr("rel")
-												|| e.attr("data-rel");
+				function doAdd(e) {
+					e.stopPropagation();
+					e.preventDefault();
+
+					var self = $(this);
+					var e = self.closest("[property], [data-property]")
+					var property = e.attr("property")
+							|| e.attr("data-property");
+					var predicate = property;
+					if (!predicate) {
+						e = self.closest("[rel], [data-rel]");
+						predicate = e.attr("rel") || e.attr("data-rel");
+					}
+					e = self.closest("[resource], [about]");
+					var subject = e.attr("resource") || e.attr("about");
+					var object = property ? $.rdf.literal("\"\"") : $.rdf.resource("<urn:null>");
+					if (subject && predicate) {
+						var stmt = $.rdf.databank(
+								[ $.rdf.triple(subject, predicate, object, {
+									namespaces : self.xmlns()
+								}) ]).dump({
+							serialize : true,
+							format : "application/rdf+xml"
+						});
+						var options = createEditableOptions(stmt);
+						options = $.extend(options, {
+							display : false,
+							success : function(response) {
+								if (response.html) {
+									var newNode = $(response.html);
+									newNode.insertBefore(self);
+									makeEditable(newNode);
+								}
+							},
+							value : "",
+							title : "Add value",
+							url : function(params) {
+								var d = new $.Deferred;
+								setValue({
+									rdf : stmt,
+									value : params.value,
+									templateName : self.attr("data-add")
+								}, function(result) {
+									if (result.msg) {
+										d.reject(result.msg);
+									} else {
+										d.resolve(result);
 									}
-									e = self.closest("[resource], [about]");
-									var subject = e.attr("resource")
-											|| e.attr("about");
-									var object = property ? $.rdf
-											.literal("\"\"") : "urn:null";
-									if (subject && predicate) {
-										var stmt = $.rdf.databank(
-												[ $.rdf.triple(subject,
-														predicate, object, {
-															namespaces : self
-																	.xmlns()
-														}) ]).dump({
-											serialize : true,
-											format : "application/rdf+xml"
-										});
-										self
-												.editable({
-													type : "textarea",
-													mode : "inline",
-													inputclass : "input-xxlarge",
-													display : false,
-													success : function(response) {
-														if (response.html) {
-															var newNode = $(response.html);
-															newNode
-																	.insertBefore(self);
-															makeEditable(newNode);
-														}
-													},
-													value : "",
-													toggle : "manual",
-													title : "Add value",
-													url : function(params) {
-														var d = new $.Deferred;
-														setValue(
-																{
-																	rdf : stmt,
-																	value : params.value,
-																	templateName : self
-																			.attr("data-create")
-																},
-																function(result) {
-																	if (result.msg) {
-																		d
-																				.reject(result.msg);
-																	} else {
-																		d
-																				.resolve(result);
-																	}
-																});
-														return d.promise();
-													}
-												});
-										self.editable("toggle");
-									}
-								}).css("cursor", "pointer");
+								});
+								return d.promise();
+							}
+						});
+						self.editable(options);
+						self.editable("toggle");
+					}
+				}
+				$("[data-add]").click(doAdd).css("cursor", "pointer");
 			});
 		</script>
 		<style type="text/css" data-lift="head">
 /* make buttons slightly transparent */
-[data-create] {
+[data-add] {
 	opacity: 0.3
 }
 
@@ -244,7 +280,7 @@
 	opacity: 0.6
 }
 
-#buttons .btn:hover,[data-create]:hover {
+#buttons .btn:hover,[data-add]:hover {
 	opacity: 1
 }
 </style>
@@ -262,7 +298,6 @@
 			</div>
 		</div>
 		<div data-lift="Edit"></div>
-		<div data-lift="JS.edit"></div>
 	</div>
 </body>
 </html>

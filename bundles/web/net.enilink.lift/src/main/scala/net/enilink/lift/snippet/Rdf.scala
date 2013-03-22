@@ -86,7 +86,10 @@ class Rdf extends DispatchSnippet with RDFaTemplates {
           var newAttrValue = attrValue.text.replaceAll("\\{\\}", encode(value))
 
           // insert current model into the attribute
-          val modelName = Globals.contextModel.vend.dmap("")(_.toString)
+          val modelName = Globals.contextModel.vend.map(_.toString) or Globals.contextResource.vend.map {
+            case o: IObject => o.getModel.toString
+            case _ => ""
+          } openOr ""
           newAttrValue = newAttrValue.replaceAll("\\{model\\}", encode(modelName))
           val appPath = Globals.applicationPath.vend
           newAttrValue = newAttrValue.replaceAll("\\{app\\}", appPath.stripSuffix("/"))

@@ -40,6 +40,8 @@ import net.liftweb.util.LiftFlowOfControlException
 import scala.xml.Group
 import net.enilink.komma.core.IReference
 import net.enilink.komma.core.URIImpl
+import net.enilink.komma.edit.properties.IResourceProposal
+import net.enilink.lift.rdfa.RDFaParser
 
 case class ProposeInput(rdf: String, query: String, index: Int)
 case class SetValueInput(rdf: String, value: String, templateName: Option[String])
@@ -129,8 +131,12 @@ class JsonCallHandler {
         proposalProvider <- Option(proposalSupport.getProposalProvider)
       ) yield {
         proposalProvider.getProposals(query, index) map { p =>
-          ("label", p.getLabel) ~ ("content", p.getContent) ~ ("description", p.getDescription) ~
-            ("cursorPosition", p.getCursorPosition) ~ ("isInsert", p.isInsert)
+          val o = ("label", p.getLabel) ~ ("content", p.getContent) ~ ("description", p.getDescription) ~
+            ("cursorPosition", p.getCursorPosition) ~ ("insert", p.isInsert)
+          p match {
+            case resProposal: IResourceProposal if resProposal.getUseAsValue => o ~ ("resource", resProposal.getResource.getReference.toString)
+            case other => o
+          }
         } toList
       }
       proposals map (JArray(_)) getOrElse JArray(Nil)
@@ -150,9 +156,9 @@ class JsonCallHandler {
               if (status.isOK) {
                 templateName match {
                   case Some(tname) =>
-                    val template = for (
-                      p <- path; ns <- TemplateHelpers.find(p.wholePath);
-                      body <- {
+                    val result = for {
+                      p <- path
+                      body <- TemplateHelpers.find(p.wholePath) flatMap { ns =>
                         var rdfaBody: Box[NodeSeq] = Empty
                         tryo {
                           S.eval(ns, ("rdfa", ns => {
@@ -162,27 +168,38 @@ class JsonCallHandler {
                         }
                         rdfaBody
                       }
-                    ) yield extractTemplate(withTemplateNames(body), tname)
-
-                    (template flatMap { ns =>
-                      println("Template: " + ns)
+                      template = extractTemplate(withTemplateNames(body), tname)
+                    } yield {
+                      import net.enilink.lift.rdf._
+                      println("Template: " + template)
+                      val wrappedTemplate = <div about="?this" data-lift="rdfa">{ template }</div>
                       val resultValue = cmdResult.getReturnValues.headOption
-                      val isResource = resultValue.isInstanceOf[IReference]
-                      val relVars = ns \\ (if (isResource) "@rel" else "@property") map (_.text) collect { case TemplateNode.variable(name) => name }
-                      val objectVars = ns \\ (if (isResource) "@resource" else "@content") map (_.text) collect { case TemplateNode.variable(name) => name }
-                      Globals.contextResource.doWith(Full(model.get.getManager.find(stmt.getSubject))) {
-                        QueryParams.doWith(relVars.map((_, stmt.getPredicate())) ++ resultValue flatMap { v => objectVars.map((_, v)) } toMap) {
-                          TemplateHelpers.render(<div about="?this" data-lift="rdfa">{ ns }</div>)
+                      val isResource = resultValue.map(_.isInstanceOf[IReference]) getOrElse false
+                      val params = new RDFaParser {
+                        override def createVariable(name: String) = Some(Variable(name.substring(1), None))
+                        override def transformLiteral(e: xml.Elem, content: NodeSeq, literal: Literal): (xml.Elem, Node) = {
+                          super.transformLiteral(e, content, literal) match {
+                            case (e1, PlainLiteral(variable(l), _)) => (e1, createVariable(l).get)
+                            case other => other
+                          }
                         }
+                      }.getArcs(wrappedTemplate, model.get.getURI.toString).flatMap {
+                        case (Variable("this", _), relVar: Variable, objVar: Variable) =>
+                          List((relVar.toString, stmt.getPredicate)) ++ resultValue.flatMap(v => Some((objVar.toString, v)))
+                        case _ => Nil
+                      }.toMap
+                      val renderResult = Globals.contextResource.doWith(Full(model.get.getManager.find(stmt.getSubject))) {
+                        QueryParams.doWith(params) { TemplateHelpers.withAppFor(p.wholePath)(TemplateHelpers.render(wrappedTemplate)) }
                       }
-                    }) match {
-                      case Full((html, script)) => {
-                        val w = new java.io.StringWriter
-                        S.htmlProperties.htmlWriter(Group(html \ "_"), w)
-                        SetValueResult(html = Some(w.toString), script = script)
+                      renderResult match {
+                        case Full((html, script)) =>
+                          val w = new java.io.StringWriter
+                          S.htmlProperties.htmlWriter(Group(html \ "_"), w)
+                          SetValueResult(html = Some(w.toString), script = script)
+                        case _ => okResult
                       }
-                      case _ => okResult
                     }
+                    result openOr okResult
                   case _ => okResult
                 }
               } else SetValueResult(Some(status.getMessage))

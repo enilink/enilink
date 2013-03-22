@@ -27,7 +27,6 @@ object JS extends DispatchSnippet {
   def dispatch: DispatchIt = {
     case "bootstrap" => _ => bootstrap
     case "rdfa" => _ => rdfa
-    case "edit" => _ => edit
     case "templates" => _ => templates
   }
 
@@ -38,10 +37,6 @@ object JS extends DispatchSnippet {
   }
 
   def rdfa: NodeSeq = script("/" + LiftRules.resourceServerPath + "/rdfa/jquery.rdfquery.rdfa.js")
-
-  def edit: NodeSeq = List("jquery.autogrow", "jquery.caret").flatMap {
-    lib => script("/" + LiftRules.resourceServerPath + "/edit/" + lib + ".js")
-  }
 
   def templates: NodeSeq = JsCmds.Script(JsCmds.Function("renderTemplate", List("name", "params", "target"),
     (S.fmapFunc({ name: String =>

@@ -28,18 +28,24 @@ object TemplateHelpers {
 
   type RenderResult = (NodeSeq, Box[String])
 
-  def find(path: List[String]): Box[NodeSeq] = {
+  def appFor(path: List[String]): Box[Loc[_]] = {
     // try to determine current application based on the given template path
-    val app: Box[Loc[_]] = if (S.location.isEmpty && path.length > 1) {
+    if (S.location.isEmpty && path.length > 1) {
       for (
         req <- S.request;
         newReq = req.withNewPath(ParsePath(path(0) :: Nil, "", true, false));
         loc <- LiftRules.siteMap.flatMap(_.findLoc(newReq));
         app <- loc.breadCrumbs.find(_.params.contains(Application))
       ) yield app
-    } else Empty
-    if (app.isDefined) Globals.application.doWith(app) { Templates(path) } else Templates(path)
+    } else Globals.application.vend
   }
+
+  def withAppFor[F](path: List[String])(f: => F): F = appFor(path) match {
+    case app @ Full(_) => Globals.application.doWith(app)(f)
+    case _ => f
+  }
+
+  def find(path: List[String]): Box[NodeSeq] = withAppFor(path)(Templates(path))
 
   def render(path: List[String], snips: (String, NodeSeq => NodeSeq)*): Box[RenderResult] = find(path) flatMap (render(_, snips: _*))
 
