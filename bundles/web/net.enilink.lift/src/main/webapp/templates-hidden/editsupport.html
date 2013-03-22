@@ -226,11 +226,13 @@
 					}
 					e = self.closest("[resource], [about]");
 					var subject = e.attr("resource") || e.attr("about");
-					var object = property ? $.rdf.literal("\"\"") : $.rdf.resource("<urn:null>");
+					var object = property ? $.rdf.literal("\"\"") : $.rdf
+							.resource("<urn:null>");
 					if (subject && predicate) {
+						var nsMap = self.xmlns();
 						var stmt = $.rdf.databank(
 								[ $.rdf.triple(subject, predicate, object, {
-									namespaces : self.xmlns()
+									namespaces : nsMap
 								}) ]).dump({
 							serialize : true,
 							format : "application/rdf+xml"

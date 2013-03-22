@@ -1593,10 +1593,14 @@
         createXmlnsAtt(doc.documentElement, namespaces[n], n);
       }
       for (s in dump) {
-        if (dump[s][$.rdf.type.value] !== undefined) {
-          m = /(.+[#\/])([^#\/]+)/.exec(dump[s][$.rdf.type.value][0].value);
-          ns = m[1];
-          local = m[2];
+        var rdfType = dump[s][$.rdf.type.value];
+        var rdfTypeParts;
+        if (rdfType !== undefined) {
+          rdfTypeParts = /(.+[#\/])([^#\/]+)/.exec(rdfType[0].value);
+        }
+        if (rdfTypeParts) {
+          ns = rdfTypeParts[1];
+          local = rdfTypeParts[2];
           for (n in namespaces) {
             if (namespaces[n].toString() === ns) {
               prefix = n;
@@ -1613,7 +1617,7 @@
           addAttribute(se, rdfNs, 'rdf:about', s);
         }
         for (p in dump[s]) {
-          if (p !== $.rdf.type.value.toString() || dump[s][p].length > 1) {
+          if (p !== $.rdf.type.value.toString() || dump[s][p].length > 1 || !rdfTypeParts) {
             m = /(.+[#\/])([^#\/]+)/.exec(p);
             ns = m[1];
             local = m[2];
@@ -1623,7 +1627,7 @@
                 break;
               }
             }
-            for (i = (p === $.rdf.type.value.toString() ? 1 : 0); i < dump[s][p].length; i += 1) {
+            for (i = (p === $.rdf.type.value.toString() && rdfTypeParts ? 1 : 0); i < dump[s][p].length; i += 1) {
               v = dump[s][p][i];
               pe = appendElement(se, ns, prefix + ':' + local);
               if (v.type === 'uri') {

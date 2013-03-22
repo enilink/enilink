@@ -47,7 +47,9 @@ object TemplateHelpers {
 
   def find(path: List[String]): Box[NodeSeq] = withAppFor(path)(Templates(path))
 
-  def render(path: List[String], snips: (String, NodeSeq => NodeSeq)*): Box[RenderResult] = find(path) flatMap (render(_, snips: _*))
+  def render(path: List[String], snips: (String, NodeSeq => NodeSeq)*): Box[RenderResult] = withAppFor(path) {
+    Templates(path) flatMap (render(_, snips: _*))
+  }
 
   def render(template: NodeSeq, snips: (String, NodeSeq => NodeSeq)*): Box[RenderResult] = {
     S.eval(template, snips: _*) map { ns => S.session.map(_.fixHtml(ns)) openOr ns } map { ns =>
