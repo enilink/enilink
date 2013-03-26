@@ -80,6 +80,7 @@ trait RdfAttributeBinder extends Binder {
 }
 
 class VarBinder(val e: Elem, val attr: String, val name: String) extends RdfAttributeBinder {
+  val clearAttribute = attr.startsWith("data-clear-") || attr == "data-if"
   def bind(attrs: MetaData, ctx: RdfContext, bindings: IBindings[_], inferred: Boolean): Result = {
     var attributes = attrs
     val rdfValue = bindings.get(name)
@@ -87,7 +88,7 @@ class VarBinder(val e: Elem, val attr: String, val name: String) extends RdfAttr
     if (rdfValue != null) currentCtx = changeContext(currentCtx, attr, rdfValue)
     val attValue = rdfValue match {
       case ref: IReference => shortRef(ctx, e, attr, ref)
-      case literal: ILiteral => {
+      case literal: ILiteral if !clearAttribute => {
         // add datatype and lang attributes
         if (literal.getDatatype != null) {
           attributes = attributes.append(new UnprefixedAttribute("datatype", shorten(literal.getDatatype, currentCtx, e), Null))
@@ -96,12 +97,13 @@ class VarBinder(val e: Elem, val attr: String, val name: String) extends RdfAttr
         }
         literal.getLabel
       }
+      case literal: ILiteral => literal.getLabel
       case other => other
     }
 
     if (attValue == null) {
       if (attr == "data-unless") attributes = attributes.remove(attr) else attributes = null
-    } else if (attr.startsWith("data-clear-") || attr == "data-if") attributes = attributes.remove(attr)
+    } else if (clearAttribute) attributes = attributes.remove(attr)
     else if (attr == "data-unless") { attributes = null }
     else attributes = attributes.append(new UnprefixedAttribute(attr, attValue.toString, Null))
     (attributes, currentCtx, false)

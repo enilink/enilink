@@ -42,9 +42,11 @@ import net.enilink.komma.core.IReference
 import net.enilink.komma.core.URIImpl
 import net.enilink.komma.edit.properties.IResourceProposal
 import net.enilink.lift.rdfa.RDFaParser
+import net.liftweb.json.JString
 
 case class ProposeInput(rdf: String, query: String, index: Int)
-case class SetValueInput(rdf: String, value: String, templateName: Option[String])
+case class GetValueInput(rdf: String)
+case class SetValueInput(rdf: String, value: String, templateName: Option[String], templatePath: Option[String])
 case class SetValueResult(msg: Option[String] = None, html: Option[String] = None, script: Option[String] = None)
 
 class JsonCallHandler {
@@ -93,8 +95,6 @@ class JsonCallHandler {
   }
 
   def apply: PartialFunction[JValue, JValue] = {
-    case JsonCommand("noParam", _, _) =>
-      S.notice("noParam"); JBool(true)
     case JsonCommand("updateTriples", _, params) => {
       import scala.collection.JavaConversions._
       var successful = false
@@ -141,6 +141,15 @@ class JsonCallHandler {
       }
       proposals map (JArray(_)) getOrElse JArray(Nil)
     }
+    case JsonCommand("getValue", _, params) => {
+      params.extractOpt[GetValueInput] flatMap {
+        case GetValueInput(rdf) => statements(rdf) match {
+          case stmt :: _ => Option(createHelper.getValue(stmt))
+          case _ => None
+        }
+        case _ => None
+      } map (v => JString(v.toString)) getOrElse JString("")
+    }
     case JsonCommand("setValue", _, params) => {
       import scala.collection.JavaConversions._
       import net.enilink.lift.util.TemplateHelpers._
@@ -148,7 +157,7 @@ class JsonCallHandler {
 
       lazy val okResult = SetValueResult
       val result = params.extractOpt[SetValueInput] map {
-        case SetValueInput(rdf, value, templateName) =>
+        case SetValueInput(rdf, value, templateName, templatePath) =>
           statements(rdf) match {
             case stmt :: _ => {
               val cmdResult = createHelper.setValue(stmt, value.trim)
@@ -157,8 +166,8 @@ class JsonCallHandler {
                 templateName match {
                   case Some(tname) =>
                     val result = for {
-                      p <- path
-                      body <- TemplateHelpers.find(p.wholePath) flatMap { ns =>
+                      p <- templatePath.filter(_.nonEmpty).map(_.stripPrefix("/").split("/").toList) orElse path.map(_.wholePath)
+                      body <- TemplateHelpers.find(p) flatMap { ns =>
                         var rdfaBody: Box[NodeSeq] = Empty
                         tryo {
                           S.eval(ns, ("rdfa", ns => {
@@ -189,7 +198,7 @@ class JsonCallHandler {
                         case _ => Nil
                       }.toMap
                       val renderResult = Globals.contextResource.doWith(Full(model.get.getManager.find(stmt.getSubject))) {
-                        QueryParams.doWith(params) { TemplateHelpers.withAppFor(p.wholePath)(TemplateHelpers.render(wrappedTemplate)) }
+                        QueryParams.doWith(params) { TemplateHelpers.withAppFor(p)(TemplateHelpers.render(wrappedTemplate)) }
                       }
                       renderResult match {
                         case Full((html, script)) =>
@@ -199,7 +208,7 @@ class JsonCallHandler {
                         case _ => okResult
                       }
                     }
-                    result openOr okResult
+                    result getOrElse okResult
                   case _ => okResult
                 }
               } else SetValueResult(Some(status.getMessage))
@@ -219,7 +228,6 @@ class JsonCallHandler {
       override def visitStatement(stmt: IStatement) = stmts += stmt
     })
     stmts.toSeq
-
   }
 }
 
@@ -228,10 +236,13 @@ class Edit extends DispatchSnippet {
   def buildFuncs(in: NodeSeq): NodeSeq = {
     val handler = new JsonCallHandler
     Script(handler.jsCmd &
-      Function("noParam", List("callback"), handler.call("noParam", JsObj(), JsVar("callback")))
-      & Function("updateTriples", List("add", "remove", "callback"),
-        handler.call("updateTriples", JsRaw("{ 'add' : add, 'remove' : remove }"), JsVar("callback")))
-        & Function("setValue", List("data", "callback"), handler.call("setValue", JsVar("data"), JsVar("callback")))
-        & Function("propose", List("data", "callback"), handler.call("propose", JsVar("data"), JsVar("callback"))))
+      SetExp(JsVar("enilink"), Call("$.extend", JsRaw("window.enilink || {}"), //
+        JsObj(
+          ("updateTriples", AnonFunc("add, remove, callback",
+            handler.call("updateTriples", JsRaw("{ 'add' : add, 'remove' : remove }"), JsVar("callback")))), //
+          ("getValue", AnonFunc("rdf, callback", handler.call("getValue", JsRaw("{ 'rdf' : rdf }"), JsVar("callback")))), //
+          ("setValue", AnonFunc("data, callback", handler.call("setValue", JsVar("data"), JsVar("callback")))), //
+          ("propose", AnonFunc("data, callback", handler.call("propose", JsVar("data"), JsVar("callback"))) //
+          )))))
   }
 }

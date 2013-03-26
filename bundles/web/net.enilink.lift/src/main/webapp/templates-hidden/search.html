@@ -19,7 +19,7 @@
 				});
 				$.each(getQueryParameters(), function(key, value) {
 					if (key != "q") {
-						queryInput.parent().append(
+						queryInput.closest("form").append(
 								$("<input>").attr("type", "hidden").attr(
 										"name", key).val(value));
 					}

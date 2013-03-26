@@ -67,25 +67,24 @@ object AjaxHelpers {
     }
 
     val af: AFuncHolder = jsonCallback _
-    functionLifespan(true) {
-      fmapFunc(af)({ name =>
-        val body = JsRaw("""var paramStr = ""; if (httpParams) $.each(httpParams, function (i, val) { paramStr += "&" + i + "=" + encodeURIComponent(val); })""").cmd &
-          SHtml.makeAjaxCall(JsRaw("'" + name + "=' + encodeURIComponent(" + LiftRules.jsArtifacts.jsonStringify(JsRaw("obj")).toJsCmd + ") + paramStr"),
-            AjaxContext.json(
-              Full("""function(json) {
+    fmapFunc(af)({ name =>
+      val body = JsRaw("""var paramStr = ""; if (httpParams) $.each(httpParams, function (i, val) { paramStr += "&" + i + "=" + encodeURIComponent(val); })""").cmd &
+        SHtml.makeAjaxCall(JsRaw("'" + name + "=' + encodeURIComponent(" + LiftRules.jsArtifacts.jsonStringify(JsRaw("obj")).toJsCmd + ") + paramStr"),
+          AjaxContext.json(
+            Full("""function(json) {
 if (json) {
+    var runScript = true;
     if (json.result !== undefined && typeof callback === "function") {
-        callback(json.result);
+        runScript = callback(json.result);
     }
-    if (json.script) {
+    if ((runScript === undefined || runScript) && json.script) {
         eval(json.script);
     }
 }
 }"""), onError.map(f => JsCmds.Run("function () { " + f.toJsCmd + " }") //
 ))).cmd
 
-        (JsonFunc(name), JsCmds.Function(name, List("obj", "callback", "httpParams"), body))
-      })
-    }
+      (JsonFunc(name), JsCmds.Function(name, List("obj", "callback", "httpParams"), body))
+    })
   }
 }

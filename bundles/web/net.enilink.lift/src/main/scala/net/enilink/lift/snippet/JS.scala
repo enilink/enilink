@@ -6,6 +6,7 @@ import net.liftweb.http.LiftRules
 import scala.xml.Unparsed
 import net.liftweb.http.S
 import net.liftweb.http.js._
+import net.liftweb.http.js.JsCmds._
 import net.liftweb.http.js.JE._
 import net.liftweb.http.SHtml
 import net.liftweb.http.AjaxContext
@@ -38,32 +39,43 @@ object JS extends DispatchSnippet {
 
   def rdfa: NodeSeq = script("/" + LiftRules.resourceServerPath + "/rdfa/jquery.rdfquery.rdfa.js")
 
-  def templates: NodeSeq = JsCmds.Script(JsCmds.Function("renderTemplate", List("name", "params", "target"),
-    (S.fmapFunc({ name: String =>
-      TemplateHelpers.render(name.stripPrefix("/").split("/").toList) map {
-        case (ns, script) => {
-          val w = new java.io.StringWriter
-          S.htmlProperties.htmlWriter(Group(ns), w)
-          val fields = List(JField("html", JString(w.toString))) ++ script.map(js => JField("script", JString(js)))
-          JsonResponse(JObject(fields))
-        }
-      } openOr JsonResponse(JObject(List()))
-    }))({ name =>
-      JsRaw("""var paramStr = ""; $.each(params, function (i, val) { paramStr += "&" + i + "=" + encodeURIComponent(val); })""").cmd &
-        SHtml.makeAjaxCall(JsRaw("'" + name + "=' + encodeURIComponent(name) + paramStr"),
-          AjaxContext.json(Full("""function(result) {
+  def templates: NodeSeq = Script(SetExp(JsVar("enilink"),
+    Call("$.extend", JsRaw("window.enilink || {}"), JsObj(("renderTemplate", AnonFunc("path, params, target",
+      (S.fmapFunc({ path: String =>
+        TemplateHelpers.render(path.stripPrefix("/").split("/").toList) map {
+          case (ns, script) => {
+            import net.liftweb.util.Helpers._
+            // annotate result with template path for later invocations of renderTemplate
+            val nsWithPath = ns map {
+              case e: Elem => e % ("data-t-path" -> path)
+              case other => other
+            }
+            val w = new java.io.StringWriter
+            S.htmlProperties.htmlWriter(Group(nsWithPath), w)
+            val fields = List(JField("html", JString(w.toString))) ++ script.map(js => JField("script", JString(js)))
+            JsonResponse(JObject(fields))
+          }
+        } openOr JsonResponse(JObject(List()))
+      }))({ name =>
+        JsRaw("""var paramStr = ""; $.each(params, function (i, val) { paramStr += "&" + i + "=" + encodeURIComponent(val); })""").cmd &
+          SHtml.makeAjaxCall(JsRaw("'" + name + "=' + encodeURIComponent(path) + paramStr"),
+            AjaxContext.json(Full("""function(result) {
 if (!result || !result.html) {
-    console.log("Template '" + name + "' not found.");
+    console.log("Template '" + path + "' not found.");
     return;
 }
+
+var runScript = true;
 if (typeof target === "function") {
-    target(result); 
+    runScript = target(result);
 } else {
     $(target).html(result.html);
-	if (result.script) {
-        eval(result.script);
-	}
+}
+if ((runScript === undefined || runScript) && result.script) {
+    eval(result.script);
 }
 }"""))).cmd
-    })))
+      })))) // JsObj
+      )) // SetExp
+      ) // Script
 }
