@@ -309,6 +309,20 @@
   var 
     xmlnsRegex = /\sxmlns(?::([^ =]+))?\s*=\s*(?:"([^"]*)"|'([^']*)')/g;
 
+  function parsePrefixes(prefixes) {
+    if (! prefixes) {
+      return undefined;
+    }
+    var ns;
+    var prefixRegex = /([^\s:]+):\s+([\S]+)/g
+    var result;
+    while ((result = prefixRegex.exec(prefixes)) !== null) {
+      ns = ns || {};
+      ns[result[1]] = $.uri(result[2]);      
+    }
+    return ns;
+  }
+  
 /**
  * Returns the namespaces declared in the scope of the first selected element, or
  * adds a namespace declaration to all selected elements. Pass in no parameters
@@ -372,6 +386,15 @@
             }
             xmlnsRegex.lastIndex = 0;
           }
+          // RDFa 1.1 prefix attribute
+          var prefixes = e.getAttribute("prefix");
+          if (prefixes) {
+             var parsed = parsePrefixes(prefixes);
+             if (parsed) {
+               $.extend(ns, parsed);
+               found = true;
+             }
+          }
           inherited = inherited || (e.parentNode.nodeType === 1 ? elem.parent().xmlns() : {});
           ns = found ? $.extend({}, inherited, ns) : inherited;
           elem.data('xmlns', ns);
@@ -432,6 +455,43 @@
       decl = prefix ? 'xmlns:' + prefix : 'xmlns';
       this.removeAttr(decl);
     }
+    this.find('*').andSelf().removeData('xmlns');
+    return this;
+  };
+  
+  /**
+   * Accessor for the RDFa 1.1 prefix attribute.
+   */
+  $.fn.prefix = function (prefix, namespace) {
+    if (prefix === undefined) {
+      return parsePrefixes(this.attr("prefix"));
+    }
+    var prefixes;
+    if (typeof prefix === "object") {
+      // replace prefix attribute with given prefixes
+      prefixes = {};
+      $.each(prefix, function(prefix, ns) {
+        if (typeof ns === "string") {
+          ns = $.uri(ns);  
+        }
+        prefixes[prefix] = ns;
+      });
+    } else {
+      prefixes = parsePrefixes(this.attr("prefix")) || {};
+      if (namespace !== undefined) {        
+        prefixes[prefix] = $.uri(namespace);  
+      } else {
+        return prefixes[prefix];
+      }
+    }
+    var prefixValue = "";
+    for (var p in prefixes) {
+      if (prefixValue.length > 0) {
+        prefixValue += " ";
+      }
+      prefixValue += p + ": " + prefixes[p];  
+    }
+    this.attr("prefix", prefixValue);
     this.find('*').andSelf().removeData('xmlns');
     return this;
   };

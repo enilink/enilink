@@ -20,6 +20,9 @@ import net.liftweb.json._
 import scala.xml.Elem
 import net.liftweb.http.NotFoundResponse
 import net.enilink.lift.util.TemplateHelpers
+import java.io.ByteArrayInputStream
+import net.liftweb.common.Full
+import net.liftweb.common.Empty
 
 /**
  * Snippets for embedding of JS scripts.
@@ -40,14 +43,19 @@ object JS extends DispatchSnippet {
   def rdfa: NodeSeq = script("/" + LiftRules.resourceServerPath + "/rdfa/jquery.rdfquery.rdfa.js")
 
   def templates: NodeSeq = Script(SetExp(JsVar("enilink"),
-    Call("$.extend", JsRaw("window.enilink || {}"), JsObj(("renderTemplate", AnonFunc("path, params, target",
-      (S.fmapFunc({ path: String =>
-        TemplateHelpers.render(path.stripPrefix("/").split("/").toList) map {
+    Call("$.extend", JsRaw("window.enilink || {}"), JsObj(("renderTemplate", AnonFunc("pathOrXml, params, target",
+      (S.fmapFunc({ pathOrXml: String =>
+        val isXml = "\\s*<".r.findPrefixMatchOf(pathOrXml).isDefined
+        (pathOrXml match {
+          case xml if isXml =>
+            S.htmlProperties.htmlParser(new ByteArrayInputStream(xml.getBytes("UTF-8"))) flatMap (TemplateHelpers.render(_))
+          case path => TemplateHelpers.render(path.stripPrefix("/").split("/").toList)
+        }) map {
           case (ns, script) => {
             import net.liftweb.util.Helpers._
             // annotate result with template path for later invocations of renderTemplate
             val nsWithPath = ns map {
-              case e: Elem => e % ("data-t-path" -> path)
+              case e: Elem if !isXml => e % ("data-t-path" -> pathOrXml)
               case other => other
             }
             val w = new java.io.StringWriter
@@ -58,10 +66,10 @@ object JS extends DispatchSnippet {
         } openOr JsonResponse(JObject(List()))
       }))({ name =>
         JsRaw("""var paramStr = ""; $.each(params, function (i, val) { paramStr += "&" + i + "=" + encodeURIComponent(val); })""").cmd &
-          SHtml.makeAjaxCall(JsRaw("'" + name + "=' + encodeURIComponent(path) + paramStr"),
+          SHtml.makeAjaxCall(JsRaw("'" + name + "=' + encodeURIComponent(pathOrXml) + paramStr"),
             AjaxContext.json(Full("""function(result) {
 if (!result || !result.html) {
-    console.log("Template '" + path + "' not found.");
+    console.log("Template '" + pathOrXml + "' not found or execution failed.");
     return;
 }
 

@@ -48,7 +48,7 @@ class LiftModule extends Logger {
     LiftRules.jsArtifacts = new JQueryArtifacts {
       override def pathRewriter: PartialFunction[List[String], List[String]] = {
         case "jquery.js" :: Nil if Props.devMode => List("jquery", "jquery-1.8.2.js")
-        case "jquery.js" :: Nil => List("jquery", "jquery-1.8.2-min.js")
+        case "jquery.js" :: Nil => List("jquery", "jquery-1.8.2.min.js")
       }
     }
 

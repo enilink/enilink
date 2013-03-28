@@ -264,6 +264,7 @@ class Template(val ns: NodeSeq) {
 }
 
 trait RDFaTemplates extends RDFaUtils {
+  class Test
   def createTemplateNodes(ns: NodeSeq): NodeSeq = ns.map {
     case TemplateNode(e, binders) => new TemplateNode(e.prefix, e.label, e.attributes, e.scope, binders, createTemplateNodes(e.child): _*)
     case e: Elem => e.copy(child = createTemplateNodes(e.child))

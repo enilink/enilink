@@ -50,7 +50,7 @@
 				}
 				$("#buttons .button-show").click(showRdf);
 
-				function createEditableOptions(rdfStmts) {
+				function defaultEditableOptions(rdfStmts) {
 					var resourceProposal;
 					return {
 						type : "orion",
@@ -122,7 +122,7 @@
 					var target = $("#buttons").data("target");
 					if (target) {
 						var rdfStmts = target.rdf().databank.dump(rdfXmlOpts);
-						var options = createEditableOptions(rdfStmts);
+						var options = defaultEditableOptions(rdfStmts);
 						options = $.extend(options, {
 							title : "Edit value",
 							value : target.closest("[content]").attr("content")
@@ -187,7 +187,7 @@
 								[ $.rdf.triple(subject, predicate, object, {
 									namespaces : nsMap
 								}) ]).dump(rdfXmlOpts);
-						var options = createEditableOptions(stmt);
+						var options = defaultEditableOptions(stmt);
 						options = $.extend(options, {
 							display : false,
 							success : function(response) {
@@ -279,7 +279,8 @@
 				enilink = window.enilink || {};
 				enilink.ui = $.extend(enilink.ui || {}, {
 					enableEdit : enableEdit,
-					enableAdd : enableAdd
+					enableAdd : enableAdd,
+					defaultEditableOptions : defaultEditableOptions
 				});
 
 				enableEdit("[rel],[property]");
