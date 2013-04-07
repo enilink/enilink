@@ -68,14 +68,14 @@ object JS extends DispatchSnippet {
         JsRaw("""var paramStr = ""; $.each(params, function (i, val) { paramStr += "&" + i + "=" + encodeURIComponent(val); })""").cmd &
           SHtml.makeAjaxCall(JsRaw("'" + name + "=' + encodeURIComponent(pathOrXml) + paramStr"),
             AjaxContext.json(Full("""function(result) {
-if (!result || !result.html) {
+if (result === undefined || result.html === undefined) {
     console.log("Template '" + pathOrXml + "' not found or execution failed.");
     return;
 }
 
 var runScript = true;
 if (typeof target === "function") {
-    runScript = target(result);
+    runScript = target(result.html, result.script);
 } else {
     $(target).html(result.html);
 }

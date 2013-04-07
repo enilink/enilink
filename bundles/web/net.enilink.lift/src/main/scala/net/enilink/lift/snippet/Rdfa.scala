@@ -34,7 +34,7 @@ import net.enilink.lift.util.TemplateHelpers
 /**
  * Support full-text search for RDFa templates.
  */
-object Search extends SparqlHelper with SparqlExtractor {
+class Search extends SparqlHelper with SparqlExtractor {
   import RdfHelpers._
 
   /**
@@ -117,7 +117,7 @@ class Rdfa extends Sparql with SparqlExtractor {
   override def render(n: NodeSeq): NodeSeq = {
     logTime("RDFa template") {
       val transformers = prepare _ andThen TemplateHelpers.withTemplateNames _
-      Search(transformers(n), super.renderWithoutPrepare _)
+      (new Search).apply(transformers(n), super.renderWithoutPrepare _)
     }
   }
 
