@@ -1,7 +1,6 @@
 package net.enilink.lift.snippet
 
 import scala.collection.JavaConversions.asScalaIterator
-import scala.collection._
 import scala.util.control.Exception._
 import scala.xml.Elem
 import scala.xml.NodeSeq
@@ -26,25 +25,22 @@ import net.liftweb.util.Helpers._
 /**
  * Global SPARQL parameters that can be shared between different snippets.
  */
-object QueryParams extends RequestVar[immutable.Map[String, _]](Map.empty)
+object QueryParams extends RequestVar[Map[String, _]](Map.empty)
 
 object RdfHelpers {
-  implicit def bindingsToMap(bindings: IBindings[_]): immutable.Map[String, _] = bindings.getKeys.iterator.map(k => k -> bindings.get(k)).toMap
+  implicit def bindingsToMap(bindings: IBindings[_]): Map[String, _] = bindings.getKeys.iterator.map(k => k -> bindings.get(k)).toMap
 }
 
 trait SparqlHelper {
-  val selection = Globals.contextResource.vend openOr null
-  val isMetaQuery = (S.attr("target") openOr null) == "meta"
-
   def extractBindParams(ns: NodeSeq) = (ns \ "@data-bind").text.split("\\s+").filterNot(_.isEmpty).map(_.stripPrefix("?")).toSeq
 
-  def bindParams(params: Seq[String]) = {
-    params flatMap { name =>
-      S.param(name) flatMap {
-        // TODO allow to bind literal values
-        value => catching(classOf[IllegalArgumentException]) opt { (name, URIImpl.createURI(value)) } filter (!_._2.isRelative)
-      }
-    } toMap
+  def bindParams(params: Seq[String]) = convertParams(params flatMap { name => S.param(name) map (name -> _) } toMap)
+
+  def convertParams(params: Map[String, _]): Map[String, Any] = {
+    params flatMap {
+      case (key, value) =>
+        catching(classOf[IllegalArgumentException]) opt { (key, URIImpl.createURI(String.valueOf(value))) } filter (!_._2.isRelative)
+    }
   }
 
   def withParameters[T](query: IQuery[T], params: Map[String, _]) = {
@@ -57,15 +53,20 @@ trait SparqlHelper {
     params foreach { p => query.setParameter(p._1, p._2) }
     query
   }
-
-  def withRdfContext[S](f: => S): S = {
+  /**
+   * Immediately captures current RDF context (context resources) and
+   * returns a function that can be used to execute some code with this
+   * captures context.
+   */
+  def captureRdfContext[S]: (=> S) => S = {
+    val isMetaQuery = (S.attr("target") openOr null) == "meta"
     CurrentContext.value match {
-      case Full(_) if !isMetaQuery => f
+      case Full(_) if !isMetaQuery => (f) => f
       case _ =>
-        val target = if (isMetaQuery) ModelSetManager.INSTANCE.getModelSet else selection
+        val target = if (isMetaQuery) ModelSetManager.INSTANCE.getModelSet else Globals.contextResource.vend.openOr(null)
         target match {
-          case resource: Any => CurrentContext.withValue(Full(new RdfContext(resource, null))) { f }
-          case _ => f
+          case resource: Any => (f) => CurrentContext.withValue(Full(new RdfContext(resource, null))) { f }
+          case _ => (f) => f
         }
     }
   }
@@ -121,7 +122,7 @@ class Sparql extends SparqlHelper with RDFaTemplates {
         case _ => n
       }
     }
-    withRdfContext(renderResults)
+    captureRdfContext(renderResults)
   }
 
   def toSparql(n: NodeSeq, em: IEntityManager): (NodeSeq, String, Map[String, _]) = {

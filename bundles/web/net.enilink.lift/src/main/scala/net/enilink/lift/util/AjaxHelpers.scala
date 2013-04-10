@@ -1,5 +1,6 @@
 package net.enilink.lift.util
 
+import net.liftweb.http.S
 import net.liftweb.http.S._
 import net.liftweb.http.js.JsExp
 import net.liftweb.http.js.JsCmd
@@ -13,6 +14,9 @@ import net.liftweb.http.AjaxContext
 import net.liftweb.json.JsonParser
 import net.liftweb.json.JsonAST._
 import net.liftweb.http.JsonResponse
+import net.liftweb.http.JsonContext
+import net.liftweb.http.SessionVar
+import scala.collection.Map
 
 object AjaxHelpers {
   case class JsonFunc(funcId: String) {
@@ -31,28 +35,29 @@ object AjaxHelpers {
    *
    * @return ( JsonCall, JsCmd )
    */
-  def createJsonFunc(f: PFPromoter[JValue, _ <: Any]): (JsonFunc, JsCmd) = createJsonFunc(Empty, f)
+  def createJsonFunc(f: PFPromoter[JValue, _ <: Any]): (JsonFunc, JsCmd) = createJsonFunc(AjaxContext.json(
+    Full("""function(json) {
+if (json) {
+    var runScript = true;
+    if (json.result !== undefined && typeof callback === "function") {
+        runScript = callback(json.result);
+    }
+    if ((runScript === undefined || runScript) && json.script) {
+        eval(json.script);
+    }
+}
+}""")), f)
 
   /**
-   * Build a handler for incoming JSON commands based on the new Json Parser
-   *
-   * @param onError -- the JavaScript to execute client-side if the request is not processed by the server
-   * @param f - partial function against a returning a JsCmds
-   *
-   * @return ( JsonCall, JsCmd )
-   */
-  def createJsonFunc(onError: JsCmd, f: PFPromoter[JValue, _ <: Any]): (JsonFunc, JsCmd) = createJsonFunc(Full(onError), f)
-
-  /**
-   * Build a handler for incoming JSON commands based on the new Json Parser.  You
+   * Build a handler for incoming JSON commands based on the new Json Parser. You
    * can use the helpful Extractor in net.liftweb.util.JsonCommand
    *
-   * @param onError -- the JavaScript to execute client-side if the request is not processed by the server
+   * @param ajaxContent -- the JavaScript to execute client-side if the request succeeds or fails
    * @param f - partial function against a returning a JsCmds
    *
    * @return ( JsonCall, JsCmd )
    */
-  def createJsonFunc(onError: Box[JsCmd], pfp: PFPromoter[JValue, _ <: Any]): (JsonFunc, JsCmd) = {
+  def createJsonFunc(ajaxContext: JsonContext, pfp: PFPromoter[JValue, _ <: Any]): (JsonFunc, JsCmd) = {
     def jsonCallback(in: List[String]): Any = {
       val f = pfp.pff()
       val result = for {
@@ -70,21 +75,31 @@ object AjaxHelpers {
     fmapFunc(af)({ name =>
       val body = JsRaw("""var paramStr = ""; if (httpParams) $.each(httpParams, function (i, val) { paramStr += "&" + i + "=" + encodeURIComponent(val); })""").cmd &
         SHtml.makeAjaxCall(JsRaw("'" + name + "=' + encodeURIComponent(" + LiftRules.jsArtifacts.jsonStringify(JsRaw("obj")).toJsCmd + ") + paramStr"),
-          AjaxContext.json(
-            Full("""function(json) {
-if (json) {
-    var runScript = true;
-    if (json.result !== undefined && typeof callback === "function") {
-        runScript = callback(json.result);
-    }
-    if ((runScript === undefined || runScript) && json.script) {
-        eval(json.script);
-    }
-}
-}"""), onError.map(f => JsCmds.Run("function () { " + f.toJsCmd + " }") //
-))).cmd
+          ajaxContext).cmd
 
       (JsonFunc(name), JsCmds.Function(name, List("obj", "callback", "httpParams"), body))
     })
+  }
+
+  object cachedFuncs extends SessionVar[Map[String, (JsonFunc, JsCmd)]](Map.empty)
+
+   /**
+   * Build or reuse a handler for incoming JSON commands based on the new Json Parser. You
+   * can use the helpful Extractor in net.liftweb.util.JsonCommand
+   *
+   * @param name -- the name of the handler which is used as a cache key
+   * @param ajaxContent -- the JavaScript to execute client-side if the request succeeds or fails
+   * @param f - partial function against a returning a JsCmds
+   *
+   * @return ( JsonCall, JsCmd )
+   */
+  def createJsonFunc(name: String, ajaxContext: JsonContext, pfp: PFPromoter[JValue, _ <: Any]): (JsonFunc, JsCmd) = {
+    cachedFuncs.get.get(name) match {
+      case Some((func, cmd)) => (func, cmd)
+      case _ =>
+        val ret = createJsonFunc(ajaxContext, pfp)
+        cachedFuncs.set(cachedFuncs.get + (name -> ret))
+        ret
+    }
   }
 }

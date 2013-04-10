@@ -121,9 +121,7 @@ class Scope(val vars: Iterable[Variable]) {
    */
   def fresh(suggestedName: String): Variable = {
     assert(suggestedName.length > 0)
-
     val baseName = safeName(suggestedName)
-
     val b = {
       val seen = varstack.exists { v => v.quote().name == baseName }
       if (seen) Variable(baseName, Some(varstack.size))

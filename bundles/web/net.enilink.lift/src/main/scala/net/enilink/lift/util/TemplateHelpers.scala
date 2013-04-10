@@ -11,10 +11,12 @@ import scala.xml.Group
 import scala.xml.Elem
 import net.liftweb.http.js.JE
 import net.liftweb.util.Helpers._
+import net.liftweb.util.LiftFlowOfControlException
 import net.liftweb.http.ParsePath
 import net.liftweb.http.LiftRules
 import net.enilink.lift.sitemap.Application
 import net.liftweb.sitemap.Loc
+import scala.xml.Node
 
 object TemplateHelpers {
   private object FindScript {
@@ -45,7 +47,30 @@ object TemplateHelpers {
     case _ => f
   }
 
-  def find(path: List[String]): Box[NodeSeq] = withAppFor(path)(Templates(path))
+  def find(path: List[String], name: Option[String] = Empty): Box[NodeSeq] = withAppFor(path) {
+    Templates(path) flatMap { ns =>
+      // extract template if a name is supplied
+      if (name.isDefined) {
+        for {
+          tname <- name;
+          body <- {
+            var template: Option[Node] = Empty
+            tryo {
+              S.eval(ns, ("rdfa", ns => {
+                extractTemplate(withTemplateNames(ns), tname) match {
+                  case t @ Some(_) =>
+                    template = t
+                    throw new LiftFlowOfControlException("Found template")
+                  case _ => ns
+                }
+              }))
+            }
+            template
+          }
+        } yield body
+      } else Full(ns)
+    }
+  }
 
   def render(path: List[String], snips: (String, NodeSeq => NodeSeq)*): Box[RenderResult] = withAppFor(path) {
     Templates(path) flatMap (render(_, snips: _*))
@@ -70,12 +95,16 @@ object TemplateHelpers {
   }
 
   def withTemplateNames(ns: NodeSeq): NodeSeq = {
+    val prefix = (ns \ "@data-t").text match {
+      case name if !name.isEmpty => name + "/"
+      case _ => ""
+    }
     var currentNr = 0
     def process(ns: NodeSeq): NodeSeq = ns.flatMap {
       case e: Elem =>
         val newE = e.attribute("data-t") match {
           case Some(_) => e
-          case None => e % ("data-t" -> { currentNr = currentNr + 1; "t" + currentNr })
+          case None => e % ("data-t" -> { currentNr = currentNr + 1; prefix + currentNr })
         }
         if (newE.child.isEmpty) newE else newE.copy(child = process(newE.child))
       case other => other
@@ -83,5 +112,5 @@ object TemplateHelpers {
     process(ns)
   }
 
-  def extractTemplate(ns: NodeSeq, name: String): NodeSeq = ns \\ "_" find { n => (n \ "@data-t").text == name } toSeq
+  def extractTemplate(ns: NodeSeq, name: String): Option[Node] = ns \\ "_" find { n => (n \ "@data-t").text == name }
 }

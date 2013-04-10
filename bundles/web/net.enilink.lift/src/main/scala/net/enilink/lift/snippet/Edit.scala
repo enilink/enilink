@@ -167,17 +167,7 @@ class JsonCallHandler {
                   case Some(tname) =>
                     val result = for {
                       p <- templatePath.filter(_.nonEmpty).map(_.stripPrefix("/").split("/").toList) orElse path.map(_.wholePath)
-                      body <- TemplateHelpers.find(p) flatMap { ns =>
-                        var rdfaBody: Box[NodeSeq] = Empty
-                        tryo {
-                          S.eval(ns, ("rdfa", ns => {
-                            rdfaBody = Full(ns)
-                            throw new LiftFlowOfControlException("Found template")
-                          }))
-                        }
-                        rdfaBody
-                      }
-                      template = extractTemplate(withTemplateNames(body), tname)
+                      template <- TemplateHelpers.find(p, Full(tname))
                     } yield {
                       import net.enilink.lift.rdf._
                       println("Template: " + template)

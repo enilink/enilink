@@ -395,7 +395,7 @@
                found = true;
              }
           }
-          inherited = inherited || (e.parentNode.nodeType === 1 ? elem.parent().xmlns() : {});
+          inherited = inherited || (e.parentNode && e.parentNode.nodeType === 1 ? elem.parent().xmlns() : {});
           ns = found ? $.extend({}, inherited, ns) : inherited;
           elem.data('xmlns', ns);
         }
@@ -3904,7 +3904,7 @@
           subject = docResource;
         } else if (atts['typeof'] !== undefined) {
           subject = $.rdf.blank('[]');
-        } else if (elem[0].parentNode.nodeType === 1) {
+        } else if (elem[0].parentNode && elem[0].parentNode.nodeType === 1) {
           subject = context.object || getObjectResource(elem.parent()) || getSubject(elem.parent()).subject;
           skip = !r && atts.property === undefined;
         } else {
@@ -3929,7 +3929,7 @@
         if (context.lang) {
           lang = context.lang;
         } else {
-          if (elem[0].parentNode.nodeType === 1) {
+          if (elem[0].parentNode && elem[0].parentNode.nodeType === 1) {
             lang = getLang(elem.parent());
           }
         }

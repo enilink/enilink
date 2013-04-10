@@ -34,7 +34,7 @@ import net.enilink.lift.util.TemplateHelpers
 /**
  * Support full-text search for RDFa templates.
  */
-class Search extends SparqlHelper with SparqlExtractor {
+object Search extends SparqlHelper with SparqlExtractor {
   import RdfHelpers._
 
   /**
@@ -52,10 +52,10 @@ class Search extends SparqlHelper with SparqlExtractor {
         case other => other.toString.split("[^\\p{L}\\d_]+")
       }).filter(_.toLowerCase.contains(query))
     }
-
+    val runWithContext: (=> Any) => Any = captureRdfContext
     JsRaw("function search(query, process) { " +
       (S.fmapFunc(S.contextFuncBuilder(SFuncHolder({ query: String =>
-        withRdfContext({
+        runWithContext {
           lazy val default = JsonResponse(JArray(List(JString(query))))
           CurrentContext.value match {
             case Full(rdfCtx) => rdfCtx.subject match {
@@ -78,7 +78,7 @@ class Search extends SparqlHelper with SparqlExtractor {
             }
             case _ => default
           }
-        })
+        }
       })))({ name =>
         SHtml.makeAjaxCall(JsRaw("'" + name + "=' + encodeURIComponent(query)"),
           AjaxContext.json(Full("function(result) { process(result); }"))).toJsCmd
@@ -117,7 +117,7 @@ class Rdfa extends Sparql with SparqlExtractor {
   override def render(n: NodeSeq): NodeSeq = {
     logTime("RDFa template") {
       val transformers = prepare _ andThen TemplateHelpers.withTemplateNames _
-      (new Search).apply(transformers(n), super.renderWithoutPrepare _)
+      Search(transformers(n), super.renderWithoutPrepare _)
     }
   }
 
@@ -151,7 +151,7 @@ class Rdfa extends Sparql with SparqlExtractor {
           lazy val cachedCount = withParameters(em.createQuery(countQuery, includeInferred), queryParams).getSingleResult(classOf[Long])
           def count = cachedCount
           def page = Nil
-          
+
           // select last page if count < offset
           override def first = super.first min (count / itemsPerPage * itemsPerPage)
 

@@ -252,7 +252,7 @@ private class RDFaToSparqlParser(e: xml.Elem, base: String)(implicit s: Scope = 
       case XmlLiteral(xml) => "(?:^|\\s)l(?:ift)?:".r.findFirstIn((xml \\ "@class").text) != None
       case _ => false
     })) {
-      literal1 = select(fresh("l"))
+      literal1 = select(fresh("l_"))
       e1 = e1.copy(attributes = e1.attributes.append(new UnprefixedAttribute("data-clear-content", "?" + literal1, e1.attributes)))
     } else {
       // content="?someVar"

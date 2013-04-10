@@ -19,15 +19,20 @@ import net.liftweb.http.JavaScriptResponse
 import net.liftweb.json._
 import scala.xml.Elem
 import net.liftweb.http.NotFoundResponse
-import net.enilink.lift.util.TemplateHelpers
 import java.io.ByteArrayInputStream
 import net.liftweb.common.Full
 import net.liftweb.common.Empty
+import net.enilink.lift.util.AjaxHelpers
+import net.liftweb.json.DefaultFormats
+import net.liftweb.json._
+import net.liftweb.util.JsonCommand
+
+case class RenderTemplateInput(templatePath: String, templateName: Option[String], bind: Option[JObject])
 
 /**
  * Snippets for embedding of JS scripts.
  */
-object JS extends DispatchSnippet {
+object JS extends DispatchSnippet with SparqlHelper {
   def dispatch: DispatchIt = {
     case "bootstrap" => _ => bootstrap
     case "rdfa" => _ => rdfa
@@ -42,14 +47,37 @@ object JS extends DispatchSnippet {
 
   def rdfa: NodeSeq = script("/" + LiftRules.resourceServerPath + "/rdfa/jquery.rdfquery.rdfa.js")
 
-  def templates: NodeSeq = Script(SetExp(JsVar("enilink"),
-    Call("$.extend", JsRaw("window.enilink || {}"), JsObj(("renderTemplate", AnonFunc("pathOrXml, params, target",
-      (S.fmapFunc({ pathOrXml: String =>
+  implicit val formats = DefaultFormats
+  def ajax: PartialFunction[JValue, JValue] = {
+    case JsonCommand("renderTemplate", _, params) =>
+      val result = for (
+        RenderTemplateInput(pathOrXml, templateName, bind) <- params.extractOpt[RenderTemplateInput]
+      ) yield {
+        import net.enilink.lift.util.TemplateHelpers._
+
+        def renderWithParams(ns: NodeSeq) = {
+          val paramMap = bind map { b => convertParams(b.values) }
+          paramMap map { QueryParams.doWith(_)(render(ns)) } getOrElse render(ns)
+        }
+
         val isXml = "\\s*<".r.findPrefixMatchOf(pathOrXml).isDefined
         (pathOrXml match {
           case xml if isXml =>
-            S.htmlProperties.htmlParser(new ByteArrayInputStream(xml.getBytes("UTF-8"))) flatMap (TemplateHelpers.render(_))
-          case path => TemplateHelpers.render(path.stripPrefix("/").split("/").toList)
+            S.htmlProperties.htmlParser(new ByteArrayInputStream(xml.getBytes("UTF-8"))) flatMap (renderWithParams(_))
+          case path => {
+            val pathList = path.stripPrefix("/").split("/").toList
+            withAppFor(pathList) {
+              find(pathList, templateName) map { ns =>
+                import net.liftweb.util.Helpers._
+                // add data-lift="rdfa" for RDFa processing
+                if (templateName.isDefined) ns map {
+                  case e: Elem if !e.attribute("data-lift").isDefined => e % ("data-lift" -> "rdfa")
+                  case other => other
+                }
+                else ns
+              } flatMap (renderWithParams(_))
+            }
+          }
         }) map {
           case (ns, script) => {
             import net.liftweb.util.Helpers._
@@ -61,29 +89,41 @@ object JS extends DispatchSnippet {
             val w = new java.io.StringWriter
             S.htmlProperties.htmlWriter(Group(nsWithPath), w)
             val fields = List(JField("html", JString(w.toString))) ++ script.map(js => JField("script", JString(js)))
-            JsonResponse(JObject(fields))
+            JObject(fields)
           }
-        } openOr JsonResponse(JObject(List()))
-      }))({ name =>
-        JsRaw("""var paramStr = ""; $.each(params, function (i, val) { paramStr += "&" + i + "=" + encodeURIComponent(val); })""").cmd &
-          SHtml.makeAjaxCall(JsRaw("'" + name + "=' + encodeURIComponent(pathOrXml) + paramStr"),
-            AjaxContext.json(Full("""function(result) {
+        } openOr JObject(Nil)
+      }
+      result getOrElse JObject(Nil)
+  }
+
+  def templates: NodeSeq = {
+    val (call, jsCmd) = S.functionLifespan(true) {
+      AjaxHelpers.createJsonFunc(getClass.getName, AjaxContext.json(Full("""function(response) {
+var result = response.result;
 if (result === undefined || result.html === undefined) {
-    console.log("Template '" + pathOrXml + "' not found or execution failed.");
+    console.log("Template '" + obj.params.templatePath + "' not found or execution failed.");
     return;
 }
 
 var runScript = true;
-if (typeof target === "function") {
-    runScript = target(result.html, result.script);
+if (typeof callback === "function") {
+    runScript = callback(result.html, response.script);
 } else {
-    $(target).html(result.html);
+    $(callback).html(result.html);
 }
-if ((runScript === undefined || runScript) && result.script) {
-    eval(result.script);
+if ((runScript === undefined || runScript) && response.script) {
+    eval(response.script);
 }
-}"""))).cmd
-      })))) // JsObj
-      )) // SetExp
-      ) // Script
+}""")), this.ajax)
+    }
+
+    Script(jsCmd &
+      SetExp(JsVar("enilink"), Call("$.extend", JsRaw("window.enilink || {}"), //
+        JsObj(
+          ("renderTemplate", AnonFunc("pathOrXml, httpParams, target",
+            call("renderTemplate", JsRaw("(typeof pathOrXml === 'object') ? pathOrXml : { 'templatePath' : pathOrXml }"),
+              JsVar("target"), JsVar("httpParams"))) // 
+              ) //
+              ))))
+  }
 }
