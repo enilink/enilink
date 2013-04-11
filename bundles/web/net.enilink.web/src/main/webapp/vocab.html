@@ -10,8 +10,8 @@
 	owl: http://www.w3.org/2002/07/owl#
 	rdfs: http://www.w3.org/2000/01/rdf-schema#
 	models: http://enilink.net/vocab/komma/models#">
-	<div id="main" class="lift:surround?with=default;at=content">
-		<div class="lift:rdfa?target=meta" data-search="?model">
+	<div id="main" data-lift="surround?with=default;at=content">
+		<div data-lift="rdfa?target=meta" data-search="?model">
 			<h3>Ontologies</h3>
 			<div class="search-form"></div>
 			<div class="search-patterns clearable"></div>
@@ -19,21 +19,21 @@
 				<section class="optional">
 					<div class="row-fluid union">
 						<div class="span5">
-							<a href="?model={}" class="lift:rdf:ref?to=href">&lt;<span
-								class="lift:rdf:ref"></span>&gt;
+							<a href="?model={}" data-lift="rdf.ref?to=href">&lt;<span
+								data-lift="rdf.ref"></span>&gt;
 							</a>
 						</div>
 						<div class="span3">
 							<div property="rdfs:label" content="?label">
 								<div class="row-fluid">
-									<div class="lift:rdf.label span12"></div>
+									<div data-lift="rdf.label" class="span12"></div>
 								</div>
 							</div>
 						</div>
 						<div class="span4">
 							<div property="rdfs:comment" content="?comment">
 								<div class="row-fluid">
-									<div class="lift:rdf.label span12"></div>
+									<div data-lift="rdf.label" class="span12"></div>
 								</div>
 							</div>
 						</div>

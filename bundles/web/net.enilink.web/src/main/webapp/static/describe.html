@@ -9,7 +9,7 @@
 	rdf: http://www.w3.org/1999/02/22-rdf-syntax-ns#
 	owl: http://www.w3.org/2002/07/owl#
 	rdfs: http://www.w3.org/2000/01/rdf-schema#">
-	<div id="main" class="lift:surround?with=default;at=content">
+	<div id="main" data-lift="surround?with=default;at=content">
 		<div data-lift="rdfa">
 			<div about="?this" class="row-fluid">
 				<div>
@@ -24,7 +24,7 @@
 					<!-- sort by property -->
 					<div class="clearable asc" about="?property"></div>
 
-					<div class="row-fluid" data-clear-rel="?property">
+					<div class="row-fluid" data-clear-rel="?property" data-t="property">
 						<div class="span3" style="font-weight: bold">
 							<a href="{app}/static/describe?model={model}&resource={}"
 								data-lift="rdf.ref?for=predicate&to=href"><span
@@ -54,7 +54,7 @@
 							</div>
 							<div data-property="?property" data-if="?oLiteral"
 								data-add="literalValue">
-								<i class="icon-plus-sign"></i>
+								<i class="icon-plus"></i>
 							</div>
 						</div>
 					</div>
