@@ -36,14 +36,14 @@ object AjaxHelpers {
    * @return ( JsonCall, JsCmd )
    */
   def createJsonFunc(f: PFPromoter[JValue, _ <: Any]): (JsonFunc, JsCmd) = createJsonFunc(AjaxContext.json(
-    Full("""function(json) {
-if (json) {
+    Full("""function(response) {
+if (response) {
     var runScript = true;
-    if (json.result !== undefined && typeof callback === "function") {
-        runScript = callback(json.result);
+    if (response.result !== undefined && typeof callback === "function") {
+        runScript = callback(response.result);
     }
-    if ((runScript === undefined || runScript) && json.script) {
-        eval(json.script);
+    if ((runScript === undefined || runScript) && response.script) {
+        eval(response.script);
     }
 }
 }""")), f)

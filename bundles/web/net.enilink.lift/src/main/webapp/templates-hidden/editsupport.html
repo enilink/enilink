@@ -21,6 +21,14 @@
 				// relocate buttons for absolute positioning
 				buttons.appendTo("body");
 
+				function hideButtons() {
+					var lastTarget = buttons.data("target");
+					if (lastTarget) {
+						lastTarget.removeClass("focused");
+					}
+					buttons.hide();
+				}
+
 				var rdfXmlOpts = {
 					serialize : true,
 					format : "application/rdf+xml"
@@ -37,7 +45,7 @@
 									}
 								});
 					}
-					$("#buttons").hide();
+					hideButtons();
 				}
 				$("#buttons .button-remove").click(remove);
 
@@ -158,6 +166,7 @@
 								return d.promise();
 							}
 						});
+						hideButtons();
 						target.editable(options);
 						target.editable("toggle");
 					}
@@ -266,13 +275,9 @@
 						if (!relatedTarget
 								|| (relatedTarget != buttons && relatedTarget
 										.closest("#buttons").length == 0)) {
-							var lastTarget = buttons.data("target");
-							if (lastTarget) {
-								lastTarget.removeClass("focused");
-							}
-							buttons.hide();
+							hideButtons();
 						}
-					})
+					});
 				}
 
 				// allow access through global enilink object

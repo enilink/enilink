@@ -193,7 +193,7 @@ class Sparql extends SparqlHelper with RDFaTemplates {
       if (r.hasNext) r else List((new LinkedHashBindings[AnyRef], false))).foreach { row => template.transform(CurrentContext.value.get, row._1, row._2) }
 
     val result = ClearClearable.apply(S.session.get.processSurroundAndInclude(PageName.get, template.render))
-    result.map(_ match {
+    result.map {
       case e: Elem => {
         // add RDFa prefix declarations
         val xmlns = "xmlns:?([^=]+)=\"(\\S+)\"".r.findAllIn(e.scope.buildString(scala.xml.TopScope)).matchData.map(m => (m.group(1), m.group(2))).toList
@@ -211,6 +211,6 @@ class Sparql extends SparqlHelper with RDFaTemplates {
         }
       }
       case other => other
-    })
+    }
   }
 }
