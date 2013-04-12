@@ -27,7 +27,7 @@ import net.liftweb.json.DefaultFormats
 import net.liftweb.json._
 import net.liftweb.util.JsonCommand
 
-case class RenderTemplateInput(templatePath: String, templateName: Option[String], bind: Option[JObject])
+case class RenderInput(templatePath: String, templateName: Option[String], bind: Option[JObject])
 
 /**
  * Snippets for embedding of JS scripts.
@@ -49,9 +49,9 @@ object JS extends DispatchSnippet with SparqlHelper {
 
   implicit val formats = DefaultFormats
   def ajax: PartialFunction[JValue, JValue] = {
-    case JsonCommand("renderTemplate", _, params) =>
+    case JsonCommand("render", _, params) =>
       val result = for (
-        RenderTemplateInput(pathOrXml, templateName, bind) <- params.extractOpt[RenderTemplateInput]
+        RenderInput(pathOrXml, templateName, bind) <- params.extractOpt[RenderInput]
       ) yield {
         import net.enilink.lift.util.TemplateHelpers._
 
@@ -81,7 +81,7 @@ object JS extends DispatchSnippet with SparqlHelper {
         }) map {
           case (ns, script) => {
             import net.liftweb.util.Helpers._
-            // annotate result with template path for later invocations of renderTemplate
+            // annotate result with template path for later invocations of render
             val nsWithPath = ns map {
               case e: Elem if !isXml => e % ("data-t-path" -> pathOrXml)
               case other => other
@@ -120,8 +120,8 @@ if ((runScript === undefined || runScript) && response.script) {
     Script(jsCmd &
       SetExp(JsVar("enilink"), Call("$.extend", JsRaw("window.enilink || {}"), //
         JsObj(
-          ("renderTemplate", AnonFunc("pathOrXml, httpParams, target",
-            call("renderTemplate", JsRaw("(typeof pathOrXml === 'object') ? pathOrXml : { 'templatePath' : pathOrXml }"),
+          ("render", AnonFunc("pathOrXml, httpParams, target",
+            call("render", JsRaw("(typeof pathOrXml === 'object') ? pathOrXml : { 'templatePath' : pathOrXml }"),
               JsVar("target"), JsVar("httpParams"))) // 
               ) //
               ))))
