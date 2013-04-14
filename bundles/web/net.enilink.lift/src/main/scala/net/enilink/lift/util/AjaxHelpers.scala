@@ -5,10 +5,10 @@ import net.liftweb.http.S._
 import net.liftweb.http.js.JsExp
 import net.liftweb.http.js.JsCmd
 import net.liftweb.common._
-import net.liftweb.http.js.JsCmds
 import net.liftweb.http.LiftRules
 import net.liftweb.http.js.JE._
-import net.liftweb.http.js.JsExp._
+import net.liftweb.http.js.JsCmds._
+import net.liftweb.http.js.JsExp
 import net.liftweb.http.SHtml
 import net.liftweb.http.AjaxContext
 import net.liftweb.json.JsonParser
@@ -17,6 +17,9 @@ import net.liftweb.http.JsonResponse
 import net.liftweb.http.JsonContext
 import net.liftweb.http.SessionVar
 import scala.collection.Map
+import scala.xml._
+import net.liftweb.http.SHtml
+import net.liftweb.http.SHtml.ElemAttr
 
 object AjaxHelpers {
   case class JsonFunc(funcId: String) {
@@ -77,13 +80,13 @@ if (response) {
         SHtml.makeAjaxCall(JsRaw("'" + name + "=' + encodeURIComponent(" + LiftRules.jsArtifacts.jsonStringify(JsRaw("obj")).toJsCmd + ") + paramStr"),
           ajaxContext).cmd
 
-      (JsonFunc(name), JsCmds.Function(name, List("obj", "callback", "httpParams"), body))
+      (JsonFunc(name), Function(name, List("obj", "callback", "httpParams"), body))
     })
   }
 
   object cachedFuncs extends SessionVar[Map[String, (JsonFunc, JsCmd)]](Map.empty)
 
-   /**
+  /**
    * Build or reuse a handler for incoming JSON commands based on the new Json Parser. You
    * can use the helpful Extractor in net.liftweb.util.JsonCommand
    *
@@ -101,5 +104,44 @@ if (response) {
         cachedFuncs.set(cachedFuncs.get + (name -> ret))
         ret
     }
+  }
+
+  /**
+   * Specify the events (e.g., onblur, onchange, etc.)
+   * and the function to execute on those events.  Returns
+   * a NodeSeq => NodeSeq that will add the events to all
+   * the Elements
+   * <code>
+   * ":text" #> SHtml.onEvents("onchange", "onblur")(s => Alert("yikes "+s))
+   * </code>
+   */
+  def onEvents(events: List[String])(cmd: JsCmd): NodeSeq => NodeSeq = {
+    ns =>
+      {
+        def runNodes(in: NodeSeq): NodeSeq = in.flatMap {
+          case Group(g) => runNodes(g)
+          case e: Elem => {
+            val oldAttr: Map[String, String] = Map(
+              events.flatMap(a => e.attribute(a).map(v => a -> (v.text + "; "))): _*)
+            val newAttr = e.attributes.filter {
+              case up: UnprefixedAttribute => !oldAttr.contains(up.key)
+              case _ => true
+            }
+            e.copy(attributes = events.foldLeft(newAttr) {
+              case (meta, attr) => new UnprefixedAttribute(attr, oldAttr.getOrElse(attr, "") + cmd, meta)
+            })
+          }
+          case other => other
+        }
+        runNodes(ns)
+      }
+  }
+
+  def deferCall(data: JsExp, jsFunc: Call, ajaxContext: AjaxContext): Call =
+    Call(jsFunc.function, (jsFunc.params ++ List(AnonFunc(SHtml.makeAjaxCall(data, ajaxContext)))): _*)
+
+  def onEvents(event: String, events: String*)(jsFunc: Call, func: String => JsCmd,
+    ajaxContext: AjaxContext = AjaxContext.js(Empty, Empty)): NodeSeq => NodeSeq = {
+    onEvents(event :: events.toList)(S.fmapFunc(func)(name => deferCall(Str(name + "=true"), jsFunc, ajaxContext)))
   }
 }
