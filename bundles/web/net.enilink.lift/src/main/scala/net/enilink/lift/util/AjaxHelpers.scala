@@ -112,10 +112,10 @@ if (response) {
    * a NodeSeq => NodeSeq that will add the events to all
    * the Elements
    * <code>
-   * ":text" #> SHtml.onEvents("onchange", "onblur")(s => Alert("yikes "+s))
+   * ":text" #> AjaxHelpers.onEvents("onchange", "onblur", Run("alert('Hello World!')"))
    * </code>
    */
-  def onEvents(events: List[String])(cmd: JsCmd): NodeSeq => NodeSeq = {
+  def onEvents(events: List[String], cmd: JsCmd): NodeSeq => NodeSeq = {
     ns =>
       {
         def runNodes(in: NodeSeq): NodeSeq = in.flatMap {
@@ -128,7 +128,7 @@ if (response) {
               case _ => true
             }
             e.copy(attributes = events.foldLeft(newAttr) {
-              case (meta, attr) => new UnprefixedAttribute(attr, oldAttr.getOrElse(attr, "") + cmd, meta)
+              case (meta, attr) => new UnprefixedAttribute(attr, oldAttr.getOrElse(attr, "") + cmd.toJsCmd, meta)
             })
           }
           case other => other
@@ -137,11 +137,17 @@ if (response) {
       }
   }
 
+  def onEvents(events: List[String], func: String => JsCmd): NodeSeq => NodeSeq = onEvents(events, Str("true"), func)
+
+  def onEvents(events: List[String], param: JsExp, func: String => JsCmd): NodeSeq => NodeSeq = {
+    onEvents(events, SHtml.ajaxCall(param, func)._2)
+  }
+
   def deferCall(data: JsExp, jsFunc: Call, ajaxContext: AjaxContext): Call =
     Call(jsFunc.function, (jsFunc.params ++ List(AnonFunc(SHtml.makeAjaxCall(data, ajaxContext)))): _*)
 
-  def onEvents(event: String, events: String*)(jsFunc: Call, func: String => JsCmd,
+  def onEventsIndirect(events: List[String], jsFunc: Call, func: String => JsCmd,
     ajaxContext: AjaxContext = AjaxContext.js(Empty, Empty)): NodeSeq => NodeSeq = {
-    onEvents(event :: events.toList)(S.fmapFunc(func)(name => deferCall(Str(name + "=true"), jsFunc, ajaxContext)))
+    onEvents(events, S.fmapFunc(func)(name => deferCall(Str(name + "=true"), jsFunc, ajaxContext)))
   }
 }

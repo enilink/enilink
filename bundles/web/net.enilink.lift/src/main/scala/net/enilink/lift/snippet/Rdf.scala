@@ -65,6 +65,15 @@ class Rdf extends DispatchSnippet with RDFaTemplates {
   }
 
   private def execMethod(target: Any, method: String) = {
+    def runMethod: PartialFunction[String, String] = {
+      case "name" => target match {
+        case ref: IReference if ref.getURI != null => ref.getURI.localPart
+        case _ => target.toString
+      }
+      case "ref" => target.toString
+      case "label" => ModelUtil.getLabel(target)
+      case "manchester" => new ManchesterSyntaxGenerator().generateText(target)
+    }
     (ns: NodeSeq) =>
       ns flatMap { n =>
         val replaceAttr = S.currentAttr("to")
@@ -73,8 +82,7 @@ class Rdf extends DispatchSnippet with RDFaTemplates {
           var attributes = n.attributes
           val attrValue = n.attribute(replaceAttr.get) getOrElse NodeSeq.Empty
           val value = method match {
-            case "ref" => target.toString
-            case "label" => ModelUtil.getLabel(target)
+            case m if runMethod.isDefinedAt(m) => runMethod(m)
             case _ => ""
           }
           // encode if attribute is used as URL
@@ -98,11 +106,9 @@ class Rdf extends DispatchSnippet with RDFaTemplates {
           attributes = attributes.append(new UnprefixedAttribute(replaceAttr.get, newAttrValue, attributes))
           n.asInstanceOf[Elem].copy(attributes = attributes)
         } else {
-          val selector = if (n.attributes.isEmpty || n.attributes.size == 1 && n.attribute("data-tid").isDefined) "*" else "* *"
+          val selector = if (n.attributes.isEmpty || n.attributes.size == 1 && n.attribute("data-t").isDefined) "*" else "* *"
           (method match {
-            case "ref" => selector #> target.toString
-            case "manchester" => selector #> new ManchesterSyntaxGenerator().generateText(target)
-            case "label" => selector #> ModelUtil.getLabel(target)
+            case m if runMethod.isDefinedAt(m) => selector #> runMethod(m)
             case _ => tryo(target.getClass.getMethod(method)) match {
               case Full(meth) => meth.invoke(target) match {
                 case i: java.lang.Iterable[_] => selector #> i.map(withChangedContext _)

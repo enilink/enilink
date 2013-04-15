@@ -287,9 +287,14 @@
 					enableAdd : enableAdd,
 					defaultEditableOptions : defaultEditableOptions
 				});
+				enilink.options = $.extend({
+					"ui.autoEdit" : true
+				}, enilink.options || {});
 
-				enableEdit("[rel],[property]");
-				enableAdd("[data-add]");
+				if (enilink.options["ui.autoEdit"]) {
+					enableEdit("[rel],[property]");
+					enableAdd("[data-add]");
+				}
 			});
 		</script>
 		<style type="text/css" data-lift="head">

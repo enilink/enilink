@@ -9,11 +9,16 @@ import net.liftweb.sitemap.MenuItem
 import net.liftweb.common.Full
 import net.liftweb.sitemap.Loc
 import net.enilink.lift.sitemap.Application
+import net.liftweb.builtin.snippet.Msg
 
-class Bootstrap extends DispatchSnippet {
+object Bs extends DispatchSnippet {
+  val msgAttrs = S.mapToAttrs(List("errorClass" -> "alert alert-error",
+    "warningClass" -> "alert", "noticeClass" -> "alert-info") toMap)
+
   def dispatch: DispatchIt = {
     case "menu" => _ => menu
     case "submenu" => _ => submenu
+    case "alert" => ns => S.withAttrs(msgAttrs)(Msg.render(ns))
   }
 
   private def isApplication(loc: Loc[_]) = loc.params.contains(Application)
