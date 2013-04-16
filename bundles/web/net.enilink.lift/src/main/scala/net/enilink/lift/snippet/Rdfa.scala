@@ -6,7 +6,9 @@ import net.enilink.lift.rdfa.SparqlFromRDFa
 import net.liftweb.common.Box
 import net.liftweb.common.Empty
 import net.liftweb.http.PaginatorSnippet
+import net.liftweb.builtin.snippet.Form
 import net.liftweb.util.CssSel
+import net.liftweb.util.PassThru
 import net.liftweb.util.Helpers._
 import net.liftweb.util.Helpers
 import net.liftweb.util.Helpers.strToCssBindPromoter
@@ -30,6 +32,15 @@ import net.enilink.komma.core.IEntity
 import scala.collection.JavaConversions._
 import net.enilink.komma.core.URI
 import net.enilink.lift.util.TemplateHelpers
+import net.liftweb.http.js.JsCmds
+import net.liftweb.http.js.JsCmd
+
+object ParamsHelper {
+  def params(filter: Set[String] = Set.empty) = {
+    val filterWithFunc = filter ++ S.attr("ajaxFunc")
+    S.request.map(_._params.collect { case (name, value :: Nil) if !filterWithFunc.contains(name) => (name, value) }) openOr Map.empty
+  }
+}
 
 /**
  * Support full-text search for RDFa templates.
@@ -53,52 +64,69 @@ object Search extends SparqlHelper with SparqlExtractor {
       }).filter(_.toLowerCase.contains(query))
     }
     val runWithContext: (=> Any) => Any = captureRdfContext
-    JsRaw("function search(query, process) { " +
-      (S.fmapFunc(S.contextFuncBuilder(SFuncHolder({ query: String =>
-        runWithContext {
-          lazy val default = JsonResponse(JArray(List(JString(query))))
-          CurrentContext.value match {
-            case Full(rdfCtx) => rdfCtx.subject match {
-              case entity: IEntity => {
-                println("Searching in " + entity)
-                val em = entity.getEntityManager
-                val keywords = bindingNames.flatMap { bindingName =>
-                  // add search patterns to template
-                  val fragment = em.getFactory.getDialect.fullTextSearch(List(bindingName), IDialect.ANY, query)
-                  val nsWithPatterns = (".search-patterns" #> <div data-pattern={ fragment.toString } class="clearable"></div>)(ns)
-                  val sparqlFromRdfa = extractSparql(nsWithPatterns)
-                  val queryParams = bindParams(extractBindParams(ns)) ++ bindingsToMap(fragment.bindings)
-                  val sparql = sparqlFromRdfa.getQuery(bindingName, 0, 1000)
-                  val results = withParameters(em.createQuery(sparql), queryParams).evaluate
-                  results.iterator.flatMap(toTokens(query.toLowerCase, _))
-                }
-                JsonResponse(JArray(JString(query) :: keywords.toSet[String].map(JString(_)).toList))
+    S.fmapFunc(S.contextFuncBuilder(SFuncHolder({ query: String =>
+      runWithContext {
+        lazy val default = JsonResponse(JArray(List(JString(query))))
+        CurrentContext.value match {
+          case Full(rdfCtx) => rdfCtx.subject match {
+            case entity: IEntity => {
+              println("Searching in " + entity)
+              val em = entity.getEntityManager
+              val keywords = bindingNames.flatMap { bindingName =>
+                // add search patterns to template
+                val fragment = em.getFactory.getDialect.fullTextSearch(List(bindingName), IDialect.ANY, query)
+                val nsWithPatterns = (".search-patterns" #> <div data-pattern={ fragment.toString } class="clearable"></div>)(ns)
+                val sparqlFromRdfa = extractSparql(nsWithPatterns)
+                val queryParams = bindParams(extractBindParams(ns)) ++ bindingsToMap(fragment.bindings)
+                val sparql = sparqlFromRdfa.getQuery(bindingName, 0, 1000)
+                val results = withParameters(em.createQuery(sparql), queryParams).evaluate
+                results.iterator.flatMap(toTokens(query.toLowerCase, _))
               }
-              case _ => default
+              JsonResponse(JArray(JString(query) :: keywords.toSet[String].map(JString(_)).toList))
             }
             case _ => default
           }
+          case _ => default
         }
-      })))({ name =>
-        SHtml.makeAjaxCall(JsRaw("'" + name + "=' + encodeURIComponent(query)"),
-          AjaxContext.json(Full("function(result) { process(result); }"))).toJsCmd
-      }) + "; }")).toJsCmd
+      }
+    })))({ name =>
+      (name,
+        JsCmds.Function(name, List("query", "process"),
+          JsCmds.Run(SHtml.makeAjaxCall(JsRaw("'" + name + "=' + encodeURIComponent(query)"),
+            AjaxContext.json(Full("function(result) { process(result); }"))).toJsCmd + ";")))
+    });
   }
 
-  def apply(ns: NodeSeq, render: NodeSeq => NodeSeq): NodeSeq = {
+  def apply(ns: NodeSeq, refreshFunc: Box[(String, _)], render: NodeSeq => NodeSeq): NodeSeq = {
     val bindingNames = (ns \ "@data-search").text.split("\\s+").filter(_.nonEmpty).map(_.stripPrefix("?")).toList
     if (bindingNames.nonEmpty) {
-      S.putInHead(<script type="text/javascript">{ autoCompleteJs(bindingNames, ns) }</script>)
+      val (acName, acCmd) = autoCompleteJs(bindingNames, ns)
       val searchString = S.param("q").filter(_.nonEmpty)
       var transformers = ".search-form" #> Templates("templates-hidden" :: "search" :: Nil).map {
-        "@q [value]" #> searchString
+        var queryParams = ParamsHelper.params(Set("q")).toList
+        "@q" #> ("* [value]" #> searchString & "* [data-source]" #> acName) andThen
+          "form" #> {
+            // support refresh via ajax call
+            (refreshFunc match {
+              case Full((name, _)) =>
+                // add refresh function to query parameters
+                queryParams = (name, name) :: queryParams
+                // use an ajax form
+                "*" #> (ns => Form.render(ns) flatMap { ("form [class]" #> (ns \ "@class").text)(_) })
+              case _ => "*" #> PassThru
+            }) &
+              "* *" #> ((ns: NodeSeq) => ns ++ (queryParams map {
+                case (key, value) => <input type="hidden" name={ key } value={ value }></input>
+              }))
+          }
       }
-      if (searchString.isDefined) {
-        val em = Globals.contextModel.vend.dmap(ModelSetManager.INSTANCE.getModelSet.getMetaDataManager)(_.getManager)
-        val fragment = em.getFactory.getDialect.fullTextSearch(bindingNames, IDialect.ANY, searchString.openTheBox)
-        val results = (transformers andThen ".search-patterns" #> <div data-pattern={ fragment.toString } class="clearable"></div>)(ns)
-        QueryParams.doWith(fragment.bindings)(render(results))
-      } else render(transformers(ns))
+      JsCmds.Script(acCmd) ++
+        (if (searchString.isDefined) {
+          val em = Globals.contextModel.vend.dmap(ModelSetManager.INSTANCE.getModelSet.getMetaDataManager)(_.getManager)
+          val fragment = em.getFactory.getDialect.fullTextSearch(bindingNames, IDialect.ANY, searchString.openTheBox)
+          val results = (transformers andThen ".search-patterns" #> <div data-pattern={ fragment.toString } class="clearable"></div>)(ns)
+          QueryParams.doWith(fragment.bindings)(render(results))
+        } else render(transformers(ns)))
     } else render(ns)
   }
 }
@@ -114,10 +142,39 @@ trait SparqlExtractor {
 }
 
 class Rdfa extends Sparql with SparqlExtractor {
-  override def render(n: NodeSeq): NodeSeq = {
+  var refreshFunc: Box[(String, List[(String, String)] => JsCmd)] = Empty
+  /**
+   * Support partial refresh via ajax call
+   */
+  def ajaxRefresh(ns: NodeSeq) = {
+    val origAttrs = S.attrsToMetaData
+    val refresh = (funcId: String) => {
+      val result = S.withAttrs(origAttrs.append("ajaxFunc" -> funcId)) {
+        val rdfa = new Rdfa
+        // reuse current refresh function
+        rdfa.refreshFunc = refreshFunc
+        rdfa.render(ns)
+      }
+      JsCmds.SetHtml(funcId, result)
+    }
+    S.fmapFunc(S.contextFuncBuilder(refresh))(name => (name, (params: List[(String, String)]) => {
+      SHtml.makeAjaxCall(Str(name + "=" + name + "&" + paramsToUrlParams(params))).cmd
+    }))
+  }
+
+  override def render(ns: NodeSeq): NodeSeq = {
     logTime("RDFa template") {
+      refreshFunc = refreshFunc or (S.attr("mode").filter(_ == "ajax") map { _ => ajaxRefresh(ns) })
+      // add node id for SetHTML via ajax refresh
+      val nodesWithId = refreshFunc match {
+        case Full((name, _)) => ns flatMap {
+          case e: Elem => e % ("id" -> name)
+          case other => other
+        }
+        case _ => ns
+      }
       val transformers = prepare _ andThen TemplateHelpers.withTemplateNames _
-      Search(transformers(n), super.renderWithoutPrepare _)
+      Search(transformers(nodesWithId), refreshFunc, super.renderWithoutPrepare _)
     }
   }
 
@@ -129,10 +186,12 @@ class Rdfa extends Sparql with SparqlExtractor {
       var bindingName = (ns \ "@data-for").text.stripPrefix("?")
       if (!bindingName.isEmpty) {
         countQuery = sparqlFromRdfa.getCountQuery(bindingName)
+        def paramsForOffset(offsetParam: String, offset: Long): List[(String, String)] = {
+          (ParamsHelper.params(Set(offsetParam)) ++ List(offsetParam -> offset.toString)) toList
+        }
         val paginator = new PaginatorSnippet[AnyRef] {
           override def pageUrl(offset: Long): String = {
-            val params = S.request.map(_._params.collect { case (name, value :: Nil) if name != offsetParam => (name, value) }) openOr Map.empty
-            appendParams(S.uri, params.toList ++ List(offsetParam -> offset.toString))
+            appendParams(S.uri, paramsForOffset(offsetParam, offset))
           }
 
           val Nr = "([0-9]+)".r
@@ -145,7 +204,14 @@ class Rdfa extends Sparql with SparqlExtractor {
                 }
               }><a href="#">{ ns }</a></li>
             else
-              <li><a href={ pageUrl(newFirst) }>{ ns }</a></li>
+              <li>{
+                refreshFunc match {
+                  case Full((name, func)) => <a href="javascript://" onclick={
+                    func(paramsForOffset(offsetParam, newFirst)).toJsCmd
+                  }>{ ns }</a>
+                  case _ => <a href={ pageUrl(newFirst) }>{ ns }</a>
+                }
+              }</li>
 
           override def itemsPerPage = try { (ns \ "@data-items").text.toInt } catch { case _ => 20 }
           lazy val cachedCount = withParameters(em.createQuery(countQuery, includeInferred), queryParams).getSingleResult(classOf[Long])

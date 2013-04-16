@@ -124,60 +124,58 @@
 					};
 				}
 
-				function doEdit(e) {
+				function doEdit(target, options) {
+					var rdfStmts = target.rdf().databank.dump(rdfXmlOpts);
+					options = $.extend(defaultEditableOptions(rdfStmts), {
+						title : "Edit value",
+						value : target.closest("[content]").attr("content")
+								|| target.text().trim(),
+						display : function(value, response) {
+							if (response && response.html) {
+								var newNode = $(response.html);
+								// replaceWith does not work for some reason here
+								//target.replaceWith(newNode);
+								newNode.insertAfter(target);
+								target.remove();
+								enableEdit(newNode);
+							} else {
+								target.html(value);
+							}
+						},
+						url : function(params) {
+							var d = new $.Deferred();
+							enilink.setValue({
+								rdf : rdfStmts,
+								value : params.value,
+								templateName : target.attr("data-t"),
+								templatePath : target.closest("[data-t-path]")
+										.attr("data-t-path")
+							}, function(result) {
+								if (result.msg) {
+									d.reject(result.msg);
+								} else {
+									d.resolve(result);
+								}
+							});
+							return d.promise();
+						}
+					}, options || {});
+					target.editable(options);
+					target.editable("toggle");
+				}
+
+				function editHandler(e) {
 					e.stopPropagation();
 					e.preventDefault();
 					var target = $("#buttons").data("target");
 					if (target) {
-						var rdfStmts = target.rdf().databank.dump(rdfXmlOpts);
-						var options = defaultEditableOptions(rdfStmts);
-						options = $.extend(options, {
-							title : "Edit value",
-							value : target.closest("[content]").attr("content")
-									|| target.text().trim(),
-							display : function(value, response) {
-								if (response && response.html) {
-									var newNode = $(response.html);
-									// replaceWith does not work for some reason here
-									//target.replaceWith(newNode);
-									newNode.insertAfter(target);
-									target.remove();
-									enableEdit(newNode);
-								} else {
-									target.html(value);
-								}
-							},
-							url : function(params) {
-								var d = new $.Deferred();
-								enilink.setValue({
-									rdf : rdfStmts,
-									value : params.value,
-									templateName : target.attr("data-t"),
-									templatePath : target.closest(
-											"[data-t-path]")
-											.attr("data-t-path")
-								}, function(result) {
-									if (result.msg) {
-										d.reject(result.msg);
-									} else {
-										d.resolve(result);
-									}
-								});
-								return d.promise();
-							}
-						});
 						hideButtons();
-						target.editable(options);
-						target.editable("toggle");
+						doEdit(target);
 					}
 				}
-				$("#buttons .button-edit").click(doEdit);
+				$("#buttons .button-edit").click(editHandler);
 
-				function doAdd(e) {
-					e.stopPropagation();
-					e.preventDefault();
-
-					var self = $(this);
+				function doAdd(self, options) {
 					var e = self.closest("[property], [data-property]")
 					var property = e.attr("property")
 							|| e.attr("data-property");
@@ -196,8 +194,7 @@
 								[ $.rdf.triple(subject, predicate, object, {
 									namespaces : nsMap
 								}) ]).dump(rdfXmlOpts);
-						var options = defaultEditableOptions(stmt);
-						options = $.extend(options, {
+						options = $.extend(defaultEditableOptions(stmt), {
 							display : false,
 							success : function(response) {
 								if (response.html) {
@@ -226,17 +223,22 @@
 								});
 								return d.promise();
 							}
-						});
+						}, options || {});
 						self.editable(options);
 						self.editable("toggle");
 					}
+				}
+				function addHandler(e) {
+					e.stopPropagation();
+					e.preventDefault();
+					doAdd($(this));
 				}
 
 				function enableAdd(nodeOrSelector) {
 					// allow to use selectors or DOM nodes as arguments
 					nodeOrSelector = (nodeOrSelector instanceof jQuery) ? nodeOrSelector
 							: $(nodeOrSelector);
-					nodeOrSelector.click(doAdd);
+					nodeOrSelector.click(addHandler);
 				}
 
 				function enableEdit(nodeOrSelector) {
@@ -285,6 +287,8 @@
 				enilink.ui = $.extend(enilink.ui || {}, {
 					enableEdit : enableEdit,
 					enableAdd : enableAdd,
+					edit : doEdit,
+					add : doAdd,
 					defaultEditableOptions : defaultEditableOptions
 				});
 				enilink.options = $.extend({

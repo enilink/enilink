@@ -61,17 +61,24 @@ if (response) {
    * @return ( JsonCall, JsCmd )
    */
   def createJsonFunc(ajaxContext: JsonContext, pfp: PFPromoter[JValue, _ <: Any]): (JsonFunc, JsCmd) = {
+    import net.liftweb.json.JsonDSL._
     def jsonCallback(in: List[String]): Any = {
       val f = pfp.pff()
-      val result = for {
-        line <- in
-        parsed <- JsonParser.parseOpt(line) if f.isDefinedAt(parsed)
-      } yield f(parsed)
-      val jsCmds = result.collect { case cmd: JsCmd => cmd } ++ List(LiftRules.noticesToJsCmd())
-      val jsonObjs = result.collect { case v: JValue => v }
-      JsonResponse(JsObj(
-        ("result", if (jsonObjs.isEmpty || jsonObjs.size > 1) JArray(jsonObjs) else jsonObjs.head),
-        ("script", jsCmds.reduceLeft(_ & _).toJsCmd)))
+      val objects: List[JObject] = in.flatMap { line => JsonParser.parseOpt(line) } flatMap {
+        parsed =>
+          if (f.isDefinedAt(parsed)) {
+            // add individual result object for each function
+            val result = (f(parsed) match {
+              case seq: Seq[_] => seq.toList
+              case other => List(other)
+            })
+            val jsCmds = result.collect { case cmd: JsCmd => cmd } ++ List(LiftRules.noticesToJsCmd())
+            val jsonObjs = result.collect { case v: JValue => v }
+            Some(("result", if (jsonObjs.isEmpty || jsonObjs.size > 1) JArray(jsonObjs) else jsonObjs.head) ~
+              ("script", jsCmds.reduceLeft(_ & _).toJsCmd))
+          } else Nil
+      }
+      JsonResponse(if (objects.isEmpty || objects.size > 1) JArray(objects) else objects.head)
     }
 
     val af: AFuncHolder = jsonCallback _

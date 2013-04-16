@@ -19,15 +19,6 @@ import net.liftweb.sitemap.Loc
 import scala.xml.Node
 
 object TemplateHelpers {
-  private object FindScript {
-    def unapply(in: NodeSeq): Option[Elem] = in match {
-      case e: Elem => e.attribute("type").map(_.text).filter(_ == "text/javascript").flatMap {
-        a => if (e.attribute("src").isEmpty) Some(e) else None
-      }
-      case _ => None
-    }
-  }
-
   type RenderResult = (NodeSeq, Box[String])
 
   def appFor(path: List[String]): Box[Loc[_]] = {
@@ -76,6 +67,15 @@ object TemplateHelpers {
     Templates(path) flatMap (render(_, snips: _*))
   }
 
+  private object FindScript {
+    def unapply(in: NodeSeq): Option[Elem] = in match {
+      case e: Elem => e.attribute("type").map(_.text).filter(_ == "text/javascript").flatMap {
+        _ => if (e.attribute("src").isEmpty) Some(e) else None
+      }
+      case _ => None
+    }
+  }
+
   def render(template: NodeSeq, snips: (String, NodeSeq => NodeSeq)*): Box[RenderResult] = {
     S.eval(template, snips: _*) map { ns => S.session.map(_.fixHtml(ns)) openOr ns } map { ns =>
       import net.liftweb.util.Helpers._
@@ -87,7 +87,7 @@ object TemplateHelpers {
             cmds += JE.JsRaw(ns.text).cmd
             NodeSeq.Empty
           }
-          case x => x
+          case other => other
         }
       }))(ns)
       (revised, if (cmds.nonEmpty) Full(cmds.reduceLeft(_ & _).toJsCmd) else Empty)

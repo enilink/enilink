@@ -4,25 +4,9 @@
 	<div id="main">
 		<script type="text/javascript" data-lift="head">
 			$(function() {
-				function getQueryParameters() {
-					var regex = /[\\?&]([^=]+)=([^&#]*)/g;
-					var params = {}, matches;
-					while (matches = regex.exec(window.location.search)) {
-						params[matches[1]] = decodeURIComponent(matches[2]
-								.replace(/\+/g, " "));
-					}
-					return params;
-				}
 				var queryInput = $('input[name=q]');
 				queryInput.typeahead({
-					source : search
-				});
-				$.each(getQueryParameters(), function(key, value) {
-					if (key != "q") {
-						queryInput.closest("form").append(
-								$("<input>").attr("type", "hidden").attr(
-										"name", key).val(value));
-					}
+					source : eval("(" + queryInput.attr("data-source") + ")")
 				});
 			});
 		</script>

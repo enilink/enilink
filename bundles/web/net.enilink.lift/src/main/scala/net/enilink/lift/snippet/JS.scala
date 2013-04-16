@@ -26,6 +26,7 @@ import net.enilink.lift.util.AjaxHelpers
 import net.liftweb.json.DefaultFormats
 import net.liftweb.json._
 import net.liftweb.util.JsonCommand
+import net.enilink.lift.util.Globals
 
 case class RenderInput(templatePath: String, templateName: Option[String], bind: Option[JObject])
 
@@ -48,7 +49,7 @@ object JS extends DispatchSnippet with SparqlHelper {
   def rdfa: NodeSeq = script("/" + LiftRules.resourceServerPath + "/rdfa/jquery.rdfquery.rdfa.js")
 
   implicit val formats = DefaultFormats
-  def ajax: PartialFunction[JValue, JValue] = {
+  def ajax: PartialFunction[JValue, Any] = {
     case JsonCommand("render", _, params) =>
       val result = for (
         RenderInput(pathOrXml, templateName, bind) <- params.extractOpt[RenderInput]
@@ -70,7 +71,7 @@ object JS extends DispatchSnippet with SparqlHelper {
               find(pathList, templateName) map { ns =>
                 import net.liftweb.util.Helpers._
                 // add data-lift="rdfa" for RDFa processing
-                if (templateName.isDefined) ns map {
+                if (templateName.isDefined && Globals.contextModel.vend.isDefined) ns map {
                   case e: Elem if !e.attribute("data-lift").isDefined => e % ("data-lift" -> "rdfa")
                   case other => other
                 }
@@ -88,8 +89,7 @@ object JS extends DispatchSnippet with SparqlHelper {
             }
             val w = new java.io.StringWriter
             S.htmlProperties.htmlWriter(Group(nsWithPath), w)
-            val fields = List(JField("html", JString(w.toString))) ++ script.map(js => JField("script", JString(js)))
-            JObject(fields)
+            List(JObject(List(JField("html", JString(w.toString))))) ++ script.map(JsCmds.Run(_))
           }
         } openOr JObject(Nil)
       }

@@ -47,7 +47,6 @@ import net.liftweb.json.JString
 case class ProposeInput(rdf: String, query: String, index: Int)
 case class GetValueInput(rdf: String)
 case class SetValueInput(rdf: String, value: String, templateName: Option[String], templatePath: Option[String])
-case class SetValueResult(msg: Option[String] = None, html: Option[String] = None, script: Option[String] = None)
 
 class JsonCallHandler {
   implicit val formats = DefaultFormats
@@ -94,7 +93,7 @@ class JsonCallHandler {
     }
   }
 
-  def apply: PartialFunction[JValue, JValue] = {
+  def apply: PartialFunction[JValue, Any] = {
     case JsonCommand("updateTriples", _, params) => {
       import scala.collection.JavaConversions._
       var successful = false
@@ -155,8 +154,8 @@ class JsonCallHandler {
       import net.enilink.lift.util.TemplateHelpers._
       import net.liftweb.util.Helpers._
 
-      lazy val okResult = SetValueResult
-      val result = params.extractOpt[SetValueInput] map {
+      lazy val okResult = JObject(Nil)
+      params.extractOpt[SetValueInput] map {
         case SetValueInput(rdf, value, templateName, templatePath) =>
           statements(rdf) match {
             case stmt :: _ => {
@@ -194,19 +193,18 @@ class JsonCallHandler {
                         case Full((html, script)) =>
                           val w = new java.io.StringWriter
                           S.htmlProperties.htmlWriter(Group(html \ "_"), w)
-                          SetValueResult(html = Some(w.toString), script = script)
+                          List(JObject(List(JField("html", JString(w.toString))))) ++ script.map(Run(_))
                         case _ => okResult
                       }
                     }
                     result getOrElse okResult
                   case _ => okResult
                 }
-              } else SetValueResult(Some(status.getMessage))
+              } else JObject(List(JField("msg", JString(status.getMessage))))
             }
             case _ => okResult
           }
       } getOrElse okResult
-      Extraction.decompose(result)
     }
   }
 
