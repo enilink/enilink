@@ -107,13 +107,13 @@ object Search extends SparqlHelper with SparqlExtractor {
         "@q" #> ("* [value]" #> searchString & "* [data-source]" #> acName) andThen
           "form" #> {
             // support refresh via ajax call
-            (refreshFunc match {
+            "*" #> (refreshFunc match {
               case Full((name, _)) =>
                 // add refresh function to query parameters
                 queryParams = (name, name) :: queryParams
                 // use an ajax form
-                "*" #> (ns => Form.render(ns) flatMap { ("form [class]" #> (ns \ "@class").text)(_) })
-              case _ => "*" #> PassThru
+                ns: NodeSeq => Form.render(ns) flatMap { ("form [class]" #> (ns \ "@class").text)(_) }
+                case _ => PassThru
             }) &
               "* *" #> ((ns: NodeSeq) => ns ++ (queryParams map {
                 case (key, value) => <input type="hidden" name={ key } value={ value }></input>

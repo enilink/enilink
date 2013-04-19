@@ -22,6 +22,7 @@ import scala.xml.Text
 import scala.xml.MetaData
 import net.liftweb.util.Helpers._
 import net.liftweb.builtin.snippet.Embed
+import net.enilink.lift.util.TemplateHelpers
 
 /**
  * Global SPARQL parameters that can be shared between different snippets.
@@ -166,12 +167,20 @@ class Sparql extends SparqlHelper with RDFaTemplates {
     }
 
     def applyRules(ns: NodeSeq): NodeSeq = {
+      import TemplateHelpers._
       ns flatMap {
         case e: Elem =>
           // process the data-embed attribute
           e.attribute("data-embed") match {
             case Some(what) =>
-              S.withAttrs(S.mapToAttrs(List("what" -> what.text) toMap)) { Embed.render(e) }
+              S.withAttrs(S.mapToAttrs(List("what" -> what.text) toMap)) {
+                val embedded = Embed.render(e)
+                // allows to specify a template name
+                e.attribute("data-template") match {
+                  case Some(tname) => find(embedded, tname.text) toSeq
+                  case _ => embedded
+                }
+              }
             case _ => e
           }
         case other => other

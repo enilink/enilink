@@ -157,9 +157,11 @@ private class RDFaToSparqlParser(e: xml.Elem, base: String)(implicit s: Scope = 
     lang1: Symbol): (xml.Elem, Stream[Arc]) = {
 
     var close = 0
-    if (hasCssClass(e, "optional")) { addLine("optional {"); indent; close += 1 }
-    if (hasCssClass(e, "exists")) { addLine("filter exists {"); indent; close += 1 }
-    if (hasCssClass(e, "not-exists")) { addLine("filter not exists {"); indent; close += 1 }
+    def addBlock(block: String) { addLine(block + " {"); indent; close += 1 }
+
+    if (hasCssClass(e, "optional")) addBlock("optional")
+    if (hasCssClass(e, "exists")) addBlock("filter exists")
+    if (hasCssClass(e, "not-exists")) addBlock("filter not exists")
 
     val pattern = (e \ "@data-pattern").text
     if (!pattern.isEmpty) addLine(pattern match {
@@ -172,11 +174,7 @@ private class RDFaToSparqlParser(e: xml.Elem, base: String)(implicit s: Scope = 
     val filter = (e \ "@data-filter").text
     if (!filter.isEmpty) addLine("filter (" + filter + ")")
 
-    while (close > 0) {
-      dedent
-      addLine("}")
-      close -= 1
-    }
+    while (close > 0) { dedent; addLine("}"); close -= 1 }
 
     if (thisStack.top.elem eq e) thisStack.pop
     result

@@ -41,26 +41,23 @@ object TemplateHelpers {
   def find(path: List[String], name: Option[String] = Empty): Box[NodeSeq] = withAppFor(path) {
     Templates(path) flatMap { ns =>
       // extract template if a name is supplied
-      if (name.isDefined) {
-        for {
-          tname <- name;
-          body <- {
-            var template: Option[Node] = Empty
-            tryo {
-              S.eval(ns, ("rdfa", ns => {
-                extractTemplate(withTemplateNames(ns), tname) match {
-                  case t @ Some(_) =>
-                    template = t
-                    throw new LiftFlowOfControlException("Found template")
-                  case _ => ns
-                }
-              }))
-            }
-            template
-          }
-        } yield body
-      } else Full(ns)
+      if (name.isDefined) name flatMap (find(ns, _)) else Full(ns)
     }
+  }
+
+  def find(ns: NodeSeq, name: String): Box[NodeSeq] = {
+    var template: Box[Node] = Empty
+    tryo {
+      S.eval(ns, ("rdfa", ns => {
+        extractTemplate(withTemplateNames(ns), name) match {
+          case t @ Some(_) =>
+            template = t
+            throw new LiftFlowOfControlException("Found template")
+          case _ => ns
+        }
+      }))
+    }
+    template
   }
 
   def render(path: List[String], snips: (String, NodeSeq => NodeSeq)*): Box[RenderResult] = withAppFor(path) {
