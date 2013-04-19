@@ -269,39 +269,6 @@ public class ModelSetManager {
 				System.err.println(e.getMessage());
 			}
 		}
-
-		IModel structureModel = modelSet
-				.createModel(URIImpl
-						.createURI("http://enilink.net/vocab/innocat/structure"));
-		((IResource) structureModel).setRdfsLabel("Struktur aus Analyse");
-
-		IModel pdModel = modelSet
-				.createModel(URIImpl
-						.createURI("http://iwu.fraunhofer.de/data/pd/vw350_tuer_hinten_umbau"));
-		((IResource) pdModel).setRdfsLabel("Struktur aus Process Designer");
-
-		IModel measurementsModel = modelSet
-				.createModel(URIImpl
-						.createURI("http://iwu.fraunhofer.de/data/innocat/measurements"));
-		((Model) measurementsModel).setModelLoaded(true);
-		((IResource) measurementsModel).setRdfsLabel("Messdaten");
-		measurementsModel.addImport(structureModel.getURI(), null);
-		measurementsModel.addImport(
-				URIImpl.createURI("http://enilink.net/vocab/measurements"),
-				null);
-		measurementsModel.getManager().setNamespace("structure",
-				structureModel.getURI().appendFragment(""));
-		modelSet.createModel(URIImpl
-				.createURI("http://enilink.net/vocab/manufacturing"));
-
-		// try {
-		// model.load(new HashMap<Object, Object>());
-		// } catch (IOException e) {
-		// // TODO Auto-generated catch block
-		// e.printStackTrace();
-		// }
-		// ((AdapterFactoryEditingDomain) getEditingDomainProvider()
-		// .getEditingDomain()).getModelToReadOnlyMap().put(model, false);
 	}
 
 	public synchronized IUnitOfWork getUnitOfWork() {
