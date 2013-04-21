@@ -34,11 +34,14 @@ import net.enilink.komma.core.URI
 import net.enilink.lift.util.TemplateHelpers
 import net.liftweb.http.js.JsCmds
 import net.liftweb.http.js.JsCmd
+import net.enilink.komma.core.QueryFragment
 
 object ParamsHelper {
   def params(filter: Set[String] = Set.empty) = {
-    val filterWithFunc = filter ++ S.attr("ajaxFunc")
-    S.request.map(_._params.collect { case (name, value :: Nil) if !filterWithFunc.contains(name) => (name, value) }) openOr Map.empty
+    def include = S.session.map(session => {
+      name: String => !(filter.contains(name) || name.matches("^F[0-9].*")) //|| session.findFunc(name).isDefined) // requires Lift 2.5
+    }) openOr ((name: String) => !filter.contains(name))
+    S.request.map(_._params.collect { case (name, value :: Nil) if include(name) => (name, value) }) openOr Map.empty
   }
 }
 
@@ -98,13 +101,30 @@ object Search extends SparqlHelper with SparqlExtractor {
   }
 
   def apply(ns: NodeSeq, refreshFunc: Box[(String, _)], render: NodeSeq => NodeSeq): NodeSeq = {
-    val bindingNames = (ns \ "@data-search").text.split("\\s+").filter(_.nonEmpty).map(_.stripPrefix("?")).toList
-    if (bindingNames.nonEmpty) {
+    var bindingNames: List[String] = Nil
+    var searchString: Box[String] = Empty
+    var param: String = null
+    var fragment: Box[QueryFragment] = Empty
+
+    def patterns(ns: NodeSeq) = {
+      bindingNames = (ns \ "@data-for").text.split("\\s+").filter(_.nonEmpty).map(_.stripPrefix("?")).toList
+      if (bindingNames.nonEmpty) {
+        param = (ns \ "@data-param").text
+        searchString = Full(ns \ "@data-value" text).filter(_.nonEmpty) or S.param(param).filter(_.nonEmpty)
+        if (searchString.isDefined) {
+          val em = Globals.contextModel.vend.dmap(ModelSetManager.INSTANCE.getModelSet.getMetaDataManager)(_.getManager)
+          fragment = Full(em.getFactory.getDialect.fullTextSearch(bindingNames, IDialect.ANY, searchString.openTheBox))
+          <div data-pattern={ fragment.open_!.toString } class="clearable"></div>
+        } else Nil
+      } else ns
+    }
+
+    var nodes = (".search-patterns" #> patterns _)(ns)
+    nodes = (".search-form" #> ((form: NodeSeq) => {
       val (acName, acCmd) = autoCompleteJs(bindingNames, ns)
-      val searchString = S.param("q").filter(_.nonEmpty)
-      var transformers = ".search-form" #> Templates("templates-hidden" :: "search" :: Nil).map {
-        var queryParams = ParamsHelper.params(Set("q")).toList
-        "@q" #> ("* [value]" #> searchString & "* [data-source]" #> acName) andThen
+      JsCmds.Script(acCmd) ++ (Templates(List("templates-hidden", "search")) map {
+        var queryParams = ParamsHelper.params(Set(param)).toList
+        (".search-query" #> ("* [name]" #> param & "* [value]" #> searchString & "* [data-source]" #> acName)) andThen
           "form" #> {
             // support refresh via ajax call
             "*" #> (refreshFunc match {
@@ -119,15 +139,9 @@ object Search extends SparqlHelper with SparqlExtractor {
                 case (key, value) => <input type="hidden" name={ key } value={ value }></input>
               }))
           }
-      }
-      JsCmds.Script(acCmd) ++
-        (if (searchString.isDefined) {
-          val em = Globals.contextModel.vend.dmap(ModelSetManager.INSTANCE.getModelSet.getMetaDataManager)(_.getManager)
-          val fragment = em.getFactory.getDialect.fullTextSearch(bindingNames, IDialect.ANY, searchString.openTheBox)
-          val results = (transformers andThen ".search-patterns" #> <div data-pattern={ fragment.toString } class="clearable"></div>)(ns)
-          QueryParams.doWith(fragment.bindings)(render(results))
-        } else render(transformers(ns)))
-    } else render(ns)
+      } openOr Nil)
+    }))(nodes)
+    fragment map { f => QueryParams.doWith(f.bindings)(render(nodes)) } openOr render(nodes)
   }
 }
 
@@ -149,7 +163,7 @@ class Rdfa extends Sparql with SparqlExtractor {
   def ajaxRefresh(ns: NodeSeq) = {
     val origAttrs = S.attrsToMetaData
     val refresh = (funcId: String) => {
-      val result = S.withAttrs(origAttrs.append("ajaxFunc" -> funcId)) {
+      val result = S.withAttrs(origAttrs) {
         val rdfa = new Rdfa
         // reuse current refresh function
         rdfa.refreshFunc = refreshFunc

@@ -132,7 +132,7 @@ class IriBinder(val e: Elem, val attr: String, val Iri: URI) extends RdfAttribut
 }
 
 object TemplateNode extends RDFaUtils {
-  val ignoreAttributes = Set("data-search", "data-for", "data-bind")
+  val ignoreAttributes = Set("data-for", "data-bind")
   val variable = "^[?]([^=]+)$".r
 
   def unapply(n: Node): Option[(Elem, Seq[Binder])] = {

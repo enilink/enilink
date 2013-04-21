@@ -43,6 +43,8 @@ import net.enilink.komma.core.URIImpl
 import net.enilink.komma.edit.properties.IResourceProposal
 import net.enilink.lift.rdfa.RDFaParser
 import net.liftweb.json.JString
+import net.liftweb.json.JBool
+import net.enilink.komma.core.BlankNode
 
 case class ProposeInput(rdf: String, query: String, index: Int)
 case class GetValueInput(rdf: String)
@@ -94,6 +96,17 @@ class JsonCallHandler {
   }
 
   def apply: PartialFunction[JValue, Any] = {
+    case JsonCommand("removeResource", _, JString(resource)) => {
+      (for (model <- model; em = model.getManager) yield {
+        val ref = if (resource.startsWith("_:")) new BlankNode(resource) else URIImpl.createURI(resource)
+        em.removeRecursive(ref, true);
+        JBool(true)
+      }) openOr JBool(false)
+    }
+    case JsonCommand("blankNode", _, _) => {
+      (for (model <- model; em = model.getManager) yield em.create().getReference.toString) or
+        Full(new BlankNode().toString) map (JString(_)) open_!
+    }
     case JsonCommand("updateTriples", _, params) => {
       import scala.collection.JavaConversions._
       var successful = false
@@ -226,6 +239,8 @@ class Edit extends DispatchSnippet {
     Script(handler.jsCmd &
       SetExp(JsVar("enilink"), Call("$.extend", JsRaw("window.enilink || {}"), //
         JsObj(
+          ("blankNode", AnonFunc("callback", handler.call("blankNode", JsRaw("{}"), JsVar("callback")))), //
+          ("removeResource", AnonFunc("resource, callback", handler.call("removeResource", JsVar("resource"), JsVar("callback")))), //
           ("updateTriples", AnonFunc("add, remove, callback",
             handler.call("updateTriples", JsRaw("{ 'add' : add, 'remove' : remove }"), JsVar("callback")))), //
           ("getValue", AnonFunc("rdf, callback", handler.call("getValue", JsRaw("{ 'rdf' : rdf }"), JsVar("callback")))), //
