@@ -14,7 +14,7 @@
    id="svg87"
    version="1.1"
    inkscape:version="0.48+devel r10518"
-   sodipodi:docname="enilink.svg"
+   sodipodi:docname="enilink-grayscale.svg"
    inkscape:export-filename="D:\Projekte\komma_rap\net.enilink.lift\src\main\webapp\images\enilink.png"
    inkscape:export-xdpi="13.014684"
    inkscape:export-ydpi="13.014684">
@@ -88,24 +88,37 @@
        inkscape:export-filename="D:\Projekte\komma_rap\net.enilink.lift\src\main\webapp\images\enilink.png"
        inkscape:export-xdpi="12.819547"
        inkscape:export-ydpi="12.819547" />
-    <text
-       sodipodi:linespacing="125%"
-       id="text2998"
-       y="597.13794"
-       x="151.73747"
+    <g
        style="font-size:163.77774048px;font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;line-height:125%;letter-spacing:0px;word-spacing:0px;fill:#da2118;fill-opacity:1;stroke:none;font-family:Tw Cen MT Condensed Extra Bold;-inkscape-font-specification:Tw Cen MT Condensed Extra Bold"
-       xml:space="preserve"
-       inkscape:export-filename="D:\Projekte\komma_rap\net.enilink.lift\src\main\webapp\images\enilink.png"
-       inkscape:export-xdpi="12.819547"
-       inkscape:export-ydpi="12.819547"><tspan
-         style="font-size:163.77774048px;font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;text-align:start;line-height:125%;writing-mode:lr-tb;text-anchor:start;fill:#da2118;fill-opacity:1;font-family:Impact;-inkscape-font-specification:Impact"
-         y="597.13794"
-         x="151.73747"
-         id="tspan3000"
-         sodipodi:role="line"><tspan
-           style="fill:#b3b3b3"
-           id="tspan164">eni</tspan><tspan
-           id="tspan3002"
-           style="fill:#e6e6e6;fill-opacity:1">LINK</tspan></tspan></text>
+       id="text2998">
+      <path
+         d="m 230.66747,545.9574 -41.8241,0 0,22.95127 q 0,7.19726 1.0396,9.27647 1.03961,2.07921 3.99848,2.07921 3.6786,0 4.91813,-2.75895 1.23953,-2.75895 1.23953,-10.67594 l 0,-13.99468 30.62836,0 0,7.83702 q 0,9.83626 -1.23953,15.11426 -1.23953,5.27799 -5.7978,11.27571 -4.55826,5.99772 -11.5556,8.99658 -6.99734,2.99886 -17.55333,2.99886 -10.23611,0 -18.07313,-2.95888 -7.83702,-2.95887 -12.19537,-8.11691 -4.35834,-5.15804 -6.0377,-11.35568 -1.67936,-6.19765 -1.67936,-18.03315 l 0,-30.94823 q 0,-13.91471 3.75857,-21.95166 3.75857,-8.03694 12.31532,-12.31532 8.55675,-4.27837 19.67252,-4.27837 13.59483,0 22.43147,5.15804 8.83664,5.15804 12.39529,13.6748 3.55865,8.51676 3.55865,23.9509 z m -32.38769,-17.27344 0,-7.75705 q 0,-8.23687 -0.87967,-10.63596 -0.87966,-2.39908 -3.59863,-2.39908 -3.35872,0 -4.15842,2.03922 -0.79969,2.03923 -0.79969,10.99582 l 0,7.75705 z"
+         style="fill:#b3b3b3;fill-opacity:1"
+         id="path98" />
+      <path
+         d="m 274.17093,491.01828 -0.55978,9.75629 q 3.51866,-5.83778 8.59673,-8.75667 5.07807,-2.91889 11.71554,-2.91889 8.31684,0 13.59484,3.91851 5.27799,3.91851 6.79741,9.87625 1.51942,5.95773 1.51942,19.87244 l 0,74.37173 -32.30771,0 0,-73.49206 q 0,-10.95584 -0.71973,-13.35493 -0.71973,-2.39908 -3.99848,-2.39908 -3.43869,0 -4.31836,2.75895 -0.87966,2.75895 -0.87966,14.75439 l 0,71.73273 -32.30772,0 0,-106.11966 z"
+         style="fill:#b3b3b3;fill-opacity:1"
+         id="path100" />
+      <path
+         d="m 360.29819,467.66716 0,16.87358 -33.26735,0 0,-16.87358 z m 0,23.35112 0,106.11966 -33.26735,0 0,-106.11966 z"
+         style="fill:#b3b3b3;fill-opacity:1"
+         id="path102" />
+      <path
+         d="m 406.44065,467.66716 0,103.56063 20.47222,0 0,25.91015 -54.13942,0 0,-129.47078 z"
+         style="fill:#e6e6e6;fill-opacity:1"
+         id="path104" />
+      <path
+         d="m 468.81694,467.66716 0,129.47078 -33.6672,0 0,-129.47078 z"
+         style="fill:#e6e6e6;fill-opacity:1"
+         id="path106" />
+      <path
+         d="m 557.66315,467.66716 0,129.47078 -29.50879,0 -17.51334,-58.85763 0,58.85763 -28.1493,0 0,-129.47078 28.1493,0 18.87283,58.29784 0,-58.29784 z"
+         style="fill:#e6e6e6;fill-opacity:1"
+         id="path108" />
+      <path
+         d="m 651.30756,467.66716 -19.27268,58.45777 21.11198,71.01301 -34.78678,0 -13.59483,-55.4989 0,55.4989 -33.6672,0 0,-129.47078 33.6672,0 0,50.30088 14.95431,-50.30088 z"
+         style="fill:#e6e6e6;fill-opacity:1"
+         id="path110" />
+    </g>
   </g>
 </svg>

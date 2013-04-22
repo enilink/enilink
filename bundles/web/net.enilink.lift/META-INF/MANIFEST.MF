@@ -44,8 +44,7 @@ Bundle-ClassPath: lib_managed/jars/com.thoughtworks.paranamer/paranamer/paraname
  lib_managed/jars/net.liftweb/lift-util_2.9.0-1/lift-util_2.9.0-1-2.4.jar,
  lib_managed/jars/net.liftweb/lift-webkit_2.9.0-1/lift-webkit_2.9.0-1-2.4.jar,
  lib_managed/jars/net.liftweb/lift-wizard_2.9.0-1/lift-wizard_2.9.0-1-2.4.jar,
- .,
- bin/
+ .
 Bundle-Activator: net.enilink.lift.Activator
 Import-Package: com.google.inject,
  javax.servlet,

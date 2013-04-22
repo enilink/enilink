@@ -129,6 +129,7 @@
 					// functions after doAdd finished
 					var resultDeferred = new $.Deferred;
 					var rdfStmts = target.rdf().databank.dump(rdfXmlOpts);
+					var d = new $.Deferred;
 					options = $.extend(defaultEditableOptions(rdfStmts), {
 						title : "Edit value",
 						value : target.closest("[content]").attr("content")
