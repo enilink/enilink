@@ -4,8 +4,7 @@ Bundle-Name: enilink.net Website
 Bundle-SymbolicName: net.enilink.web;singleton:=true
 Bundle-Version: 1.0.0.qualifier
 Lift-Packages: net.enilink.web
-Bundle-ClassPath: .,
- bin/
+Bundle-ClassPath: .
 Require-Bundle: net.enilink.core,
  net.enilink.lift,
  net.enilink.auth,

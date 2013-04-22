@@ -10,6 +10,48 @@
 	owl: http://www.w3.org/2002/07/owl#
 	rdfs: http://www.w3.org/2000/01/rdf-schema#">
 	<div id="main" data-lift="surround?with=default;at=content">
+		<script data-lift="JS.templates"></script>
+		<script type="text/javascript" data-lift="head">
+			$(function() {
+				var testObjectProperty = '<span class="optional clearable" about="?property" rel="rdf:type">'
+						+ '<span resource="?objectProperty" data-filter="?objectProperty = owl:ObjectProperty"></span>'
+						+ '<span class="not-exists" resource="owl:AnnotationProperty"></span>'
+						+ '<span class="not-exists" resource="owl:DatatypeProperty"></span>'
+						+ '</span>';
+				$(".add-property")
+						.click(
+								function() {
+									var self = $(this).closest("li[about]");
+									var property = self.attr("about");
+									var template = $(
+											'<div about="?this" data-lift="rdfa">'
+													+ testObjectProperty
+													+ '<div id="content" class="optional"><div data-embed="static/describe" data-template="property"></div></div>'
+													+ '</div>').prefix(
+											self.xmlns());
+									enilink.render({
+										templatePath : $("<div>").append(
+												template).html(),
+										bind : {
+											property : property
+										}
+									}, {
+										resource : queryParameter("resource"),
+										model : queryParameter("model")
+									},
+											function(html) {
+												var content = $(html).find(
+														"#content").children();
+												$("#properties")
+														.append(content);
+												var addBtn = content
+														.find("[data-add]");
+												enilink.ui.enableAdd(addBtn);
+												addBtn.click();
+											})
+								});
+			});
+		</script>
 		<div data-lift="rdfa">
 			<div about="?this" class="row-fluid">
 				<div>
@@ -20,40 +62,67 @@
 						&lt;<span data-lift="rdf.ref"></span>&gt;
 					</p>
 				</div>
-				<section>
+				<section data-if="?relProperty" class="optional">
+					<div class="dropdown">
+						<a class="dropdown-toggle" id="dLabel" role="button"
+							data-toggle="dropdown" href="#">Properties <b class="caret"></b>
+						</a>
+						<!-- query relevant properties -->
+						<div rel="rdf:type" class="clearable">
+							<div rel="rdfs:subClassOf">
+								<div rel="owl:onProperty" resource="?relProperty"></div>
+							</div>
+						</div>
+						<ul class="dropdown-menu" role="menu" aria-labelledby="dLabel">
+							<li about="?relProperty"><a href="javascript://"
+								class="add-property"><span about="?relProperty"
+									data-lift="rdf.label"></span></a></li>
+						</ul>
+					</div>
+				</section>
+				<section id="properties">
 					<!-- sort by property -->
 					<div class="clearable asc" about="?property"></div>
 
 					<div class="row-fluid" data-clear-rel="?property" data-t="property">
-						<div class="span3" style="font-weight: bold">
+						<div class="span4" style="font-weight: bold">
 							<a href="{app}/static/describe?model={model}&resource={}"
 								data-lift="rdf.ref?for=predicate&to=href"><span
 								data-lift="rdf.label?for=predicate"></span></a>
 						</div>
-						<div class="span9 union">
-							<div class="row-fluid asc" rel="?property" resource="?oResource"
-								data-filter="!isLiteral(?oResource)" data-t="resourceValue">
-								<div class="span12">
-									<a href="{app}/static/describe?model={model}&resource={}"
-										data-lift="rdf.ref?to=href"><span
-										data-lift="rdf.manchester"></span></a> <span data-if="inferred"><i
-										class="icon-share-alt" style="opacity: 0.5"></i></span>
+						<div class="span8">
+							<div class="union">
+								<div class="row-fluid asc" rel="?property" resource="?oResource"
+									data-filter="!isLiteral(?oResource)" data-t="resourceValue">
+									<div class="span12">
+										<a href="{app}/static/describe?model={model}&resource={}"
+											data-lift="rdf.ref?to=href"><span
+											data-lift="rdf.manchester"></span></a> <span data-if="inferred"><i
+											class="icon-share-alt" style="opacity: 0.5"></i></span>
+									</div>
+								</div>
+								<div class="row-fluid asc" property="?property"
+									content="?oLiteral" data-if="?oLiteral"
+									data-filter="isLiteral(?oLiteral)" data-t="literalValue">
+									<div class="span12">
+										<span data-lift="rdf.label"></span> <span data-if="inferred"><i
+											class="icon-share-alt" style="opacity: 0.5"></i></span>
+									</div>
 								</div>
 							</div>
-							<div class="row-fluid asc" property="?property"
-								content="?oLiteral" data-filter="isLiteral(?oLiteral)"
-								data-t="literalValue">
-								<div class="span12">
-									<span data-lift="rdf.label"></span> <span data-if="inferred"><i
-										class="icon-share-alt" style="opacity: 0.5"></i></span>
+							<!-- literal value or a property without a value -->
+							<div data-unless="?objectProperty">
+								<div data-unless="?oResource" data-property="?property"
+									data-add="literalValue">
+									<i class="icon-plus"></i>
 								</div>
 							</div>
-							<div data-rel="?property" data-if="?oResource"
+							<div data-if="?oResource" data-rel="?property"
 								data-add="resourceValue">
 								<i class="icon-plus"></i>
 							</div>
-							<div data-property="?property" data-if="?oLiteral"
-								data-add="literalValue">
+							<div data-if="?objectProperty" data-rel="?property"
+								data-add="resourceValue">
 								<i class="icon-plus"></i>
 							</div>
 						</div>
@@ -86,14 +155,14 @@
 			<br />
 			<!-- show relevant properties for classes -->
 			<div about="?this" typeof="rdfs:Class" class="row-fluid optional"
-				data-if="?relevantProp">
+				data-if="?classProperty">
 				<h4>Relevant class properties</h4>
 				<section>
 					<!-- query relevant properties -->
 					<span about="?this" rel="rdfs:subClassOf" class="clearable">
-						<span rel="owl:onProperty" resource="?relevantProp"></span>
+						<span rel="owl:onProperty" resource="?classProperty"></span>
 					</span>
-					<ul about="?relevantProp">
+					<ul about="?classProperty">
 						<li><a href="{app}/static/describe?model={model}&resource={}"
 							data-lift="rdf.ref?to=href"><span data-lift="rdf.label"></span></a></li>
 					</ul>
