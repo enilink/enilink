@@ -22,7 +22,10 @@
 						.click(
 								function() {
 									var self = $(this).closest("li[about]");
-									var property = self.attr("about");
+									var property = $.rdf.resource(self
+											.attr("about"), {
+										namespaces : self.xmlns()
+									}).value.toString();
 									var template = $(
 											'<div about="?this" data-lift="rdfa">'
 													+ testObjectProperty
