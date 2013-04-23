@@ -29,8 +29,8 @@ public abstract class OwlimDialectSupport implements IModelSet,
 				if (pattern.isEmpty()) {
 					continue;
 				}
-				patternsAsURI.append(pattern.replaceAll("[*?<>]", "")).append(
-						":");
+				patternsAsURI.append(pattern.replaceAll("[*?<>]", "").trim())
+						.append(":");
 			}
 			StringBuilder sb = new StringBuilder();
 			if (patternsAsURI.length() > 0) {
