@@ -98,7 +98,9 @@ class JsonCallHandler {
   def apply: PartialFunction[JValue, Any] = {
     case JsonCommand("removeResource", _, JString(resource)) => {
       (for (model <- model; em = model.getManager) yield {
-        val ref = if (resource.startsWith("_:")) new BlankNode(resource) else URIImpl.createURI(resource)
+        val ref = if (resource.startsWith("_:")) new BlankNode(resource)
+        else if (resource.startsWith("<") && resource.endsWith(">")) URIImpl.createURI(resource.substring(1, resource.length - 1))
+        else URIImpl.createURI(resource)
         em.removeRecursive(ref, true);
         JBool(true)
       }) openOr JBool(false)
