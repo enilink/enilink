@@ -2,5 +2,17 @@
 <?eclipse version="3.4"?>
 <plugin>
    <extension-point id="selectionProviders" name="Selection Providers" schema="schema/selectionProviders.exsd"/>
+   <extension
+         id="id1"
+         point="org.eclipse.core.runtime.applications">
+      <application
+            cardinality="singleton-global"
+            thread="main"
+            visible="false">
+         <run
+               class="net.enilink.lift.eclipse.LiftApplication">
+         </run>
+      </application>
+   </extension>
 
 </plugin>
