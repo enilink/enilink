@@ -32,7 +32,6 @@ import com.google.inject.util.Modules;
 
 import net.enilink.vocab.rdf.RDF;
 import net.enilink.vocab.rdfs.RDFS;
-import net.enilink.komma.concepts.IResource;
 import net.enilink.komma.model.IModel;
 import net.enilink.komma.model.IModelSet;
 import net.enilink.komma.model.IModelSetFactory;
@@ -41,7 +40,6 @@ import net.enilink.komma.model.ModelCore;
 import net.enilink.komma.model.ModelSetModule;
 import net.enilink.komma.model.base.IURIMapRule;
 import net.enilink.komma.model.base.SimpleURIMapRule;
-import net.enilink.komma.model.concepts.Model;
 import net.enilink.komma.core.IEntityManager;
 import net.enilink.komma.core.IGraph;
 import net.enilink.komma.core.IUnitOfWork;
