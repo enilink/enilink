@@ -23,6 +23,7 @@ import scala.xml.MetaData
 import net.liftweb.util.Helpers._
 import net.liftweb.builtin.snippet.Embed
 import net.enilink.lift.util.TemplateHelpers
+import net.liftweb.common.Empty
 
 /**
  * Global SPARQL parameters that can be shared between different snippets.
@@ -34,7 +35,7 @@ object RdfHelpers {
 }
 
 trait SparqlHelper {
-  def extractBindParams(ns: NodeSeq) = (ns \ "@data-bind").text.split("\\s+").filterNot(_.isEmpty).map(_.stripPrefix("?")).toSeq
+  def extractParams(ns: NodeSeq) = (ns \ "@data-params").text.split("\\s+").filterNot(_.isEmpty).map(_.stripPrefix("?")).toSeq
 
   def bindParams(params: Seq[String]) = convertParams(params flatMap { name => S.param(name) map (name -> _) } toMap)
 
@@ -46,15 +47,20 @@ trait SparqlHelper {
   }
 
   def withParameters[T](query: IQuery[T], params: Map[String, _]) = {
-    CurrentContext.value.get.subject match {
-      case entity: IEntity => query.setParameter("this", entity)
-      case _ => // do nothing
-    }
-    query.setParameter("currentUser", Globals.contextUser.vend)
-    QueryParams foreach { p => query.setParameter(p._1, p._2) }
     params foreach { p => query.setParameter(p._1, p._2) }
     query
   }
+
+  def globalQueryParameters: Map[String, _] = {
+    List(("currentUser", Globals.contextUser.vend)) ++
+      (CurrentContext.value.flatMap {
+        _.subject match {
+          case entity: IEntity => Full(("this", entity))
+          case _ => Empty
+        }
+      }) ++ QueryParams toMap
+  }
+
   /**
    * Immediately captures current RDF context (context resources) and
    * returns a function that can be used to execute some code with this
@@ -87,33 +93,34 @@ class Sparql extends SparqlHelper with RDFaTemplates {
     val distInferred = includeInferred && distinguishInferred(n)
 
     def renderResults = {
-      def toBindings(firstBinding: String, row: Any) = {
-        row match {
-          case b: IBindings[_] => b
-          case other => {
-            val b = new LinkedHashBindings[Any](1);
-            b.put(firstBinding, other);
-            b
-          }
+      def toBindings(firstBinding: String, row: Any) = row match {
+        case b: IBindings[_] => b
+        case other => {
+          val b = new LinkedHashBindings[Any](1)
+          b.put(firstBinding, other)
+          b
         }
       }
       CurrentContext.value match {
         case Full(rdfCtx) => rdfCtx.subject match {
           case entity: IEntity =>
-            val (n1, sparql, params) = toSparql(n, entity.getEntityManager)
-            val query = withParameters(entity.getEntityManager.createQuery(sparql, includeInferred), params)
+            val em = entity.getEntityManager
+            val (n1, sparql, params) = toSparql(n, em)
+            val query = withParameters(em.createQuery(sparql, includeInferred), params)
             query.bindResultType(null: String, classOf[IValue]).evaluate match {
               case r: IGraphResult =>
                 n1 //renderGraph(new LinkedHashGraph(r.toList()))
               case r: ITupleResult[_] =>
                 val firstBinding = r.getBindingNames.get(0)
                 val allTuples = r.map { row => (toBindings(firstBinding, row), includeInferred) }
-                val toRender = (if (distInferred) {
+                var toRender = (if (distInferred) {
                   // query explicit statements and prepend them to the results
-                  withParameters(entity.getEntityManager.createQuery(sparql, false), params)
+                  withParameters(em.createQuery(sparql, false), params)
                     .bindResultType(null: String, classOf[IValue]).evaluate.asInstanceOf[ITupleResult[_]]
                     .map { row => (toBindings(firstBinding, row), false) } ++ allTuples
                 } else allTuples)
+                // ensure at least one template iteration with empty binding set if no results where found
+                if (!toRender.hasNext) toRender = List((new LinkedHashBindings[Object], false)).toIterator
                 val transformers = (".query *" #> sparql) & ClearClearable
                 val result = renderTuples(transformers(n1), toRender)
                 result
@@ -128,7 +135,7 @@ class Sparql extends SparqlHelper with RDFaTemplates {
   }
 
   def toSparql(n: NodeSeq, em: IEntityManager): (NodeSeq, String, Map[String, _]) = {
-    (n, n.head.child.foldLeft("")((q, c) => c match { case scala.xml.Text(t) => q + t case _ => q }), bindParams(extractBindParams(n)))
+    (n, n.head.child.foldLeft("")((q, c) => c match { case scala.xml.Text(t) => q + t case _ => q }), globalQueryParameters ++ bindParams(extractParams(n)))
   }
 
   def prepare(ns: NodeSeq) = {
@@ -207,10 +214,9 @@ class Sparql extends SparqlHelper with RDFaTemplates {
     applyRules(ns)
   }
 
-  def renderTuples(ns: Seq[xml.Node], r: Iterator[(IBindings[_], Boolean)]) = {
+  def renderTuples(ns: Seq[xml.Node], rows: Iterator[(IBindings[_], Boolean)]) = {
     var template = createTemplate(ns)
-    ( // ensure one iteration with empty bindings set
-      if (r.hasNext) r else List((new LinkedHashBindings[AnyRef], false))).foreach { row => template.transform(CurrentContext.value.get, row._1, row._2) }
+    rows foreach { row => template.transform(CurrentContext.value.get, row._1, row._2) }
 
     val result = ClearClearable.apply(S.session.get.processSurroundAndInclude(PageName.get, template.render))
     result.map {

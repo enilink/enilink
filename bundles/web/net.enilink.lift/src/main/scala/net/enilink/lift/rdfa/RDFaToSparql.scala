@@ -220,8 +220,9 @@ private class RDFaToSparqlParser(e: xml.Elem, base: String)(implicit s: Scope = 
     val (e1, subj, obj, skip) = super.subjectObject(obj1, e, base, norel, types, props)
 
     if (!skip && props.isEmpty) {
-      val orderTarget = if (obj != undef && obj.isInstanceOf[Variable]) obj else if (subj != undef && subj.isInstanceOf[Variable]) subj else null
-      addToOrderBy(e1, orderTarget)
+      val target = if (obj != undef && obj.isInstanceOf[Variable]) obj else if (subj != undef && subj.isInstanceOf[Variable]) subj else null
+      addBind(e1, target)
+      addToOrderBy(e1, target)
     }
 
     if (obj != undef) {
@@ -229,6 +230,13 @@ private class RDFaToSparqlParser(e: xml.Elem, base: String)(implicit s: Scope = 
     }
 
     return (e1, subj, obj, skip)
+  }
+
+  /** Adds bind(?var as ?var) to the resulting query. */
+  def addBind(e: xml.Elem, bindTarget: Reference) {
+    if (bindTarget.isInstanceOf[Variable] && hasCssClass(e, "bind")) {
+      addLine("bind (" + toString(bindTarget) + " as " + toString(bindTarget) + ")")
+    }
   }
 
   /** Adds orderBy modifier for the given variable */

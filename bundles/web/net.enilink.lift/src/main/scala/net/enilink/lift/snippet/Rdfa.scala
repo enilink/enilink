@@ -80,7 +80,7 @@ object Search extends SparqlHelper with SparqlExtractor {
                 val fragment = em.getFactory.getDialect.fullTextSearch(List(bindingName), IDialect.ANY, query)
                 val nsWithPatterns = (".search-patterns" #> <div data-pattern={ fragment.toString } class="clearable"></div>)(ns)
                 val sparqlFromRdfa = extractSparql(nsWithPatterns)
-                val queryParams = bindParams(extractBindParams(ns)) ++ bindingsToMap(fragment.bindings)
+                val queryParams = bindParams(extractParams(ns)) ++ bindingsToMap(fragment.bindings)
                 val sparql = sparqlFromRdfa.getQuery(bindingName, 0, 1000)
                 val results = withParameters(em.createQuery(sparql), queryParams).evaluate
                 results.iterator.flatMap(toTokens(query.toLowerCase, _))
@@ -257,7 +257,7 @@ class Rdfa extends Sparql with SparqlExtractor {
 
   override def toSparql(n: NodeSeq, em: IEntityManager): (NodeSeq, String, Map[String, _]) = {
     val sparqlFromRdfa = extractSparql(n)
-    val queryParams = bindParams(extractBindParams(n))
+    val queryParams = globalQueryParameters ++ bindParams(extractParams(n))
     paginate(sparqlFromRdfa, queryParams, em)
   }
 }
