@@ -152,8 +152,8 @@
 							enilink.setValue({
 								rdf : rdfStmts,
 								value : params.value,
-								templateName : target.attr("data-t"),
-								templatePath : target.closest("[data-t-path]")
+								template : target.attr("data-t"),
+								what : target.closest("[data-t-path]")
 										.attr("data-t-path")
 							}, function(result) {
 								if (result.msg) {
@@ -225,8 +225,8 @@
 								enilink.setValue({
 									rdf : stmt,
 									value : params.value,
-									templateName : self.attr("data-add"),
-									templatePath : self
+									template : self.attr("data-add"),
+									what : self
 											.closest("[data-t-path]").attr(
 													"data-t-path")
 								}, function(result) {

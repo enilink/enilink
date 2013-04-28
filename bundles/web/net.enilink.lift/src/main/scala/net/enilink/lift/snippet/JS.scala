@@ -28,7 +28,7 @@ import net.liftweb.json._
 import net.liftweb.util.JsonCommand
 import net.enilink.lift.util.Globals
 
-case class RenderInput(templatePath: String, templateName: Option[String], bind: Option[JObject])
+case class RenderInput(what: String, template: Option[String], bind: Option[JObject])
 
 /**
  * Snippets for embedding of JS scripts.
@@ -52,7 +52,7 @@ object JS extends DispatchSnippet with SparqlHelper {
   def ajax: PartialFunction[JValue, Any] = {
     case JsonCommand("render", _, params) =>
       val result = for (
-        RenderInput(pathOrXml, templateName, bind) <- params.extractOpt[RenderInput]
+        RenderInput(what, templateName, bind) <- params.extractOpt[RenderInput]
       ) yield {
         import net.enilink.lift.util.TemplateHelpers._
 
@@ -61,8 +61,8 @@ object JS extends DispatchSnippet with SparqlHelper {
           paramMap map { QueryParams.doWith(_)(render(ns)) } getOrElse render(ns)
         }
 
-        val isXml = "\\s*<".r.findPrefixMatchOf(pathOrXml).isDefined
-        (pathOrXml match {
+        val isXml = "\\s*<".r.findPrefixMatchOf(what).isDefined
+        (what match {
           case xml if isXml =>
             S.htmlProperties.htmlParser(new ByteArrayInputStream(xml.getBytes("UTF-8"))) flatMap (renderWithParams(_))
           case path => {
@@ -84,7 +84,7 @@ object JS extends DispatchSnippet with SparqlHelper {
             import net.liftweb.util.Helpers._
             // annotate result with template path for later invocations of render
             val nsWithPath = ns map {
-              case e: Elem if !isXml => e % ("data-t-path" -> pathOrXml)
+              case e: Elem if !isXml => e % ("data-t-path" -> what)
               case other => other
             }
             val w = new java.io.StringWriter

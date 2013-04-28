@@ -63,7 +63,8 @@ object Search extends SparqlHelper with SparqlExtractor {
     def toTokens(query: String, v: Any): Seq[String] = {
       (v match {
         case ref: IReference if ref.getURI != null => ref.getURI.segments ++ List(ref.getURI.localPart)
-        case other => other.toString.split("[^\\p{L}\\d_]+")
+        case literal if literal != null => literal.toString.split("[^\\p{L}\\d_]+")
+        case _ => Array.empty[String]
       }).filter(_.toLowerCase.contains(query))
     }
     val runWithContext: (=> Any) => Any = captureRdfContext
@@ -80,7 +81,7 @@ object Search extends SparqlHelper with SparqlExtractor {
                 val fragment = em.getFactory.getDialect.fullTextSearch(List(bindingName), IDialect.ANY, query)
                 val nsWithPatterns = (".search-patterns" #> <div data-pattern={ fragment.toString } class="clearable"></div>)(ns)
                 val sparqlFromRdfa = extractSparql(nsWithPatterns)
-                val queryParams = bindParams(extractParams(ns)) ++ bindingsToMap(fragment.bindings)
+                val queryParams = globalQueryParameters ++ bindParams(extractParams(ns)) ++ bindingsToMap(fragment.bindings)
                 val sparql = sparqlFromRdfa.getQuery(bindingName, 0, 1000)
                 val results = withParameters(em.createQuery(sparql), queryParams).evaluate
                 results.iterator.flatMap(toTokens(query.toLowerCase, _))
