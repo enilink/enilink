@@ -23,9 +23,9 @@
 								function() {
 									var self = $(this).closest("li[about]");
 									var property = self.attr("about");
-									$("#properties").find(
+									/*$("#properties").find(
 											'[data-add][data-property="'
-													+ property + '"]')
+													+ property + '"]')*/
 
 									property = $.rdf.resource(property, {
 										namespaces : self.xmlns()
@@ -34,14 +34,14 @@
 									var template = $(
 											'<div about="?this" data-lift="rdfa">'
 													// ensure that ?this and ?property is always bound
-													+ '<div about="?this" typeof="?thisType" class="optional clearable"></div>'
-													+ '<div about="?property" typeof="?pType" class="optional clearable"></div>'
+													+ '<div about="?this" class="bind clearable"></div>'
+													+ '<div about="?property" class="bind clearable"></div>'
 													+ testObjectProperty
 													+ '<div id="content" class="optional"><div data-embed="static/describe" data-template="property"></div></div>'
 													+ '</div>').prefix(
 											self.xmlns());
 									enilink.render({
-										templatePath : $("<div>").append(
+										what : $("<div>").append(
 												template).html(),
 										bind : {
 											property : property
