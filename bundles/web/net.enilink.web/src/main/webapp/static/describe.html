@@ -34,8 +34,8 @@
 									var template = $(
 											'<div about="?this" data-lift="rdfa">'
 													// ensure that ?this and ?property is always bound
-													+ '<div about="?this" class="bind clearable"></div>'
-													+ '<div about="?property" class="bind clearable"></div>'
+													+ '<div data-bind="?this as ?this"></div>'
+													+ '<div data-bind="?property as ?property"></div>'
 													+ testObjectProperty
 													+ '<div id="content" class="optional"><div data-embed="static/describe" data-template="property"></div></div>'
 													+ '</div>').prefix(

@@ -8,8 +8,8 @@ import scala.xml.NodeSeq.seqToNodeSeq
 import scala.xml.Text
 import org.eclipse.core.runtime.Platform
 import org.eclipse.equinox.security.auth.LoginContextFactory
-import net.enilink.rap.security.callbacks.RealmCallback
-import net.enilink.rap.security.callbacks.RedirectCallback
+import net.enilink.security.callbacks.RealmCallback
+import net.enilink.security.callbacks.RedirectCallback
 import javax.security.auth.Subject
 import javax.security.auth.callback.Callback
 import javax.security.auth.callback.CallbackHandler
@@ -27,13 +27,13 @@ import net.liftweb.http.SHtml
 import net.liftweb.http.js.JsCmds._
 import net.liftweb.util.Helpers.strToCssBindPromoter
 import net.liftweb.util.Helpers
-import net.enilink.rap.security.callbacks.ResponseCallback
+import net.enilink.security.callbacks.ResponseCallback
 import java.io.IOException
 import java.util.Properties
 import java.io.StringReader
 import java.io.StringWriter
 import net.liftweb.http.provider.HTTPCookie
-import net.enilink.rap.security.callbacks.RegisterCallback
+import net.enilink.security.callbacks.RegisterCallback
 import org.eclipse.equinox.security.auth.ILoginContextListener
 import java.security.PrivilegedAction
 import org.eclipse.equinox.security.auth.ILoginContext
