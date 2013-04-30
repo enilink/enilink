@@ -142,7 +142,7 @@ function queryParameters(noDecode) {
       SetExp(JsVar("enilink"), Call("$.extend", JsRaw("window.enilink || {}"), //
         JsObj(
           ("render", AnonFunc("pathOrXml, httpParams, target",
-            call("render", JsRaw("(typeof pathOrXml === 'object') ? pathOrXml : { 'templatePath' : pathOrXml }"),
+            call("render", JsRaw("(typeof pathOrXml === 'object') ? pathOrXml : { 'what' : pathOrXml }"),
               JsVar("target"), JsVar("httpParams"))) // 
               ) //
               ))))

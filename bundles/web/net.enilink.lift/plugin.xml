@@ -3,12 +3,13 @@
 <plugin>
    <extension-point id="selectionProviders" name="Selection Providers" schema="schema/selectionProviders.exsd"/>
    <extension
-         id="id1"
+         id="application"
+         name="Lift application"
          point="org.eclipse.core.runtime.applications">
       <application
             cardinality="singleton-global"
             thread="main"
-            visible="false">
+            visible="true">
          <run
                class="net.enilink.lift.eclipse.LiftApplication">
          </run>

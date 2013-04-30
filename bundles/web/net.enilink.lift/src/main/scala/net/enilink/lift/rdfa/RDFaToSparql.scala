@@ -1,13 +1,13 @@
 package net.enilink.lift.rdfa
 
+import net.enilink.komma.core.LinkedHashBindings
+import net.enilink.komma.core.IBindings
 import scala.collection.mutable.HashSet
 import scala.collection.mutable.LinkedHashSet
 import scala.collection.mutable.StringBuilder
 import scala.collection.mutable
 import scala.xml.NodeSeq
 import scala.xml.UnprefixedAttribute
-import net.enilink.komma.core.IBindings
-import net.enilink.komma.core.LinkedHashBindings
 import net.enilink.lift.rdf.Label
 import net.enilink.lift.rdf.Literal
 import net.enilink.lift.rdf.Node
@@ -138,17 +138,17 @@ private class RDFaToSparqlParser(e: xml.Elem, base: String)(implicit s: Scope = 
     }
 
     if (includeLimitOffset) {
-      val limit = (e \ "@data-limit").text
-      if (!limit.isEmpty) sb.append("limit ").append(limit).append('\n')
-
-      val offset = (e \ "@data-offset").text
-      if (!offset.isEmpty) sb.append("offset ").append(offset).append('\n')
+      nonempty(e, "data-offset") foreach { sb.append("offset ").append(_).append('\n') }
+      nonempty(e, "data-limit") foreach { sb.append("limit ").append(_).append('\n') }
     }
   }
 
-  def hasCssClass(e: xml.Elem, pattern: String) = {
-    ("(?:^|\\s)" + pattern).r.findFirstIn((e \ "@class").text) != None
-  }
+  /**
+   * Returns a value if the attribute with the given name is present and its trimmed text is not empty.
+   */
+  def nonempty(e: xml.Elem, name: String) = e.attribute(name) map (_.text.trim) filter (_.nonEmpty)
+
+  def hasCssClass(e: xml.Elem, pattern: String) = nonempty(e, "class") exists { ("(?:^|\\s)" + pattern).r.findFirstIn(_).isDefined }
 
   val EndsWithBraceOrDot = ".*[}.]\\s+".r
 
@@ -163,16 +163,17 @@ private class RDFaToSparqlParser(e: xml.Elem, base: String)(implicit s: Scope = 
     if (hasCssClass(e, "exists")) addBlock("filter exists")
     if (hasCssClass(e, "not-exists")) addBlock("filter not exists")
 
-    val pattern = (e \ "@data-pattern").text
-    if (!pattern.isEmpty) addLine(pattern match {
-      case EndsWithBraceOrDot => pattern
-      case _ => pattern + " . "
-    })
+    nonempty(e, "data-pattern") foreach { p =>
+      p match {
+        case EndsWithBraceOrDot => addLine(p)
+        case _ => addLine(p + " . ")
+      }
+    }
+    nonempty(e, "data-bind") foreach { bind => addLine("bind (" + bind + ")") }
 
     val result = super.walk(e, base, subj1, obj1, pending1f, pending1r, lang1)
 
-    val filter = (e \ "@data-filter").text
-    if (!filter.isEmpty) addLine("filter (" + filter + ")")
+    nonempty(e, "data-filter") foreach { filter => addLine("filter (" + filter + ")") }
 
     while (close > 0) { dedent; addLine("}"); close -= 1 }
 
@@ -220,9 +221,10 @@ private class RDFaToSparqlParser(e: xml.Elem, base: String)(implicit s: Scope = 
     val (e1, subj, obj, skip) = super.subjectObject(obj1, e, base, norel, types, props)
 
     if (!skip && props.isEmpty) {
-      val target = if (obj != undef && obj.isInstanceOf[Variable]) obj else if (subj != undef && subj.isInstanceOf[Variable]) subj else null
-      addBind(e1, target)
-      addToOrderBy(e1, target)
+      (if (obj != undef && obj.isInstanceOf[Variable]) obj else if (subj != undef && subj.isInstanceOf[Variable]) subj else null) match {
+        case v: Variable => addToOrderBy(e1, v)
+        case _ =>
+      }
     }
 
     if (obj != undef) {
@@ -232,22 +234,13 @@ private class RDFaToSparqlParser(e: xml.Elem, base: String)(implicit s: Scope = 
     return (e1, subj, obj, skip)
   }
 
-  /** Adds bind(?var as ?var) to the resulting query. */
-  def addBind(e: xml.Elem, bindTarget: Reference) {
-    if (bindTarget.isInstanceOf[Variable] && hasCssClass(e, "bind")) {
-      addLine("bind (" + toString(bindTarget) + " as " + toString(bindTarget) + ")")
-    }
-  }
-
   /** Adds orderBy modifier for the given variable */
-  def addToOrderBy(e: xml.Elem, orderTarget: Reference) = {
-    if (orderTarget.isInstanceOf[Variable]) {
-      lazy val orderAsc = hasCssClass(e, "asc")
-      lazy val orderDesc = hasCssClass(e, "desc")
-      (if (orderAsc) toString(orderTarget) else if (orderDesc) "desc(" + toString(orderTarget) + ")" else null) match {
-        case modifier: Any => orderBy.add(modifier)
-        case _ =>
-      }
+  def addToOrderBy(e: xml.Elem, variable: Variable) {
+    lazy val orderAsc = hasCssClass(e, "asc")
+    lazy val orderDesc = hasCssClass(e, "desc")
+    (if (orderAsc) toString(variable) else if (orderDesc) "desc(" + toString(variable) + ")" else null) match {
+      case modifier: Any => orderBy.add(modifier)
+      case _ =>
     }
   }
 

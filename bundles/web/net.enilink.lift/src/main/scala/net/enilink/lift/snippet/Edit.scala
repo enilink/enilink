@@ -48,7 +48,7 @@ import net.enilink.komma.core.BlankNode
 
 case class ProposeInput(rdf: String, query: String, index: Int)
 case class GetValueInput(rdf: String)
-case class SetValueInput(rdf: String, value: String, templateName: Option[String], templatePath: Option[String])
+case class SetValueInput(rdf: String, value: String, template: Option[String], templatePath: Option[String])
 
 class JsonCallHandler {
   implicit val formats = DefaultFormats
@@ -171,13 +171,13 @@ class JsonCallHandler {
 
       lazy val okResult = JObject(Nil)
       params.extractOpt[SetValueInput] map {
-        case SetValueInput(rdf, value, templateName, templatePath) =>
+        case SetValueInput(rdf, value, template, templatePath) =>
           statements(rdf) match {
             case stmt :: _ => {
               val cmdResult = createHelper.setValue(stmt, value.trim)
               val status = cmdResult.getStatus
               if (status.isOK) {
-                templateName match {
+                template match {
                   case Some(tname) =>
                     val result = for {
                       p <- templatePath.filter(_.nonEmpty).map(_.stripPrefix("/").split("/").toList) orElse path.map(_.wholePath)
