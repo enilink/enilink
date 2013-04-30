@@ -19,6 +19,7 @@ import javax.security.auth.spi.LoginModule;
 import net.enilink.auth.AccountHelper;
 import net.enilink.auth.UserPrincipal;
 import net.enilink.core.ModelSetManager;
+import net.enilink.security.callbacks.RegisterCallback;
 import net.enilink.vocab.auth.AUTH;
 
 import org.apache.commons.codec.binary.Base64;
@@ -31,7 +32,6 @@ import net.enilink.komma.core.IEntityManager;
 import net.enilink.komma.core.IQuery;
 import net.enilink.komma.core.URI;
 import net.enilink.komma.core.URIImpl;
-import net.enilink.rap.security.callbacks.RegisterCallback;
 
 public class EnilinkLoginModule implements LoginModule {
 	private Subject subject;

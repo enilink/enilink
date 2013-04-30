@@ -8,7 +8,7 @@ Require-Bundle: org.eclipse.core.runtime,
  net.enilink.komma.model,
  net.enilink.komma.edit,
  net.enilink.komma.workbench,
- net.enilink.rap.security,
+ net.enilink.security,
  net.enilink.auth;visibility:=reexport
 Bundle-ActivationPolicy: lazy
 Bundle-RequiredExecutionEnvironment: JavaSE-1.6
