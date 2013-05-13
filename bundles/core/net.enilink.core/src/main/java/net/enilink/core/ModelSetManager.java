@@ -165,7 +165,7 @@ public class ModelSetManager {
 
 		// store meta data in repository
 		// graph.add(ms, MODELS.PROPERTY_METADATACONTEXT,
-		// URIImpl.createURI("urn:komma:metadata"));
+		// URIImpl.createURI("komma:metadata"));
 		return graph;
 	}
 
