@@ -81,7 +81,8 @@ trait SparqlHelper {
 }
 
 class Sparql extends SparqlHelper with RDFaTemplates {
-  def includeInferred = S.attr("inferred", _ != "false", true)
+  // trigger includeInferred either by HTTP parameter or by snippet attribute
+  def includeInferred = !S.param("inferred").exists(_ == "false") && S.attr("inferred", _ != "false", true)
 
   def render(ns: NodeSeq) = renderWithoutPrepare(prepare(ns))
 
