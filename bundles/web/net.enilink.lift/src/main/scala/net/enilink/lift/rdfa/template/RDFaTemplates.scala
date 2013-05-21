@@ -26,8 +26,21 @@ import scala.collection.mutable.LinkedHashMap
 import scala.xml.Node
 import net.enilink.lift.rdfa.RDFaUtils
 
+sealed trait Operation {
+  def merge(other: Operation): Operation = other match {
+    case Keep => this
+    case _ => this match {
+      case Remove => Remove
+      case _ => other
+    }
+  }
+}
+case object Keep extends Operation
+case object RemoveInferred extends Operation
+case object Remove extends Operation
+
 trait Binder {
-  type Result = (MetaData, RdfContext, Boolean)
+  type Result = (MetaData, RdfContext, Operation)
   final val Attribute = "^(?:data-(?:clear-)?)?(.+)".r
 
   def shorten(uri: URI, currentCtx: RdfContext, elem: xml.Elem) = {
@@ -59,11 +72,11 @@ trait Binder {
 }
 
 class IfInferredBinder(val key: String) extends Binder {
-  def bind(attrs: MetaData, ctx: RdfContext, bindings: IBindings[_], inferred: Boolean): Result = (attrs.remove(key), ctx, !inferred)
+  def bind(attrs: MetaData, ctx: RdfContext, bindings: IBindings[_], inferred: Boolean): Result = (attrs.remove(key), ctx, if (!inferred) Remove else Keep)
 }
 
 class UnlessInferredBinder(val key: String) extends Binder {
-  def bind(attrs: MetaData, ctx: RdfContext, bindings: IBindings[_], inferred: Boolean): Result = (attrs.remove(key), ctx, inferred)
+  def bind(attrs: MetaData, ctx: RdfContext, bindings: IBindings[_], inferred: Boolean): Result = (attrs.remove(key), ctx, if (inferred) RemoveInferred else Keep)
 }
 
 trait RdfAttributeBinder extends Binder {
@@ -106,7 +119,7 @@ class VarBinder(val e: Elem, val attr: String, val name: String) extends RdfAttr
     } else if (clearAttribute) attributes = attributes.remove(attr)
     else if (attr == "data-unless") { attributes = null }
     else attributes = attributes.append(new UnprefixedAttribute(attr, attValue.toString, Null))
-    (attributes, currentCtx, false)
+    (attributes, currentCtx, Keep)
   }
 }
 
@@ -118,8 +131,8 @@ class IriBinder(val e: Elem, val attr: String, val Iri: URI) extends RdfAttribut
       case _ => null
     }
     if (rdfValue != null) {
-      (attrs.append(new UnprefixedAttribute(attr, String.valueOf(shortRef(ctx, e, attr, rdfValue)), Null)), changeContext(ctx, attr, rdfValue), false)
-    } else (attrs, ctx, false)
+      (attrs.append(new UnprefixedAttribute(attr, String.valueOf(shortRef(ctx, e, attr, rdfValue)), Null)), changeContext(ctx, attr, rdfValue), Keep)
+    } else (attrs, ctx, Keep)
   }
 
   /**
@@ -192,12 +205,12 @@ class Template(val ns: NodeSeq) {
       template foreach {
         case t: TemplateNode => {
           // run registered template binders
-          val (rAttrs, rCtx, removeNode) = t.binders.foldLeft((t.attributes, ctx, false)) {
-            case ((attrs, ctx, removeNode), binder) =>
+          val (rAttrs, rCtx, op) = t.binders.foldLeft((t.attributes, ctx, Keep: Operation)) {
+            case ((attrs, ctx, op), binder) =>
               if (attrs != null) {
                 val r = binder.bind(attrs, ctx, bindings, inferred)
-                (r._1, r._2, removeNode || r._3)
-              } else (attrs, ctx, removeNode)
+                (r._1, r._2, op.merge(r._3))
+              } else (attrs, ctx, op)
           }
           if (rAttrs != null) {
             // the RDF context is also required as key value since
@@ -206,8 +219,12 @@ class Template(val ns: NodeSeq) {
             val key = (rAttrs, rCtx)
             t.instances.get(key) match {
               case Some(null) =>
-              case _ if removeNode => t.instances.put(key, null)
-              case Some(e: Elem) => internalTransform(rCtx, e.child)
+              // remove only inferred instances and keep asserted instances
+              case None if op == RemoveInferred => t.instances.put(key, null)
+              // remove existing or non-existing instances
+              case e if op == Remove => t.instances.put(key, null)
+              case Some(e) =>
+                internalTransform(rCtx, e.child)
               case None => {
                 val instance = if (rCtx == ctx) {
                   new Elem(t.prefix, t.label, rAttrs, t.scope, deepCopy(t.child): _*)

@@ -127,6 +127,7 @@ private class RDFaToSparqlParser(e: xml.Elem, base: String)(implicit s: Scope = 
 
   def getCountQuery(bindingName: String) = {
     val result = new StringBuilder
+    addPrefixDecls(result, resultElem.scope)
     result.append("select (count(distinct ?").append(bindingName).append(") as ?count) where {\n")
     result.append(sparql)
     result.append("}\n").toString
