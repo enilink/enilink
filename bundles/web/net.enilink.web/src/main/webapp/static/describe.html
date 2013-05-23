@@ -41,8 +41,8 @@
 													+ '</div>').prefix(
 											self.xmlns());
 									enilink.render({
-										what : $("<div>").append(
-												template).html(),
+										what : $("<div>").append(template)
+												.html(),
 										bind : {
 											property : property
 										}
@@ -79,13 +79,20 @@
 							data-toggle="dropdown" href="#">Properties <b class="caret"></b>
 						</a>
 						<!-- query relevant properties -->
-						<div rel="rdf:type" class="clearable">
-							<div rel="rdfs:subClassOf">
-								<div rel="owl:onProperty" resource="?relProperty"></div>
+						<div class="union clearable">
+							<div data-bind="rdfs:comment as ?relProperty"></div>
+							<div data-bind="rdfs:label as ?relProperty"></div>
+							<div rel="rdf:type" class="clearable">
+								<div rel="rdfs:subClassOf">
+									<div rel="owl:onProperty" resource="?relProperty"></div>
+								</div>
 							</div>
 						</div>
+						<!-- filter existing properties -->
+						<div rel="?relProperty" resource="?dummy"
+							class="clearable not-exists"></div>
 						<ul class="dropdown-menu" role="menu" aria-labelledby="dLabel">
-							<li about="?relProperty"><a href="javascript://"
+							<li about="?relProperty" class="asc"><a href="javascript://"
 								class="add-property"><span about="?relProperty"
 									data-lift="rdf.label"></span></a></li>
 						</ul>
