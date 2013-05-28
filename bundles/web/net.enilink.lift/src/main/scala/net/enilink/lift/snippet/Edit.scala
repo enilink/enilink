@@ -45,6 +45,8 @@ import net.enilink.lift.rdfa.RDFaParser
 import net.liftweb.json.JString
 import net.liftweb.json.JBool
 import net.enilink.komma.core.BlankNode
+import net.enilink.komma.edit.util.PropertyUtil
+import net.enilink.komma.concepts.IResource
 
 case class ProposeInput(rdf: String, query: String, index: Int)
 case class GetValueInput(rdf: String)
@@ -58,7 +60,7 @@ class JsonCallHandler {
   val model: Box[IModel] = Globals.contextModel.vend
   val path = S.request map (_.path)
 
-  def createHelper = new PropertyEditingHelper(false) {
+  class EditingHelper extends PropertyEditingHelper(false) {
     override def getStatement(element: AnyRef) = {
       val stmt = element.asInstanceOf[IStatement]
       val em = model.get.getManager
@@ -94,6 +96,8 @@ class JsonCallHandler {
       case _ => CommandResult.newCancelledCommandResult
     }
   }
+
+  def createHelper = new EditingHelper
 
   def apply: PartialFunction[JValue, Any] = {
     case JsonCommand("removeResource", _, JString(resource)) => {
@@ -164,6 +168,35 @@ class JsonCallHandler {
         case _ => None
       } map (v => JString(v.toString)) getOrElse JString("")
     }
+    case JsonCommand("removeValue", _, JString(rdf)) => {
+      import scala.collection.JavaConversions._
+      var successful = false
+      for (
+        model <- model ?~ "No active model found"
+      ) {
+        val em = model.getManager
+        val helper = createHelper
+        val editingDomain = helper.getEditingDomain
+        try {
+          em.getTransaction.begin
+          statements(rdf) match {
+            case stmt :: _ => {
+              val removeCommand = PropertyUtil.getRemoveCommand(
+                editingDomain,
+                em.find(stmt.getSubject, classOf[IResource]),
+                em.find(stmt.getPredicate, classOf[IProperty]),
+                stmt.getObject);
+              successful &= helper.execute(removeCommand).getStatus.isOK
+            }
+          }
+          em.getTransaction.commit
+          successful = true
+        } catch {
+          case e: Exception => if (em.getTransaction.isActive) em.getTransaction.rollback
+        }
+      }
+      JBool(successful)
+    }
     case JsonCommand("setValue", _, params) => {
       import scala.collection.JavaConversions._
       import net.enilink.lift.util.TemplateHelpers._
@@ -197,8 +230,11 @@ class JsonCallHandler {
                           }
                         }
                       }.getArcs(wrappedTemplate, model.get.getURI.toString).flatMap {
-                        case (Variable("this", _), relVar: Variable, objVar: Variable) =>
-                          List((relVar.toString, stmt.getPredicate)) ++ resultValue.flatMap(v => Some((objVar.toString, v)))
+                        case (Variable("this", _), rel, objVar: Variable) => (
+                          rel match {
+                            case v: Variable => List((v.toString, stmt.getPredicate))
+                            case _ => Nil
+                          }) ++ resultValue.flatMap(v => Some((objVar.toString, v)))
                         case _ => Nil
                       }.toMap
                       val renderResult = Globals.contextResource.doWith(Full(model.get.getManager.find(stmt.getSubject))) {
@@ -247,6 +283,7 @@ class Edit extends DispatchSnippet {
             handler.call("updateTriples", JsRaw("{ 'add' : add, 'remove' : remove }"), JsVar("callback")))), //
           ("getValue", AnonFunc("rdf, callback", handler.call("getValue", JsRaw("{ 'rdf' : rdf }"), JsVar("callback")))), //
           ("setValue", AnonFunc("data, callback", handler.call("setValue", JsVar("data"), JsVar("callback")))), //
+          ("removeValue", AnonFunc("rdf, callback", handler.call("removeValue", JsVar("rdf"), JsVar("callback")))), //
           ("propose", AnonFunc("data, callback", handler.call("propose", JsVar("data"), JsVar("callback"))) //
           )))))
   }

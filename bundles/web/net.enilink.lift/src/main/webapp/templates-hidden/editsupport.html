@@ -38,12 +38,12 @@
 					if (target) {
 						var toDelete = target.rdf().databank.dump(rdfXmlOpts);
 						console.log("Delete: " + toDelete);
-						enilink.updateTriples(null, toDelete,
-								function(success) {
-									if (success) {
-										target.remove();
-									}
-								});
+						// enilink.updateTriples(null, toDelete,
+						enilink.removeValue(toDelete, function(success) {
+							if (success) {
+								target.remove();
+							}
+						});
 					}
 					hideButtons();
 				}
@@ -153,8 +153,8 @@
 								rdf : rdfStmts,
 								value : params.value,
 								template : target.attr("data-t"),
-								what : target.closest("[data-t-path]")
-										.attr("data-t-path")
+								what : target.closest("[data-t-path]").attr(
+										"data-t-path")
 							}, function(result) {
 								if (result.msg) {
 									d.reject(result.msg);
@@ -226,9 +226,8 @@
 									rdf : stmt,
 									value : params.value,
 									template : self.attr("data-add"),
-									what : self
-											.closest("[data-t-path]").attr(
-													"data-t-path")
+									what : self.closest("[data-t-path]").attr(
+											"data-t-path")
 								}, function(result) {
 									if (result.msg) {
 										d.reject(result.msg);
