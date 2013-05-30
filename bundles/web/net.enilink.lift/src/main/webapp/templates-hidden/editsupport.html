@@ -54,6 +54,7 @@
 					if (target) {
 						var rdf = target.rdf();
 						console.log(rdf.databank);
+						console.log(rdf.databank.dump(rdfXmlOpts));
 					}
 				}
 				$("#buttons .button-show").click(showRdf);
@@ -211,6 +212,15 @@
 						options = $.extend(defaultEditableOptions(stmt), {
 							display : false,
 							success : function(response) {
+								if (options.onadd) {
+									$.when(options.onadd(response)).then(
+											function(value) {
+												resultDeferred.resolve(value);
+											}).fail(function(reason) {
+										resultDeferred.reject(reason);
+									});
+									return;
+								}
 								if (response.html) {
 									var newNode = $(response.html);
 									newNode.insertBefore(self);
@@ -250,7 +260,16 @@
 				function addHandler(e) {
 					e.stopPropagation();
 					e.preventDefault();
-					doAdd($(this));
+					var self = $(this);
+					var onadd = self.data("onadd");
+					var options = {};
+					if (onadd) {
+						onadd = eval.call(window, "(" + onadd + ")");
+						if (typeof onadd === "function") {
+							options.onadd = onadd;
+						}
+					}
+					doAdd(self, options);
 				}
 
 				function enableAdd(nodeOrSelector) {
@@ -264,41 +283,60 @@
 					// allow to use selectors or DOM nodes as arguments
 					nodeOrSelector = (nodeOrSelector instanceof jQuery) ? nodeOrSelector
 							: $(nodeOrSelector);
-					nodeOrSelector.hover(function(e) {
-						e.stopPropagation();
-						var target = $(e.target).closest("[rel],[property]");
-						if (target.length == 0) {
-							return;
-						}
-						if (!target.is(buttons.data("target"))
-								|| !buttons.is(":visible")) {
-							var lastTarget = buttons.data("target");
-							if (lastTarget) {
-								lastTarget.removeClass("focused");
-							}
-							target.addClass("focused");
-							buttons.data("target", target);
+					nodeOrSelector
+							.filter(
+									function() {
+										var self = $(this);
+										return self.is("[rel],[rev],[property]")
+												|| self
+														.parent()
+														.closest(
+																"[rel],[resource],[href],[about]")
+														.not(
+																"[resource],[href]")
+														.is("[rel],[rev]");
+									})
+							.hover(
+									function(e) {
+										e.stopPropagation();
+										var target = $(e.target)
+												.closest(
+														"[about],[resource],[property]");
+										if (target.length == 0) {
+											return;
+										}
+										if (!target.is(buttons.data("target"))
+												|| !buttons.is(":visible")) {
+											var lastTarget = buttons
+													.data("target");
+											if (lastTarget) {
+												lastTarget
+														.removeClass("focused");
+											}
+											target.addClass("focused");
+											buttons.data("target", target);
 
-							// position buttons to the right of target
-							buttons.css({
-								position : "absolute",
-								marginLeft : 0,
-								marginTop : 0,
-								top : target.offset().top,
-								left : target.offset().left
-										+ target.innerWidth()
-										- buttons.outerWidth()
-							});
-							buttons.show();
-						}
-					}, function(e) {
-						var relatedTarget = $(e.relatedTarget);
-						if (!relatedTarget
-								|| (relatedTarget != buttons && relatedTarget
-										.closest("#buttons").length == 0)) {
-							hideButtons();
-						}
-					});
+											// position buttons to the right of target
+											buttons.css({
+												position : "absolute",
+												marginLeft : 0,
+												marginTop : 0,
+												top : target.offset().top,
+												left : target.offset().left
+														+ target.innerWidth()
+														- buttons.outerWidth()
+											});
+											buttons.show();
+										}
+									},
+									function(e) {
+										var relatedTarget = $(e.relatedTarget);
+										if (!relatedTarget
+												|| (relatedTarget != buttons && relatedTarget
+														.closest("#buttons").length == 0)) {
+											hideButtons();
+										}
+									});
 				}
 
 				// allow access through global enilink object
@@ -315,7 +353,7 @@
 				}, enilink.options || {});
 
 				if (enilink.options["ui.autoEdit"]) {
-					enableEdit("[rel],[property]");
+					enableEdit("[about],[resource],[property]");
 					enableAdd("[data-add]");
 				}
 			});

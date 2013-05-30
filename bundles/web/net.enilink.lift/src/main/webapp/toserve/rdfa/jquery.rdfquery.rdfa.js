@@ -4125,6 +4125,18 @@
         }
         return false;
       } else {
+        var curieOptions = $.extend({}, rdfaCurieDefaults, { namespaces: options.namespaces || this.xmlns(), base: this.base() });
+    	// determine pending rels and revs
+        // try to determine rels from ancestor node
+        var relNode = this.parent().closest("[rel],[resource],[href],[about]").not("[resource],[href]");
+        if (relNode.length && relNode.attr("rel")) {
+          options.forward = resourcesFromCuries(relNode.attr("rel"), relNode, curieOptions);
+        }
+        // try to determine revs from ancestor node
+        var revNode = this.parent().closest("[rev],[resource],[href],[about]").not("[resource],[href]");
+        if (revNode.length && revNode.attr("rev")) {
+          options.backward = resourcesFromCuries(revNode.attr("rev"), revNode, curieOptions);
+        }
         return rdfa.call(this, options);
       }
     },

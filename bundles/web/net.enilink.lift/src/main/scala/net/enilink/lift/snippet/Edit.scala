@@ -47,6 +47,7 @@ import net.liftweb.json.JBool
 import net.enilink.komma.core.BlankNode
 import net.enilink.komma.edit.util.PropertyUtil
 import net.enilink.komma.concepts.IResource
+import scala.collection.mutable.LinkedHashSet
 
 case class ProposeInput(rdf: String, query: String, index: Int)
 case class GetValueInput(rdf: String)
@@ -220,9 +221,13 @@ class JsonCallHandler {
                       println("Template: " + template)
                       val wrappedTemplate = <div about="?this" data-lift="rdfa">{ template }</div>
                       val resultValue = cmdResult.getReturnValues.headOption
-                      val isResource = resultValue.map(_.isInstanceOf[IReference]) getOrElse false
-                      val params = new RDFaParser {
-                        override def createVariable(name: String) = Some(Variable(name.substring(1), None))
+                      val vars = new LinkedHashSet[Variable]()
+                      var params = new RDFaParser {
+                        override def createVariable(name: String) = {
+                          val v = Variable(name.substring(1), None)
+                          vars.add(v)
+                          Some(v)
+                        }
                         override def transformLiteral(e: xml.Elem, content: NodeSeq, literal: Literal): (xml.Elem, Node) = {
                           super.transformLiteral(e, content, literal) match {
                             case (e1, PlainLiteral(variable(l), _)) => (e1, createVariable(l).get)
@@ -230,6 +235,7 @@ class JsonCallHandler {
                           }
                         }
                       }.getArcs(wrappedTemplate, model.get.getURI.toString).flatMap {
+                        // TODO support reverse relationships
                         case (Variable("this", _), rel, objVar: Variable) => (
                           rel match {
                             case v: Variable => List((v.toString, stmt.getPredicate))
@@ -237,6 +243,11 @@ class JsonCallHandler {
                           }) ++ resultValue.flatMap(v => Some((objVar.toString, v)))
                         case _ => Nil
                       }.toMap
+                      // [rel] or [rev] was not contained in current HTML fragment
+                      // simply bind first var that is different from ?this
+                      if (params.isEmpty) params = resultValue flatMap { value =>
+                        vars.collectFirst { case v if v.n != "this" => v } map { v => (v.toString, value) }
+                      } toMap
                       val renderResult = Globals.contextResource.doWith(Full(model.get.getManager.find(stmt.getSubject))) {
                         QueryParams.doWith(params) { TemplateHelpers.withAppFor(p)(TemplateHelpers.render(wrappedTemplate)) }
                       }
