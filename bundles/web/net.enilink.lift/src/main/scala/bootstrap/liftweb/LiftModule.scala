@@ -143,16 +143,11 @@ class LiftModule extends Logger {
               }
             }
           }
-
           // use corresponding ontology as resource
           if (model.isDefined && resource.isEmpty) {
             resource = Full(model.get.getOntology)
           }
-          if (resource.isDefined) {
-            Globals.contextResource.request.set(resource)
-          }
           if (model.isDefined) {
-            Globals.contextModel.request.set(model)
             if (modelSet != model.get.getModelSet) {
               modelSet = model.get.getModelSet
               var uow = modelSet.getUnitOfWork
@@ -160,12 +155,16 @@ class LiftModule extends Logger {
               uow.begin
             }
           }
-          S.session.flatMap(_.httpSession.map(_.attribute("javax.security.auth.subject")) match {
-            case Full(s: Subject) => Full(Subject.doAs(s, new PrivilegedAction[T] {
-              override def run = f
-            }))
-            case _ => Full(f)
-          }).openTheBox
+          Globals.contextResource.doWith(resource) {
+            Globals.contextModel.doWith(model) {
+              S.session.flatMap(_.httpSession.map(_.attribute("javax.security.auth.subject")) match {
+                case Full(s: Subject) => Full(Subject.doAs(s, new PrivilegedAction[T] {
+                  override def run = f
+                }))
+                case _ => Full(f)
+              }).openTheBox
+            }
+          }
         } finally {
           for (uow <- unitsOfWork) uow.end
         }

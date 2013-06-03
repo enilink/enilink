@@ -35,6 +35,7 @@ import net.enilink.lift.util.TemplateHelpers
 import net.liftweb.http.js.JsCmds
 import net.liftweb.http.js.JsCmd
 import net.enilink.komma.core.QueryFragment
+import net.liftweb.util.CanBind._
 
 object ParamsHelper {
   def params(filter: Set[String] = Set.empty) = {
@@ -79,7 +80,7 @@ object Search extends SparqlHelper with SparqlExtractor {
               val keywords = bindingNames.flatMap { bindingName =>
                 // add search patterns to template
                 val fragment = em.getFactory.getDialect.fullTextSearch(List(bindingName), IDialect.ANY, query)
-                val nsWithPatterns = (".search-patterns" #> <div data-pattern={ fragment.toString } class="clearable"></div>)(ns)
+                val nsWithPatterns = (".search-patterns" #> <div data-pattern={ fragment.toString } class="clearable"></div>).apply(ns)
                 val sparqlFromRdfa = extractSparql(nsWithPatterns)
                 val queryParams = globalQueryParameters ++ bindParams(extractParams(ns)) ++ bindingsToMap(fragment.bindings)
                 val sparql = sparqlFromRdfa.getQuery(bindingName, 0, 1000)
@@ -120,7 +121,7 @@ object Search extends SparqlHelper with SparqlExtractor {
       } else ns
     }
 
-    var nodes = (".search-patterns" #> patterns _)(ns)
+    var nodes = (".search-patterns" #> patterns _ : CssSel)(ns)
     nodes = (".search-form" #> ((form: NodeSeq) => {
       val (acName, acCmd) = autoCompleteJs(bindingNames, ns)
       JsCmds.Script(acCmd) ++ (Templates(List("templates-hidden", "search")) map {
@@ -133,7 +134,7 @@ object Search extends SparqlHelper with SparqlExtractor {
                 // add refresh function to query parameters
                 queryParams = (name, name) :: queryParams
                 // use an ajax form
-                ns: NodeSeq => Form.render(ns) flatMap { ("form [class]" #> (ns \ "@class").text)(_) }
+                ns: NodeSeq => Form.render(ns) flatMap { ("form [class]" #> (ns \ "@class").text).apply(_) }
                 case _ => PassThru
             }) &
               "* *" #> ((ns: NodeSeq) => ns ++ (queryParams map {
@@ -141,7 +142,7 @@ object Search extends SparqlHelper with SparqlExtractor {
               }))
           }
       } openOr Nil)
-    }))(nodes)
+    })).apply(nodes)
     fragment map { f => QueryParams.doWith(f.bindings)(render(nodes)) } openOr render(nodes)
   }
 }
@@ -151,7 +152,7 @@ object Search extends SparqlHelper with SparqlExtractor {
  */
 trait SparqlExtractor {
   def extractSparql(n: NodeSeq): SparqlFromRDFa = {
-    val nodesWithAcl = (".acl" #> Acl.render _)(n)
+    val nodesWithAcl = (".acl" #> Acl.render _).apply(n)
     SparqlFromRDFa(nodesWithAcl.head.asInstanceOf[Elem], S.request.map(r => r.hostAndPath + r.uri + "#") openOr "urn:")
   }
 }
@@ -250,9 +251,9 @@ class Rdfa extends Sparql with SparqlExtractor {
           paginator.paginate(ns.asInstanceOf[Elem].copy(child = Templates("templates-hidden" :: "pagination" :: Nil).openTheBox))
         } else paginator.paginate(ns)
       } else ns
-    }))(sparqlFromRdfa.getElement)
+    })).apply(sparqlFromRdfa.getElement)
 
-    if (paginatedQuery.isDefined) ((".count-query *" #> countQuery)(nodesWithPagination), paginatedQuery.openTheBox, queryParams)
+    if (paginatedQuery.isDefined) ((".count-query *" #> countQuery).apply(nodesWithPagination), paginatedQuery.openTheBox, queryParams)
     else (sparqlFromRdfa.getElement, sparqlFromRdfa.getQuery, queryParams)
   }
 

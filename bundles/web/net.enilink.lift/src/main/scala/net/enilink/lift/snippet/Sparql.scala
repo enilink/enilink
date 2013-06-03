@@ -64,7 +64,7 @@ trait SparqlHelper {
   /**
    * Immediately captures current RDF context (context resources) and
    * returns a function that can be used to execute some code with this
-   * captures context.
+   * captured context.
    */
   def captureRdfContext[S]: (=> S) => S = {
     val isMetaQuery = (S.attr("target") openOr null) == "meta"
@@ -146,7 +146,7 @@ class Sparql extends SparqlHelper with RDFaTemplates {
           if (left.startsWith("_ ")) Some((ns: NodeSeq) => {
             // apply transformation only to current node
             val e = ns.asInstanceOf[Elem]; val child = e.child
-            (("*" + left.substring(1)) #> right)(e.copy(child = Nil)) map {
+            (("*" + left.substring(1)) #> right).apply(e.copy(child = Nil)) map {
               case newE: Elem if child.nonEmpty => newE.copy(child = child)
               case other => other
             }

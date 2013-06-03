@@ -86,7 +86,7 @@ object TemplateHelpers {
           }
           case other => other
         }
-      }))(ns)
+      })).apply(ns)
       (revised, if (cmds.nonEmpty) Full(cmds.reduceLeft(_ & _).toJsCmd) else Empty)
     }
   }

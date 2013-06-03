@@ -129,7 +129,6 @@
 					// functions after doAdd finished
 					var resultDeferred = new $.Deferred;
 					var rdfStmts = target.rdf().databank.dump(rdfXmlOpts);
-					var d = new $.Deferred;
 					options = $.extend(defaultEditableOptions(rdfStmts), {
 						title : "Edit value",
 						value : target.closest("[content]").attr("content")
@@ -149,6 +148,7 @@
 							}
 						},
 						url : function(params) {
+							var d = new $.Deferred;
 							enilink.setValue({
 								rdf : rdfStmts,
 								value : params.value,
@@ -208,7 +208,6 @@
 								[ $.rdf.triple(subject, predicate, object, {
 									namespaces : nsMap
 								}) ]).dump(rdfXmlOpts);
-						var d = new $.Deferred;
 						options = $.extend(defaultEditableOptions(stmt), {
 							display : false,
 							success : function(response) {
@@ -222,6 +221,7 @@
 							value : "",
 							title : "Add value",
 							url : function(params) {
+								var d = new $.Deferred;
 								enilink.setValue({
 									rdf : stmt,
 									value : params.value,
