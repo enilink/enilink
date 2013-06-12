@@ -143,11 +143,15 @@ class LiftModule extends Logger {
               }
             }
           }
-          // use corresponding ontology as resource
+          if (resource.isDefined) {
+            Globals.contextResource.request.set(resource)
+          }
+          // fallback - use corresponding ontology as resource
           if (model.isDefined && resource.isEmpty) {
             resource = Full(model.get.getOntology)
           }
           if (model.isDefined) {
+            Globals.contextModel.request.set(model)
             if (modelSet != model.get.getModelSet) {
               modelSet = model.get.getModelSet
               var uow = modelSet.getUnitOfWork
