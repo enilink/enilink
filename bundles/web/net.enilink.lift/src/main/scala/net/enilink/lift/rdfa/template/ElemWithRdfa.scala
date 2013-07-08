@@ -26,5 +26,6 @@ class ElemWithRdfa(
     label: String = this.label,
     attributes: MetaData = this.attributes,
     scope: NamespaceBinding = this.scope,
+    minimizeEmpty: Boolean = this.minimizeEmpty,
     child: Seq[xml.Node] = this.child.toSeq): ElemWithRdfa = new ElemWithRdfa(context, prefix, label, attributes, scope, child: _*)
 }

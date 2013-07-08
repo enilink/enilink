@@ -11,13 +11,13 @@ import scala.collection.mutable
  * Concepts and Abstract Syntax</a></cite>
  * W3C Recommendation 10 February 2004
  */
-case class Node
-case class Literal extends Node
+trait Node
+trait Literal extends Node
 case class PlainLiteral(s: String, lang: Option[Symbol]) extends Literal
 case class TypedLiteral(lex: String, dt: Label) extends Literal
 case class XmlLiteral(content: scala.xml.NodeSeq) extends Literal
 
-case class Reference extends Node
+trait Reference extends Node
 case class Label(n: String) extends Reference {
   override def toString() = n
 }

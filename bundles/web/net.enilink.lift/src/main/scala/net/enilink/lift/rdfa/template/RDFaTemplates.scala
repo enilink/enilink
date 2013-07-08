@@ -191,6 +191,7 @@ class TemplateNode(
     label: String = this.label,
     attributes: MetaData = this.attributes,
     scope: NamespaceBinding = this.scope,
+    minimizeEmpty: Boolean = this.minimizeEmpty,
     child: Seq[xml.Node] = this.child.toSeq): TemplateNode = new TemplateNode(prefix, label, attributes, scope, binders, child: _*)
 }
 
