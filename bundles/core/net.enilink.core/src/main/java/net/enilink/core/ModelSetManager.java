@@ -1,6 +1,7 @@
 package net.enilink.core;
 
 import java.security.PrivilegedAction;
+import java.util.Locale;
 
 import javax.security.auth.Subject;
 
@@ -26,8 +27,6 @@ import com.google.inject.AbstractModule;
 import com.google.inject.Guice;
 import com.google.inject.Injector;
 import com.google.inject.Module;
-import com.google.inject.Provides;
-import com.google.inject.Singleton;
 import com.google.inject.util.Modules;
 
 import net.enilink.vocab.rdf.RDF;
@@ -42,6 +41,7 @@ import net.enilink.komma.model.base.IURIMapRule;
 import net.enilink.komma.model.base.SimpleURIMapRule;
 import net.enilink.komma.core.IEntityManager;
 import net.enilink.komma.core.IGraph;
+import net.enilink.komma.core.IProvider;
 import net.enilink.komma.core.IUnitOfWork;
 import net.enilink.komma.core.KommaModule;
 import net.enilink.komma.core.LinkedHashGraph;
@@ -63,36 +63,32 @@ public class ModelSetManager {
 		REPOSITORY_TYPE = repoType.toLowerCase();
 	}
 
-	static class SessionProviderModule extends AbstractModule {
+	static IContextProvider contextProvider = new IContextProvider() {
+		@Override
+		public IContext get() {
+			try {
+				// get the first valid context from any
+				// registered session provider service
+				BundleContext bundleContext = Activator.getContext();
+				for (ServiceReference<IContextProvider> spRef : bundleContext
+						.getServiceReferences(IContextProvider.class, null)) {
+					IContext userCtx = bundleContext.getService(spRef).get();
+					bundleContext.ungetService(spRef);
+					if (userCtx != null) {
+						return userCtx;
+					}
+				}
+			} catch (InvalidSyntaxException ise) {
+				// ignore
+			}
+			return null;
+		}
+	};
+
+	static class ContextProviderModule extends AbstractModule {
 		@Override
 		protected void configure() {
-		}
-
-		@Provides
-		@Singleton
-		protected ISessionProvider provideSessionProvider() {
-			return new ISessionProvider() {
-				@Override
-				public ISession get() {
-					try {
-						// get the first valid session from any
-						// registered session provider service
-						BundleContext context = Activator.getContext();
-						for (ServiceReference<ISessionProvider> spRef : context
-								.getServiceReferences(ISessionProvider.class,
-										null)) {
-							ISession session = context.getService(spRef).get();
-							context.ungetService(spRef);
-							if (session != null) {
-								return session;
-							}
-						}
-					} catch (InvalidSyntaxException ise) {
-						// ignore
-					}
-					return null;
-				}
-			};
+			bind(IContextProvider.class).toInstance(contextProvider);
 		}
 	}
 
@@ -127,6 +123,20 @@ public class ModelSetManager {
 
 	protected Module createModelSetGuiceModule(KommaModule module) {
 		return Modules.override(new ModelSetModule(module) {
+			@Override
+			protected IProvider<Locale> getLocaleProvider() {
+				return new IProvider<Locale>() {
+					@Override
+					public Locale get() {
+						// return locale according to current context (RAP or
+						// Lift)
+						IContext context = contextProvider.get();
+						return context != null ? context.getLocale() : Locale
+								.getDefault();
+					}
+				};
+			}
+
 			@Override
 			protected Class<? extends PropertySetFactory> getPropertySetFactoryClass() {
 				return SecurePropertySetFactory.class;
@@ -177,7 +187,7 @@ public class ModelSetManager {
 		module.addBehaviour(SecureEntitySupport.class);
 
 		Injector injector = Guice.createInjector(
-				createModelSetGuiceModule(module), new SessionProviderModule());
+				createModelSetGuiceModule(module), new ContextProviderModule());
 		URI msUri = URIImpl.createURI("urn:enilink:metamodelset");
 		IGraph graph = createModelSetConfig(msUri);
 		addServerInfo(msUri, graph);
@@ -220,7 +230,7 @@ public class ModelSetManager {
 		module.includeModule(new AuthModule());
 
 		Injector injector = Guice.createInjector(
-				createModelSetGuiceModule(module), new SessionProviderModule());
+				createModelSetGuiceModule(module), new ContextProviderModule());
 		IModelSetFactory factory = injector.getInstance(IModelSetFactory.class);
 
 		URI msUri = URIImpl.createURI("urn:enilink:modelset");

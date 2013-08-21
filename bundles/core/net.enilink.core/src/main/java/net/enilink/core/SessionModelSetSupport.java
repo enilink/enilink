@@ -40,7 +40,7 @@ public abstract class SessionModelSetSupport implements IModelSet.Internal,
 	private EntityVar<Map<Object, IAdapterSet>> sessionScopedAdapterSets;
 
 	@Inject
-	protected ISessionProvider sessionProvider;
+	protected IContextProvider contextProvider;
 
 	private ComposedAdapterFactory createAdapterFactory() {
 		return new ComposedAdapterFactory(
@@ -87,7 +87,8 @@ public abstract class SessionModelSetSupport implements IModelSet.Internal,
 	@Override
 	public IAdapterSet adapters() {
 		// use key to make adapter set session scoped
-		ISession session = sessionProvider.get();
+		IContext context = contextProvider.get();
+		ISession session = context.getSession();
 		Key key = (Key) session.getAttribute(Key.class.getName());
 		if (key == null) {
 			key = new Key();
