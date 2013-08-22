@@ -97,7 +97,7 @@ class Activator extends BundleActivator {
 
   def start(context: BundleContext) {
     this.context = context
-    bundleTracker = new BundleTracker[LiftBundleConfig](context, Bundle.RESOLVED | Bundle.STARTING | Bundle.ACTIVE, null) with Logger {
+    bundleTracker = new BundleTracker[LiftBundleConfig](context, Bundle.RESOLVED | Bundle.STARTING | Bundle.ACTIVE | Bundle.STOPPING, null) with Logger {
       override def addingBundle(bundle: Bundle, event: BundleEvent) = {
         bundle.getHeaders.get("Lift-Packages") match {
           case packageStr: String => {
@@ -108,7 +108,6 @@ class Activator extends BundleActivator {
             }
             val config = new LiftBundleConfig(packages)
             bootBundle(bundle, config)
-
             config
           }
           case _ => null
@@ -120,7 +119,6 @@ class Activator extends BundleActivator {
       }
 
       def bootBundle(bundle: Bundle, config: LiftBundleConfig) {
-        // Boot
         try {
           val clazz = bundle loadClass "bootstrap.liftweb.LiftModule"
           val bootInvoker = ClassHelpers.createInvoker("boot", clazz.newInstance.asInstanceOf[AnyRef])
@@ -137,7 +135,7 @@ class Activator extends BundleActivator {
       }
     }
     bundleTracker.open
-    
+
     initLift
 
     contextServiceReg = context.registerService(classOf[IContextProvider],
