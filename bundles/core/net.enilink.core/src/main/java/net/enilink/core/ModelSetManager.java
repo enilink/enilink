@@ -179,6 +179,14 @@ public class ModelSetManager {
 		return graph;
 	}
 
+	protected URI getPersistentModelSetType() {
+		String localName = "RemoteModelSet";
+		if (REPOSITORY_TYPE.equals("agraph")) {
+			localName = "AGraphModelSet";
+		}
+		return MODELS.NAMESPACE_URI.appendLocalPart(localName);
+	}
+
 	protected IModelSet createMetaModelSet() {
 		KommaModule module = ModelCore.createModelSetModule(getClass()
 				.getClassLoader());
@@ -196,7 +204,7 @@ public class ModelSetManager {
 
 		IModelSetFactory factory = injector.getInstance(IModelSetFactory.class);
 		IModelSet metaModelSet = factory.createModelSet(graph,
-				MODELS.NAMESPACE_URI.appendLocalPart("RemoteModelSet"));
+				getPersistentModelSetType());
 
 		// include model behaviors into meta model set
 		metaModelSet.getModule().includeModule(createDataModelSetModule());
@@ -217,10 +225,7 @@ public class ModelSetManager {
 		metaDataModel.getManager().add(graph);
 		IModelSet.Internal modelSet = (IModelSet.Internal) metaDataModel
 				.getManager().createNamed(msUri, MODELS.TYPE_MODELSET,
-						MODELS.NAMESPACE_URI.appendLocalPart(//
-								// "AGraphModelSet" //
-								"RemoteModelSet" //
-								));
+						getPersistentModelSetType());
 		modelSet.create();
 		return modelSet;
 	}
@@ -335,5 +340,12 @@ public class ModelSetManager {
 					});
 		}
 		return modelSet;
+	}
+	
+	public synchronized void shutdown() {
+		if (modelSet != null) {
+			modelSet.dispose();
+			modelSet = null;
+		}
 	}
 }
