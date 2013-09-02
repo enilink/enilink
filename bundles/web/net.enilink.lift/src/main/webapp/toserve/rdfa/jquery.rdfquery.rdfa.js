@@ -3655,6 +3655,10 @@
       if (this.lang !== undefined) {
         e.lang = this.lang;
       } else if (this.datatype !== undefined) {
+        // use string representation if existent
+        if (this.representation !== undefined) {
+          e.value = this.representation;
+        }
         e.datatype = this.datatype.toString();
       }
       return e;
