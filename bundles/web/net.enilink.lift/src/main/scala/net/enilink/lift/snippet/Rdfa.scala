@@ -113,15 +113,15 @@ object Search extends SparqlHelper with SparqlExtractor {
       if (bindingNames.nonEmpty) {
         param = (ns \ "@data-param").text
         searchString = Full(ns \ "@data-value" text).filter(_.nonEmpty) or S.param(param).filter(_.nonEmpty)
-        if (searchString.isDefined) {
+        searchString.dmap(Nil: NodeSeq) { searchStr =>
           val em = Globals.contextModel.vend.dmap(ModelSetManager.INSTANCE.getModelSet.getMetaDataManager)(_.getManager)
-          fragment = Full(em.getFactory.getDialect.fullTextSearch(bindingNames, IDialect.ANY, searchString.openTheBox))
-          <div data-pattern={ fragment.open_!.toString } class="clearable"></div>
-        } else Nil
+          fragment = Full(em.getFactory.getDialect.fullTextSearch(bindingNames, IDialect.ANY, searchStr))
+          <div data-pattern={ fragment.dmap("")(_.toString) } class="clearable"></div>
+        }
       } else ns
     }
 
-    var nodes = (".search-patterns" #> patterns _ : CssSel)(ns)
+    var nodes = (".search-patterns" #> patterns _: CssSel)(ns)
     nodes = (".search-form" #> ((form: NodeSeq) => {
       val (acName, acCmd) = autoCompleteJs(bindingNames, ns)
       JsCmds.Script(acCmd) ++ (Templates(List("templates-hidden", "search")) map {
@@ -229,7 +229,7 @@ class Rdfa extends Sparql with SparqlExtractor {
                 }
               }</li>
 
-          override def itemsPerPage = try { (ns \ "@data-items").text.toInt } catch { case _ => 20 }
+          override def itemsPerPage = try { (ns \ "@data-items").text.toInt } catch { case _: Throwable => 20 }
           lazy val cachedCount = withParameters(em.createQuery(countQuery, includeInferred), queryParams).getSingleResult(classOf[Long])
           def count = cachedCount
           def page = Nil
@@ -248,13 +248,15 @@ class Rdfa extends Sparql with SparqlExtractor {
         paginatedQuery = Full(sparqlFromRdfa.getPaginatedQuery(bindingName, paginator.first, paginator.itemsPerPage))
         if (ns.head.child.forall(_.isInstanceOf[Text])) {
           // use default template for pagination controls
-          paginator.paginate(ns.asInstanceOf[Elem].copy(child = Templates("templates-hidden" :: "pagination" :: Nil).openTheBox))
+          paginator.paginate(ns.asInstanceOf[Elem].copy(child = Templates("templates-hidden" :: "pagination" :: Nil).openOrThrowException("Pagination template not found.")))
         } else paginator.paginate(ns)
       } else ns
     })).apply(sparqlFromRdfa.getElement)
 
-    if (paginatedQuery.isDefined) ((".count-query *" #> countQuery).apply(nodesWithPagination), paginatedQuery.openTheBox, queryParams)
-    else (sparqlFromRdfa.getElement, sparqlFromRdfa.getQuery, queryParams)
+    paginatedQuery match {
+      case Full(q) => ((".count-query *" #> countQuery).apply(nodesWithPagination), q, queryParams)
+      case _ => (sparqlFromRdfa.getElement, sparqlFromRdfa.getQuery, queryParams)
+    }
   }
 
   override def toSparql(n: NodeSeq, em: IEntityManager): (NodeSeq, String, Map[String, _]) = {

@@ -69,7 +69,7 @@ trait SparqlHelper {
   def captureRdfContext[S]: (=> S) => S = {
     val isMetaQuery = (S.attr("target") openOr null) == "meta"
     CurrentContext.value match {
-      case Full(_) if !isMetaQuery => (f) => f
+      case Full(c) if !isMetaQuery => (f) => CurrentContext.withValue(Full(c)) { f }
       case _ =>
         val target = if (isMetaQuery) ModelSetManager.INSTANCE.getModelSet else Globals.contextResource.vend.openOr(null)
         target match {

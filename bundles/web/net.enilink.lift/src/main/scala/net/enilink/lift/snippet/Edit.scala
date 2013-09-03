@@ -112,7 +112,7 @@ class JsonCallHandler {
     }
     case JsonCommand("blankNode", _, _) => {
       (for (model <- model; em = model.getManager) yield em.create().getReference.toString) or
-        Full(new BlankNode().toString) map (JString(_)) open_!
+        Some(new BlankNode().toString) map (JString(_)) get
     }
     case JsonCommand("updateTriples", _, params) => {
       import scala.collection.JavaConversions._

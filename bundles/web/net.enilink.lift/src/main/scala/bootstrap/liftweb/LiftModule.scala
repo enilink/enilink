@@ -166,7 +166,7 @@ class LiftModule extends Logger {
                   override def run = f
                 }))
                 case _ => Full(f)
-              }).openTheBox
+              }).openOrThrowException("Unexpected error.")
             }
           }
         } finally {
