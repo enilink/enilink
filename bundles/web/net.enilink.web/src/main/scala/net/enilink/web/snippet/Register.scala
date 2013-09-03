@@ -63,7 +63,7 @@ class Register extends SubjectHelper {
             "#login-form-label *" #> <h2>Finish the registration</h2>
 
         // reuse the existing loginform template
-        "*" #> selectors(Templates("templates-hidden" :: "loginform" :: Nil).openTheBox)
+        "*" #> selectors(Templates("templates-hidden" :: "loginform" :: Nil).openOrThrowException("Missing login form template."))
       }
       case Full(s) if s.getPrincipals(classOf[UserPrincipal]).isEmpty =>
         // simply link new external ids to existing id
