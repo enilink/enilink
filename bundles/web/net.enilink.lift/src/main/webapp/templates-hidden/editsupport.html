@@ -16,48 +16,11 @@
 			data-lift="head"></script>
 
 		<script type="text/javascript" data-lift="head">
-			$(function() {
-				var buttons = $("#buttons");
-				// relocate buttons for absolute positioning
-				buttons.appendTo("body");
-
-				function hideButtons() {
-					var lastTarget = buttons.data("target");
-					if (lastTarget) {
-						lastTarget.removeClass("focused");
-					}
-					buttons.hide();
-				}
-
+			(function() {
 				var rdfXmlOpts = {
 					serialize : true,
 					format : "application/rdf+xml"
 				};
-				function remove() {
-					var target = $("#buttons").data("target");
-					if (target) {
-						var toDelete = target.rdf().databank.dump(rdfXmlOpts);
-						console.log("Delete: " + toDelete);
-						// enilink.updateTriples(null, toDelete,
-						enilink.removeValue(toDelete, function(success) {
-							if (success) {
-								target.remove();
-							}
-						});
-					}
-					hideButtons();
-				}
-				$("#buttons .button-remove").click(remove);
-
-				function showRdf() {
-					var target = $("#buttons").data("target");
-					if (target) {
-						var rdf = target.rdf();
-						console.log(rdf.databank);
-						console.log(rdf.databank.dump(rdfXmlOpts));
-					}
-				}
-				$("#buttons .button-show").click(showRdf);
 
 				function defaultEditableOptions(rdfStmts) {
 					var resourceProposal;
@@ -144,8 +107,7 @@
 								enableEdit(newNode);
 								resultDeferred.resolve(newNode);
 							} else {
-								target.html(value);
-								resultDeferred.resolve(target);
+								return null;
 							}
 						},
 						url : function(params) {
@@ -171,17 +133,6 @@
 					target.editable("toggle");
 					return resultDeferred.promise();
 				}
-
-				function editHandler(e) {
-					e.stopPropagation();
-					e.preventDefault();
-					var target = $("#buttons").data("target");
-					if (target) {
-						hideButtons();
-						doEdit(target);
-					}
-				}
-				$("#buttons .button-edit").click(editHandler);
 
 				function doAdd(self, options) {
 					// global deferred to allow the execution of 
@@ -279,6 +230,15 @@
 					nodeOrSelector.click(addHandler);
 				}
 
+				var buttons;
+				function hideButtons() {
+					var lastTarget = buttons.data("target");
+					if (lastTarget) {
+						lastTarget.removeClass("focused");
+					}
+					buttons.hide();
+				}
+
 				function enableEdit(nodeOrSelector) {
 					// allow to use selectors or DOM nodes as arguments
 					nodeOrSelector = (nodeOrSelector instanceof jQuery) ? nodeOrSelector
@@ -287,7 +247,8 @@
 							.filter(
 									function() {
 										var self = $(this);
-										return self.is("[rel],[rev],[property]")
+										return self
+												.is("[rel],[rev],[property]")
 												|| self
 														.parent()
 														.closest(
@@ -316,15 +277,29 @@
 											target.addClass("focused");
 											buttons.data("target", target);
 
+											var top, left;
+											if (target.innerWidth() <= buttons
+													.outerWidth()
+													|| target.innerHeight() <= buttons
+															.otherHeight()) {
+												top = target.offset().top;
+												left = target.offset().left
+														+ target.outerWidth()
+														- 5;
+											} else {
+												top = target.offset().top;
+												left = target.offset().left
+														+ target.innerWidth()
+														- buttons.outerWidth();
+											}
+
 											// position buttons to the right of target
 											buttons.css({
 												position : "absolute",
 												marginLeft : 0,
 												marginTop : 0,
-												top : target.offset().top,
-												left : target.offset().left
-														+ target.innerWidth()
-														- buttons.outerWidth()
+												top : top,
+												left : left
 											});
 											buttons.show();
 										}
@@ -352,11 +327,56 @@
 					"ui.autoEdit" : true
 				}, enilink.options || {});
 
-				if (enilink.options["ui.autoEdit"]) {
-					enableEdit("[about],[resource],[property]");
-					enableAdd("[data-add]");
-				}
-			});
+				$(function() {
+					buttons = $("#buttons");
+					// relocate buttons for absolute positioning
+					buttons.css("z-index", "1000000")
+					buttons.appendTo("body");
+
+					function editHandler(e) {
+						e.stopPropagation();
+						e.preventDefault();
+						var target = $("#buttons").data("target");
+						if (target) {
+							hideButtons();
+							doEdit(target);
+						}
+					}
+					$("#buttons .button-edit").click(editHandler);
+
+					function remove() {
+						var target = $("#buttons").data("target");
+						if (target) {
+							var toDelete = target.rdf().databank
+									.dump(rdfXmlOpts);
+							console.log("Delete: " + toDelete);
+							// enilink.updateTriples(null, toDelete,
+							enilink.removeValue(toDelete, function(success) {
+								if (success) {
+									target.remove();
+								}
+							});
+						}
+						hideButtons();
+					}
+					$("#buttons .button-remove").click(remove);
+
+					function showRdf() {
+						var target = $("#buttons").data("target");
+						if (target) {
+							var rdf = target.rdf();
+							console.log(rdf.databank);
+							console.log(rdf.databank.dump(rdfXmlOpts));
+						}
+					}
+					$("#buttons .button-show").click(showRdf);
+
+					if (enilink.options["ui.autoEdit"]) {
+						enableEdit("[about],[resource],[property]");
+						enableAdd("[data-add]");
+					}
+				});
+			})();
 		</script>
 		<style type="text/css" data-lift="head">
 /* make buttons slightly transparent */
