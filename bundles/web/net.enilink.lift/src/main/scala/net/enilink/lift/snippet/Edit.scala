@@ -51,7 +51,7 @@ import scala.collection.mutable.LinkedHashSet
 
 case class ProposeInput(rdf: String, query: String, index: Int)
 case class GetValueInput(rdf: String)
-case class SetValueInput(rdf: String, value: String, template: Option[String], templatePath: Option[String])
+case class SetValueInput(rdf: String, value: String, template: Option[String], what: Option[String])
 
 class JsonCallHandler {
   implicit val formats = DefaultFormats
@@ -270,9 +270,9 @@ class JsonCallHandler {
     }
   }
 
-  def statements(rdf: String): Seq[IStatement] = {
+  def statements(rdf: String, preserveBNodes: Boolean = true): Seq[IStatement] = {
     val stmts = new ListBuffer[IStatement]
-    ModelUtil.readData(new ByteArrayInputStream(rdf.getBytes("UTF-8")), "", null, true, new IDataVisitor[Unit]() {
+    ModelUtil.readData(new ByteArrayInputStream(rdf.getBytes("UTF-8")), "", null, preserveBNodes, new IDataVisitor[Unit]() {
       override def visitBegin {}
       override def visitEnd {}
       override def visitStatement(stmt: IStatement) = stmts += stmt
@@ -291,7 +291,7 @@ class Edit extends DispatchSnippet {
           ("blankNode", AnonFunc("callback", handler.call("blankNode", JsRaw("{}"), JsVar("callback")))), //
           ("removeResource", AnonFunc("resource, callback", handler.call("removeResource", JsVar("resource"), JsVar("callback")))), //
           ("updateTriples", AnonFunc("add, remove, callback",
-            handler.call("updateTriples", JsRaw("{ 'add' : add, 'remove' : remove }"), JsVar("callback")))), //
+            handler.call("updateTriples", JsRaw("typeof add === 'object' ? add : { 'add' : add, 'remove' : remove }"), JsRaw("typeof remove === 'function' ? remove : callback")))), //
           ("getValue", AnonFunc("rdf, callback", handler.call("getValue", JsRaw("{ 'rdf' : rdf }"), JsVar("callback")))), //
           ("setValue", AnonFunc("data, callback", handler.call("setValue", JsVar("data"), JsVar("callback")))), //
           ("removeValue", AnonFunc("rdf, callback", handler.call("removeValue", JsVar("rdf"), JsVar("callback")))), //

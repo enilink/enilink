@@ -104,11 +104,12 @@
 								//target.replaceWith(newNode);
 								newNode.insertAfter(target);
 								target.remove();
-								enableEdit(newNode);
+								if (enilink.options["ui.autoEdit"]) {
+									enableEdit(newNode);
+								}
 								resultDeferred.resolve(newNode);
-							} else {
-								return null;
 							}
+							return null;
 						},
 						url : function(params) {
 							var d = new $.Deferred;
@@ -175,7 +176,9 @@
 								if (response.html) {
 									var newNode = $(response.html);
 									newNode.insertBefore(self);
-									enableEdit(newNode);
+									if (enilink.options["ui.autoEdit"]) {
+										enableEdit(newNode);
+									}
 									resultDeferred.resolve(newNode);
 								}
 							},

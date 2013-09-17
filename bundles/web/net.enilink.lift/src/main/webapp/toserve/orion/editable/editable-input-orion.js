@@ -26,6 +26,15 @@
 				showFoldingRuler : false
 			});
 
+			// prevent events from bubbling up to ancestors
+			self.$input.off("click.edit mousedown.edit").on(
+					"click.edit mousedown.edit", function(e) {
+						e.stopPropagation();
+					});
+
+			// move content assist, since it is appended to body by default
+			$(".contentassist").filter(":last").appendTo(parent);
+
 			// register contentAssist providers
 			var contentAssistProviders = self.options.contentAssistProviders;
 			if (contentAssistProviders) {

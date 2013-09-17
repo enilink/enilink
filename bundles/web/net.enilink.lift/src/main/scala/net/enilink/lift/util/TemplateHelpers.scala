@@ -17,6 +17,8 @@ import net.liftweb.http.LiftRules
 import net.enilink.lift.sitemap.Application
 import net.liftweb.sitemap.Loc
 import scala.xml.Node
+import net.liftweb.common.Failure
+import net.liftweb.util.Props
 
 object TemplateHelpers {
   type RenderResult = (NodeSeq, Box[String])
@@ -39,7 +41,7 @@ object TemplateHelpers {
   }
 
   def find(path: List[String], name: Option[String] = Empty): Box[NodeSeq] = withAppFor(path) {
-    Templates(path) flatMap { ns =>
+    template(path) flatMap { ns =>
       // extract template if a name is supplied
       if (name.isDefined) name flatMap (find(ns, _)) else Full(ns)
     }
@@ -57,11 +59,18 @@ object TemplateHelpers {
         }
       }))
     }
-    template
+    // fallback: global search for template
+    template or extractTemplate(withTemplateNames(ns), name)
+  }
+
+  def template(path: List[String]) = Templates("templates-hidden" :: path) match {
+    case Full(x) => Full(x)
+    case f: Failure if Props.devMode => f
+    case _ => Templates(path)
   }
 
   def render(path: List[String], snips: (String, NodeSeq => NodeSeq)*): Box[RenderResult] = withAppFor(path) {
-    Templates(path) flatMap (render(_, snips: _*))
+    template(path) flatMap (render(_, snips: _*))
   }
 
   private object FindScript {
@@ -97,7 +106,7 @@ object TemplateHelpers {
       case _ => ""
     }
     var currentNr = 0
-    def process(ns: NodeSeq): NodeSeq = ns.flatMap {
+    def process(ns: NodeSeq): NodeSeq = ns flatMap {
       case e: Elem =>
         val newE = e.attribute("data-t") match {
           case Some(_) => e
