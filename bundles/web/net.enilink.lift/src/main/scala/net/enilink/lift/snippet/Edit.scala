@@ -1,53 +1,51 @@
 package net.enilink.lift.snippet
 
 import java.io.ByteArrayInputStream
+
 import scala.collection.JavaConversions.bufferAsJavaList
+import scala.collection.mutable.LinkedHashSet
 import scala.collection.mutable.ListBuffer
+import scala.collection.{ mutable }
+import scala.xml.Group
 import scala.xml.NodeSeq
+
+import org.eclipse.core.runtime.IStatus
+
+import net.enilink.komma.common.command.AbortExecutionException
+import net.enilink.komma.common.command.CommandResult
+import net.enilink.komma.common.command.ICommand
+import net.enilink.komma.concepts.IProperty
+import net.enilink.komma.concepts.IResource
+import net.enilink.komma.edit.domain.IEditingDomainProvider
+import net.enilink.komma.edit.properties.IResourceProposal
+import net.enilink.komma.edit.properties.PropertyEditingHelper
+import net.enilink.komma.edit.util.PropertyUtil
 import net.enilink.komma.model.IModel
 import net.enilink.komma.model.ModelUtil
+import net.enilink.komma.core.BlankNode
+import net.enilink.komma.core.IEntityManager
+import net.enilink.komma.core.IReference
 import net.enilink.komma.core.IStatement
+import net.enilink.komma.core.IStatementPattern
+import net.enilink.komma.core.Statement
+import net.enilink.komma.core.URIImpl
 import net.enilink.komma.core.visitor.IDataVisitor
+import net.enilink.lift.rdfa.RDFaParser
+import net.enilink.lift.rdfa.template.RDFaTemplates
 import net.enilink.lift.util.AjaxHelpers
 import net.enilink.lift.util.Globals
+import net.enilink.lift.util.TemplateHelpers
 import net.liftweb.common.Box
+import net.liftweb.common.Full
 import net.liftweb.http.DispatchSnippet
 import net.liftweb.http.S
 import net.liftweb.http.js.JE._
 import net.liftweb.http.js.JsCmds._
 import net.liftweb.http.js.JsExp.strToJsExp
-import net.liftweb.json.DefaultFormats
 import net.liftweb.json._
+import net.liftweb.json.JsonDSL
 import net.liftweb.util.JsonCommand
-import net.enilink.komma.edit.properties.PropertyEditingHelper
-import net.enilink.komma.edit.domain.IEditingDomainProvider
-import org.eclipse.core.runtime.IStatus
-import net.enilink.komma.concepts.IProperty
-import net.enilink.komma.common.command.ICommand
-import org.eclipse.core.runtime.Status
-import net.enilink.komma.common.command.AbortExecutionException
-import net.enilink.lift.Activator
-import net.enilink.komma.core.Statement
-import net.enilink.komma.core.IStatementPattern
-import net.enilink.lift.util.TemplateHelpers
-import net.liftweb.http.Templates
-import net.enilink.lift.rdfa.template.RDFaTemplates
-import net.enilink.lift.rdfa.template.TemplateNode
-import net.enilink.komma.common.command.CommandResult
-import net.liftweb.common.Full
-import net.liftweb.common.Empty
 import net.liftweb.util.LiftFlowOfControlException
-import scala.xml.Group
-import net.enilink.komma.core.IReference
-import net.enilink.komma.core.URIImpl
-import net.enilink.komma.edit.properties.IResourceProposal
-import net.enilink.lift.rdfa.RDFaParser
-import net.liftweb.json.JString
-import net.liftweb.json.JBool
-import net.enilink.komma.core.BlankNode
-import net.enilink.komma.edit.util.PropertyUtil
-import net.enilink.komma.concepts.IResource
-import scala.collection.mutable.LinkedHashSet
 
 case class ProposeInput(rdf: String, query: String, index: Int)
 case class GetValueInput(rdf: String)
@@ -103,7 +101,7 @@ class JsonCallHandler {
   def apply: PartialFunction[JValue, Any] = {
     case JsonCommand("removeResource", _, JString(resource)) => {
       (for (model <- model; em = model.getManager) yield {
-        val ref = if (resource.startsWith("_:")) new BlankNode(resource)
+        val ref = if (resource.startsWith("_:")) em.createReference(resource)
         else if (resource.startsWith("<") && resource.endsWith(">")) URIImpl.createURI(resource.substring(1, resource.length - 1))
         else URIImpl.createURI(resource)
         em.removeRecursive(ref, true);
@@ -111,12 +109,13 @@ class JsonCallHandler {
       }) openOr JBool(false)
     }
     case JsonCommand("blankNode", _, _) => {
-      (for (model <- model; em = model.getManager) yield em.create().getReference.toString) or
+      (for (model <- model; em = model.getManager) yield em.createReference.toString) or
         Some(new BlankNode().toString) map (JString(_)) get
     }
     case JsonCommand("updateTriples", _, params) => {
       import scala.collection.JavaConversions._
-      var successful = false
+      var success = false
+      var subject: Option[String] = None
       for (
         model <- model ?~ "No active model found"
       ) {
@@ -124,7 +123,16 @@ class JsonCallHandler {
         try {
           em.getTransaction.begin
           (params \ "add") match {
-            case JString(add) => em.add(statements(add))
+            case JString(add) => {
+              val replacements = new mutable.HashMap[String, IReference]
+              val stmts = replaceBNodes(statements(add), em, replacements)
+              (params \ "subject") match {
+                // return the mapped subject as a result
+                case JString(s) => subject = replacements.get(s).map(_.toString) orElse Some(s)
+                case _ =>
+              }
+              em.add(stmts)
+            }
             case _ =>
           }
           // TODO recursive removal of BNodes
@@ -134,12 +142,12 @@ class JsonCallHandler {
           }
           em.getTransaction.commit
           S.notice("Update was sucessful.")
-          successful = true
+          success = true
         } catch {
           case e: Exception => if (em.getTransaction.isActive) em.getTransaction.rollback
         }
       }
-      JBool(successful)
+      if (success) subject.map(s => JString(s.toString())).getOrElse(JBool(true)) else JBool(false)
     }
     case JsonCommand("propose", _, params) => {
       import net.liftweb.json.JsonDSL._
@@ -270,14 +278,27 @@ class JsonCallHandler {
     }
   }
 
-  def statements(rdf: String, preserveBNodes: Boolean = true): Seq[IStatement] = {
+  def statements(rdf: String): Seq[IStatement] = {
     val stmts = new ListBuffer[IStatement]
-    ModelUtil.readData(new ByteArrayInputStream(rdf.getBytes("UTF-8")), "", null, preserveBNodes, new IDataVisitor[Unit]() {
+    ModelUtil.readData(new ByteArrayInputStream(rdf.getBytes("UTF-8")), "", null, true, new IDataVisitor[Unit]() {
       override def visitBegin {}
       override def visitEnd {}
       override def visitStatement(stmt: IStatement) = stmts += stmt
     })
     stmts.toSeq
+  }
+
+  /** Replace blank nodes with prefix "new" by new blank nodes generated by an entity manager. */
+  def replaceBNodes(stmts: Seq[IStatement], em: IEntityManager, replacements: mutable.Map[String, IReference] = new mutable.HashMap) = {
+    def replace[T](node: T): T = (node match {
+      case ref: IReference => if (ref.getURI == null && ref.toString.startsWith("_:new")) replacements.getOrElseUpdate(ref.toString, em.createReference) else ref
+      case other => other
+    }).asInstanceOf[T]
+    stmts map { stmt =>
+      val (s, p, o) = (stmt.getSubject, stmt.getPredicate, stmt.getObject)
+      val (s2, p2, o2) = (replace(s), replace(p), replace(o))
+      if ((s ne s2) || (p ne p2) || (o ne o2)) new Statement(s2, p2, o2, stmt.getContext) else stmt
+    }
   }
 }
 

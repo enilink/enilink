@@ -1170,7 +1170,7 @@
     blankNodeSeed = databankSeed = new Date().getTime() % 1000,
     blankNodeID = function () {
       blankNodeSeed += 1;
-      return 'b' + blankNodeSeed.toString(16);
+      return 'new' + blankNodeSeed.toString(16);
     },
 
     databankID = function () {
@@ -1654,7 +1654,7 @@
       }
       for (s in dump) {
         var rdfType = dump[s][$.rdf.type.value];
-        var rdfTypeParts;
+        var rdfTypeParts = null;
         if (rdfType !== undefined) {
           rdfTypeParts = /(.+[#\/])([^#\/]+)/.exec(rdfType[0].value);
         }
@@ -3334,6 +3334,10 @@
     if (memResource[value]) {
       return memResource[value];
     }
+    if (typeof value === 'string' && value.substring(0, 2) === '_:') {
+      // this is a blank node
+      return $.rdf.blank(value);
+    }
     resource = new $.rdf.resource.fn.init(value, options);
     if (memResource[resource]) {
       return memResource[resource];
@@ -3818,16 +3822,12 @@
       return val === null ? undefined : val;
     },
 
-    resourceFromUri = function (uri) {
-      return $.rdf.resource(uri);
-    },
-
     resourceFromCurie = function (curie, elem, options) {
       if (curie.substring(0, 2) === '_:') {
         return $.rdf.blank(curie);
       } else {
         try {
-          return resourceFromUri($.curie(curie, options));
+          return $.rdf.resource($.curie(curie, options));
         } catch (e) {
           return undefined;
         }
