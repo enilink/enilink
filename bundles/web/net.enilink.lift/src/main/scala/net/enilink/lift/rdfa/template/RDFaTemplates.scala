@@ -25,6 +25,7 @@ import scala.xml.NamespaceBinding
 import scala.collection.mutable.LinkedHashMap
 import scala.xml.Node
 import net.enilink.lift.rdfa.RDFaUtils
+import net.enilink.lift.rdfa.RDFaHelpers
 
 sealed trait Operation {
   def merge(other: Operation): Operation = other match {
@@ -93,6 +94,8 @@ trait RdfAttributeBinder extends Binder {
 }
 
 class VarBinder(val e: Elem, val attr: String, val name: String) extends RdfAttributeBinder {
+  // allow to keep this node by adding the CSS class "keep", even if no binding exists for the related variable
+  val keepNode = RDFaHelpers.hasCssClass(e, "keep")
   val clearAttribute = attr.startsWith("data-clear-") || attr == "data-if"
   def bind(attrs: MetaData, ctx: RdfContext, bindings: IBindings[_], inferred: Boolean): Result = {
     var attributes = attrs
@@ -115,7 +118,7 @@ class VarBinder(val e: Elem, val attr: String, val name: String) extends RdfAttr
     }
 
     if (attValue == null) {
-      if (attr == "data-unless") attributes = attributes.remove(attr) else attributes = null
+      if (attr == "data-unless" || keepNode) attributes = attributes.remove(attr) else attributes = null
     } else if (clearAttribute) attributes = attributes.remove(attr)
     else if (attr == "data-unless") { attributes = null }
     else attributes = attributes.append(new UnprefixedAttribute(attr, attValue.toString, Null))

@@ -36,6 +36,8 @@ import net.liftweb.http.js.JsCmds
 import net.liftweb.http.js.JsCmd
 import net.enilink.komma.core.QueryFragment
 import net.liftweb.util.CanBind._
+import net.liftweb.util.DynoVar
+import scala.util.DynamicVariable
 
 object ParamsHelper {
   def params(filter: Set[String] = Set.empty) = {
@@ -102,7 +104,7 @@ object Search extends SparqlHelper with SparqlExtractor {
     });
   }
 
-  def apply(ns: NodeSeq, refreshFunc: Box[(String, _)], render: NodeSeq => NodeSeq): NodeSeq = {
+  def apply(ns: NodeSeq, render: NodeSeq => NodeSeq): NodeSeq = {
     var bindingNames: List[String] = Nil
     var searchString: Box[String] = Empty
     var param: String = null
@@ -129,8 +131,8 @@ object Search extends SparqlHelper with SparqlExtractor {
         (".search-query" #> ("* [name]" #> param & "* [value]" #> searchString & "* [data-source]" #> acName)) andThen
           "form" #> {
             // support refresh via ajax call
-            "*" #> (refreshFunc match {
-              case Full((name, _)) =>
+            "*" #> (RdfaRefreshFunc.value match {
+              case Full(name) =>
                 // add refresh function to query parameters
                 queryParams = (name, name) :: queryParams
                 // use an ajax form
@@ -157,40 +159,46 @@ trait SparqlExtractor {
   }
 }
 
+private object RdfaRefreshFunc extends DynamicVariable[Box[String]](Empty)
+
 class Rdfa extends Sparql with SparqlExtractor {
-  var refreshFunc: Box[(String, List[(String, String)] => JsCmd)] = Empty
   /**
    * Support partial refresh via ajax call
    */
-  def ajaxRefresh(ns: NodeSeq) = {
+  def makeAjaxRefresh(ns: NodeSeq) = {
     val origAttrs = S.attrsToMetaData
     val refresh = (funcId: String) => {
+      println("FUNC " + funcId)
       val result = S.withAttrs(origAttrs) {
-        val rdfa = new Rdfa
-        // reuse current refresh function
-        rdfa.refreshFunc = refreshFunc
-        rdfa.render(ns)
+        // run rdfa snippet while reusing current refresh function
+        RdfaRefreshFunc.withValue(Full(funcId)) { new Rdfa().render(ns) }
       }
       JsCmds.SetHtml(funcId, result)
     }
-    S.fmapFunc(S.contextFuncBuilder(refresh))(name => (name, (params: List[(String, String)]) => {
-      SHtml.makeAjaxCall(Str(name + "=" + name + "&" + paramsToUrlParams(params))).cmd
-    }))
+    // create refresh function and return the corresponding id
+    S.fmapFunc(S.contextFuncBuilder(refresh))(name => name)
+  }
+
+  def callAjaxRefresh(name: String, params: List[(String, String)]) = {
+    SHtml.makeAjaxCall(Str(name + "=" + name + "&" + paramsToUrlParams(params))).cmd
   }
 
   override def render(ns: NodeSeq): NodeSeq = {
     logTime("RDFa template") {
-      refreshFunc = refreshFunc or (S.attr("mode").filter(_ == "ajax") map { _ => ajaxRefresh(ns) })
-      // add node id for SetHTML via ajax refresh
-      val nodesWithId = refreshFunc match {
-        case Full((name, _)) => ns flatMap {
-          case e: Elem => e % ("id" -> name)
-          case other => other
+      // initialize ajax refresh function
+      val refreshFunc = RdfaRefreshFunc.value or (S.attr("mode").filter(_ == "ajax") map { _ => makeAjaxRefresh(ns) })
+      RdfaRefreshFunc.withValue(refreshFunc) {
+        // add node id for SetHTML via ajax refresh
+        val nodesWithId = RdfaRefreshFunc.value match {
+          case Full(name) => ns flatMap {
+            case e: Elem => e % ("id" -> name)
+            case other => other
+          }
+          case _ => ns
         }
-        case _ => ns
+        val transformers = prepare _ andThen TemplateHelpers.withTemplateNames _
+        Search(transformers(nodesWithId), super.renderWithoutPrepare _)
       }
-      val transformers = prepare _ andThen TemplateHelpers.withTemplateNames _
-      Search(transformers(nodesWithId), refreshFunc, super.renderWithoutPrepare _)
     }
   }
 
@@ -221,9 +229,9 @@ class Rdfa extends Sparql with SparqlExtractor {
               }><a href="#">{ ns }</a></li>
             else
               <li>{
-                refreshFunc match {
-                  case Full((name, func)) => <a href="javascript://" onclick={
-                    func(paramsForOffset(offsetParam, newFirst)).toJsCmd
+                RdfaRefreshFunc.value match {
+                  case Full(name) => <a href="javascript://" onclick={
+                    callAjaxRefresh(name, paramsForOffset(offsetParam, newFirst)).toJsCmd
                   }>{ ns }</a>
                   case _ => <a href={ pageUrl(newFirst) }>{ ns }</a>
                 }

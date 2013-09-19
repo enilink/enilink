@@ -340,7 +340,7 @@ trait CURIE extends RDFNodeBuilder {
             Some(uri(token))
           } catch {
             // token is not a valid IRI
-            case _ => None
+            case _ : Throwable => None
           }
           case other => other
         }

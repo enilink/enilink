@@ -50,6 +50,7 @@ trait SparqlFromRDFa {
 }
 
 private class RDFaToSparqlParser(e: xml.Elem, base: String)(implicit s: Scope = new Scope()) extends RDFaParser with SparqlFromRDFa {
+  import RDFaHelpers._
   import scala.collection.mutable
   class ThisScope(val thisNode: Reference = Variable("this", None), val elem: xml.Elem = null)
   val thisStack = new mutable.Stack[ThisScope].push(new ThisScope)
@@ -144,42 +145,34 @@ private class RDFaToSparqlParser(e: xml.Elem, base: String)(implicit s: Scope = 
     }
   }
 
-  /**
-   * Returns a value if the attribute with the given name is present and its trimmed text is not empty.
-   */
-  def nonempty(e: xml.Elem, name: String) = e.attribute(name) map (_.text.trim) filter (_.nonEmpty)
-
-  def hasCssClass(e: xml.Elem, pattern: String) = nonempty(e, "class") exists { ("(?:^|\\s)" + pattern).r.findFirstIn(_).isDefined }
-
   val EndsWithBraceOrDot = ".*[}.]\\s+".r
 
   override def walk(e: xml.Elem, base: String, subj1: Reference, obj1: Reference,
     pending1f: Iterable[Reference], pending1r: Iterable[Reference],
     lang1: Symbol): (xml.Elem, Stream[Arc]) = {
-
-    var close = 0
-    def addBlock(block: String) { addLine(block + " {"); indent; close += 1 }
-
-    if (hasCssClass(e, "optional")) addBlock("optional")
-    if (hasCssClass(e, "exists")) addBlock("filter exists")
-    if (hasCssClass(e, "not-exists")) addBlock("filter not exists")
-
-    nonempty(e, "data-pattern") foreach { p =>
-      p match {
-        case EndsWithBraceOrDot => addLine(p)
-        case _ => addLine(p + " . ")
+    if (nonempty(e, "data-lift") exists { _ == "head" }) {
+      // ignore elements that are later pulled up into <head>
+      // this usually includes <script>, <link> etc.
+      (e, Stream.empty)
+    } else {
+      var close = 0
+      def addBlock(block: String) { addLine(block + " {"); indent; close += 1 }
+      if (hasCssClass(e, "optional")) addBlock("optional")
+      if (hasCssClass(e, "exists")) addBlock("filter exists")
+      if (hasCssClass(e, "not-exists")) addBlock("filter not exists")
+      nonempty(e, "data-pattern") foreach { p =>
+        p match {
+          case EndsWithBraceOrDot => addLine(p)
+          case _ => addLine(p + " . ")
+        }
       }
+      nonempty(e, "data-bind") foreach { bind => addLine("bind (" + bind + ")") }
+      val result = super.walk(e, base, subj1, obj1, pending1f, pending1r, lang1)
+      nonempty(e, "data-filter") foreach { filter => addLine("filter (" + filter + ")") }
+      while (close > 0) { dedent; addLine("}"); close -= 1 }
+      if (thisStack.top.elem eq e) thisStack.pop
+      result
     }
-    nonempty(e, "data-bind") foreach { bind => addLine("bind (" + bind + ")") }
-
-    val result = super.walk(e, base, subj1, obj1, pending1f, pending1r, lang1)
-
-    nonempty(e, "data-filter") foreach { filter => addLine("filter (" + filter + ")") }
-
-    while (close > 0) { dedent; addLine("}"); close -= 1 }
-
-    if (thisStack.top.elem eq e) thisStack.pop
-    result
   }
 
   override def walkChildren(parent: xml.Elem, f: (xml.Node) => Seq[Arc]): Seq[Arc] = {

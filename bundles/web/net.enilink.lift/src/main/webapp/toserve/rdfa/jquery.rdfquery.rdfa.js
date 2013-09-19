@@ -4175,7 +4175,7 @@
     createResourceAttr = function (elem, attr, resource) {
       var ref;
       if (resource.type === 'bnode') {
-        ref = '[_:' + resource.id + ']';
+        ref = '_:' + resource.id;
       } else {
         ref = $(elem).base().relative(resource.value);
       }
@@ -4458,6 +4458,35 @@
       });
       return this;
     }
+  };
+  /**
+   * Get the value of an attribute as a {@link jQuery.rdf.resource} object for the first element in 
+   * the set of matched elements or set an attribute for every matched element.
+   *
+   * @methodOf jQuery#
+   * @name jQuery#resourceAttr
+   * {String|jQuery.uri|jQuery.rdf.resource} [value] The new value for the given attribute.
+   * @returns {jQuery.rdf.resource}
+   */ 
+  $.fn.resourceAttr = function (attributeName, value) {
+    if (value !== undefined) {
+	  return this.each(function() {
+        var self = $(this);
+        if (typeof value === "string") {
+          value = $.rdf.resource(value, { namespaces : self.xmlns() });
+        }
+        if (value.type === "bnode") {
+          self.attr(attributeName, "_:" + value.id);
+        } else {
+          self.removeAttr(attributeName);
+          // value is either a jQuery.uri or an $.rdf.resource at this point
+          createCurieAttr(self, attributeName, value.value !== undefined ? value.value : value);
+        }
+	  });
+    }
+	var elem = this.eq(0);
+	var attrValue = elem.attr(attributeName);
+	return attrValue ? $.rdf.resource(attrValue, { namespaces : elem.xmlns() }) : null;
   };
 
   /**

@@ -46,7 +46,7 @@ object Globals extends Factory {
     }
   })
   implicit val applicationPath = new FactoryMaker(() => {
-    S.getHeader("X-Forwarded-For") match {
+    S.getRequestHeader("X-Forwarded-For") match {
       // this is a virtual host hence application is at "/"
       case Full(_) => "/"
       case _ => application.vend.dmap("/")(_.link.uriList.mkString("/", "/", "") match {
