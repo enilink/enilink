@@ -17,11 +17,6 @@
 
 		<script type="text/javascript" data-lift="head">
 			(function() {
-				var rdfXmlOpts = {
-					serialize : true,
-					format : "application/rdf+xml"
-				};
-
 				function defaultEditableOptions(rdfStmts) {
 					var resourceProposal;
 					return {
@@ -92,7 +87,7 @@
 					// global deferred to allow the execution of 
 					// functions after doAdd finished
 					var resultDeferred = new $.Deferred;
-					var rdfStmts = target.rdf().databank.dump(rdfXmlOpts);
+					var rdfStmts = target.rdf().databank.dump();
 					options = $.extend(defaultEditableOptions(rdfStmts), {
 						title : "Edit value",
 						value : target.closest("[content]").attr("content")
@@ -160,7 +155,7 @@
 						var stmt = $.rdf.databank(
 								[ $.rdf.triple(subject, predicate, object, {
 									namespaces : nsMap
-								}) ]).dump(rdfXmlOpts);
+								}) ]).dump();
 						options = $.extend(defaultEditableOptions(stmt), {
 							display : false,
 							success : function(response) {
@@ -351,7 +346,7 @@
 						var target = $("#buttons").data("target");
 						if (target) {
 							var toDelete = target.rdf().databank
-									.dump(rdfXmlOpts);
+									.dump();
 							console.log("Delete: " + toDelete);
 							// enilink.updateTriples(null, toDelete,
 							enilink.removeValue(toDelete, function(success) {
@@ -369,7 +364,7 @@
 						if (target) {
 							var rdf = target.rdf();
 							console.log(rdf.databank);
-							console.log(rdf.databank.dump(rdfXmlOpts));
+							console.log(rdf.databank.dump());
 						}
 					}
 					$("#buttons .button-show").click(showRdf);
