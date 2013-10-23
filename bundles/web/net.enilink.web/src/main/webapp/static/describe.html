@@ -76,7 +76,7 @@
 				<section data-if="?relProperty" class="optional">
 					<div class="dropdown">
 						<a class="dropdown-toggle" id="dLabel" role="button"
-							data-toggle="dropdown" href="#">Properties <b class="caret"></b>
+							data-toggle="dropdown" href="#"><span data-lift="loc.properties"></span> <b class="caret"></b>
 						</a>
 						<!-- query relevant properties -->
 						<div class="union clearable">
@@ -106,7 +106,7 @@
 						<div class="span4" style="font-weight: bold">
 							<a href="{app}/static/describe?model={model}&resource={}"
 								data-lift="rdf.ref?for=predicate&to=href"><span
-								data-lift="rdf.label?for=predicate"></span></a>
+								data-lift="rdf.!label?for=predicate"></span></a>
 						</div>
 						<div class="span8">
 							<div class="union">
@@ -115,7 +115,7 @@
 									<div class="span12">
 										<a href="{app}/static/describe?model={model}&resource={}"
 											data-lift="rdf.ref?to=href"><span
-											data-lift="rdf.manchester"></span></a> <span data-if="inferred"><i
+											data-lift="rdf.label"></span></a> <span data-if="inferred"><i
 											class="icon-share-alt" style="opacity: 0.5"></i></span>
 									</div>
 								</div>
