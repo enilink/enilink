@@ -23,12 +23,36 @@ import net.liftweb.util._
 import net.liftweb.util.Helpers._
 import net.enilink.lift.util.NotAllowedModel
 import net.enilink.lift.html.Html5ParserWithRDFaPrefixes
+import scala.xml.NodeSeq
+import java.util.Locale
 
 /**
  * A class that's instantiated early and run.  It allows the application
  * to modify lift's environment
  */
 class LiftModule extends Logger {
+  /**
+   * Template cache that stores templates per application.
+   */
+  class InMemoryCache(templatesCount: Int) extends TemplateCache[(Locale, List[String]), NodeSeq] {
+    private val cache: LRU[(List[String], (Locale, List[String])), NodeSeq] = new LRU(templatesCount)
+
+    private def withApp(key: T) = (Globals.application.vend.dmap(Nil: List[String])(_.link.uriList), key)
+
+    def get(key: T): Box[NodeSeq] = cache.synchronized {
+      cache.get(withApp(key))
+    }
+
+    def set(key: T, node: NodeSeq): NodeSeq = cache.synchronized {
+      cache(withApp(key)) = node
+      node
+    }
+
+    override def delete(key: T) {
+      cache.synchronized(cache.remove(withApp(key)))
+    }
+  }
+
   def boot {
     // set context user from UserPrincipal contained in the HTTP session after successful login
     Globals.contextUser.default.set(() => {
@@ -83,6 +107,10 @@ class LiftModule extends Logger {
     // dispatch function for checking access to context model
     LiftRules.dispatch.append {
       case NotAllowedModel(m) => () => Full(ForbiddenResponse("You don't have permissions to access " + m.getURI + "."))
+    }
+
+    if (Props.productionMode) {
+      LiftRules.templateCache = Full(new InMemoryCache(500))
     }
 
     ResourceServer.allow {

@@ -23,7 +23,8 @@
 				showLinesRuler : true,
 				showAnnotationRuler : false,
 				showOverviewRuler : false,
-				showFoldingRuler : false
+				showFoldingRuler : false,
+				wrapMode : false
 			});
 
 			// prevent events from bubbling up to ancestors
@@ -124,7 +125,7 @@
 			var html = '', lines;
 			if (value) {
 				lines = value.split("\n");
-				for ( var i = 0; i < lines.length; i++) {
+				for (var i = 0; i < lines.length; i++) {
 					lines[i] = $('<div>').text(lines[i]).html();
 				}
 				html = lines.join('<br>');
@@ -139,7 +140,7 @@
 
 			var regex = new RegExp(String.fromCharCode(10), 'g');
 			var lines = html.split(/<br\s*\/?>/i);
-			for ( var i = 0; i < lines.length; i++) {
+			for (var i = 0; i < lines.length; i++) {
 				var text = $('<div>').html(lines[i]).text();
 
 				// Remove newline characters (\n) to avoid them being converted

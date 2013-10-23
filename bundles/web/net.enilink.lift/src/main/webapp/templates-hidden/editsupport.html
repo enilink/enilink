@@ -16,7 +16,53 @@
 			data-lift="head"></script>
 
 		<script type="text/javascript" data-lift="head">
+			$.fn.editableform.template = '<form class="form-inline editableform">'
+					+ '<div class="control-group">'
+					+ '<div><div class="editable-input"></div>'
+					+ '<div class="editable-lang input-prepend" style="display:none; margin-left: 10px;"><span class="add-on">@</span><input style="max-width:40px" type="text" placeholder="lang"></div>'
+					+ '<div class="editable-buttons"></div></div>'
+					+ '<div class="editable-error-block"></div>'
+					+ '</div>'
+					+ '</form>';
+
 			(function() {
+				function firstValue(rdfStmts) {
+					var first;
+					$.each(rdfStmts, function(i, po) {
+						$.each(po, function(j, val) {
+							if (val.length) {
+								first = val[0];
+							}
+							return true;
+						});
+						return true;
+					});
+					return first;
+				}
+
+				function triggerLanguageInput(target, rdfStmts) {
+					function supportsLang(l) {
+						return l.type == "literal"
+								&& (!l.datatype || l.datatype == "http://www.w3.org/1999/02/22-rdf-syntax-ns#langString");
+					}
+					function showInput(lang) {
+						target.off("shown.editable").on(
+								"shown.editable",
+								function(e, editable) {
+									var form = editable.container.$form;
+									console.log(editable.container);
+									var editLang = form.find(".editable-lang");
+									editLang.find("input")
+											.val(lang ? lang : "");
+									editLang.show();
+								});
+					}
+					var first = firstValue(rdfStmts);
+					if (first && supportsLang(first)) {
+						showInput(first.lang);
+					}
+				}
+
 				function defaultEditableOptions(rdfStmts) {
 					var resourceProposal;
 					return {
@@ -25,12 +71,26 @@
 						inputclass : "input-xxlarge",
 						mode : "inline",
 						toggle : "manual",
+						savenochange : true,
 						params : function(params) {
 							var value = $.trim(params.value);
 							if (resourceProposal
 									&& resourceProposal.proposal == value) {
 								// use selected resource as value
 								params.value = "<" + resourceProposal.resource + ">";
+							} else {
+								// set correct language
+								var old = firstValue(rdfStmts);
+								var lang = $(this).data('editable').container.$form
+										.find(".editable-lang input").val();
+								if (lang) {
+									params.value = $.rdf.literal(value, {
+										lang : lang
+									});
+								} else if (old && old.lang) {
+									params.value = $.rdf.literal('"' + value
+											+ '"');
+								}
 							}
 							return params;
 						},
@@ -125,8 +185,10 @@
 							return d.promise();
 						}
 					}, options || {});
+
+					triggerLanguageInput(target, rdfStmts);
 					target.editable(options);
-					target.editable("toggle");
+					target.editable("show");
 					return resultDeferred.promise();
 				}
 
@@ -144,7 +206,7 @@
 					}
 					e = self.closest("[resource], [about]");
 					var subject = e.attr("resource") || e.attr("about");
-					var object = property ? $.rdf.literal("\"\"") : $.rdf
+					var object = property ? $.rdf.literal('""') : $.rdf
 							.resource("<urn:null>");
 					if (subject && predicate) {
 						// explicit creation of blank node objects
@@ -198,8 +260,9 @@
 								return d.promise();
 							}
 						}, options || {});
+						triggerLanguageInput(self, stmt);
 						self.editable(options);
-						self.editable("toggle");
+						self.editable("show");
 					} else {
 						resultDeferred
 								.reject("Subject and predicate must be defined.")
@@ -345,8 +408,7 @@
 					function remove() {
 						var target = $("#buttons").data("target");
 						if (target) {
-							var toDelete = target.rdf().databank
-									.dump();
+							var toDelete = target.rdf().databank.dump();
 							console.log("Delete: " + toDelete);
 							// enilink.updateTriples(null, toDelete,
 							enilink.removeValue(toDelete, function(success) {

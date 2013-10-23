@@ -17,9 +17,9 @@
 	<classpathentry exported="true" kind="lib" path="lib_managed/jars/org.scala-tools.testing/specs_2.10/specs_2.10-1.6.9.jar"/>
 	<classpathentry exported="true" kind="lib" path="lib_managed/jars/org.scala-lang/scalap/scalap-2.10.0.jar"/>
 	<classpathentry kind="con" path="org.eclipse.pde.core.requiredPlugins"/>
+	<classpathentry kind="con" path="org.scala-ide.sdt.launching.SCALA_CONTAINER"/>
 	<classpathentry kind="con" path="org.eclipse.jdt.launching.JRE_CONTAINER/org.eclipse.jdt.internal.debug.ui.launcher.StandardVMType/JavaSE-1.6"/>
 	<classpathentry kind="con" path="org.eclipse.jdt.junit.JUNIT_CONTAINER/4"/>
-	<classpathentry kind="con" path="org.scala-ide.sdt.launching.SCALA_CONTAINER"/>
 	<classpathentry kind="lib" path="lib_managed/bundles/nu.validator.htmlparser/htmlparser/htmlparser-1.4.jar"/>
 	<classpathentry kind="output" path="bin"/>
 </classpath>

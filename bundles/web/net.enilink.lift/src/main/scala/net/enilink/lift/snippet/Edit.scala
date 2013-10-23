@@ -46,7 +46,7 @@ import net.liftweb.util.LiftFlowOfControlException
 
 case class ProposeInput(rdf: JValue, query: String, index: Int)
 case class GetValueInput(rdf: JValue)
-case class SetValueInput(rdf: JValue, value: String, template: Option[String], what: Option[String])
+case class SetValueInput(rdf: JValue, value: JValue, template: Option[String], what: Option[String])
 
 class JsonCallHandler {
   implicit val formats = DefaultFormats
@@ -213,7 +213,11 @@ class JsonCallHandler {
         case SetValueInput(rdf, value, template, templatePath) =>
           statements(rdf) match {
             case stmt :: _ => {
-              val cmdResult = createHelper.setValue(stmt, value.trim)
+              val cmdResult = createHelper.setValue(stmt, value match {
+                case JString(s) => s.trim
+                // also allow RDF/JSON encoded values
+                case _ => valueFromJSON(value)
+              })
               val status = cmdResult.getStatus
               if (status.isOK) {
                 template match {
@@ -279,32 +283,35 @@ class JsonCallHandler {
    * Parses RDF JSON Alternate Serialization (RDF/JSON) in the form { "S" : { "P" : [ O ] } }.
    */
   def statementsFromJSON(rdf: JObject): Seq[IStatement] = {
-    import net.enilink.komma.core.Literal
     def toResource(ref: String) = if (ref.startsWith("_:")) new BlankNode(ref) else URIImpl.createURI(ref)
-
     rdf.children flatMap {
       case JField(s, po: JObject) =>
         val sResource = toResource(s)
         po.children flatMap {
           case JField(p, JArray(objs)) => objs map { o =>
             val pResource = toResource(p)
-            val oValue = (o \ "value").values.toString
-            val stmt = new Statement(sResource, pResource, (o \ "type") match {
-              case JString("uri") => URIImpl.createURI(oValue)
-              case JString("bnode") => new BlankNode(oValue)
-              case _ /* JString("literal") */ => (o \ "datatype") match {
-                case JString(datatype) => new Literal(oValue, URIImpl.createURI(datatype))
-                case _ => (o \ "lang") match {
-                  case JString(lang) => new Literal(oValue, lang)
-                  case _ => new Literal(oValue)
-                }
-              }
-            })
+            val stmt = new Statement(sResource, pResource, valueFromJSON(o))
             stmt
           }
           case _ => Nil
         }
       case _ => Nil
+    }
+  }
+
+  def valueFromJSON(o: JValue) = {
+    import net.enilink.komma.core.Literal
+    val oValue = (o \ "value").values.toString
+    (o \ "type") match {
+      case JString("uri") => URIImpl.createURI(oValue)
+      case JString("bnode") => new BlankNode(oValue)
+      case _ /* JString("literal") */ => (o \ "datatype") match {
+        case JString(datatype) => new Literal(oValue, URIImpl.createURI(datatype))
+        case _ => (o \ "lang") match {
+          case JString(lang) => new Literal(oValue, lang)
+          case _ => new Literal(oValue)
+        }
+      }
     }
   }
 

@@ -1,3 +1,17 @@
+/** add language tags to literals */
+div[lang],span[lang] {
+	position: relative;
+}
+
+div[lang]::before,span[lang]::before,div[lang]:before,span[lang]:before
+	{
+	content: " @" attr(lang);
+	position: absolute;
+	right: 0px;
+	top: 1em;
+	opacity: 0.5;
+}
+
 .subnav {
 	margin-top: 40px;
 }

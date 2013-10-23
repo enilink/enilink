@@ -27,6 +27,7 @@ import scala.xml.NamespaceBinding
 import scala.xml.TopScope
 import net.enilink.komma.model.IObject
 import net.enilink.komma.core.IReference
+import net.enilink.komma.concepts.IClass
 
 class RdfContext(val subject: Any, val predicate: Any, val prefix: NamespaceBinding = TopScope) {
   override def equals(that: Any): Boolean = that match {
@@ -64,6 +65,13 @@ class Rdf extends DispatchSnippet with RDFaTemplates {
     }
   }
 
+  private def toLabel(target: Any, useLabelForVocab: Boolean = false) = target match {
+    case _: IClass => toManchester(target)
+    case _ => ModelUtil.getLabel(target, useLabelForVocab)
+  }
+
+  private def toManchester(target: Any) = new ManchesterSyntaxGenerator().generateText(target)
+
   private def execMethod(target: Any, method: String) = {
     def runMethod: PartialFunction[String, String] = {
       case "name" => target match {
@@ -71,8 +79,9 @@ class Rdf extends DispatchSnippet with RDFaTemplates {
         case _ => target.toString
       }
       case "ref" => target.toString
-      case "label" => ModelUtil.getLabel(target)
-      case "manchester" => new ManchesterSyntaxGenerator().generateText(target)
+      case "!label" => toLabel(target, true)
+      case "label" => toLabel(target)
+      case "manchester" => toManchester(target)
     }
     (ns: NodeSeq) =>
       ns flatMap { n =>

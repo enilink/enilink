@@ -58,7 +58,7 @@ Import-Package: com.google.inject,
  org.osgi.util.tracker,
  org.slf4j
 Require-Bundle: org.eclipse.core.runtime,
- org.scala-ide.scala.library;visibility:=reexport,
+ org.scala-lang.scala-library;visibility:=reexport,
  net.enilink.komma.model,
  net.enilink.core,
  net.enilink.komma.edit,

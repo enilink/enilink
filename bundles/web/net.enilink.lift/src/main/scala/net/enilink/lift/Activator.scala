@@ -219,20 +219,40 @@ class Activator extends BundleActivator {
     override def getResource(s: String) = {
       debug("""Asked for resource "%s".""" format s)
 
-      // also search common places by converting paths in the form of
-      // /[application path]/some/resource to /some/resource
-      val places = List(s) ++ (for (
-        app <- Globals.application.vend;
-        resourcePath = s.stripPrefix("/").split("/").toList;
-        appPath = app.link.uriList;
-        altPath <- {
-          if (resourcePath.startsWith(appPath)) Some(resourcePath.drop(appPath.length))
-          // support paths in the form of /toserve/[application path]/some/resource
-          else if (resourcePath.startsWith(ResourceServer.baseResourceLocation :: appPath))
-            Some(ResourceServer.baseResourceLocation :: resourcePath.drop(1 + appPath.length))
-          else None
-        }
-      ) yield altPath.mkString("/", "/", ""))
+      def str[A](p: List[A]) = p.mkString("/", "/", "")
+      def list(s: String) = s.stripPrefix("/").split("/").toList
+      lazy val baseResourceLocation = list(ResourceServer.baseResourceLocation)
+      val places = Globals.application.vend match {
+        case Full(app) =>
+          // search alternative places
+          val resourcePath = list(s)
+          val appPath = app.link.uriList
+          if (resourcePath.startsWith(appPath))
+            // /[application path]/some/resource => /some/resource
+            List(s, str(resourcePath.drop(appPath.length)))
+          else if (resourcePath.startsWith(baseResourceLocation)) {
+            val suffix = resourcePath.drop(1)
+            if (suffix.startsWith(appPath))
+              // /toserve/[application path]/some/resource => /toserve/some/resource
+              List(s, str(baseResourceLocation ++ suffix.drop(appPath.length)))
+            else
+              // /toserve/some/resource => /toserve/[application path]/some/resource
+              List(str(baseResourceLocation ++ appPath ++ suffix), s)
+          } else resourcePath match {
+            case (prefix @ ("templates-hidden" | "resources-hidden")) :: (suffix @ _) =>
+              if (suffix.startsWith(appPath)) {
+                List(s, str(List(prefix) ++ suffix.drop(appPath.length)))
+              } else {
+                List(str(List(prefix) ++ appPath ++ suffix), s)
+              }
+            case _ =>
+              // /some/resource => /[application path]/some/resource
+              List(str(appPath ++ resourcePath), s)
+          }
+        // no application context
+        case _ => List(s)
+      }
+      debug("""Places for resource "%s".""" format places)
 
       val liftBundles = bundleTracker.getTracked.entrySet.toSeq.view
       (places.view.flatMap { place =>
