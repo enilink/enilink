@@ -128,8 +128,7 @@ public abstract class SessionModelSetSupport implements IModelSet.Internal,
 
 	protected void initializeAdapters() {
 		// Create the command stack that will notify this editor as commands
-		// are
-		// executed.
+		// are executed.
 		EditingDomainCommandStack commandStack = new EditingDomainCommandStack();
 		AdapterFactoryEditingDomain editingDomain = new AdapterFactoryEditingDomain(
 				createAdapterFactory(), commandStack, getBehaviourDelegate()) {
