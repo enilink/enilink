@@ -6,6 +6,7 @@
 			$(function() {
 				var queryInput = $('input.search-query');
 				queryInput.typeahead({
+					minLength : 2,
 					source : eval("(" + queryInput.attr("data-source") + ")")
 				});
 			});

@@ -81,7 +81,7 @@ object Search extends SparqlHelper with SparqlExtractor {
               val em = entity.getEntityManager
               val keywords = bindingNames.flatMap { bindingName =>
                 // add search patterns to template
-                val fragment = em.getFactory.getDialect.fullTextSearch(List(bindingName), IDialect.ANY, query)
+                val fragment = em.getFactory.getDialect.fullTextSearch(List(bindingName), IDialect.DEFAULT, query)
                 val nsWithPatterns = (".search-patterns" #> <div data-pattern={ fragment.toString } class="clearable"></div>).apply(ns)
                 val sparqlFromRdfa = extractSparql(nsWithPatterns)
                 val queryParams = globalQueryParameters ++ bindParams(extractParams(ns)) ++ bindingsToMap(fragment.bindings)
@@ -117,7 +117,7 @@ object Search extends SparqlHelper with SparqlExtractor {
         searchString = Full(ns \ "@data-value" text).filter(_.nonEmpty) or S.param(param).filter(_.nonEmpty)
         searchString.dmap(Nil: NodeSeq) { searchStr =>
           val em = Globals.contextModel.vend.dmap(ModelSetManager.INSTANCE.getModelSet.getMetaDataManager)(_.getManager)
-          fragment = Full(em.getFactory.getDialect.fullTextSearch(bindingNames, IDialect.ANY, searchStr))
+          fragment = Full(em.getFactory.getDialect.fullTextSearch(bindingNames, IDialect.DEFAULT, searchStr))
           <div data-pattern={ fragment.dmap("")(_.toString) } class="clearable"></div>
         }
       } else ns
