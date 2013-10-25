@@ -22,8 +22,8 @@ public abstract class OwlimDialectSupport implements IModelSet,
 		public QueryFragment fullTextSearch(
 				Collection<? extends String> bindingNames, int flags,
 				String... patterns) {
-			String matchFunc = (flags & CASE_INSENSITIVE) != 0 ? "prefixMatchIgnoreCase"
-					: "prefixMatch";
+			String matchFunc = (flags & CASE_SENSITIVE) != 0 ? "prefixMatch"
+					: "prefixMatchIgnoreCase";
 			StringBuilder patternsAsURI = new StringBuilder();
 			for (String pattern : patterns) {
 				if (pattern.isEmpty()) {
