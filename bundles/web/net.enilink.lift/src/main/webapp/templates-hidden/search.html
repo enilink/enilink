@@ -1,25 +1,22 @@
-<!DOCTYPE html>
-<html>
-<body class="lift:content_id=main">
-	<div id="main">
-		<script type="text/javascript" data-lift="head">
-			$(function() {
-				var queryInput = $('input.search-query');
-				queryInput.typeahead({
+<div>
+	<script type="text/javascript" data-lift="head">
+		$(function() {
+			var queryInput = $('input.search-query').each(function() {
+				var self = $(this);
+				self.typeahead({
 					minLength : 2,
-					source : eval("(" + queryInput.attr("data-source") + ")")
+					source : eval("(" + self.attr("data-source") + ")")
 				});
 			});
-		</script>
-		<form method="get" action="" class="form-inline">
-			<div style="white-space: nowrap">
-				<input class="search-query" style="display: inline-block;"
-					type="text" placeholder="Search..." autocomplete="off"></input>
-				<button type="submit" class="btn btn-primary">
-					<i class="icon-search icon-white"></i>
-				</button>
-			</div>
-		</form>
-	</div>
-</body>
-</html>
+		});
+	</script>
+	<form method="get" action="" class="form-inline">
+		<div style="white-space: nowrap">
+			<input class="search-query" style="display: inline-block;"
+				type="text" placeholder="Search..." autocomplete="off"></input>
+			<button type="submit" class="btn btn-primary">
+				<i class="icon-search icon-white"></i>
+			</button>
+		</div>
+	</form>
+</div>

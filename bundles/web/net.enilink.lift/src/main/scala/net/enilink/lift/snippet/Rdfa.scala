@@ -70,6 +70,7 @@ object Search extends SparqlHelper with SparqlExtractor {
         case _ => Array.empty[String]
       }).filter(_.toLowerCase.contains(query))
     }
+    val origParams = QueryParams.get
     val runWithContext: (=> Any) => Any = captureRdfContext
     S.fmapFunc(S.contextFuncBuilder(SFuncHolder({ query: String =>
       runWithContext {
@@ -84,7 +85,7 @@ object Search extends SparqlHelper with SparqlExtractor {
                 val fragment = em.getFactory.getDialect.fullTextSearch(List(bindingName), IDialect.DEFAULT, query)
                 val nsWithPatterns = (".search-patterns" #> <div data-pattern={ fragment.toString } class="clearable"></div>).apply(ns)
                 val sparqlFromRdfa = extractSparql(nsWithPatterns)
-                val queryParams = globalQueryParameters ++ bindParams(extractParams(ns)) ++ bindingsToMap(fragment.bindings)
+                val queryParams = origParams ++ globalQueryParameters ++ bindParams(extractParams(ns)) ++ bindingsToMap(fragment.bindings)
                 val sparql = sparqlFromRdfa.getQuery(bindingName, 0, 1000)
                 val results = withParameters(em.createQuery(sparql), queryParams).evaluate
                 results.iterator.flatMap(toTokens(query.toLowerCase, _))
@@ -145,7 +146,7 @@ object Search extends SparqlHelper with SparqlExtractor {
           }
       } openOr Nil)
     })).apply(nodes)
-    fragment map { f => QueryParams.doWith(f.bindings)(render(nodes)) } openOr render(nodes)
+    fragment map { f => QueryParams.doWith(QueryParams.get ++ bindingsToMap(f.bindings))(render(nodes)) } openOr render(nodes)
   }
 }
 
@@ -166,12 +167,13 @@ class Rdfa extends Sparql with SparqlExtractor {
    * Support partial refresh via ajax call
    */
   def makeAjaxRefresh(ns: NodeSeq) = {
+    val origParams = QueryParams.get
     val origAttrs = S.attrsToMetaData
     val refresh = (funcId: String) => {
       println("FUNC " + funcId)
       val result = S.withAttrs(origAttrs) {
         // run rdfa snippet while reusing current refresh function
-        RdfaRefreshFunc.withValue(Full(funcId)) { new Rdfa().render(ns) }
+        RdfaRefreshFunc.withValue(Full(funcId)) { QueryParams.doWith(origParams ++ QueryParams.get) { new Rdfa().render(ns) } }
       }
       JsCmds.SetHtml(funcId, result)
     }

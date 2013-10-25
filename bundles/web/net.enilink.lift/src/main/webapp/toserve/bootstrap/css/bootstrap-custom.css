@@ -23,3 +23,8 @@ div[lang]::before,span[lang]::before,div[lang]:before,span[lang]:before
 .pagination a {
 	line-height: 24px;
 }
+
+.popover,.popover-inner {
+	width: auto;
+	max-width: none;
+}

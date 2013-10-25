@@ -41,7 +41,7 @@ trait SparqlHelper {
 
   def convertParams(params: Map[String, _]): Map[String, Any] = {
     params flatMap {
-      case (key, value : String) if value.startsWith("_:") => Some((key, new BlankNode(value)))
+      case (key, value: String) if value.startsWith("_:") => Some((key, new BlankNode(value)))
       case (key, value) =>
         catching(classOf[IllegalArgumentException]) opt { (key, URIImpl.createURI(String.valueOf(value))) } filter (!_._2.isRelative)
     }
@@ -206,7 +206,10 @@ class Sparql extends SparqlHelper with RDFaTemplates {
             val value = e \ ("@" + attr)
             if (value.nonEmpty) {
               ns = value.text match {
-                case TemplateNode.variable(v) => transform(e, attr, if (isIf) paramExists(v) else !paramExists(v))
+                case v if v.nonEmpty => {
+                  val param = v.stripPrefix("?")
+                  transform(e, attr, if (isIf) paramExists(param) else !paramExists(param))
+                }
                 case _ => e.copy(child = applyRules(e.child))
               }
               false

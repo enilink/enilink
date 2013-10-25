@@ -164,8 +164,12 @@ object TemplateNode extends RDFaUtils {
             case variable(v) => if (!ignoreAttributes.contains(meta.key)) Some(new VarBinder(e, meta.key, v)) else None
             case iriStr if !iriStr.isEmpty => {
               try {
-                val Iri = URIImpl.createURI(iriStr)
-                if (!Iri.isRelative()) Some(new IriBinder(e, meta.key, Iri)) else None
+                URIImpl.createURI(iriStr) match {
+                  // skip href attributes with values like "javascript:void(0)"
+                  case iri if meta.key.equalsIgnoreCase("href") && iri.scheme == "javascript" => None
+                  case iri if !iri.isRelative => Some(new IriBinder(e, meta.key, iri))
+                  case _ => None
+                }
               } catch {
                 case iae: IllegalArgumentException => None // ignore, iriStr is an invalid IRI
               }
