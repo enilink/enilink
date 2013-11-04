@@ -38,6 +38,7 @@ import net.enilink.komma.core.QueryFragment
 import net.liftweb.util.CanBind._
 import net.liftweb.util.DynoVar
 import scala.util.DynamicVariable
+import net.enilink.komma.model.ModelUtil
 
 object ParamsHelper {
   def params(filter: Set[String] = Set.empty) = {
@@ -64,11 +65,12 @@ object Search extends SparqlHelper with SparqlExtractor {
      * TODO Maybe this should directly be integrated into the SPARQL query to get all results?!
      */
     def toTokens(query: String, v: Any): Seq[String] = {
+      val splitRegex = "[^\\p{L}\\d_]+"
       (v match {
-        case ref: IReference if ref.getURI != null => ref.getURI.segments ++ List(ref.getURI.localPart)
-        case literal if literal != null => literal.toString.split("[^\\p{L}\\d_]+")
-        case _ => Array.empty[String]
-      }).filter(_.toLowerCase.contains(query))
+        case ref: IReference => (if (ref.getURI != null) ref.getURI.segments.toList ++ List(ref.getURI.localPart) else Nil) ++ List(ModelUtil.getLabel(ref))
+        case literal if literal != null => List(literal.toString)
+        case _ => Nil
+      }).flatMap(_.split(splitRegex)).filter(_.toLowerCase.contains(query))
     }
     val origParams = QueryParams.get
     val runWithContext: (=> Any) => Any = captureRdfContext
