@@ -104,7 +104,7 @@
 
 					<div class="row-fluid" data-clear-rel="?property" data-t="property">
 						<div class="span4" style="font-weight: bold">
-							<a href="{app}/static/describe?model={model}&resource={}"
+							<a href="{app}/static/describe?model={model}&resource={}&inferred={inferred}"
 								data-lift="rdf.ref?for=predicate&to=href"><span
 								data-lift="rdf.!label?for=predicate"></span></a>
 						</div>
@@ -113,7 +113,7 @@
 								<div class="row-fluid asc" rel="?property" resource="?oResource"
 									data-filter="!isLiteral(?oResource)" data-t="resourceValue">
 									<div class="span12">
-										<a href="{app}/static/describe?model={model}&resource={}"
+										<a href="{app}/static/describe?model={model}&resource={}&inferred={inferred}"
 											data-lift="rdf.ref?to=href"><span
 											data-lift="rdf.label"></span></a> <span data-if="inferred"><i
 											class="icon-share-alt" style="opacity: 0.5"></i></span>
