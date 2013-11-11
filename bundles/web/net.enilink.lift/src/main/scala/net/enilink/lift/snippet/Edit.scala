@@ -158,7 +158,9 @@ class JsonCallHandler {
           val o = ("label", p.getLabel) ~ ("content", p.getContent) ~ ("description", p.getDescription) ~
             ("cursorPosition", p.getCursorPosition) ~ ("insert", p.isInsert)
           p match {
-            case resProposal: IResourceProposal if resProposal.getUseAsValue => o ~ ("resource", resProposal.getResource.getReference.toString)
+            case resProposal: IResourceProposal =>
+              val o2 = if (resProposal.getUseAsValue) o ~ ("resource", resProposal.getResource.getReference.toString) else o
+              o2 ~ ("perfectMatch", resProposal.isPerfectMatch())
             case other => o
           }
         } toList

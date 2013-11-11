@@ -132,6 +132,10 @@
 																			// this is a resource proposal
 																			proposal.resource = value.resource;
 																		}
+																		if (value.perfectMatch) {
+																			// use emphasis style
+																			proposal.style = "emphasis";
+																		}
 																		proposals
 																				.push(proposal);
 																	});
@@ -439,6 +443,11 @@
 			})();
 		</script>
 		<style type="text/css" data-lift="head">
+/* highlight emphasized proposals */
+.proposal-emphasis {
+	font-weight: bold;
+}
+
 /* make buttons slightly transparent */
 [data-add] {
 	opacity: 0.3;
