@@ -46,11 +46,10 @@
 								&& (!l.datatype || l.datatype == "http://www.w3.org/1999/02/22-rdf-syntax-ns#langString");
 					}
 					function showInput(lang) {
-						target.off("shown.editable").on(
-								"shown.editable",
+						target.off("shown.editable-lang").on(
+								"shown.editable-lang",
 								function(e, editable) {
 									var form = editable.container.$form;
-									console.log(editable.container);
 									var editLang = form.find(".editable-lang");
 									editLang.find("input")
 											.val(lang ? lang : "");
@@ -61,6 +60,10 @@
 					if (first && supportsLang(first)) {
 						showInput(first.lang);
 					}
+				}
+
+				function prepareEditable(target, rdfStmts) {
+					triggerLanguageInput(target, rdfStmts);
 				}
 
 				function defaultEditableOptions(rdfStmts) {
@@ -190,7 +193,7 @@
 						}
 					}, options || {});
 
-					triggerLanguageInput(target, rdfStmts);
+					prepareEditable(target, rdfStmts);
 					target.editable(options);
 					target.editable("show");
 					return resultDeferred.promise();
@@ -264,7 +267,7 @@
 								return d.promise();
 							}
 						}, options || {});
-						triggerLanguageInput(self, stmt);
+						prepareEditable(self, stmt);
 						self.editable(options);
 						self.editable("show");
 					} else {
@@ -444,7 +447,7 @@
 		</script>
 		<style type="text/css" data-lift="head">
 /* highlight emphasized proposals */
-.proposal-emphasis {
+.contentassist .proposal-emphasis {
 	font-weight: bold;
 }
 

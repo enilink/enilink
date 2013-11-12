@@ -22,9 +22,25 @@
 				parent : parent,
 				showLinesRuler : true,
 				showAnnotationRuler : false,
-				showOverviewRuler : false,
+				showOverviewRuler : true,
 				showFoldingRuler : false,
 				wrapMode : false
+			});
+			// automatically resize text view, use height instead of line count
+			// to support wrapMode = true
+			var lastVisibleHeight;
+			var scrollDiv = editor.getTextView()._scrollDiv;
+			editor.getTextView().addEventListener("Modify", function(evt) {
+				// TODO check why scrollDiv.clientHeight is too small after
+				// initialization
+				// of the editor
+				var totalHeight = scrollDiv.clientHeight;
+				var visibleHeight = Math.max(50, Math.min(totalHeight, 400));
+				if (visibleHeight != lastVisibleHeight) {
+					self.$input.height(visibleHeight);
+					editor.getTextView().resize();
+					lastVisibleHeight = visibleHeight;
+				}
 			});
 
 			// prevent events from bubbling up to ancestors
@@ -80,7 +96,7 @@
 
 			var dfd = new $.Deferred();
 			var self = this;
-			require([ "/classpath/orion/built-editor-amd.min.js" ], function() {
+			require([ "/classpath/orion/built-editor-amd.js" ], function() {
 				createEditor.call(self, function(editor) {
 					require([ "orion/keyBinding" ], function(keyBinding) {
 						var textView = editor.getTextView();
@@ -113,6 +129,7 @@
 		postrender : function() {
 			// setText requires visibility of editor
 			var text = this.textValue || "";
+			this.editor.getTextView().invokeAction("toggleWrapMode");
 			this.editor.setText(text);
 			this.editor.setCaretOffset(text.length);
 		},
@@ -154,53 +171,50 @@
 		}
 	});
 
-	Orion.defaults = $.extend({}, $.fn.editabletypes.abstractinput.defaults, {
-		/**
-		 * @property tpl
-		 * @default
-		 * 
-		 * <pre></pre>
-		 */
-		tpl : '<pre style="height: 7em"></pre>',
-		/**
-		 * @property inputclass
-		 * @default input-large
-		 */
-		inputclass : 'input-large',
-		/**
-		 * Placeholder attribute of input. Shown when input is empty.
-		 * 
-		 * @property placeholder
-		 * @type string
-		 * @default null
-		 */
-		placeholder : null,
-		/**
-		 * Number of rows in textarea
-		 * 
-		 * @property rows
-		 * @type integer
-		 * @default 7
-		 */
-		rows : 7,
-
-		/**
-		 * Registered providers for content assistance.
-		 * 
-		 * @property contentAssistProviders
-		 * @type Array
-		 * @default null
-		 */
-		contentAssistProviders : null,
-		/**
-		 * Function which is called after a proposal has been applied.
-		 * 
-		 * @property contentAssistProposalApplied
-		 * @type function
-		 * @default null
-		 */
-		contentAssistProposalApplied : null
-	});
+	Orion.defaults = $
+			.extend(
+					{},
+					$.fn.editabletypes.abstractinput.defaults,
+					{
+						/**
+						 * @property tpl
+						 * @default
+						 * 
+						 * <pre></pre>
+						 */
+						tpl : '<pre style="height:7em; padding: 0; word-wrap: inherit; word-break: inherit; white-space: inherit; border: none"></pre>',
+						/**
+						 * @property inputclass
+						 * @default input-large
+						 */
+						inputclass : 'input-large',
+						/**
+						 * Placeholder attribute of input. Shown when input is
+						 * empty.
+						 * 
+						 * @property placeholder
+						 * @type string
+						 * @default null
+						 */
+						placeholder : null,
+						/**
+						 * Registered providers for content assistance.
+						 * 
+						 * @property contentAssistProviders
+						 * @type Array
+						 * @default null
+						 */
+						contentAssistProviders : null,
+						/**
+						 * Function which is called after a proposal has been
+						 * applied.
+						 * 
+						 * @property contentAssistProposalApplied
+						 * @type function
+						 * @default null
+						 */
+						contentAssistProposalApplied : null
+					});
 
 	$.fn.editabletypes.orion = Orion;
 }(window.jQuery));

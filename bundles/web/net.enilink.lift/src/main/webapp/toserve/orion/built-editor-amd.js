@@ -1,71 +1,573 @@
 /* orion editor */ 
 /*******************************************************************************
  * @license
+ * Copyright (c) 2013 IBM Corporation and others.
+ * All rights reserved. This program and the accompanying materials are made 
+ * available under the terms of the Eclipse Public License v1.0 
+ * (http://www.eclipse.org/legal/epl-v10.html), and the Eclipse Distribution 
+ * License v1.0 (http://www.eclipse.org/org/documents/edl-v10.html). 
+ * 
+ * Contributors: IBM Corporation - initial API and implementation
+ ******************************************************************************/
+ 
+/*global define*/
+
+define("orion/editor/shim", [], function() { //$NON-NLS-0$
+
+	/**
+	 * Partial ECMAScript 5 shim.
+	 */
+	
+	if (!Object.create) {
+		/* This shim does not properly support the props paramenter. It only works for Deferred.js. */
+		Object.create = function(proto, props) {
+			function N() {}
+			N.prototype = proto;
+			var result = new N();
+			if (props) {
+				for (var p in props) {
+					if (props.hasOwnProperty(p)) {
+						if (props[p].hasOwnProperty("value")) { //$NON-NLS-0$
+							result[p] = props[p].value;
+						} else {
+							result[p] = function() {
+								if (arguments.length > 0) {
+									return props[p].get();
+								} else {
+									props[p].set(arguments);
+								}
+							};
+						}
+					}
+				}
+			}
+			return result;
+		};
+	}
+	if (!Object.keys) {
+		Object.keys = function(o) {
+			var result = [];
+			for (var p in o) {
+				if (o.hasOwnProperty(p)) {
+					result.push(p);
+				}
+			}
+			return result;
+		};
+	}
+
+	if (!Function.prototype.bind) {
+		Function.prototype.bind = function (context) {
+			var fn = this, fixed = Array.prototype.slice.call(arguments, 1);
+			if (fixed.length) {
+				return function() {
+					return arguments.length	? fn.apply(context, fixed.concat(Array.prototype.slice.call(arguments))) : fn.apply(context, fixed);
+				};
+			}
+			return function() {
+				return arguments.length ? fn.apply(context, arguments) : fn.call(context);
+			};
+		};
+	}
+
+	
+	if (!Array.isArray) {
+		Array.isArray = function(obj) {
+			return Object.prototype.toString.call(obj) === "[object Array]";
+		};
+	}
+	if (!Array.prototype.indexOf) {
+		Array.prototype.indexOf = function(c) {
+			for (var i=0; i<this.length; i++) {
+				if (this[i] === c) {
+					return i;
+				}
+			}
+			return -1;
+		};
+	}
+	if (!Array.prototype.forEach) {
+		Array.prototype.forEach = function(func) {
+			for (var i=0; i<this.length; i++) {
+				func(this[i], i);
+			}
+		};
+	}
+	if (!Array.prototype.map) {
+		Array.prototype.map = function(func) {
+			var result = new Array(this.length);
+			for (var i=0; i<this.length; i++) {
+				result[i] = func(this[i]);
+			}
+			return result;
+		};
+	}
+	if (!Array.prototype.reduce) {
+		Array.prototype.reduce = function(func, initialValue){
+			var result, set = false;
+			if (1 < arguments.length) {
+				result = initialValue;
+				set = true;
+			}
+			for (var i = 0; this.length > i; ++i) {
+				if (set) {
+					result = func(result, this[i], i, this);
+				} else {
+					result = this[i];
+					set = true;
+				}
+			}
+			return result;
+		};
+	}
+	
+	if (!String.prototype.trim) {
+		String.prototype.trim = function(){
+			return this.replace(/^\s+|\s+$/g, '');
+		};
+	}
+	if (!String.prototype.trimLeft) {
+		String.prototype.trimLeft = function(){
+			return this.replace(/^\s+/g, '');
+		};
+	}
+	if (!String.prototype.trimRight) {
+		String.prototype.trimRight = function(){
+			return this.replace(/\s+$/g, '');
+		};
+	}
+
+	return {};
+});
+
+/**
+ * @license RequireJS i18n 2.0.2 Copyright (c) 2010-2012, The Dojo Foundation All Rights Reserved.
+ * Available via the MIT or new BSD license.
+ * see: http://github.com/requirejs/i18n for details
+ */
+/*jslint regexp: true */
+/*global require: false, navigator: false, define: false */
+
+/**
+ * This plugin handles i18n! prefixed modules. It does the following:
+ *
+ * 1) A regular module can have a dependency on an i18n bundle, but the regular
+ * module does not want to specify what locale to load. So it just specifies
+ * the top-level bundle, like "i18n!nls/colors".
+ *
+ * This plugin will load the i18n bundle at nls/colors, see that it is a root/master
+ * bundle since it does not have a locale in its name. It will then try to find
+ * the best match locale available in that master bundle, then request all the
+ * locale pieces for that best match locale. For instance, if the locale is "en-us",
+ * then the plugin will ask for the "en-us", "en" and "root" bundles to be loaded
+ * (but only if they are specified on the master bundle).
+ *
+ * Once all the bundles for the locale pieces load, then it mixes in all those
+ * locale pieces into each other, then finally sets the context.defined value
+ * for the nls/colors bundle to be that mixed in locale.
+ *
+ * 2) A regular module specifies a specific locale to load. For instance,
+ * i18n!nls/fr-fr/colors. In this case, the plugin needs to load the master bundle
+ * first, at nls/colors, then figure out what the best match locale is for fr-fr,
+ * since maybe only fr or just root is defined for that locale. Once that best
+ * fit is found, all of its locale pieces need to have their bundles loaded.
+ *
+ * Once all the bundles for the locale pieces load, then it mixes in all those
+ * locale pieces into each other, then finally sets the context.defined value
+ * for the nls/fr-fr/colors bundle to be that mixed in locale.
+ */
+(function () {
+    
+
+    //regexp for reconstructing the master bundle name from parts of the regexp match
+    //nlsRegExp.exec("foo/bar/baz/nls/en-ca/foo") gives:
+    //["foo/bar/baz/nls/en-ca/foo", "foo/bar/baz/nls/", "/", "/", "en-ca", "foo"]
+    //nlsRegExp.exec("foo/bar/baz/nls/foo") gives:
+    //["foo/bar/baz/nls/foo", "foo/bar/baz/nls/", "/", "/", "foo", ""]
+    //so, if match[5] is blank, it means this is the top bundle definition.
+    var nlsRegExp = /(^.*(^|\/)nls(\/|$))([^\/]*)\/?([^\/]*)/;
+
+    //Helper function to avoid repeating code. Lots of arguments in the
+    //desire to stay functional and support RequireJS contexts without having
+    //to know about the RequireJS contexts.
+    function addPart(locale, master, needed, toLoad, prefix, suffix) {
+        if (master[locale]) {
+            needed.push(locale);
+            if (master[locale] === true || master[locale] === 1) {
+                toLoad.push(prefix + locale + '/' + suffix);
+            }
+        }
+    }
+
+    function addIfExists(req, locale, toLoad, prefix, suffix) {
+        var fullName = prefix + locale + '/' + suffix;
+        if (require._fileExists(req.toUrl(fullName + '.js'))) {
+            toLoad.push(fullName);
+        }
+    }
+
+    /**
+     * Simple function to mix in properties from source into target,
+     * but only if target does not already have a property of the same name.
+     * This is not robust in IE for transferring methods that match
+     * Object.prototype names, but the uses of mixin here seem unlikely to
+     * trigger a problem related to that.
+     */
+    function mixin(target, source, force) {
+        var prop;
+        for (prop in source) {
+            if (source.hasOwnProperty(prop) && (!target.hasOwnProperty(prop) || force)) {
+                target[prop] = source[prop];
+            } else if (typeof source[prop] === 'object') {
+                mixin(target[prop], source[prop], force);
+            }
+        }
+    }
+
+    define('i18n',['module'], function (module) {
+        var masterConfig = module.config ? module.config() : {};
+
+        return {
+            version: '2.0.1+',
+            /**
+             * Called when a dependency needs to be loaded.
+             */
+            load: function (name, req, onLoad, config) {
+                config = config || {};
+
+                if (config.locale) {
+                    masterConfig.locale = config.locale;
+                }
+
+                var masterName,
+                    match = nlsRegExp.exec(name),
+                    prefix = match[1],
+                    locale = match[4],
+                    suffix = match[5],
+                    parts = locale.split("-"),
+                    toLoad = [],
+                    value = {},
+                    i, part, current = "";
+
+                //If match[5] is blank, it means this is the top bundle definition,
+                //so it does not have to be handled. Locale-specific requests
+                //will have a match[4] value but no match[5]
+                if (match[5]) {
+                    //locale-specific bundle
+                    prefix = match[1];
+                    masterName = prefix + suffix;
+                } else {
+                    //Top-level bundle.
+                    masterName = name;
+                    suffix = match[4];
+                    locale = masterConfig.locale;
+                    if (!locale) {
+                        locale = masterConfig.locale =
+                            typeof navigator === "undefined" ? "root" :
+                            (navigator.language ||
+                             navigator.userLanguage || "root").toLowerCase();
+                    }
+                    parts = locale.split("-");
+                }
+
+                if (config.isBuild) {
+                    //Check for existence of all locale possible files and
+                    //require them if exist.
+                    toLoad.push(masterName);
+                    addIfExists(req, "root", toLoad, prefix, suffix);
+                    for (i = 0; i < parts.length; i++) {
+                        part = parts[i];
+                        current += (current ? "-" : "") + part;
+                        addIfExists(req, current, toLoad, prefix, suffix);
+                    }
+
+                    req(toLoad, function () {
+                        onLoad();
+                    });
+                } else {
+                    //First, fetch the master bundle, it knows what locales are available.
+                    req([masterName], function (master) {
+                        //Figure out the best fit
+                        var needed = [],
+                            part;
+
+                        //Always allow for root, then do the rest of the locale parts.
+                        addPart("root", master, needed, toLoad, prefix, suffix);
+                        for (i = 0; i < parts.length; i++) {
+                            part = parts[i];
+                            current += (current ? "-" : "") + part;
+                            addPart(current, master, needed, toLoad, prefix, suffix);
+                        }
+
+                        //Load all the parts missing.
+                        req(toLoad, function () {
+                            var i, partBundle, part;
+                            for (i = needed.length - 1; i > -1 && needed[i]; i--) {
+                                part = needed[i];
+                                partBundle = master[part];
+                                if (partBundle === true || partBundle === 1) {
+                                    partBundle = req(prefix + part + '/' + suffix);
+                                }
+                                mixin(value, partBundle);
+                            }
+
+                            //All done, notify the loader.
+                            onLoad(value);
+                        });
+                    });
+                }
+            }
+        };
+    });
+}());
+
+/*******************************************************************************
+ * @license
+ * Copyright (c) 2010, 2012 IBM Corporation and others.
+ * All rights reserved. This program and the accompanying materials are made 
+ * available under the terms of the Eclipse Public License v1.0 
+ * (http://www.eclipse.org/legal/epl-v10.html), and the Eclipse Distribution 
+ * License v1.0 (http://www.eclipse.org/org/documents/edl-v10.html). 
+ * 
+ * Contributors: IBM Corporation - initial API and implementation
+ ******************************************************************************/
+
+/*global define */
+define('orion/editor/i18n',{
+	load: function(name, parentRequire, onLoad, config) {
+		if (parentRequire.specified && parentRequire.specified("orion/bootstrap")) { //$NON-NLS-0$
+			parentRequire(["orion/i18n!" + name], function(languages) { //$NON-NLS-0$
+				onLoad(languages);
+			});
+		} else {
+			onLoad({});
+		}
+	}
+});
+
+/*******************************************************************************
+ * @license
  * Copyright (c) 2012 IBM Corporation and others.
  * All rights reserved. This program and the accompanying materials are made 
  * available under the terms of the Eclipse Public License v1.0 
  * (http://www.eclipse.org/legal/epl-v10.html), and the Eclipse Distribution 
  * License v1.0 (http://www.eclipse.org/org/documents/edl-v10.html). 
- *
- * Contributors: IBM Corporation - initial API and implementation
- *******************************************************************************/
+ * 
+ * Contributors: 
+ *		Felipe Heidrich (IBM Corporation) - initial API and implementation
+ *		Silenio Quarti (IBM Corporation) - initial API and implementation
+ ******************************************************************************/
 
-/*global define navigator*/
-define('orion/util',[],function() {
+//NLS_CHARSET=UTF-8
 
-	var userAgent = navigator.userAgent;
-	var isIE = parseFloat(userAgent.split("MSIE")[1]) || undefined; //$NON-NLS-0$
-	var isFirefox = parseFloat(userAgent.split("Firefox/")[1] || userAgent.split("Minefield/")[1]) || undefined; //$NON-NLS-1$ //$NON-NLS-0$
-	var isOpera = userAgent.indexOf("Opera") !== -1; //$NON-NLS-0$
-	var isChrome = parseFloat(userAgent.split("Chrome/")[1]) || undefined; //$NON-NLS-0$
-	var isSafari = userAgent.indexOf("Safari") !== -1 && !isChrome; //$NON-NLS-0$
-	var isWebkit = parseFloat(userAgent.split("WebKit/")[1]) || undefined; //$NON-NLS-0$
-	var isAndroid = userAgent.indexOf("Android") !== -1; //$NON-NLS-0$
-	var isIPad = userAgent.indexOf("iPad") !== -1; //$NON-NLS-0$
-	var isIPhone = userAgent.indexOf("iPhone") !== -1; //$NON-NLS-0$
-	var isIOS = isIPad || isIPhone;
-	var isMac = navigator.platform.indexOf("Mac") !== -1; //$NON-NLS-0$
-	var isWindows = navigator.platform.indexOf("Win") !== -1; //$NON-NLS-0$
-	var isLinux = navigator.platform.indexOf("Linux") !== -1; //$NON-NLS-0$
-	var platformDelimiter = isWindows ? "\r\n" : "\n"; //$NON-NLS-1$ //$NON-NLS-0$
+/*global define*/
 
-	function formatMessage(msg) {
-		var args = arguments;
-		return msg.replace(/\$\{([^\}]+)\}/g, function(str, index) { return args[(index << 0) + 1]; });
-	}
+define('orion/editor/nls/root/messages',{
+	"multipleAnnotations": "Multiple annotations:", //$NON-NLS-1$ //$NON-NLS-0$
+	"line": "Line: ${0}", //$NON-NLS-1$ //$NON-NLS-0$
+	"breakpoint": "Breakpoint", //$NON-NLS-1$ //$NON-NLS-0$
+	"bookmark": "Bookmark", //$NON-NLS-1$ //$NON-NLS-0$
+	"task": "Task", //$NON-NLS-1$ //$NON-NLS-0$
+	"error": "Error", //$NON-NLS-1$ //$NON-NLS-0$
+	"warning": "Warning", //$NON-NLS-1$ //$NON-NLS-0$
+	"matchingSearch": "Matching Search", //$NON-NLS-1$ //$NON-NLS-0$
+	"currentSearch": "Current Search", //$NON-NLS-1$ //$NON-NLS-0$
+	"currentLine": "Current Line", //$NON-NLS-1$ //$NON-NLS-0$
+	"matchingBracket": "Matching Bracket", //$NON-NLS-1$ //$NON-NLS-0$
+	"currentBracket": "Current Bracket", //$NON-NLS-1$ //$NON-NLS-0$
 	
-	var XHTML = "http://www.w3.org/1999/xhtml"; //$NON-NLS-0$
-	function createElement(document, tagName) {
-		if (document.createElementNS) {
-			return document.createElementNS(XHTML, tagName);
-		}
-		return document.createElement(tagName);
-	}
+	"lineUp": "Line Up", //$NON-NLS-1$ //$NON-NLS-0$
+	"lineDown": "Line Down", //$NON-NLS-1$ //$NON-NLS-0$
+	"lineStart": "Line Start", //$NON-NLS-1$ //$NON-NLS-0$
+	"lineEnd": "Line End", //$NON-NLS-1$ //$NON-NLS-0$
+	"charPrevious": "Previous Character", //$NON-NLS-1$ //$NON-NLS-0$
+	"charNext": "Next Character", //$NON-NLS-1$ //$NON-NLS-0$
+	"pageUp": "Page Up", //$NON-NLS-1$ //$NON-NLS-0$
+	"pageDown": "Page Down", //$NON-NLS-1$ //$NON-NLS-0$
+	"scrollPageUp": "Scroll Page Up", //$NON-NLS-1$ //$NON-NLS-0$
+	"scrollPageDown": "Scroll Page Down", //$NON-NLS-1$ //$NON-NLS-0$
+	"scrollLineUp": "Scroll Line Up", //$NON-NLS-1$ //$NON-NLS-0$
+	"scrollLineDown": "Scroll Line Down", //$NON-NLS-1$ //$NON-NLS-0$
+	"wordPrevious": "Previous Word", //$NON-NLS-1$ //$NON-NLS-0$
+	"wordNext": "Next Word", //$NON-NLS-1$ //$NON-NLS-0$
+	"textStart": "Document Start", //$NON-NLS-1$ //$NON-NLS-0$
+	"textEnd": "Document End", //$NON-NLS-1$ //$NON-NLS-0$
+	"scrollTextStart": "Scroll Document Start", //$NON-NLS-1$ //$NON-NLS-0$
+	"scrollTextEnd": "Scroll Document End", //$NON-NLS-1$ //$NON-NLS-0$
+	"centerLine": "Center Line", //$NON-NLS-1$ //$NON-NLS-0$
+	
+	"selectLineUp": "Select Line Up", //$NON-NLS-1$ //$NON-NLS-0$
+	"selectLineDown": "Select Line Down", //$NON-NLS-1$ //$NON-NLS-0$
+	"selectWholeLineUp": " Select Whole Line Up", //$NON-NLS-1$ //$NON-NLS-0$
+	"selectWholeLineDown": "Select Whole Line Down", //$NON-NLS-1$ //$NON-NLS-0$
+	"selectLineStart": "Select Line Start", //$NON-NLS-1$ //$NON-NLS-0$
+	"selectLineEnd": "Select Line End", //$NON-NLS-1$ //$NON-NLS-0$
+	"selectCharPrevious": "Select Previous Character", //$NON-NLS-1$ //$NON-NLS-0$
+	"selectCharNext": "Select Next Character", //$NON-NLS-1$ //$NON-NLS-0$
+	"selectPageUp": "Select Page Up", //$NON-NLS-1$ //$NON-NLS-0$
+	"selectPageDown": "Select Page Down", //$NON-NLS-1$ //$NON-NLS-0$
+	"selectWordPrevious": "Select Previous Word", //$NON-NLS-1$ //$NON-NLS-0$
+	"selectWordNext": "Select Next Word", //$NON-NLS-1$ //$NON-NLS-0$
+	"selectTextStart": "Select Document Start", //$NON-NLS-1$ //$NON-NLS-0$
+	"selectTextEnd": "Select Document End", //$NON-NLS-1$ //$NON-NLS-0$
 
-	return {
-		formatMessage: formatMessage,
-		
-		createElement: createElement,
-		
-		/** Browsers */
-		isIE: isIE,
-		isFirefox: isFirefox,
-		isOpera: isOpera,
-		isChrome: isChrome,
-		isSafari: isSafari,
-		isWebkit: isWebkit,
-		isAndroid: isAndroid,
-		isIPad: isIPad,
-		isIPhone: isIPhone,
-		isIOS: isIOS,
-		
-		/** OSs */
-		isMac: isMac,
-		isWindows: isWindows,
-		isLinux: isLinux,
-		
-		platformDelimiter: platformDelimiter
+	"deletePrevious": "Delete Previous Character", //$NON-NLS-1$ //$NON-NLS-0$
+	"deleteNext": "Delete Next Character", //$NON-NLS-1$ //$NON-NLS-0$
+	"deleteWordPrevious": "Delete Previous Word", //$NON-NLS-1$ //$NON-NLS-0$
+	"deleteWordNext": "Delete Next Word", //$NON-NLS-1$ //$NON-NLS-0$
+	"deleteLineStart": "Delete Line Start", //$NON-NLS-1$ //$NON-NLS-0$
+	"deleteLineEnd": "Delete Line End", //$NON-NLS-1$ //$NON-NLS-0$
+	"tab": "Insert Tab", //$NON-NLS-1$ //$NON-NLS-0$
+	"enter": "Insert Line Delimiter", //$NON-NLS-1$ //$NON-NLS-0$
+	"enterNoCursor": "Insert Line Delimiter", //$NON-NLS-1$ //$NON-NLS-0$
+	"selectAll": "Select All", //$NON-NLS-1$ //$NON-NLS-0$
+	"copy": "Copy", //$NON-NLS-1$ //$NON-NLS-0$
+	"cut": "Cut", //$NON-NLS-1$ //$NON-NLS-0$
+	"paste": "Paste", //$NON-NLS-1$ //$NON-NLS-0$
+	
+	"uppercase": "To Upper Case", //$NON-NLS-1$ //$NON-NLS-0$
+	"lowercase": "To Lower Case", //$NON-NLS-1$ //$NON-NLS-0$
+	"capitalize": "Capitalize", //$NON-NLS-1$ //$NON-NLS-0$
+	"reversecase" : "Reverse Case", //$NON-NLS-1$ //$NON-NLS-0$
+	
+	"toggleWrapMode": "Toggle Wrap Mode", //$NON-NLS-1$ //$NON-NLS-0$
+	"toggleTabMode": "Toggle Tab Mode", //$NON-NLS-1$ //$NON-NLS-0$
+	"toggleOverwriteMode": "Toggle Overwrite Mode", //$NON-NLS-1$ //$NON-NLS-0$
+	
+	"committerOnTime": "${0} on ${1}", //$NON-NLS-1$ //$NON-NLS-0$
+	
+	//Emacs
+	"emacs": "Emacs", //$NON-NLS-1$ //$NON-NLS-0$
+	"exchangeMarkPoint": "Exchange Mark and Point", //$NON-NLS-1$ //$NON-NLS-0$
+	"setMarkCommand": "Set Mark", //$NON-NLS-1$ //$NON-NLS-0$
+	"clearMark": "Clear Mark", //$NON-NLS-1$ //$NON-NLS-0$
+	"digitArgument": "Digit Argument ${0}", //$NON-NLS-1$ //$NON-NLS-0$
+	"negativeArgument": "Negative Argument", //$NON-NLS-1$ //$NON-NLS-0$
+			
+	"Comment": "Comment", //$NON-NLS-1$ //$NON-NLS-0$
+	"Flat outline": "Flat outline", //$NON-NLS-1$ //$NON-NLS-0$
+	"incrementalFindStr": "Incremental find: ${0}", //$NON-NLS-1$ //$NON-NLS-0$
+	"incrementalFindStrNotFound": "Incremental find: ${0} (not found)", //$NON-NLS-1$ //$NON-NLS-0$
+	"incrementalFindReverseStr": "Reverse Incremental find: ${0}", //$NON-NLS-1$ //$NON-NLS-0$
+	"incrementalFindReverseStrNotFound": "Reverse Incremental find: ${0} (not found)", //$NON-NLS-1$ //$NON-NLS-0$
+	"find": "Find...", //$NON-NLS-1$ //$NON-NLS-0$
+	"undo": "Undo", //$NON-NLS-1$ //$NON-NLS-0$
+	"redo": "Redo", //$NON-NLS-1$ //$NON-NLS-0$
+	"cancelMode": "Cancel Current Mode", //$NON-NLS-1$ //$NON-NLS-0$
+	"findNext": "Find Next Occurrence", //$NON-NLS-1$ //$NON-NLS-0$
+	"findPrevious": "Find Previous Occurrence", //$NON-NLS-1$ //$NON-NLS-0$
+	"incrementalFind": "Incremental Find", //$NON-NLS-1$ //$NON-NLS-0$
+	"incrementalFindReverse": "Incremental Find Reverse", //$NON-NLS-1$ //$NON-NLS-0$
+	"indentLines": "Indent Lines", //$NON-NLS-1$ //$NON-NLS-0$
+	"unindentLines": "Unindent Lines", //$NON-NLS-1$ //$NON-NLS-0$
+	"moveLinesUp": "Move Lines Up", //$NON-NLS-1$ //$NON-NLS-0$
+	"moveLinesDown": "Move Lines Down", //$NON-NLS-1$ //$NON-NLS-0$
+	"copyLinesUp": "Copy Lines Up", //$NON-NLS-1$ //$NON-NLS-0$
+	"copyLinesDown": "Copy Lines Down", //$NON-NLS-1$ //$NON-NLS-0$
+	"deleteLines": "Delete Lines", //$NON-NLS-1$ //$NON-NLS-0$
+	"gotoLine": "Goto Line...", //$NON-NLS-1$ //$NON-NLS-0$
+	"gotoLinePrompty": "Goto Line:", //$NON-NLS-1$ //$NON-NLS-0$
+	"nextAnnotation": "Next Annotation", //$NON-NLS-1$ //$NON-NLS-0$
+	"prevAnnotation": "Previous Annotation", //$NON-NLS-1$ //$NON-NLS-0$
+	"expand": "Expand", //$NON-NLS-1$ //$NON-NLS-0$
+	"collapse": "Collapse", //$NON-NLS-1$ //$NON-NLS-0$
+	"expandAll": "Expand All", //$NON-NLS-1$ //$NON-NLS-0$
+	"collapseAll": "Collapse All", //$NON-NLS-1$ //$NON-NLS-0$
+	"lastEdit": "Last Edit Location", //$NON-NLS-1$ //$NON-NLS-0$
+	"trimTrailingWhitespaces": "Trim Trailing Whitespaces", //$NON-NLS-1$ //$NON-NLS-0$
+	"toggleLineComment": "Toggle Line Comment", //$NON-NLS-1$ //$NON-NLS-0$
+	"addBlockComment": "Add Block Comment", //$NON-NLS-1$ //$NON-NLS-0$
+	"removeBlockComment": "Remove Block Comment", //$NON-NLS-1$ //$NON-NLS-0$
+	"linkedModeEntered": "Linked Mode entered", //$NON-NLS-1$ //$NON-NLS-0$
+	"linkedModeExited": "Linked Mode exited", //$NON-NLS-1$ //$NON-NLS-0$
+	"syntaxError": "Syntax Error", //$NON-NLS-1$ //$NON-NLS-0$
+	"contentAssist": "Content Assist", //$NON-NLS-1$ //$NON-NLS-0$
+	"lineColumn": "Line ${0} : Col ${1}", //$NON-NLS-1$ //$NON-NLS-0$
+	
+	//vi
+	"vi": "vi", //$NON-NLS-1$ //$NON-NLS-0$
+	"vimove": "(Move)", //$NON-NLS-1$ //$NON-NLS-0$
+	"viyank": "(Yank)", //$NON-NLS-1$ //$NON-NLS-0$
+	"videlete": "(Delete)", //$NON-NLS-1$ //$NON-NLS-0$
+	"vichange": "(Change)", //$NON-NLS-1$ //$NON-NLS-0$
+	"viLeft": "${0} Left", //$NON-NLS-1$ //$NON-NLS-0$
+	"viRight": "${0} Right", //$NON-NLS-1$ //$NON-NLS-0$
+	"viUp": "${0} Up", //$NON-NLS-1$ //$NON-NLS-0$
+	"viDown": "${0} Down", //$NON-NLS-1$ //$NON-NLS-0$
+	"viw": "${0} Next Word", //$NON-NLS-1$ //$NON-NLS-0$
+	"vib": "${0} Beginning of Word", //$NON-NLS-1$ //$NON-NLS-0$
+	"viW": "${0} Next Word (ws stop)", //$NON-NLS-1$ //$NON-NLS-0$
+	"viB": "${0} Beginning of Word (ws stop)", //$NON-NLS-1$ //$NON-NLS-0$
+	"vie": "${0} End of Word", //$NON-NLS-1$ //$NON-NLS-0$
+	"viE": "${0} End of Word (ws stop)", //$NON-NLS-1$ //$NON-NLS-0$
+	"vi$": "${0} End of the line", //$NON-NLS-1$ //$NON-NLS-0$
+	"vi^_": "${0} First non-blank Char Current Line", //$NON-NLS-1$ //$NON-NLS-0$
+	"vi+": "${0} First Char Next Line", //$NON-NLS-1$ //$NON-NLS-0$
+	"vi-": "${0} First Char Previous Line", //$NON-NLS-1$ //$NON-NLS-0$
+	"vi|": "${0} nth Column in Line", //$NON-NLS-1$ //$NON-NLS-0$
+	"viH": "${0} Top of Page", //$NON-NLS-1$ //$NON-NLS-0$
+	"viM": "${0} Middle of Page", //$NON-NLS-1$ //$NON-NLS-0$
+	"viL": "${0} Bottom of Page", //$NON-NLS-1$ //$NON-NLS-0$
+	"vi/": "${0} Search Forward", //$NON-NLS-1$ //$NON-NLS-0$
+	"vi?": "${0} Search Backward", //$NON-NLS-1$ //$NON-NLS-0$
+	"vin": "${0} Next Search", //$NON-NLS-1$ //$NON-NLS-0$
+	"viN": "${0} Previous Search", //$NON-NLS-1$ //$NON-NLS-0$
+	"vif": "${0} Search Char Fwd", //$NON-NLS-1$ //$NON-NLS-0$
+	"viF": "${0} Search Char Bckwd", //$NON-NLS-1$ //$NON-NLS-0$
+	"vit": "${0} Search Before Char Fwd", //$NON-NLS-1$ //$NON-NLS-0$
+	"viT": "${0} Search Before Char Bckwd", //$NON-NLS-1$ //$NON-NLS-0$
+	"vi,": "${0} Repeat Reverse Char Search", //$NON-NLS-1$ //$NON-NLS-0$
+	"vi;": "${0} Repeat Char Search", //$NON-NLS-1$ //$NON-NLS-0$
+	"viG": "${0} Go to Line", //$NON-NLS-1$ //$NON-NLS-0$
+	"viycd": "${0} Current Line", //$NON-NLS-1$ //$NON-NLS-0$
+	"via": "Append After Cursor", //$NON-NLS-1$ //$NON-NLS-0$
+	"viA": "Append to End of Line", //$NON-NLS-1$ //$NON-NLS-0$
+	"vii": "Insert Before Cursor", //$NON-NLS-1$ //$NON-NLS-0$
+	"viI": "Insert at Beginning of Line", //$NON-NLS-1$ //$NON-NLS-0$
+	"viO": "Insert Line Above", //$NON-NLS-1$ //$NON-NLS-0$
+	"vio": "Insert Line Below", //$NON-NLS-1$ //$NON-NLS-0$
+	"viR": "Begin Overwriting Text", //$NON-NLS-1$ //$NON-NLS-0$
+	"vis": "Substitute a Character", //$NON-NLS-1$ //$NON-NLS-0$
+	"viS": "Substitute Entire Line", //$NON-NLS-1$ //$NON-NLS-0$
+	"viC": "Change Text Until Line End", //$NON-NLS-1$ //$NON-NLS-0$
+	"vip": "Paste After Char or Line", //$NON-NLS-1$ //$NON-NLS-0$
+	"viP": "Paste Before Char or Line", //$NON-NLS-1$ //$NON-NLS-0$
+	"viStar": "Search Word Under Cursor", //$NON-NLS-1$ //$NON-NLS-0$
+
+
+	"replaceAll": "Replacing all...", //$NON-NLS-1$ //$NON-NLS-0$
+	"replacedMatches": "Replaced ${0} matches", //$NON-NLS-1$ //$NON-NLS-0$
+	"nothingReplaced": "Nothing replaced", //$NON-NLS-1$ //$NON-NLS-0$
+	"notFound": "Not found" //$NON-NLS-1$ //$NON-NLS-0$
+});
+
+/*******************************************************************************
+ * @license
+ * Copyright (c) 2010, 2012 IBM Corporation and others.
+ * All rights reserved. This program and the accompanying materials are made 
+ * available under the terms of the Eclipse Public License v1.0 
+ * (http://www.eclipse.org/legal/epl-v10.html), and the Eclipse Distribution 
+ * License v1.0 (http://www.eclipse.org/org/documents/edl-v10.html). 
+ * 
+ * Contributors: 
+ *		Felipe Heidrich (IBM Corporation) - initial API and implementation
+ *		Silenio Quarti (IBM Corporation) - initial API and implementation
+ ******************************************************************************/
+
+/*global define*/
+
+define('orion/editor/nls/messages',['orion/editor/i18n!orion/editor/nls/messages', 'orion/editor/nls/root/messages'], function(bundle, root) {
+	var result = {
+		root: root
 	};
+	for (var key in bundle) {
+		if (bundle.hasOwnProperty(key)) {
+			if (typeof result[key] === 'undefined') {
+				result[key] = bundle[key];
+			}
+		}
+	}
+	return result;
 });
 
 /*******************************************************************************
@@ -111,7 +613,7 @@ define("orion/editor/eventTarget", [], function() { //$NON-NLS-0$
 		 * @param {Function|EventListener} listener The function or the EventListener that will be executed when the event happens. 
 		 * @param {Boolean} [useCapture=false] <code>true</code> if the listener should be trigged in the capture phase.
 		 * 
-		 * @see #removeEventListener
+		 * @see orion.editor.EventTarget#removeEventListener
 		 */
 		addEventListener: function(type, listener, useCapture) {
 			if (!this._eventTypes) { this._eventTypes = {}; }
@@ -171,8 +673,8 @@ define("orion/editor/eventTarget", [], function() { //$NON-NLS-0$
 		 * 
 		 * @param {String} type The event type
 		 * 
-		 * @see #addEventListener
-		 * @see #removeEventListener
+		 * @see orion.editor.EventTarget#addEventListener
+		 * @see orion.editor.EventTarget#removeEventListener
 		 */
 		isListening: function(type) {
 			if (!this._eventTypes) { return false; }
@@ -188,7 +690,7 @@ define("orion/editor/eventTarget", [], function() { //$NON-NLS-0$
 		 * @param {Function|EventListener} listener The function or the EventListener that will be executed when the event happens. 
 		 * @param {Boolean} [useCapture=false] <code>true</code> if the listener should be trigged in the capture phase.
 		 * 
-		 * @see #addEventListener
+		 * @see orion.editor.EventTarget#addEventListener
 		 */
 		removeEventListener: function(type, listener, useCapture){
 			if (!this._eventTypes) { return; }
@@ -214,6 +716,75 @@ define("orion/editor/eventTarget", [], function() { //$NON-NLS-0$
 		}
 	};
 	return {EventTarget: EventTarget};
+});
+
+/*******************************************************************************
+ * @license
+ * Copyright (c) 2012 IBM Corporation and others.
+ * All rights reserved. This program and the accompanying materials are made 
+ * available under the terms of the Eclipse Public License v1.0 
+ * (http://www.eclipse.org/legal/epl-v10.html), and the Eclipse Distribution 
+ * License v1.0 (http://www.eclipse.org/org/documents/edl-v10.html). 
+ *
+ * Contributors: IBM Corporation - initial API and implementation
+ *******************************************************************************/
+
+/*global define navigator document*/
+define('orion/util',[],function() {
+
+	var userAgent = navigator.userAgent;
+	var isIE = (userAgent.indexOf("MSIE") !== -1 || userAgent.indexOf("Trident") !== -1) ? document.documentMode : undefined; //$NON-NLS-1$ //$NON-NLS-0$
+	var isFirefox = parseFloat(userAgent.split("Firefox/")[1] || userAgent.split("Minefield/")[1]) || undefined; //$NON-NLS-1$ //$NON-NLS-0$
+	var isOpera = userAgent.indexOf("Opera") !== -1; //$NON-NLS-0$
+	var isChrome = parseFloat(userAgent.split("Chrome/")[1]) || undefined; //$NON-NLS-0$
+	var isSafari = userAgent.indexOf("Safari") !== -1 && !isChrome; //$NON-NLS-0$
+	var isWebkit = parseFloat(userAgent.split("WebKit/")[1]) || undefined; //$NON-NLS-0$
+	var isAndroid = userAgent.indexOf("Android") !== -1; //$NON-NLS-0$
+	var isIPad = userAgent.indexOf("iPad") !== -1; //$NON-NLS-0$
+	var isIPhone = userAgent.indexOf("iPhone") !== -1; //$NON-NLS-0$
+	var isIOS = isIPad || isIPhone;
+	var isMac = navigator.platform.indexOf("Mac") !== -1; //$NON-NLS-0$
+	var isWindows = navigator.platform.indexOf("Win") !== -1; //$NON-NLS-0$
+	var isLinux = navigator.platform.indexOf("Linux") !== -1; //$NON-NLS-0$
+	var platformDelimiter = isWindows ? "\r\n" : "\n"; //$NON-NLS-1$ //$NON-NLS-0$
+
+	function formatMessage(msg) {
+		var args = arguments;
+		return msg.replace(/\$\{([^\}]+)\}/g, function(str, index) { return args[(index << 0) + 1]; });
+	}
+	
+	var XHTML = "http://www.w3.org/1999/xhtml"; //$NON-NLS-0$
+	function createElement(document, tagName) {
+		if (document.createElementNS) {
+			return document.createElementNS(XHTML, tagName);
+		}
+		return document.createElement(tagName);
+	}
+
+	return {
+		formatMessage: formatMessage,
+		
+		createElement: createElement,
+		
+		/** Browsers */
+		isIE: isIE,
+		isFirefox: isFirefox,
+		isOpera: isOpera,
+		isChrome: isChrome,
+		isSafari: isSafari,
+		isWebkit: isWebkit,
+		isAndroid: isAndroid,
+		isIPad: isIPad,
+		isIPhone: isIPhone,
+		isIOS: isIOS,
+		
+		/** OSs */
+		isMac: isMac,
+		isWindows: isWindows,
+		isLinux: isLinux,
+		
+		platformDelimiter: platformDelimiter
+	};
 });
 
 /*******************************************************************************
@@ -299,18 +870,27 @@ define("orion/editor/textModel", ['orion/editor/eventTarget', 'orion/util'], fun
 			var string = options.string;
 			var regex = options.regex;
 			var pattern = string;
+			var caseInsensitive = options.caseInsensitive;
 			if (!regex && string) {
 				pattern = string.replace(/([\\$\^*\/+?\.\(\)|{}\[\]])/g, "\\$&"); //$NON-NLS-0$
+				/*
+				* Bug in JS RegEx. In a Turkish locale, dotless i (u0131) capitalizes to I (u0049) and i (u0069) 
+				* capitalizes to dot I (u0130). The JS RegEx does not match correctly the Turkish i's in case
+				* insensitive mode. The fix is to detect the presence of Turkish i's in the search pattern and 
+				* to modify the pattern to search for both upper and lower case.
+				*/
+				if (caseInsensitive) {  //$NON-NLS-1$ //$NON-NLS-0$
+					pattern = pattern.replace(/[iI\u0130\u0131]/g, "[Ii\u0130\u0131]"); //$NON-NLS-0$
+				}
 			}
 			var current = null, skip;
 			if (pattern) {
 				var reverse = options.reverse;
 				var wrap = options.wrap;
 				var wholeWord = options.wholeWord;
-				var caseInsensitive = options.caseInsensitive;
 				var start = options.start || 0;
 				var end = options.end;
-				var isRange = options.end !== undefined;
+				var isRange = (end !== null && end !== undefined);
 				var flags = "";
 				if (flags.indexOf("g") === -1) { flags += "g"; } //$NON-NLS-1$ //$NON-NLS-0$
 				if (caseInsensitive) {
@@ -321,8 +901,10 @@ define("orion/editor/textModel", ['orion/editor/eventTarget', 'orion/util'], fun
 				}
 				var text = this._text[0], result, lastIndex, offset = 0;
 				if (isRange) {
-					text = text.substring(start, end);
-					offset = start;
+					var s = start < end ? start : end;
+					var e = start < end ? end : start;
+					text = text.substring(s, e);
+					offset = s;
 				}
 				var re = new RegExp(pattern, flags);
 				if (reverse) {
@@ -336,13 +918,13 @@ define("orion/editor/textModel", ['orion/editor/eventTarget', 'orion/util'], fun
 								return null;
 							}
 							if (result) {
-								if (result.index < start) {
+								if (result.index + offset < start) {
 									match = {start: result.index + offset, end: re.lastIndex + offset};
 								} else {
 									if (!wrap || match) {
 										break;
 									}
-									start = text.length;
+									start = text.length + offset;
 									match = {start: result.index + offset, end: re.lastIndex + offset};
 								}
 							} else {
@@ -412,7 +994,7 @@ define("orion/editor/textModel", ['orion/editor/eventTarget', 'orion/util'], fun
 		 * @param {Boolean} [includeDelimiter=false] whether or not to include the line delimiter. 
 		 * @returns {String} the line text or <code>null</code> if out of range.
 		 *
-		 * @see #getLineAtOffset
+		 * @see orion.editor.TextModel#getLineAtOffset
 		 */
 		getLine: function(lineIndex, includeDelimiter) {
 			var lineCount = this.getLineCount();
@@ -518,7 +1100,7 @@ define("orion/editor/textModel", ['orion/editor/eventTarget', 'orion/util'], fun
 		 * @param {Boolean} [includeDelimiter=false] whether or not to include the line delimiter. 
 		 * @return {Number} the line end offset or <code>-1</code> if out of range.
 		 *
-		 * @see #getLineStart
+		 * @see orion.editor.TextModel#getLineStart
 		 */
 		getLineEnd: function(lineIndex, includeDelimiter) {
 			var lineCount = this.getLineCount();
@@ -550,7 +1132,7 @@ define("orion/editor/textModel", ['orion/editor/eventTarget', 'orion/util'], fun
 		 * @param {Number} lineIndex the zero based index of the line.
 		 * @return {Number} the line start offset or <code>-1</code> if out of range.
 		 *
-		 * @see #getLineEnd
+		 * @see orion.editor.TextModel#getLineEnd
 		 */
 		getLineStart: function(lineIndex) {
 			if (!(0 <= lineIndex && lineIndex < this.getLineCount())) {
@@ -568,7 +1150,7 @@ define("orion/editor/textModel", ['orion/editor/eventTarget', 'orion/util'], fun
 		 * @param {Number} [start=0] the zero based start offset of text range.
 		 * @param {Number} [end=char count] the zero based end offset of text range.
 		 *
-		 * @see #setText
+		 * @see orion.editor.TextModel#setText
 		 */
 		getText: function(start, end) {
 			if (start === undefined) { start = 0; }
@@ -683,7 +1265,7 @@ define("orion/editor/textModel", ['orion/editor/eventTarget', 'orion/util'], fun
 		 * @param {Number} [start=0] the zero based start offset of text range.
 		 * @param {Number} [end=char count] the zero based end offset of text range.
 		 *
-		 * @see #getText
+		 * @see orion.editor.TextModel#getText
 		 */
 		setText: function(text, start, end) {
 			if (text === undefined) { text = ""; }
@@ -753,8 +1335,26 @@ define("orion/editor/textModel", ['orion/editor/eventTarget', 'orion/util'], fun
 			for (var j = startLine + removedLineCount + 1; j < lineCount; j++) {
 				this._lineOffsets[j] += changeCount;
 			}
-			var args = [startLine + 1, removedLineCount].concat(newLineOffsets);
-			Array.prototype.splice.apply(this._lineOffsets, args);
+			
+			/*
+			* Feature in Chrome.  Chrome exceeds the maximum call stack when calling splice
+			* around 62k arguments. The limit seems to be higher on IE (250K) and Firefox (450k).
+			* The fix is to break the splice in junks of 50k.
+			*/
+			var SPLICE_LIMIT = 50000;
+			var limit = SPLICE_LIMIT, args;
+			if (newLineOffsets.length < limit) {
+				args = [startLine + 1, removedLineCount].concat(newLineOffsets);
+				Array.prototype.splice.apply(this._lineOffsets, args);
+			} else {
+				index = startLine + 1;
+				this._lineOffsets.splice(index, removedLineCount);
+				for (var k = 0; k < newLineOffsets.length; k += limit) {
+					args = [index, 0].concat(newLineOffsets.slice(k, Math.min(newLineOffsets.length, k + limit)));
+					Array.prototype.splice.apply(this._lineOffsets, args);
+					index += limit;
+				}
+			}
 			
 			var offset = 0, chunk = 0, length;
 			while (chunk<this._text.length) {
@@ -798,6 +1398,498 @@ define("orion/editor/textModel", ['orion/editor/eventTarget', 'orion/util'], fun
 	mEventTarget.EventTarget.addMixin(TextModel.prototype);
 	
 	return {TextModel: TextModel};
+});
+
+/*******************************************************************************
+ * @license
+ * Copyright (c) 2010, 2013 IBM Corporation and others.
+ * All rights reserved. This program and the accompanying materials are made 
+ * available under the terms of the Eclipse Public License v1.0 
+ * (http://www.eclipse.org/legal/epl-v10.html), and the Eclipse Distribution 
+ * License v1.0 (http://www.eclipse.org/org/documents/edl-v10.html). 
+ * 
+ * Contributors: 
+ *		Felipe Heidrich (IBM Corporation) - initial API and implementation
+ *		Silenio Quarti (IBM Corporation) - initial API and implementation
+ ******************************************************************************/
+
+/*global define */
+
+define("orion/keyBinding", ['orion/util'], function(util) { //$NON-NLS-1$ //$NON-NLS-0$
+
+    /**
+	 * @class A KeyBinding is an interface used to define keyboard shortcuts.
+	 * @name orion.KeyBinding
+	 * 
+	 * @property {Function} match The function to match events.
+	 * @property {Function} equals The funtion to compare to key bindings.
+	 *
+	 * @see orion.KeyStroke
+	 * @see orion.KeySequence
+	 */
+
+	/**
+	 * Constructs a new key stroke with the given key code, modifiers and event type.
+	 * 
+	 * @param {String|Number} keyCode the key code.
+	 * @param {Boolean} mod1 the primary modifier (usually Command on Mac and Control on other platforms).
+	 * @param {Boolean} mod2 the secondary modifier (usually Shift).
+	 * @param {Boolean} mod3 the third modifier (usually Alt).
+	 * @param {Boolean} mod4 the fourth modifier (usually Control on the Mac).
+	 * @param {String} type the type of event that the keybinding matches; either "keydown" or "keypress".
+	 * 
+	 * @class A KeyStroke represents of a key code and modifier state that can be triggered by the user using the keyboard.
+	 * @name orion.KeyStroke
+	 * 
+	 * @property {String|Number} keyCode The key code.
+	 * @property {Boolean} mod1 The primary modifier (usually Command on Mac and Control on other platforms).
+	 * @property {Boolean} mod2 The secondary modifier (usually Shift).
+	 * @property {Boolean} mod3 The third modifier (usually Alt).
+	 * @property {Boolean} mod4 The fourth modifier (usually Control on the Mac).
+	 * @property {String} [type=keydown] The type of event that the keybinding matches; either "keydown" or "keypress"
+	 *
+	 * @see orion.editor.TextView#setKeyBinding
+	 */
+	function KeyStroke (keyCode, mod1, mod2, mod3, mod4, type) {
+		this.type = type || "keydown"; //$NON-NLS-0$
+		if (typeof(keyCode) === "string" && this.type === "keydown") { //$NON-NLS-1$ //$NON-NLS-0$
+			this.keyCode = keyCode.toUpperCase().charCodeAt(0);
+		} else {
+			this.keyCode = keyCode;
+		}
+		this.mod1 = mod1 !== undefined && mod1 !== null ? mod1 : false;
+		this.mod2 = mod2 !== undefined && mod2 !== null ? mod2 : false;
+		this.mod3 = mod3 !== undefined && mod3 !== null ? mod3 : false;
+		this.mod4 = mod4 !== undefined && mod4 !== null ? mod4 : false;
+	}
+	KeyStroke.prototype = /** @lends orion.KeyStroke.prototype */ {
+		getKeys: function() {
+			return [this];
+		},
+		/**
+		 * Determines either this key stroke matches the specifed event.  It can match either a
+		 * a whole sequence of key events or a single key event at a specified index.
+		 * <p>
+		 * <code>KeyStroke</code> only matches single key events. <code>KeySequence</code> handles
+		 * matching a sequence of events.
+		 * </p>
+		 * TODO explain this better
+		 * 
+		 * @param {DOMEvent|DOMEvent[]} e the key event or list of events to match.
+		 * @param index the key event to match.
+		 * @returns {Boolean} <code>true</code> whether the key binding matches the key event.
+		 *
+		 * @see orion.KeySequence#match
+		 */
+		match: function (e, index) {
+			if (index !== undefined) {
+				if (index !== 0) {
+					return false;
+				}
+			} else {
+				if (e instanceof Array) {
+					if (e.length > 1) {
+						return false;
+					}
+					e = e[0];
+				}
+			}
+			if (e.type !== this.type) {
+				return false;
+			}
+			if (this.keyCode === e.keyCode || this.keyCode === String.fromCharCode(util.isOpera ? e.which : (e.charCode !== undefined ? e.charCode : e.keyCode))) {
+				var mod1 = util.isMac ? e.metaKey : e.ctrlKey;
+				if (this.mod1 !== mod1) { return false; }
+				if (this.type === "keydown") { //$NON-NLS-0$
+					if (this.mod2 !== e.shiftKey) { return false; }
+				}
+				if (this.mod3 !== e.altKey) { return false; }
+				if (util.isMac && this.mod4 !== e.ctrlKey) { return false; }
+				return true;
+			}
+			return false;
+		},
+		/**
+		 * Returns whether this key stroke is the same as the given parameter.
+		 * 
+		 * @param {orion.KeyBinding} kb the key binding to compare with.
+		 * @returns {Boolean} whether or not the parameter and the receiver describe the same key binding.
+		 */
+		equals: function(kb) {
+			if (!kb) { return false; }
+			if (this.keyCode !== kb.keyCode) { return false; }
+			if (this.mod1 !== kb.mod1) { return false; }
+			if (this.mod2 !== kb.mod2) { return false; }
+			if (this.mod3 !== kb.mod3) { return false; }
+			if (this.mod4 !== kb.mod4) { return false; }
+			if (this.type !== kb.type) { return false; }
+			return true;
+		} 
+	};
+	
+	/**
+	 * Constructs a new key sequence with the given key strokes.
+	 * 
+	 * @param {orion.KeyStroke[]} keys the key strokes for this sequence.
+	 * 
+	 * @class A KeySequence represents of a list of key codes and a modifiers state that can be triggered by the user using the keyboard.
+	 * @name orion.KeySequence
+	 * 
+	 * @property {orion.KeyStroke[]} keys the list of key strokes.
+	 *
+	 * @see orion.editor.TextView#setKeyBinding
+	 */
+	function KeySequence (keys) {
+		this.keys = keys;
+	}
+	KeySequence.prototype = /** @lends orion.KeySequence.prototype */ {
+		getKeys: function() {
+			return this.keys.slice(0);
+		},
+		match: function (e, index) {
+			var keys = this.keys;
+			if (index !== undefined) {
+				if (index > keys.length) {
+					return false;
+				}
+				if (keys[index].match(e)) {
+					if (index === keys.length - 1) {
+						return true;
+					}
+					return index + 1;
+				}
+				return false;
+			} else {
+				if (!(e instanceof Array)) {
+					e = [e];
+				}
+				if (e.length > keys.length) {
+					return false;
+				}
+				var i;
+				for (i = 0; i < e.length; i++) {
+					if (!keys[i].match(e[i])) {
+						return false;
+					}
+				}
+				if (i === keys.length) {
+					return true;
+				}
+				return i;
+			}
+		},
+		/**
+		 * Returns whether this key sequence is the same as the given parameter.
+		 * 
+		 * @param {orion.KeyBinding|orion.KeySequence} kb the key binding to compare with.
+		 * @returns {Boolean} whether or not the parameter and the receiver describe the same key binding.
+		 */
+		equals: function(kb) {
+			if (!kb.keys) { return false; }
+			if (kb.keys.length !== this.keys.length) { return false; }
+			for (var i=0; i<kb.keys.length; i++) {
+				if (!kb.keys[i].equals(this.keys[i])) { return false; }
+			}
+			return true;
+		}	
+	};
+	
+	return {
+		KeyBinding: KeyStroke, // for backwards compatibility
+		KeyStroke: KeyStroke,
+		KeySequence: KeySequence
+	};
+});
+
+/*******************************************************************************
+ * @license
+ * Copyright (c) 2013 IBM Corporation and others.
+ * All rights reserved. This program and the accompanying materials are made 
+ * available under the terms of the Eclipse Public License v1.0 
+ * (http://www.eclipse.org/legal/epl-v10.html), and the Eclipse Distribution 
+ * License v1.0 (http://www.eclipse.org/org/documents/edl-v10.html). 
+ *
+ * Contributors:
+ *     IBM Corporation - initial API and implementation
+ *******************************************************************************/
+ 
+/*global define window */
+
+define("orion/editor/keyModes", [ //$NON-NLS-0$
+		"orion/keyBinding", //$NON-NLS-0$
+		"orion/util" //$NON-NLS-0$
+], function(mKeyBinding, util) {
+
+	function KeyMode(view) {
+		if (!view) {
+			return;
+		}
+		this._view = view;
+		this._keyBindings = this.createKeyBindings();
+		this._keyBindingIndex = 0;
+	}
+	KeyMode.prototype = /** @lends orion.editor.KeyMode.prototype */ {
+		createKeyBindings: function () {
+			return [];
+		},
+		/**
+		 * Returns all the key bindings associated to the given action ID.
+		 *
+		 * @param {String} actionID the action ID.
+		 * @returns {orion.editor.KeyBinding[]} the array of key bindings associated to the given action ID.
+		 *
+		 * @see orion.editor.KeyModesetKeyBinding
+		 * @see orion.editor.KeyModesetAction
+		 */
+		getKeyBindings: function (actionID) {
+			var result = [];
+			var keyBindings = this._keyBindings;
+			for (var i = 0; i < keyBindings.length; i++) {
+				if (keyBindings[i].actionID === actionID) {
+					result.push(keyBindings[i].keyBinding);
+				}
+			}
+			return result;
+		},
+		getView: function() {
+			return this._view;
+		},
+		isActive: function () {
+			return this._view.getKeyModes().indexOf(this) !== -1;
+		},
+		match: function(e) {
+			if (e.type === "keydown") { //$NON-NLS-0$
+				switch (e.keyCode) {
+					case 16: /* Shift */
+					case 17: /* Control */
+					case 18: /* Alt */
+					case 91: /* Command */
+						return undefined;
+				}
+			}
+			var keyBindingIndex = this._keyBindingIndex;
+			var keyBindings = this._matchingKeyBindings || this._keyBindings;
+			var matchingKeyBindings = [];
+			for (var i = 0; i < keyBindings.length; i++) {
+				var kb = keyBindings[i];
+				var keyBinding = kb.keyBinding;
+				var match = keyBinding.match(e, keyBindingIndex);
+				if (match === true) {
+					this._keyBindingIndex = 0;
+					this._matchingKeyBindings = null;
+					return kb.actionID;
+				} else if (typeof match === "number") { //$NON-NLS-0$
+					matchingKeyBindings.push(kb);
+				}
+			}
+			if (matchingKeyBindings.length === 0) {
+				this._keyBindingIndex = 0;
+				this._matchingKeyBindings = null;
+			} else {
+				this._keyBindingIndex++;
+				this._matchingKeyBindings = matchingKeyBindings;
+				return "noop"; //$NON-NLS-0$
+			}
+			return undefined;
+		},
+		/**
+		 * Associates a key binding with the given action ID. Any previous
+		 * association with the specified key binding is overwriten. If the
+		 * action ID is <code>null</code>, the association is removed.
+		 * 
+		 * @param {orion.editor.KeyBinding} keyBinding the key binding
+		 * @param {String} actionID the action ID
+		 */
+		setKeyBinding: function(keyBinding, actionID) {
+			var keyBindings = this._keyBindings;
+			for (var i = 0; i < keyBindings.length; i++) {
+				var kb = keyBindings[i]; 
+				if (kb.keyBinding.equals(keyBinding)) {
+					if (actionID) {
+						kb.actionID = actionID;
+					} else {
+						if (kb.predefined) {
+							kb.actionID = "noop"; //$NON-NLS-0$
+						} else {
+							keyBindings.splice(i, 1);
+						}
+					}
+					return;
+				}
+			}
+			if (actionID) {
+				keyBindings.push({keyBinding: keyBinding, actionID: actionID});
+			}
+		},
+		setView: function(view) {
+			this._view = view;
+		}
+	};
+	
+	function DefaultKeyMode(view) {
+		KeyMode.call(this, view);
+	}
+	DefaultKeyMode.prototype = new KeyMode();
+	DefaultKeyMode.prototype.createKeyBindings = function () {
+		var KeyBinding = mKeyBinding.KeyBinding;
+		//no duplicate keybindings
+		var bindings = [];
+
+		// Cursor Navigation
+		bindings.push({actionID: "lineUp",		keyBinding: new KeyBinding(38), predefined: true}); //$NON-NLS-0$
+		bindings.push({actionID: "lineDown",	keyBinding: new KeyBinding(40), predefined: true}); //$NON-NLS-0$
+		bindings.push({actionID: "charPrevious",	keyBinding: new KeyBinding(37), predefined: true}); //$NON-NLS-0$
+		bindings.push({actionID: "charNext",	keyBinding: new KeyBinding(39), predefined: true}); //$NON-NLS-0$
+		if (util.isMac) {
+			bindings.push({actionID: "scrollPageUp",		keyBinding: new KeyBinding(33), predefined: true}); //$NON-NLS-0$
+			bindings.push({actionID: "scrollPageDown",	keyBinding: new KeyBinding(34), predefined: true}); //$NON-NLS-0$
+			bindings.push({actionID: "pageUp",		keyBinding: new KeyBinding(33, null, null, true), predefined: true}); //$NON-NLS-0$
+			bindings.push({actionID: "pageDown",	keyBinding: new KeyBinding(34, null, null, true), predefined: true}); //$NON-NLS-0$
+			bindings.push({actionID: "lineStart",	keyBinding: new KeyBinding(37, true), predefined: true}); //$NON-NLS-0$
+			bindings.push({actionID: "lineEnd",		keyBinding: new KeyBinding(39, true), predefined: true}); //$NON-NLS-0$
+			bindings.push({actionID: "wordPrevious",	keyBinding: new KeyBinding(37, null, null, true), predefined: true}); //$NON-NLS-0$
+			bindings.push({actionID: "wordNext",	keyBinding: new KeyBinding(39, null, null, true), predefined: true}); //$NON-NLS-0$
+			bindings.push({actionID: "scrollTextStart",	keyBinding: new KeyBinding(36), predefined: true}); //$NON-NLS-0$
+			bindings.push({actionID: "scrollTextEnd",		keyBinding: new KeyBinding(35), predefined: true}); //$NON-NLS-0$
+			bindings.push({actionID: "textStart",	keyBinding: new KeyBinding(38, true), predefined: true}); //$NON-NLS-0$
+			bindings.push({actionID: "textEnd",		keyBinding: new KeyBinding(40, true), predefined: true}); //$NON-NLS-0$
+			bindings.push({actionID: "scrollPageUp",	keyBinding: new KeyBinding(38, null, null, null, true), predefined: true}); //$NON-NLS-0$
+			bindings.push({actionID: "scrollPageDown",		keyBinding: new KeyBinding(40, null, null, null, true), predefined: true}); //$NON-NLS-0$
+			bindings.push({actionID: "lineStart",	keyBinding: new KeyBinding(37, null, null, null, true), predefined: true}); //$NON-NLS-0$
+			bindings.push({actionID: "lineEnd",		keyBinding: new KeyBinding(39, null, null, null, true), predefined: true}); //$NON-NLS-0$
+			//TODO These two actions should be changed to paragraph start and paragraph end  when word wrap is implemented
+			bindings.push({actionID: "lineStart",	keyBinding: new KeyBinding(38, null, null, true), predefined: true}); //$NON-NLS-0$
+			bindings.push({actionID: "lineEnd",		keyBinding: new KeyBinding(40, null, null, true), predefined: true}); //$NON-NLS-0$
+		} else {
+			bindings.push({actionID: "pageUp",		keyBinding: new KeyBinding(33), predefined: true}); //$NON-NLS-0$
+			bindings.push({actionID: "pageDown",	keyBinding: new KeyBinding(34), predefined: true}); //$NON-NLS-0$
+			bindings.push({actionID: "lineStart",	keyBinding: new KeyBinding(36), predefined: true}); //$NON-NLS-0$
+			bindings.push({actionID: "lineEnd",		keyBinding: new KeyBinding(35), predefined: true}); //$NON-NLS-0$
+			bindings.push({actionID: "wordPrevious",	keyBinding: new KeyBinding(37, true), predefined: true}); //$NON-NLS-0$
+			bindings.push({actionID: "wordNext",	keyBinding: new KeyBinding(39, true), predefined: true}); //$NON-NLS-0$
+			bindings.push({actionID: "textStart",	keyBinding: new KeyBinding(36, true), predefined: true}); //$NON-NLS-0$
+			bindings.push({actionID: "textEnd",		keyBinding: new KeyBinding(35, true), predefined: true}); //$NON-NLS-0$
+		}
+		if (util.isFirefox && util.isLinux) {
+			bindings.push({actionID: "lineUp",		keyBinding: new KeyBinding(38, true), predefined: true}); //$NON-NLS-0$
+			bindings.push({actionID: "lineDown",	keyBinding: new KeyBinding(40, true), predefined: true}); //$NON-NLS-0$
+		}
+		if (util.isWindows) {
+			bindings.push({actionID: "scrollLineUp",	keyBinding: new KeyBinding(38, true), predefined: true}); //$NON-NLS-0$
+			bindings.push({actionID: "scrollLineDown",	keyBinding: new KeyBinding(40, true), predefined: true}); //$NON-NLS-0$
+		}
+
+		// Select Cursor Navigation
+		bindings.push({actionID: "selectLineUp",		keyBinding: new KeyBinding(38, null, true), predefined: true}); //$NON-NLS-0$
+		bindings.push({actionID: "selectLineDown",		keyBinding: new KeyBinding(40, null, true), predefined: true}); //$NON-NLS-0$
+		bindings.push({actionID: "selectCharPrevious",	keyBinding: new KeyBinding(37, null, true), predefined: true}); //$NON-NLS-0$
+		bindings.push({actionID: "selectCharNext",		keyBinding: new KeyBinding(39, null, true), predefined: true}); //$NON-NLS-0$
+		bindings.push({actionID: "selectPageUp",		keyBinding: new KeyBinding(33, null, true), predefined: true}); //$NON-NLS-0$
+		bindings.push({actionID: "selectPageDown",		keyBinding: new KeyBinding(34, null, true), predefined: true}); //$NON-NLS-0$
+		if (util.isMac) {
+			bindings.push({actionID: "selectLineStart",	keyBinding: new KeyBinding(37, true, true), predefined: true}); //$NON-NLS-0$
+			bindings.push({actionID: "selectLineEnd",		keyBinding: new KeyBinding(39, true, true), predefined: true}); //$NON-NLS-0$
+			bindings.push({actionID: "selectWordPrevious",	keyBinding: new KeyBinding(37, null, true, true), predefined: true}); //$NON-NLS-0$
+			bindings.push({actionID: "selectWordNext",	keyBinding: new KeyBinding(39, null, true, true), predefined: true}); //$NON-NLS-0$
+			bindings.push({actionID: "selectTextStart",	keyBinding: new KeyBinding(36, null, true), predefined: true}); //$NON-NLS-0$
+			bindings.push({actionID: "selectTextEnd",		keyBinding: new KeyBinding(35, null, true), predefined: true}); //$NON-NLS-0$
+			bindings.push({actionID: "selectTextStart",	keyBinding: new KeyBinding(38, true, true), predefined: true}); //$NON-NLS-0$
+			bindings.push({actionID: "selectTextEnd",		keyBinding: new KeyBinding(40, true, true), predefined: true}); //$NON-NLS-0$
+			bindings.push({actionID: "selectLineStart",	keyBinding: new KeyBinding(37, null, true, null, true), predefined: true}); //$NON-NLS-0$
+			bindings.push({actionID: "selectLineEnd",		keyBinding: new KeyBinding(39, null, true, null, true), predefined: true}); //$NON-NLS-0$
+			//TODO These two actions should be changed to select paragraph start and select paragraph end  when word wrap is implemented
+			bindings.push({actionID: "selectLineStart",	keyBinding: new KeyBinding(38, null, true, true), predefined: true}); //$NON-NLS-0$
+			bindings.push({actionID: "selectLineEnd",		keyBinding: new KeyBinding(40, null, true, true), predefined: true}); //$NON-NLS-0$
+		} else {
+			if (util.isLinux) {
+				bindings.push({actionID: "selectWholeLineUp",		keyBinding: new KeyBinding(38, true, true), predefined: true}); //$NON-NLS-0$
+				bindings.push({actionID: "selectWholeLineDown",		keyBinding: new KeyBinding(40, true, true), predefined: true}); //$NON-NLS-0$
+			}
+			bindings.push({actionID: "selectLineStart",		keyBinding: new KeyBinding(36, null, true), predefined: true}); //$NON-NLS-0$
+			bindings.push({actionID: "selectLineEnd",		keyBinding: new KeyBinding(35, null, true), predefined: true}); //$NON-NLS-0$
+			bindings.push({actionID: "selectWordPrevious",	keyBinding: new KeyBinding(37, true, true), predefined: true}); //$NON-NLS-0$
+			bindings.push({actionID: "selectWordNext",		keyBinding: new KeyBinding(39, true, true), predefined: true}); //$NON-NLS-0$
+			bindings.push({actionID: "selectTextStart",		keyBinding: new KeyBinding(36, true, true), predefined: true}); //$NON-NLS-0$
+			bindings.push({actionID: "selectTextEnd",		keyBinding: new KeyBinding(35, true, true), predefined: true}); //$NON-NLS-0$
+		}
+		
+		//Undo stack
+		bindings.push({actionID: "undo", keyBinding: new mKeyBinding.KeyBinding('z', true), predefined: true}); //$NON-NLS-1$ //$NON-NLS-0$
+		if (util.isMac) {
+			bindings.push({actionID: "redo", keyBinding: new mKeyBinding.KeyBinding('z', true, true), predefined: true}); //$NON-NLS-1$ //$NON-NLS-0$
+		} else {
+			bindings.push({actionID: "redo", keyBinding: new mKeyBinding.KeyBinding('y', true), predefined: true}); //$NON-NLS-1$ //$NON-NLS-0$
+		}
+
+		//Misc
+		bindings.push({actionID: "deletePrevious",		keyBinding: new KeyBinding(8), predefined: true}); //$NON-NLS-0$
+		bindings.push({actionID: "deletePrevious",		keyBinding: new KeyBinding(8, null, true), predefined: true}); //$NON-NLS-0$
+		bindings.push({actionID: "deleteNext",		keyBinding: new KeyBinding(46), predefined: true}); //$NON-NLS-0$
+		bindings.push({actionID: "deleteWordPrevious",	keyBinding: new KeyBinding(8, true), predefined: true}); //$NON-NLS-0$
+		bindings.push({actionID: "deleteWordPrevious",	keyBinding: new KeyBinding(8, true, true), predefined: true}); //$NON-NLS-0$
+		bindings.push({actionID: "deleteWordNext",		keyBinding: new KeyBinding(46, true), predefined: true}); //$NON-NLS-0$
+		bindings.push({actionID: "tab",			keyBinding: new KeyBinding(9), predefined: true}); //$NON-NLS-0$
+		bindings.push({actionID: "shiftTab",			keyBinding: new KeyBinding(9, null, true), predefined: true}); //$NON-NLS-0$
+		bindings.push({actionID: "enter",			keyBinding: new KeyBinding(13), predefined: true}); //$NON-NLS-0$
+		bindings.push({actionID: "enter",			keyBinding: new KeyBinding(13, null, true), predefined: true}); //$NON-NLS-0$
+		bindings.push({actionID: "selectAll",		keyBinding: new KeyBinding('a', true), predefined: true}); //$NON-NLS-1$ //$NON-NLS-0$
+		bindings.push({actionID: "toggleTabMode",	keyBinding: new KeyBinding('m', true), predefined: true}); //$NON-NLS-1$ //$NON-NLS-0$
+		if (util.isMac) {
+			bindings.push({actionID: "deleteNext",		keyBinding: new KeyBinding(46, null, true), predefined: true}); //$NON-NLS-0$
+			bindings.push({actionID: "deleteWordPrevious",	keyBinding: new KeyBinding(8, null, null, true), predefined: true}); //$NON-NLS-0$
+			bindings.push({actionID: "deleteWordNext",		keyBinding: new KeyBinding(46, null, null, true), predefined: true}); //$NON-NLS-0$
+		}
+		
+		bindings.push({actionID: "toggleWrapMode",		keyBinding: new mKeyBinding.KeyBinding('w', true, false, true)}); //$NON-NLS-1$ //$NON-NLS-0$
+		bindings.push({actionID: "toggleOverwriteMode",		keyBinding: new mKeyBinding.KeyBinding(45)}); //$NON-NLS-0$
+		
+		/*
+		* Feature in IE/Chrome: prevent ctrl+'u', ctrl+'i', and ctrl+'b' from applying styles to the text.
+		*
+		* Note that Chrome applies the styles on the Mac with Ctrl instead of Cmd.
+		*/
+		if (!util.isFirefox) {
+			var isMacChrome = util.isMac && util.isChrome;
+			bindings.push({actionID: "noop", keyBinding: new KeyBinding('u', !isMacChrome, false, false, isMacChrome), predefined: true}); //$NON-NLS-1$ //$NON-NLS-0$
+			bindings.push({actionID: "noop", keyBinding: new KeyBinding('i', !isMacChrome, false, false, isMacChrome), predefined: true}); //$NON-NLS-1$ //$NON-NLS-0$
+			bindings.push({actionID: "noop", keyBinding: new KeyBinding('b', !isMacChrome, false, false, isMacChrome), predefined: true}); //$NON-NLS-1$ //$NON-NLS-0$
+		}
+
+		if (util.isFirefox) {
+			bindings.push({actionID: "copy", keyBinding: new KeyBinding(45, true), predefined: true}); //$NON-NLS-0$
+			bindings.push({actionID: "paste", keyBinding: new KeyBinding(45, null, true), predefined: true}); //$NON-NLS-0$
+			bindings.push({actionID: "cut", keyBinding: new KeyBinding(46, null, true), predefined: true}); //$NON-NLS-0$
+		}
+
+		// Add the emacs Control+ ... key bindings.
+		if (util.isMac) {
+			bindings.push({actionID: "lineStart", keyBinding: new KeyBinding("a", false, false, false, true), predefined: true}); //$NON-NLS-1$ //$NON-NLS-0$
+			bindings.push({actionID: "lineEnd", keyBinding: new KeyBinding("e", false, false, false, true), predefined: true}); //$NON-NLS-1$ //$NON-NLS-0$
+			bindings.push({actionID: "lineUp", keyBinding: new KeyBinding("p", false, false, false, true), predefined: true}); //$NON-NLS-1$ //$NON-NLS-0$
+			bindings.push({actionID: "lineDown", keyBinding: new KeyBinding("n", false, false, false, true), predefined: true}); //$NON-NLS-1$ //$NON-NLS-0$
+			bindings.push({actionID: "charPrevious", keyBinding: new KeyBinding("b", false, false, false, true), predefined: true}); //$NON-NLS-1$ //$NON-NLS-0$
+			bindings.push({actionID: "charNext", keyBinding: new KeyBinding("f", false, false, false, true), predefined: true}); //$NON-NLS-1$ //$NON-NLS-0$
+			bindings.push({actionID: "deletePrevious", keyBinding: new KeyBinding("h", false, false, false, true), predefined: true}); //$NON-NLS-1$ //$NON-NLS-0$
+			bindings.push({actionID: "deleteNext", keyBinding: new KeyBinding("d", false, false, false, true), predefined: true}); //$NON-NLS-1$ //$NON-NLS-0$
+			bindings.push({actionID: "deleteLineEnd", keyBinding: new KeyBinding("k", false, false, false, true), predefined: true}); //$NON-NLS-1$ //$NON-NLS-0$
+			if (util.isFirefox) {
+				bindings.push({actionID: "scrollPageDown", keyBinding: new KeyBinding("v", false, false, false, true), predefined: true}); //$NON-NLS-1$ //$NON-NLS-0$
+				bindings.push({actionID: "deleteLineStart", keyBinding: new KeyBinding("u", false, false, false, true), predefined: true}); //$NON-NLS-1$ //$NON-NLS-0$
+				bindings.push({actionID: "deleteWordPrevious", keyBinding: new KeyBinding("w", false, false, false, true), predefined: true}); //$NON-NLS-1$ //$NON-NLS-0$
+			} else {
+				bindings.push({actionID: "pageDown", keyBinding: new KeyBinding("v", false, false, false, true), predefined: true}); //$NON-NLS-1$ //$NON-NLS-0$
+				bindings.push({actionID: "centerLine", keyBinding: new KeyBinding("l", false, false, false, true), predefined: true}); //$NON-NLS-1$ //$NON-NLS-0$
+				bindings.push({actionID: "enterNoCursor", keyBinding: new KeyBinding("o", false, false, false, true), predefined: true}); //$NON-NLS-1$ //$NON-NLS-0$
+				//TODO implement: y (yank), t (transpose)
+			}
+		}
+		return bindings;
+	};
+	
+	return {
+		KeyMode: KeyMode,
+		DefaultKeyMode: DefaultKeyMode
+	};
 });
 
 /*******************************************************************************
@@ -857,7 +1949,7 @@ define("orion/editor/textTheme", //$NON-NLS-0$
 		/**
 		 * Returns the theme className.
 		 *
-		 * @see #setThemeClass
+		 * @see orion.editor.TextTheme#setThemeClass
 		 */
 		getThemeClass: function() {
 			return this._themeClass;
@@ -889,8 +1981,8 @@ define("orion/editor/textTheme", //$NON-NLS-0$
 		 * @param {String} className the new theme className.
 		 * @param {String|orion.editor.ThemeStyleSheet} styleSheet the CSS stylesheet for the new theme className.
 		 *
-		 * @see #getThemeClass
-		 * @see #onThemeChanged
+		 * @see orion.editor.TextTheme#getThemeClass
+		 * @see orion.editor.TextTheme#onThemeChanged
 		 */
 		 setThemeClass: function(className, styleSheet) {
 			var self = this;
@@ -933,29 +2025,31 @@ define("orion/editor/textTheme", //$NON-NLS-0$
 			var result = [];
 			result.push("");
 			
-			//view container
-			var family = settings.fontFamily;
-			if (family === "sans serif") { //$NON-NLS-0$
-				family = '"Menlo", "Consolas", "Vera Mono", "monospace"'; //$NON-NLS-0$
-			} else {
-				family = 'monospace'; //$NON-NLS-0$
-			}	
-			
 			result.push("." + themeClass + " {"); //$NON-NLS-1$ //$NON-NLS-0$
-			result.push("\tfont-family: " + family + ";"); //$NON-NLS-1$ //$NON-NLS-0$
-			result.push("\tfont-size: " + settings.fontSize + ";"); //$NON-NLS-1$ //$NON-NLS-0$
-			result.push("\tcolor: " + settings.text + ";"); //$NON-NLS-1$ //$NON-NLS-0$
+			if (settings.fontFamily) {
+				result.push("\tfont-family: " + settings.fontFamily + ";"); //$NON-NLS-1$ //$NON-NLS-0$
+			}
+			if (settings.fontSize) {
+				result.push("\tfont-size: " + settings.fontSize + ";"); //$NON-NLS-1$ //$NON-NLS-0$
+			}
+			if (settings.fontSize) {			
+				result.push("\tcolor: " + settings.text + ";"); //$NON-NLS-1$ //$NON-NLS-0$
+			}
 			result.push("}"); //$NON-NLS-0$
 			
 			//From textview.css
 			result.push("." + themeClass + ".textview {"); //$NON-NLS-1$ //$NON-NLS-0$
-			result.push("\tbackground-color: " + settings.background + ";"); //$NON-NLS-1$ //$NON-NLS-0$
+			if (settings.background) {		
+				result.push("\tbackground-color: " + settings.background + ";"); //$NON-NLS-1$ //$NON-NLS-0$
+			}
 			result.push("}"); //$NON-NLS-0$
 			
 			function defineRule(className, value, isBackground) {
-				result.push("." + themeClass + " ." + className + " {"); //$NON-NLS-2$ //$NON-NLS-1$ //$NON-NLS-0$
-				result.push("\t" + (isBackground ? "background-color" : "color") + ": " + value + ";"); //$NON-NLS-4$ //$NON-NLS-3$ //$NON-NLS-2$ //$NON-NLS-1$ //$NON-NLS-0$
-				result.push("}"); //$NON-NLS-0$
+				if (value) {
+					result.push("." + themeClass + " ." + className + " {"); //$NON-NLS-2$ //$NON-NLS-1$ //$NON-NLS-0$
+					result.push("\t" + (isBackground ? "background-color" : "color") + ": " + value + ";"); //$NON-NLS-4$ //$NON-NLS-3$ //$NON-NLS-2$ //$NON-NLS-1$ //$NON-NLS-0$
+					result.push("}"); //$NON-NLS-0$
+				}
 			}
 			
 			//From rulers.css
@@ -1056,6 +2150,7078 @@ define("orion/editor/textTheme", //$NON-NLS-0$
 
 /*******************************************************************************
  * @license
+ * Copyright (c) 2013 IBM Corporation and others.
+ * All rights reserved. This program and the accompanying materials are made 
+ * available under the terms of the Eclipse Public License v1.0 
+ * (http://www.eclipse.org/legal/epl-v10.html), and the Eclipse Distribution 
+ * License v1.0 (http://www.eclipse.org/org/documents/edl-v10.html). 
+ * 
+ * Contributors: IBM Corporation - initial API and implementation
+ ******************************************************************************/
+ 
+/*global define*/
+
+define("orion/editor/util", [], function() { //$NON-NLS-0$
+	
+	/** @private */
+	function addEventListener(node, type, handler, capture) {
+		if (typeof node.addEventListener === "function") { //$NON-NLS-0$
+			node.addEventListener(type, handler, capture === true);
+		} else {
+			node.attachEvent("on" + type, handler); //$NON-NLS-0$
+		}
+	}
+	/** @private */
+	function removeEventListener(node, type, handler, capture) {
+		if (typeof node.removeEventListener === "function") { //$NON-NLS-0$
+			node.removeEventListener(type, handler, capture === true);
+		} else {
+			node.detachEvent("on" + type, handler); //$NON-NLS-0$
+		}
+	}
+	/** @private */
+	function contains(topNode, node) {
+		if (!node) { return false; }
+		if (!topNode.compareDocumentPosition) {
+			var temp = node;
+			while (temp) {
+				if (topNode === temp) {
+					return true;
+				}
+				temp = temp.parentNode;
+			}
+			return false;
+		}
+		return topNode === node || (topNode.compareDocumentPosition(node) & 16) !== 0;
+	}
+
+	return {
+		contains: contains,
+		addEventListener: addEventListener,
+		removeEventListener: removeEventListener
+	};
+});
+
+/*******************************************************************************
+ * @license
+ * Copyright (c) 2010, 2013 IBM Corporation and others.
+ * All rights reserved. This program and the accompanying materials are made 
+ * available under the terms of the Eclipse Public License v1.0 
+ * (http://www.eclipse.org/legal/epl-v10.html), and the Eclipse Distribution 
+ * License v1.0 (http://www.eclipse.org/org/documents/edl-v10.html). 
+ * 
+ * Contributors: 
+ *		Felipe Heidrich (IBM Corporation) - initial API and implementation
+ *		Silenio Quarti (IBM Corporation) - initial API and implementation
+ *		Mihai Sucan (Mozilla Foundation) - fix for Bug#334583 Bug#348471 Bug#349485 Bug#350595 Bug#360726 Bug#361180 Bug#362835 Bug#362428 Bug#362286 Bug#354270 Bug#361474 Bug#363945 Bug#366312 Bug#370584
+ ******************************************************************************/
+
+/*global define document*/
+
+define("orion/editor/textView", [ //$NON-NLS-0$
+	'i18n!orion/editor/nls/messages', //$NON-NLS-0$
+	'orion/editor/textModel', //$NON-NLS-0$
+	'orion/editor/keyModes', //$NON-NLS-0$
+	'orion/editor/eventTarget', //$NON-NLS-0$
+	'orion/editor/textTheme', //$NON-NLS-0$
+	'orion/editor/util', //$NON-NLS-0$
+	'orion/util' //$NON-NLS-0$
+], function(messages, mTextModel, mKeyModes, mEventTarget, mTextTheme, textUtil, util) {
+
+	/** @private */
+	function getWindow(document) {
+		return document.defaultView || document.parentWindow;
+	}
+	var addHandler = textUtil.addEventListener;
+	var removeHandler = textUtil.removeEventListener;
+	/** @private */
+	function applyStyle(style, node, reset) {
+		if (reset) {
+			node.className = "";
+			var attrs = node.attributes;
+			for (var i= attrs.length; i-->0;) {
+				if (!util.isIE || util.isIE >= 9 || (util.isIE < 9 && attrs[i].specified)) {
+					node.removeAttribute(attrs[i].name); 
+				}
+			}
+		}
+		if (!style) {
+			return;
+		}
+		if (style.styleClass) {
+			node.className = style.styleClass;
+		}
+		var properties = style.style;
+		if (properties) {
+			for (var s in properties) {
+				if (properties.hasOwnProperty(s)) {
+					node.style[s] = properties[s];
+				}
+			}
+		}
+		var attributes = style.attributes;
+		if (attributes) {
+			for (var a in attributes) {
+				if (attributes.hasOwnProperty(a)) {
+					node.setAttribute(a, attributes[a]);
+				}
+			}
+		}
+	}
+	/** @private */
+	function clone(obj) {
+		/*Note that this code only works because of the limited types used in TextViewOptions */
+		if (obj instanceof Array) {
+			return obj.slice(0);
+		}
+		return obj;
+	}
+	/**	@private */
+	function merge(obj1, obj2) {
+		if (!obj1) {
+			return obj2;
+		}
+		if (!obj2) {
+			return obj1;
+		}
+		for (var p in obj2) {
+			if (obj2.hasOwnProperty(p)) {
+				if (!obj1.hasOwnProperty(p)) {
+					obj1[p] = obj2[p];
+				}
+			}
+		}
+		return obj1;
+	}
+	/** @private */
+	function compare(s1, s2) {
+		if (s1 === s2) { return true; }
+		if (s1 && !s2 || !s1 && s2) { return false; }
+		if ((s1 && s1.constructor === String) || (s2 && s2.constructor === String)) { return false; }
+		if (s1 instanceof Array || s2 instanceof Array) {
+			if (!(s1 instanceof Array && s2 instanceof Array)) { return false; }
+			if (s1.length !== s2.length) { return false; }
+			for (var i = 0; i < s1.length; i++) {
+				if (!compare(s1[i], s2[i])) {
+					return false;
+				}
+			}
+			return true;
+		}
+		if (!(s1 instanceof Object) || !(s2 instanceof Object)) { return false; }
+		var p;
+		for (p in s1) {
+			if (s1.hasOwnProperty(p)) {
+				if (!s2.hasOwnProperty(p)) { return false; }
+				if (!compare(s1[p], s2[p])) {return false; }
+			}
+		}
+		for (p in s2) {
+			if (!s1.hasOwnProperty(p)) { return false; }
+		}
+		return true;
+	}
+	/** @private */
+	function convertDelimiter(text, addTextFunc, addDelimiterFunc) {
+		var cr = 0, lf = 0, index = 0, length = text.length;
+		while (index < length) {
+			if (cr !== -1 && cr <= index) { cr = text.indexOf("\r", index); } //$NON-NLS-0$
+			if (lf !== -1 && lf <= index) { lf = text.indexOf("\n", index); } //$NON-NLS-0$
+			var start = index, end;
+			if (lf === -1 && cr === -1) {
+				addTextFunc(text.substring(index));
+				break;
+			}
+			if (cr !== -1 && lf !== -1) {
+				if (cr + 1 === lf) {
+					end = cr;
+					index = lf + 1;
+				} else {
+					end = cr < lf ? cr : lf;
+					index = (cr < lf ? cr : lf) + 1;
+				}
+			} else if (cr !== -1) {
+				end = cr;
+				index = cr + 1;
+			} else {
+				end = lf;
+				index = lf + 1;
+			}
+			addTextFunc(text.substring(start, end));
+			addDelimiterFunc();
+		}
+	}
+	/** @private */
+	function getBorder(node) {
+		var left,top,right,bottom;
+		var window = getWindow(node.ownerDocument);
+		if (window.getComputedStyle) {
+			var style = window.getComputedStyle(node, null);
+			left = style.getPropertyValue("border-left-width"); //$NON-NLS-0$
+			top = style.getPropertyValue("border-top-width"); //$NON-NLS-0$
+			right = style.getPropertyValue("border-right-width"); //$NON-NLS-0$
+			bottom = style.getPropertyValue("border-bottom-width"); //$NON-NLS-0$
+		} else if (node.currentStyle) {
+			left = node.currentStyle.borderLeftWidth;
+			top = node.currentStyle.borderTopWidth;
+			right = node.currentStyle.borderRightWidth;
+			bottom = node.currentStyle.borderBottomWidth;
+		}
+		return {
+			left: parseInt(left, 10) || 0,
+			top: parseInt(top, 10) || 0,
+			right: parseInt(right, 10) || 0,
+			bottom: parseInt(bottom, 10) || 0
+		};
+	}
+	/** @private */
+	function getPadding(node) {
+		var left,top,right,bottom;
+		var window = getWindow(node.ownerDocument);
+		if (window.getComputedStyle) {
+			var style = window.getComputedStyle(node, null);
+			left = style.getPropertyValue("padding-left"); //$NON-NLS-0$
+			top = style.getPropertyValue("padding-top"); //$NON-NLS-0$
+			right = style.getPropertyValue("padding-right"); //$NON-NLS-0$
+			bottom = style.getPropertyValue("padding-bottom"); //$NON-NLS-0$
+		} else if (node.currentStyle) {
+			left = node.currentStyle.paddingLeft;
+			top = node.currentStyle.paddingTop;
+			right = node.currentStyle.paddingRight;
+			bottom = node.currentStyle.paddingBottom;
+		}
+		return {
+			left: parseInt(left, 10) || 0, 
+			top: parseInt(top, 10) || 0,
+			right: parseInt(right, 10) || 0,
+			bottom: parseInt(bottom, 10) || 0
+		};
+	}
+	/** @private */
+	function getLineTrim(line) {
+		var trim = line._trim;
+		if (!trim) {
+			trim = getPadding(line);
+			var border = getBorder(line);
+			trim.left += border.left;
+			trim.top += border.top;
+			trim.right += border.right;
+			trim.bottom += border.bottom;
+			line._trim = trim;
+		}
+		return trim;
+	}
+	
+	/**
+	 * @class
+	 * @private
+	 * @name orion.editor.Animation
+	 * @description Creates an animation.
+	 * @param {Object} options Options controlling the animation.
+	 * @param {Array} options.curve Array of 2 values giving the start and end points for the animation.
+	 * @param {Number} [options.duration=350] Duration of the animation, in milliseconds.
+	 * @param {Function} [options.easing]
+	 * @param {Function} [options.onAnimate]
+	 * @param {Function} [options.onEnd]
+	 * @param {Number} [options.rate=20] The time between frames, in milliseconds.
+	 */
+	var Animation = /** @ignore */ (function() {
+		function Animation(options) {
+			this.options = options;
+		}
+		/**
+		 * Plays this animation.
+		 * @function
+		 * @memberOf orion.editor.Animation.prototype
+		 * @name play
+		 */
+		Animation.prototype.play = function() {
+			var duration = (typeof this.options.duration === "number") ? this.options.duration : 350, //$NON-NLS-0$
+			    rate = (typeof this.options.rate === "number") ? this.options.rate : 20, //$NON-NLS-0$
+			    easing = this.options.easing || this.defaultEasing,
+			    onAnimate = this.options.onAnimate || function() {},
+			    start = this.options.curve[0],
+			    end = this.options.curve[1],
+			    range = (end - start),
+			    startedAt = -1,
+				propertyValue,
+				self = this;
+
+			function onFrame() {
+				startedAt = (startedAt === -1) ? new Date().getTime() : startedAt;
+				var now = new Date().getTime(),
+				    percentDone = (now - startedAt) / duration;
+				if (percentDone < 1) {
+					var eased = easing(percentDone);
+					propertyValue = start + (eased * range);
+					onAnimate(propertyValue);
+				} else {
+					onAnimate(end);
+					self.stop();
+				}
+			}
+			this.interval = this.options.window.setInterval(onFrame, rate);
+		};
+		/**
+		 * Stops this animation.
+		 * @function
+		 * @memberOf orion.editor.Animation.prototype
+		 */
+		Animation.prototype.stop = function() {
+			this.options.window.clearInterval(this.interval);
+		    var onEnd = this.options.onEnd || function () {};
+			onEnd();
+		};
+		Animation.prototype.defaultEasing = function(x) {
+			return Math.sin(x * (Math.PI / 2));
+		};
+		return Animation;
+	}());
+	
+	/** 
+	 * Constructs a new Selection object.
+	 * 
+	 * @class A Selection represents a range of selected text in the view.
+	 * @name orion.editor.Selection
+	 */
+	function Selection (start, end, caret) {
+		/**
+		 * The selection start offset.
+		 *
+		 * @name orion.editor.Selection#start
+		 */
+		this.start = start;
+		/**
+		 * The selection end offset.
+		 *
+		 * @name orion.editor.Selection#end
+		 */
+		this.end = end;
+		/** @private */
+		this.caret = caret; //true if the start, false if the caret is at end
+	}
+	Selection.prototype = /** @lends orion.editor.Selection.prototype */ {
+		/** @private */
+		clone: function() {
+			return new Selection(this.start, this.end, this.caret);
+		},
+		/** @private */
+		collapse: function() {
+			if (this.caret) {
+				this.end = this.start;
+			} else {
+				this.start = this.end;
+			}
+		},
+		/** @private */
+		extend: function (offset) {
+			if (this.caret) {
+				this.start = offset;
+			} else {
+				this.end = offset;
+			}
+			if (this.start > this.end) {
+				var tmp = this.start;
+				this.start = this.end;
+				this.end = tmp;
+				this.caret = !this.caret;
+			}
+		},
+		/** @private */
+		setCaret: function(offset) {
+			this.start = offset;
+			this.end = offset;
+			this.caret = false;
+		},
+		/** @private */
+		getCaret: function() {
+			return this.caret ? this.start : this.end;
+		},
+		/** @private */
+		toString: function() {
+			return "start=" + this.start + " end=" + this.end + (this.caret ? " caret is at start" : " caret is at end"); //$NON-NLS-3$ //$NON-NLS-2$ //$NON-NLS-1$ //$NON-NLS-0$
+		},
+		/** @private */
+		isEmpty: function() {
+			return this.start === this.end;
+		},
+		/** @private */
+		equals: function(object) {
+			return this.caret === object.caret && this.start === object.start && this.end === object.end;
+		}
+	};
+	/** @private */
+	function TextRect (rect) {
+		this.left = rect.left;
+		this.top = rect.top;
+		this.right = rect.right;
+		this.bottom = rect.bottom;
+	}
+	TextRect.prototype = /** @lends orion.editor.TextRect.prototype */ {
+		/** @private */
+		toString: function() {
+			return "{l=" + this.left + ", t=" + this.top + ", r=" + this.right + ", b=" + this.bottom + "}"; //$NON-NLS-4$ //$NON-NLS-3$ //$NON-NLS-2$ //$NON-NLS-1$ //$NON-NLS-0$
+		}
+	};
+	/** 
+	 * Constructs a new TextLine object.
+	 * 
+	 * @class A TextLine represents a line of text in the view.
+	 * @name orion.editor.TextLine
+	 * @private
+	 */
+	function TextLine (view, lineIndex, lineDiv) {
+		/**
+		 * The view.
+		 *
+		 * @name orion.editor.TextLine#view
+		 * @private
+		 */
+		this.view = view;
+		/**
+		 * The line index.
+		 *
+		 * @name orion.editor.TextLine#lineIndex
+		 * @private
+		 */
+		this.lineIndex = lineIndex;
+		
+		this._lineDiv = lineDiv;
+	}
+	TextLine.prototype = /** @lends orion.editor.TextLine.prototype */ {
+		/** @private */
+		create: function(parent, div) {
+			if (this._lineDiv) { return; }
+			var child = this._lineDiv = this._createLine(parent, div, this.lineIndex);
+			child._line = this;
+			return child;
+		},
+		_createLine: function(parent, div, lineIndex) {
+			var view = this.view;
+			var model = view._model;
+			var lineText = model.getLine(lineIndex);
+			var lineStart = model.getLineStart(lineIndex);
+			var e = {type:"LineStyle", textView: view, lineIndex: lineIndex, lineText: lineText, lineStart: lineStart}; //$NON-NLS-0$
+			if (lineText.length < 2000) {
+				view.onLineStyle(e);
+			}
+			var lineDiv = div || util.createElement(parent.ownerDocument, "div"); //$NON-NLS-0$
+			if (!div || !compare(div.viewStyle, e.style)) {
+				applyStyle(e.style, lineDiv, div);
+				if (div) { div._trim = null; }
+				lineDiv.viewStyle = e.style;
+				lineDiv.setAttribute("role", "presentation"); //$NON-NLS-1$ //$NON-NLS-0$
+			}
+			lineDiv.lineIndex = lineIndex;
+			var ranges = [];
+			var data = {tabOffset: 0, ranges: ranges};
+			this._createRanges(e.ranges, lineText, 0, lineText.length, lineStart, data);
+			
+			/*
+			* A trailing span with a whitespace is added for three different reasons:
+			* 1. Make sure the height of each line is the largest of the default font
+			* in normal, italic, bold, and italic-bold.
+			* 2. When full selection is off, Firefox, Opera and IE9 do not extend the 
+			* selection at the end of the line when the line is fully selected. 
+			* 3. The height of a div with only an empty span is zero.
+			*/
+			var c = " "; //$NON-NLS-0$
+			if (!view._fullSelection && util.isIE < 9) {
+				/* 
+				* IE8 already selects extra space at end of a line fully selected,
+				* adding another space at the end of the line causes the selection 
+				* to look too big. The fix is to use a zero-width space (\uFEFF) instead. 
+				*/
+				c = "\uFEFF"; //$NON-NLS-0$
+			}
+			if (util.isWebkit) {
+				/*
+				* Feature in WekKit. Adding a regular white space to the line will
+				* cause the longest line in the view to wrap even though "pre" is set.
+				* The fix is to use the zero-width non-joiner character (\u200C) instead.
+				* Note: Do not use \uFEFF because in old version of Chrome this character 
+				* shows a glyph;
+				*/
+				c = "\u200C"; //$NON-NLS-0$
+			}
+			var range = {text: c, style: view._metrics.largestFontStyle, ignoreChars: 1};
+			if (ranges.length === 0 || !ranges[ranges.length - 1].style || ranges[ranges.length - 1].style.tagName !== "div") { //$NON-NLS-0$
+				ranges.push(range);
+			} else {
+				ranges.splice(ranges.length - 1, 0, range);
+			}
+			
+			var span, style, oldSpan, oldStyle, text, oldText, end = 0, oldEnd = 0, next;
+			var changeCount, changeStart;
+			if (div) {
+				var modelChangedEvent = div.modelChangedEvent;
+				if (modelChangedEvent) {
+					if (modelChangedEvent.removedLineCount === 0 && modelChangedEvent.addedLineCount === 0) {
+						changeStart = modelChangedEvent.start - lineStart;
+						changeCount = modelChangedEvent.addedCharCount - modelChangedEvent.removedCharCount;
+					} else {
+						changeStart = -1;
+					}
+					div.modelChangedEvent = undefined;
+				}
+				oldSpan = div.firstChild;
+			}
+			for (var i = 0; i < ranges.length; i++) {
+				range = ranges[i];
+				text = range.text;
+				end += text.length;
+				style = range.style;
+				if (oldSpan) {
+					oldText = oldSpan.firstChild.data;
+					oldStyle = oldSpan.viewStyle;
+					if (oldText === text && compare(style, oldStyle)) {
+						oldEnd += oldText.length;
+						oldSpan._rectsCache = undefined;
+						span = oldSpan = oldSpan.nextSibling;
+						continue;
+					} else {
+						while (oldSpan) {
+							if (changeStart !== -1) {
+								var spanEnd = end;
+								if (spanEnd >= changeStart) {
+									spanEnd -= changeCount;
+								}
+								var t = oldSpan.firstChild.data;
+								var length = t ? t.length : 0;
+								if (oldEnd + length > spanEnd) { break; }
+								oldEnd += length;
+							}
+							next = oldSpan.nextSibling;
+							lineDiv.removeChild(oldSpan);
+							oldSpan = next;
+						}
+					}
+				}
+				span = this._createSpan(lineDiv, text, style, range.ignoreChars);
+				if (oldSpan) {
+					lineDiv.insertBefore(span, oldSpan);
+				} else {
+					lineDiv.appendChild(span);
+				}
+				if (div) {
+					div.lineWidth = undefined;
+				}
+			}
+			if (div) {
+				var tmp = span ? span.nextSibling : null;
+				while (tmp) {
+					next = tmp.nextSibling;
+					div.removeChild(tmp);
+					tmp = next;
+				}
+			} else {
+				parent.appendChild(lineDiv);
+			}
+			return lineDiv;
+		},
+		_createRanges: function(ranges, text, start, end, lineStart, data) {
+			if (start > end) { return; }
+			if (ranges) {
+				for (var i = 0; i < ranges.length; i++) {
+					var range = ranges[i];
+					if (range.end < lineStart + start) { continue; }
+					var styleStart = Math.max(lineStart + start, range.start) - lineStart;
+					if (styleStart > end) { break; }
+					var styleEnd = Math.min(lineStart + end, range.end) - lineStart;
+					if (styleStart <= styleEnd) {
+						styleStart = Math.max(start, styleStart);
+						styleEnd = Math.min(end, styleEnd);
+						if (start < styleStart) {
+							this._createRange(text, start, styleStart, null, data);
+						}
+						if (!range.style || !range.style.unmergeable) {
+							while (i + 1 < ranges.length && ranges[i + 1].start - lineStart === styleEnd && compare(range.style, ranges[i + 1].style)) {
+								range = ranges[i + 1];
+								styleEnd = Math.min(lineStart + end, range.end) - lineStart;
+								i++;
+							}
+						}
+						this._createRange(text, styleStart, styleEnd, range.style, data);
+						start = styleEnd;
+					}
+				}
+			}
+			if (start < end) {
+				this._createRange(text, start, end, null, data);
+			}
+		},
+		_createRange: function(text, start, end, style, data) {
+			if (start > end) { return; }
+			var tabSize = this.view._customTabSize, range;
+			if (tabSize && tabSize !== 8) {
+				var tabIndex = text.indexOf("\t", start); //$NON-NLS-0$
+				while (tabIndex !== -1 && tabIndex < end) {
+					if (start < tabIndex) {
+						range = {text: text.substring(start, tabIndex), style: style};
+						data.ranges.push(range);
+						data.tabOffset += range.text.length;
+					}
+					var spacesCount = tabSize - (data.tabOffset % tabSize);
+					if (spacesCount > 0) {
+						//TODO hack to preserve tabs in getDOMText()
+						var spaces = "\u00A0"; //$NON-NLS-0$
+						for (var i = 1; i < spacesCount; i++) {
+							spaces += " "; //$NON-NLS-0$
+						}
+						range = {text: spaces, style: style, ignoreChars: spacesCount - 1};
+						data.ranges.push(range);
+						data.tabOffset += range.text.length;
+					}
+					start = tabIndex + 1;
+					if (start === end) {
+						return;
+					}
+					tabIndex = text.indexOf("\t", start); //$NON-NLS-0$
+				}
+			}
+			if (start <= end) {
+				range = {text: text.substring(start, end), style: style};
+				data.ranges.push(range);
+				data.tabOffset += range.text.length;
+			}
+		},
+		_createSpan: function(parent, text, style, ignoreChars) {
+			var view = this.view;
+			var tagName = "span"; //$NON-NLS-0$
+			if (style && style.tagName) {
+				tagName = style.tagName.toLowerCase();
+			}
+			var isLink = tagName === "a"; //$NON-NLS-0$
+			if (isLink) { parent.hasLink = true; }
+			if (isLink && !view._linksVisible) {
+				tagName = "span"; //$NON-NLS-0$
+			}
+			var document = parent.ownerDocument;
+			var child = util.createElement(parent.ownerDocument, tagName);
+			if (style && style.html) {
+				child.innerHTML = style.html;
+				child.ignore = true;
+			} else if (style && style.node) {
+				child.appendChild(style.node);
+				child.ignore = true;
+			} else {
+				child.appendChild(document.createTextNode(style && style.text ? style.text : text));
+			}
+			applyStyle(style, child);
+			if (tagName === "a") { //$NON-NLS-0$
+				var window = view._getWindow();
+				addHandler(child, "click", function(e) { return view._handleLinkClick(e ? e : window.event); }, false); //$NON-NLS-0$
+			}
+			child.viewStyle = style;
+			if (ignoreChars) {
+				child.ignoreChars = ignoreChars;
+			}
+			return child;
+		},
+		_ensureCreated: function() {
+			if (this._lineDiv) { return this._lineDiv; }
+			return (this._createdDiv = this.create(this.view._clientDiv, null));
+		},
+		/** @private */
+		getBoundingClientRect: function(offset, absolute) {
+			var child = this._ensureCreated();
+			var view = this.view;
+			if (offset === undefined) {
+				return this._getLineBoundingClientRect(child, true);
+			}
+			var model = view._model;
+			var document = child.ownerDocument;
+			var lineIndex = this.lineIndex;
+			var result = null;
+			if (offset < model.getLineEnd(lineIndex)) {
+				var lineOffset = model.getLineStart(lineIndex);
+				var lineChild = child.firstChild;
+				while (lineChild) {
+					if (lineChild.ignore) {
+						lineChild = lineChild.nextSibling;
+						continue;
+					}
+					var textNode = lineChild.firstChild;
+					var nodeLength = textNode.length; 
+					if (lineChild.ignoreChars) {
+						nodeLength -= lineChild.ignoreChars;
+					}
+					if (lineOffset + nodeLength > offset) {
+						var index = offset - lineOffset;
+						var range;
+						if (textNode.length === 1) {
+							result = new TextRect(lineChild.getBoundingClientRect());
+						} else if (view._isRangeRects) {
+							range = document.createRange();
+							range.setStart(textNode, index);
+							range.setEnd(textNode, index + 1);
+							result = new TextRect(range.getBoundingClientRect());
+						} else if (util.isIE) {
+							range = document.body.createTextRange();
+							range.moveToElementText(lineChild);
+							range.collapse();
+							/*
+							* Bug in IE8. TextRange.getClientRects() and TextRange.getBoundingClientRect() fails
+							* if the line child is not the first element in the line and if the start offset is 0. 
+							* The fix is to use Node.getClientRects() left edge instead.
+							*/
+							var fixIE8 = index === 0 && util.isIE === 8;
+							if (fixIE8) { index = 1; }
+							range.moveEnd("character", index + 1); //$NON-NLS-0$
+							range.moveStart("character", index); //$NON-NLS-0$
+							result = new TextRect(range.getBoundingClientRect());
+							if (fixIE8) {
+								result.left = lineChild.getClientRects()[0].left;
+							}
+						} else {
+							var text = textNode.data;
+							lineChild.removeChild(textNode);
+							lineChild.appendChild(document.createTextNode(text.substring(0, index)));
+							var span = util.createElement(document, "span"); //$NON-NLS-0$
+							span.appendChild(document.createTextNode(text.substring(index, index + 1)));
+							lineChild.appendChild(span);
+							lineChild.appendChild(document.createTextNode(text.substring(index + 1)));
+							result = new TextRect(span.getBoundingClientRect());
+							lineChild.innerHTML = "";
+							lineChild.appendChild(textNode);
+							if (!this._createdDiv) {
+								/*
+								 * Removing the element node that holds the selection start or end
+								 * causes the selection to be lost. The fix is to detect this case
+								 * and restore the selection. 
+								 */
+								var s = view._getSelection();
+								if ((lineOffset <= s.start && s.start < lineOffset + nodeLength) ||  (lineOffset <= s.end && s.end < lineOffset + nodeLength)) {
+									view._updateDOMSelection();
+								}
+							}
+						}
+						if (util.isIE) {
+							var window = getWindow(child.ownerDocument);
+							var xFactor = window.screen.logicalXDPI / window.screen.deviceXDPI;
+							var yFactor = window.screen.logicalYDPI / window.screen.deviceYDPI;
+							result.left = result.left * xFactor;
+							result.right = result.right * xFactor;
+							result.top = result.top * yFactor;
+							result.bottom = result.bottom * yFactor;
+						}
+						break;
+					}
+					lineOffset += nodeLength;
+					lineChild = lineChild.nextSibling;
+				}
+			}
+			var rect = this.getBoundingClientRect();
+			if (!result) {
+				if (view._wrapMode) {
+					var rects = this.getClientRects();
+					result = rects[rects.length - 1];
+					result.left = result.right;
+					result.left += rect.left;
+					result.top += rect.top;
+					result.right += rect.left;
+					result.bottom += rect.top;
+				} else {
+					result = new TextRect(rect);
+					result.left = result.right;
+				}
+			}
+			if (absolute || absolute === undefined) {
+				result.left -= rect.left;
+				result.top -= rect.top;
+				result.right -= rect.left;
+				result.bottom -= rect.top;
+			}
+			return result;
+		},
+		/** @private */
+		_getClientRects: function(element, parentRect) {
+			var rects, newRects, rect, i;
+			if (!element._rectsCache) {
+				rects = element.getClientRects();
+				newRects = new Array(rects.length);
+				for (i = 0; i<rects.length; i++) {
+					rect = newRects[i] = new TextRect(rects[i]);
+					rect.left -= parentRect.left;
+					rect.top -= parentRect.top;
+					rect.right -= parentRect.left;
+					rect.bottom -= parentRect.top;
+				}
+				element._rectsCache = newRects;
+			}
+			rects = element._rectsCache;
+			newRects = [rects.length];
+			for (i = 0; i<rects.length; i++) {
+				newRects[i] = new TextRect(rects[i]);
+			}
+			return newRects;
+		},
+		/** @private */
+		getClientRects: function(lineIndex) {
+			if (!this.view._wrapMode) { return [this.getBoundingClientRect()]; }
+			var child = this._ensureCreated();
+			//TODO [perf] cache rects
+			var result = [];
+			var lineChild = child.firstChild, i, r, parentRect = child.getBoundingClientRect();
+			while (lineChild) {
+				if (lineChild.ignore) {
+					lineChild = lineChild.nextSibling;
+					continue;
+				}
+				var rects = this._getClientRects(lineChild, parentRect);
+				for (i = 0; i < rects.length; i++) {
+					var rect = rects[i], j;
+					if (rect.top === rect.bottom) { continue; }
+					var center = rect.top + (rect.bottom - rect.top) / 2;
+					for (j = 0; j < result.length; j++) {
+						r = result[j];
+						if ((r.top <= center && center < r.bottom)) {
+							break;
+						}
+					}
+					if (j === result.length) {
+						result.push(rect);
+					} else {
+						if (rect.left < r.left) { r.left = rect.left; }
+						if (rect.top < r.top) { r.top = rect.top; }
+						if (rect.right > r.right) { r.right = rect.right; }
+						if (rect.bottom > r.bottom) { r.bottom = rect.bottom; }
+					}
+				}
+				lineChild = lineChild.nextSibling;
+			}
+			if (lineIndex !== undefined) {
+				return result[lineIndex];
+			}
+			return result;
+		},
+		/** @private */
+		_getLineBoundingClientRect: function (child, noTrim) {
+			var rect = new TextRect(child.getBoundingClientRect());
+			if (this.view._wrapMode) {
+			} else {
+				rect.right = rect.left;
+				var lastChild = child.lastChild;
+				//Remove any artificial trailing whitespace in the line
+				while (lastChild && lastChild.ignoreChars === lastChild.firstChild.length) {
+					lastChild = lastChild.previousSibling;
+				}
+				if (lastChild) {
+					var lastRect = lastChild.getBoundingClientRect();
+					rect.right = lastRect.right + getLineTrim(child).right;
+				}
+			}
+			if (noTrim) {
+				var padding = getLineTrim(child);
+				rect.left = rect.left + padding.left;
+				rect.right = rect.right - padding.right;
+			}
+			return rect;
+		},
+		/** @private */
+		getLineCount: function () {
+			if (!this.view._wrapMode) { return 1; }
+			return this.getClientRects().length;
+		},
+		/** @private */
+		getLineIndex: function(offset) {
+			if (!this.view._wrapMode) { return 0; }
+			var rects = this.getClientRects();
+			var rect = this.getBoundingClientRect(offset);
+			var center = rect.top + ((rect.bottom - rect.top) / 2);
+			for (var i = 0; i < rects.length; i++) {
+				if (rects[i].top <= center && center < rects[i].bottom) {
+					return i;
+				}
+			}
+			return rects.length - 1;
+		},
+		/** @private */
+		getLineStart: function (lineIndex) {
+			if (!this.view._wrapMode || lineIndex === 0) {
+				return this.view._model.getLineStart(lineIndex);
+			}
+			var rects = this.getClientRects();
+			return this.getOffset(rects[lineIndex].left + 1, rects[lineIndex].top + 1);
+		},
+		/** @private */
+		getOffset: function(x, y) {
+			var view = this.view;
+			var model = view._model;
+			var lineIndex = this.lineIndex;
+			var lineStart = model.getLineStart(lineIndex);
+			var lineEnd = model.getLineEnd(lineIndex);
+			if (lineStart === lineEnd) {
+				return lineStart;
+			}
+			var child = this._ensureCreated();
+			var lineRect = this.getBoundingClientRect(), rects, rect;
+			if (view._wrapMode) {
+				rects = this.getClientRects();
+				if (y < rects[0].top) {
+					y = rects[0].top;
+				}
+				for (var i = 0; i < rects.length; i++) {
+					rect = rects[i];
+					if (rect.top <= y && y < rect.bottom) {
+						break;
+					}
+				}
+				if (x < rect.left) { x = rect.left; }
+				if (x > rect.right) { x = rect.right - 1; }
+			} else {
+				if (x < 0) { x = 0; }
+				if (x > (lineRect.right - lineRect.left)) { x = lineRect.right - lineRect.left; }
+			}
+			var document = child.ownerDocument;
+			var window = getWindow(document);
+			var xFactor = util.isIE ? window.screen.logicalXDPI / window.screen.deviceXDPI : 1;
+			var yFactor = util.isIE ? window.screen.logicalYDPI / window.screen.deviceYDPI : 1;
+			var offset = lineStart;
+			var lineChild = child.firstChild;
+			done:
+			while (lineChild) {
+				if (lineChild.ignore) {
+					lineChild = lineChild.nextSibling;
+					continue;
+				}
+				var textNode = lineChild.firstChild;
+				var nodeLength = textNode.length;
+				if (lineChild.ignoreChars) {
+					nodeLength -= lineChild.ignoreChars;
+				}
+				var rangeLeft, rangeTop, rangeRight, rangeBottom;
+				rects = this._getClientRects(lineChild, lineRect);
+				for (var j = 0; j < rects.length; j++) {
+					rect = rects[j];
+					if (rect.left <= x && x < rect.right && (!view._wrapMode || (rect.top <= y && y < rect.bottom))) {
+						var range, start, end;
+						var rl = rect.left + lineRect.left, fixIE8;
+						if (util.isIE || view._isRangeRects) {
+							range = view._isRangeRects ? document.createRange() : document.body.createTextRange();
+							var high = nodeLength;
+							var low = -1;
+							while ((high - low) > 1) {
+								var mid = Math.floor((high + low) / 2);
+								start = low + 1;
+								end = mid === nodeLength - 1 && lineChild.ignoreChars ? textNode.length : mid + 1;
+								/*
+								* Bug in IE8. TextRange.getClientRects() and TextRange.getBoundingClientRect() fails
+								* if the line child is not the first element in the line and if the start offset is 0. 
+								* The fix is to use Node.getClientRects() left edge instead.
+								*/
+								fixIE8 = start === 0 && util.isIE === 8;
+								if (view._isRangeRects) {
+									range.setStart(textNode, start);
+									range.setEnd(textNode, end);
+								} else {
+									if (fixIE8) { start = 1; } 
+									range.moveToElementText(lineChild);
+									range.move("character", start); //$NON-NLS-0$
+									range.moveEnd("character", end - start); //$NON-NLS-0$
+								}
+								rects = range.getClientRects();
+								var found = false;
+								for (var k = 0; k < rects.length; k++) {
+									rect = rects[k];
+									rangeLeft = (fixIE8 ? rl : rect.left) * xFactor - lineRect.left;
+									rangeRight = rect.right * xFactor - lineRect.left;
+									rangeTop = rect.top * yFactor - lineRect.top;
+									rangeBottom = rect.bottom * yFactor - lineRect.top;
+									if (rangeLeft <= x && x < rangeRight && (!view._wrapMode || (rangeTop <= y && y < rangeBottom))) {
+										found = true;
+										break;
+									}
+								}
+								if (found) {
+									high = mid;
+								} else {
+									low = mid;
+								}
+							}
+							offset += high;
+							start = high;
+							end = high === nodeLength - 1 && lineChild.ignoreChars ? textNode.length : Math.min(high + 1, textNode.length);
+							if (view._isRangeRects) {
+								range.setStart(textNode, start);
+								range.setEnd(textNode, end);
+							} else {
+								range.moveToElementText(lineChild);
+								range.move("character", start); //$NON-NLS-0$
+								range.moveEnd("character", end - start); //$NON-NLS-0$
+							}
+							rects = range.getClientRects();
+							var trailing = false;
+							if (rects.length > 0) {
+								rect = rects[0];
+								rangeLeft = (fixIE8 ? rl : rect.left) * xFactor - lineRect.left;
+								rangeRight = rect.right * xFactor - lineRect.left;
+								//TODO test for character trailing (wrong for bidi)
+								trailing = x > (rangeLeft + (rangeRight - rangeLeft) / 2);
+							}
+							// Handle Unicode surrogates
+							var offsetInLine = offset - lineStart;
+							var lineText = model.getLine(lineIndex);
+							var c = lineText.charCodeAt(offsetInLine);
+							if (0xD800 <= c && c <= 0xDBFF && trailing) {
+								if (offsetInLine < lineText.length) {
+									c = lineText.charCodeAt(offsetInLine + 1);
+									if (0xDC00 <= c && c <= 0xDFFF) {
+										offset += 1;
+									}
+								}
+							} else if (0xDC00 <= c && c <= 0xDFFF && !trailing) {
+								if (offsetInLine > 0) {
+									c = lineText.charCodeAt(offsetInLine - 1);
+									if (0xD800 <= c && c <= 0xDBFF) {
+										offset -= 1;
+									}
+								}
+							}
+							if (trailing) {
+								offset++;
+							}
+						} else {
+							var newText = [];
+							for (var q = 0; q < nodeLength; q++) {
+								newText.push("<span>"); //$NON-NLS-0$
+								if (q === nodeLength - 1) {
+									newText.push(textNode.data.substring(q));
+								} else {
+									newText.push(textNode.data.substring(q, q + 1));
+								}
+								newText.push("</span>"); //$NON-NLS-0$
+							}
+							lineChild.innerHTML = newText.join("");
+							var rangeChild = lineChild.firstChild;
+							while (rangeChild) {
+								rect = rangeChild.getBoundingClientRect();
+								rangeLeft = rect.left - lineRect.left;
+								rangeRight = rect.right - lineRect.left;
+								if (rangeLeft <= x && x < rangeRight) {
+									//TODO test for character trailing (wrong for bidi)
+									if (x > rangeLeft + (rangeRight - rangeLeft) / 2) {
+										offset++;
+									}
+									break;
+								}
+								offset++;
+								rangeChild = rangeChild.nextSibling;
+							}
+							if (!this._createdDiv) {
+								lineChild.innerHTML = "";
+								lineChild.appendChild(textNode);
+								/*
+								 * Removing the element node that holds the selection start or end
+								 * causes the selection to be lost. The fix is to detect this case
+								 * and restore the selection. 
+								 */
+								var s = view._getSelection();
+								if ((offset <= s.start && s.start < offset + nodeLength) || (offset <= s.end && s.end < offset + nodeLength)) {
+									view._updateDOMSelection();
+								}
+							}
+						}
+						break done;
+					}
+				}
+				offset += nodeLength;
+				lineChild = lineChild.nextSibling;
+			}
+			return Math.min(lineEnd, Math.max(lineStart, offset));
+		},
+		/** @private */
+		getNextOffset: function (offset, data) {
+			if (data.unit === "line") { //$NON-NLS-0$
+				var view = this.view;
+				var model = view._model;
+				var lineIndex = model.getLineAtOffset(offset);
+				if (data.count > 0) {
+					data.count--;
+					return model.getLineEnd(lineIndex);
+				}
+				data.count++;
+				return model.getLineStart(lineIndex);
+			}
+			if (data.unit === "wordend" || data.unit === "wordWS" || data.unit === "wordendWS") { //$NON-NLS-2$ //$NON-NLS-1$ //$NON-NLS-0$
+				return this._getNextOffset_W3C(offset, data);
+			}
+			return util.isIE ? this._getNextOffset_IE(offset, data) : this._getNextOffset_W3C(offset, data);
+		},
+		/** @private */
+		_getNextOffset_W3C: function (offset, data) {
+			function _isPunctuation(c) {
+				return (33 <= c && c <= 47) || (58 <= c && c <= 64) || (91 <= c && c <= 94) || c === 96 || (123 <= c && c <= 126);
+			}
+			function _isWhitespace(c) {
+				return c === 32 || c === 9;
+			}
+			var view = this.view;
+			var model = view._model;
+			var lineIndex = model.getLineAtOffset(offset);
+			var lineText = model.getLine(lineIndex);
+			var lineStart = model.getLineStart(lineIndex);
+			var lineEnd = model.getLineEnd(lineIndex);
+			var lineLength = lineText.length;
+			var offsetInLine = offset - lineStart;
+			var c;
+			var step = data.count < 0 ? -1 : 1;
+			if (data.unit === "word" || data.unit === "wordend" || data.unit === "wordWS" || data.unit === "wordendWS") { //$NON-NLS-3$ //$NON-NLS-2$ //$NON-NLS-1$ //$NON-NLS-0$
+				var previousPunctuation, previousLetterOrDigit, punctuation, letterOrDigit;
+				while (data.count !== 0) {
+					if (data.count > 0) {
+						if (offsetInLine === lineLength) { return lineEnd; }
+						c = lineText.charCodeAt(offsetInLine);
+						previousPunctuation = _isPunctuation(c); 
+						previousLetterOrDigit = !previousPunctuation && !_isWhitespace(c);
+						offsetInLine++;
+						while (offsetInLine < lineLength) {
+							c = lineText.charCodeAt(offsetInLine);
+							if (data.unit !== "wordWS" && data.unit !== "wordendWS") { //$NON-NLS-1$ //$NON-NLS-0$
+								punctuation = _isPunctuation(c);
+								if (data.unit === "wordend") { //$NON-NLS-0$
+									if (!punctuation && previousPunctuation) { break; }
+								} else {
+									if (punctuation && !previousPunctuation) { break; }
+								}
+								letterOrDigit  = !punctuation && !_isWhitespace(c);
+							} else {
+								letterOrDigit  = !_isWhitespace(c);
+							}
+							if (data.unit === "wordend" || data.unit === "wordendWS") { //$NON-NLS-1$ //$NON-NLS-0$
+								if (!letterOrDigit && previousLetterOrDigit) { break; }
+							} else {
+								if (letterOrDigit && !previousLetterOrDigit) { break; }
+							}
+							previousLetterOrDigit = letterOrDigit;
+							previousPunctuation = punctuation;
+							offsetInLine++;
+						}
+					} else {
+						if (offsetInLine === 0) { return lineStart; }
+						offsetInLine--;
+						c = lineText.charCodeAt(offsetInLine);
+						previousPunctuation = _isPunctuation(c); 
+						previousLetterOrDigit = !previousPunctuation && !_isWhitespace(c);
+						while (0 < offsetInLine) {
+							c = lineText.charCodeAt(offsetInLine - 1);
+							if (data.unit !== "wordWS" && data.unit !== "wordendWS") { //$NON-NLS-1$ //$NON-NLS-0$ 
+								punctuation = _isPunctuation(c);
+								if (data.unit === "wordend") { //$NON-NLS-0$
+									if (punctuation && !previousPunctuation) { break; }
+								} else {
+									if (!punctuation && previousPunctuation) { break; }
+								}
+								letterOrDigit  = !punctuation && !_isWhitespace(c);
+							} else {
+								letterOrDigit  = !_isWhitespace(c);
+							}
+							if (data.unit === "wordend" || data.unit === "wordendWS") { //$NON-NLS-1$ //$NON-NLS-0$
+								if (letterOrDigit && !previousLetterOrDigit) { break; }
+							} else {
+								if (!letterOrDigit && previousLetterOrDigit) { break; }
+							}
+							previousLetterOrDigit = letterOrDigit;
+							previousPunctuation = punctuation;
+							offsetInLine--;
+						}
+						if (offsetInLine === 0) {
+							//get previous line
+						}
+					}
+					data.count -= step;
+				}
+			} else {
+				while (data.count !== 0 && (0 <= offsetInLine + step && offsetInLine + step <= lineLength)) {
+					offsetInLine += step;
+					c = lineText.charCodeAt(offsetInLine);
+					// Handle Unicode surrogates
+					if (0xDC00 <= c && c <= 0xDFFF) {
+						if (offsetInLine > 0) {
+							c = lineText.charCodeAt(offsetInLine - 1);
+							if (0xD800 <= c && c <= 0xDBFF) {
+								offsetInLine += step;
+							}
+						}
+					}
+					data.count -= step;
+				}
+			}
+			return lineStart + offsetInLine;
+		},
+		/** @private */
+		_getNextOffset_IE: function (offset, data) {
+			var child = this._ensureCreated();
+			var view = this.view;
+			var model = view._model;
+			var lineIndex = this.lineIndex;
+			var result = 0, range, length;
+			var lineOffset = model.getLineStart(lineIndex);
+			var document = child.ownerDocument;
+			var lineChild;
+			var step = data.count < 0 ? -1 : 1;
+			if (offset === model.getLineEnd(lineIndex)) {
+				lineChild = child.lastChild;
+				while (lineChild && lineChild.ignoreChars === lineChild.firstChild.length) {
+					lineChild = lineChild.previousSibling;
+				}
+				if (!lineChild) {
+					return lineOffset;
+				}
+				range = document.body.createTextRange();
+				range.moveToElementText(lineChild);
+				length = range.text.length;
+				range.moveEnd(data.unit, step);
+				result = offset + range.text.length - length;
+			} else if (offset === lineOffset && data.count < 0) {
+				result = lineOffset;
+			} else {
+				lineChild = child.firstChild;
+				while (lineChild) {
+					var textNode = lineChild.firstChild;
+					var nodeLength = textNode.length;
+					if (lineChild.ignoreChars) {
+						nodeLength -= lineChild.ignoreChars;
+					}
+					if (lineOffset + nodeLength > offset) {
+						range = document.body.createTextRange();
+						if (offset === lineOffset && data.count < 0) {
+							range.moveToElementText(lineChild.previousSibling);
+						} else {
+							range.moveToElementText(lineChild);
+							range.collapse();
+							range.moveEnd("character", offset - lineOffset); //$NON-NLS-0$
+						}
+						length = range.text.length;
+						range.moveEnd(data.unit, step);
+						result = offset + range.text.length - length;
+						break;
+					}
+					lineOffset = nodeLength + lineOffset;
+					lineChild = lineChild.nextSibling;
+				}
+			}
+			data.count -= step;
+			return result;
+		},
+		/** @private */
+		destroy: function() {
+			var div = this._createdDiv;
+			if (div) {
+				div.parentNode.removeChild(div);
+				this._createdDiv = null;
+			}
+		}
+	};
+	
+	/**
+	 * @class This object describes the options for the text view.
+	 * <p>
+	 * <b>See:</b><br/>
+	 * {@link orion.editor.TextView}<br/>
+	 * {@link orion.editor.TextView#setOptions}
+	 * {@link orion.editor.TextView#getOptions}	 
+	 * </p>		 
+	 * @name orion.editor.TextViewOptions
+	 *
+	 * @property {String|DOMElement} parent the parent element for the view, it can be either a DOM element or an ID for a DOM element.
+	 * @property {orion.editor.TextModel} [model] the text model for the view. If it is not set the view creates an empty {@link orion.editor.TextModel}.
+	 * @property {Boolean} [readonly=false] whether or not the view is read-only.
+	 * @property {Boolean} [fullSelection=true] whether or not the view is in full selection mode.
+	 * @property {Boolean} [tabMode=true] whether or not the tab keypress is consumed by the view or is used for focus traversal.
+	 * @property {Boolean} [expandTab=false] whether or not the tab key inserts white spaces.
+	 * @property {orion.editor.TextTheme} [theme=orion.editor.TextTheme.getTheme()] the TextTheme manager. TODO more info on this
+	 * @property {String} [themeClass] the CSS class for the view theming.
+	 * @property {Number} [tabSize=8] The number of spaces in a tab.
+	 * @property {Boolean} [overwriteMode=false] whether or not the view is in insert/overwrite mode.
+	 * @property {Boolean} [singleMode=false] whether or not the editor is in single line mode.
+	 * @property {Number} [marginOffset=0] the offset in a line where the print margin should be displayed. <code>0</code> means no print margin.
+	 * @property {Number} [wrapOffset=0] the offset in a line where text should wrap. <code>0</code> means wrap at the client area right edge.
+	 * @property {Boolean} [wrapMode=false] whether or not the view wraps lines.
+	 * @property {Boolean} [wrapable=false] whether or not the view is wrappable.
+	 * @property {Number} [scrollAnimation=0] the time duration in miliseconds for scrolling animation. <code>0</code> means no animation.
+	 * @property {Boolean} [blockCursorVisible=false] whether or not to show the block cursor.
+	 */
+	/**
+	 * Constructs a new text view.
+	 * 
+	 * @param {orion.editor.TextViewOptions} options the view options.
+	 * 
+	 * @class A TextView is a user interface for editing text.
+	 * @name orion.editor.TextView
+	 * @borrows orion.editor.EventTarget#addEventListener as #addEventListener
+	 * @borrows orion.editor.EventTarget#removeEventListener as #removeEventListener
+	 * @borrows orion.editor.EventTarget#dispatchEvent as #dispatchEvent
+	 */
+	function TextView (options) {
+		this._init(options || {});
+	}
+	
+	TextView.prototype = /** @lends orion.editor.TextView.prototype */ {
+		/**
+		 * Adds a keyMode to the text view at the specified position.
+		 *
+		 * @param {orion.editor.KeyMode} mode the editor keyMode.
+		 * @param {Number} [index=length] the index.
+		 */
+		addKeyMode: function(mode, index) {
+			var keyModes = this._keyModes;
+			if (index !== undefined) {
+				keyModes.splice(index, 0, mode);
+			} else {
+				keyModes.push(mode);
+			}
+			//TODO: API needed for this
+			if (mode._modeAdded) {
+				mode._modeAdded();
+			}
+		},
+		/**
+		 * Adds a ruler to the text view at the specified position.
+		 * <p>
+		 * The position is relative to the ruler location.
+		 * </p>
+		 *
+		 * @param {orion.editor.Ruler} ruler the ruler.
+		 * @param {Number} [index=length] the ruler index.
+		 */
+		addRuler: function (ruler, index) {
+			ruler.setView(this);
+			var rulers = this._rulers;
+			if (index !== undefined) {
+				var i, sideIndex;
+				for (i = 0, sideIndex=0; i < rulers.length && sideIndex < index; i++) {
+					if (ruler.getLocation() === rulers[i].getLocation()) {
+						sideIndex++;
+					}
+				}
+				rulers.splice(sideIndex, 0, ruler);
+				index = sideIndex;
+			} else {
+				rulers.push(ruler);
+			}
+			this._createRuler(ruler, index);
+			this._update();
+		},
+		computeSize: function() {
+			var w = 0, h = 0;
+			var model = this._model, clientDiv = this._clientDiv;
+			if (!clientDiv) { return {width: w, height: h}; }
+			var clientWidth = clientDiv.style.width;
+			/*
+			* Feature in WekKit. Webkit limits the width of the lines
+			* computed below to the width of the client div.  This causes
+			* the lines to be wrapped even though "pre" is set.  The fix
+			* is to set the width of the client div to a "0x7fffffffpx"
+			* before computing the lines width.  Note that this value is
+			* reset to the appropriate value further down.
+			*/
+			if (util.isWebkit) {
+				clientDiv.style.width = "0x7fffffffpx"; //$NON-NLS-0$
+			}
+			var lineCount = model.getLineCount();
+			for (var lineIndex=0; lineIndex<lineCount; lineIndex++) {
+				var line = this._getLine(lineIndex);
+				var rect = line.getBoundingClientRect();
+				w = Math.max(w, rect.right - rect.left);
+				h += rect.bottom - rect.top;
+				line.destroy();
+			}
+			if (util.isWebkit) {
+				clientDiv.style.width = clientWidth;
+			}
+			var viewPadding = this._getViewPadding();
+			w += viewPadding.right + viewPadding.left + this._metrics.scrollWidth;
+			h += viewPadding.bottom + viewPadding.top + this._metrics.scrollWidth;
+			return {width: w, height: h};
+		},
+		/**
+		 * Converts the given rectangle from one coordinate spaces to another.
+		 * <p>The supported coordinate spaces are:
+		 * <ul>
+		 *   <li>"document" - relative to document, the origin is the top-left corner of first line</li>
+		 *   <li>"page" - relative to html page that contains the text view</li>
+		 * </ul>
+		 * </p>
+		 * <p>All methods in the view that take or return a position are in the document coordinate space.</p>
+		 *
+		 * @param rect the rectangle to convert.
+		 * @param rect.x the x of the rectangle.
+		 * @param rect.y the y of the rectangle.
+		 * @param rect.width the width of the rectangle.
+		 * @param rect.height the height of the rectangle.
+		 * @param {String} from the source coordinate space.
+		 * @param {String} to the destination coordinate space.
+		 *
+		 * @see orion.editor.TextView#getLocationAtOffset
+		 * @see orion.editor.TextView#getOffsetAtLocation
+		 * @see orion.editor.TextView#getTopPixel
+		 * @see orion.editor.TextView#setTopPixel
+		 */
+		convert: function(rect, from, to) {
+			if (!this._clientDiv) { return; }
+			var scroll = this._getScroll();
+			var viewPad = this._getViewPadding();
+			var viewRect = this._viewDiv.getBoundingClientRect();
+			if (from === "document") { //$NON-NLS-0$
+				if (rect.x !== undefined) {
+					rect.x += - scroll.x + viewRect.left + viewPad.left;
+				}
+				if (rect.y !== undefined) {
+					rect.y += - scroll.y + viewRect.top + viewPad.top;
+				}
+			}
+			//At this point rect is in the widget coordinate space
+			if (to === "document") { //$NON-NLS-0$
+				if (rect.x !== undefined) {
+					rect.x += scroll.x - viewRect.left - viewPad.left;
+				}
+				if (rect.y !== undefined) {
+					rect.y += scroll.y - viewRect.top - viewPad.top;
+				}
+			}
+			return rect;
+		},
+		/**
+		 * Destroys the text view. 
+		 * <p>
+		 * Removes the view from the page and frees all resources created by the view.
+		 * Calling this function causes the "Destroy" event to be fire so that all components
+		 * attached to view can release their references.
+		 * </p>
+		 *
+		 * @see orion.editor.TextView#onDestroy
+		 */
+		destroy: function() {
+			/* Destroy rulers*/
+			for (var i=0; i< this._rulers.length; i++) {
+				this._rulers[i].setView(null);
+			}
+			this.rulers = null;
+			
+			this._destroyView();
+
+			var e = {type: "Destroy"}; //$NON-NLS-0$
+			this.onDestroy(e);
+
+			this._parent = null;
+			this._model = null;
+			this._theme = null;
+			this._selection = null;
+			this._doubleClickSelection = null;
+			this._keyModes = null;
+			this._actions = null;
+		},
+		/**
+		 * Gives focus to the text view.
+		 */
+		focus: function() {
+			if (!this._clientDiv) { return; }
+			/*
+			* Feature in Chrome. When focus is called in the clientDiv without
+			* setting selection the browser will set the selection to the first dom 
+			* element, which can be above the client area. When this happen the 
+			* browser also scrolls the window to show that element.
+			* The fix is to call _updateDOMSelection() before calling focus().
+			*/
+			this._updateDOMSelection();
+			this._clientDiv.focus();
+			/*
+			* Feature in Safari. When focus is called the browser selects the clientDiv
+			* itself. The fix is to call _updateDOMSelection() after calling focus().
+			*/
+			this._updateDOMSelection();
+		},
+		/**
+		 * Check if the text view has focus.
+		 *
+		 * @returns {Boolean} <code>true</code> if the text view has focus, otherwise <code>false</code>.
+		 */
+		hasFocus: function() {
+			return this._hasFocus;
+		},
+		/**
+		 * Returns the action description for a given action ID.
+		 *
+		 * @returns {orion.editor.ActionDescrition} the action description
+		 */
+		getActionDescription: function(actionID) {
+			var action = this._actions[actionID];
+			if (action) {
+				return action.actionDescription;
+			}
+			return undefined;
+		},
+		/**
+		 * Returns all action IDs defined in the text view.
+		 * <p>
+		 * There are two types of actions, the predefined actions of the view 
+		 * and the actions added by application code.
+		 * </p>
+		 * <p>
+		 * The predefined actions are:
+		 * <ul>
+		 *   <li>Navigation actions. These actions move the caret collapsing the selection.</li>
+		 *     <ul>
+		 *       <li>"lineUp" - moves the caret up by one line</li>
+		 *       <li>"lineDown" - moves the caret down by one line</li>
+		 *       <li>"lineStart" - moves the caret to beginning of the current line</li>
+		 *       <li>"lineEnd" - moves the caret to end of the current line </li>
+		 *       <li>"charPrevious" - moves the caret to the previous character</li>
+		 *       <li>"charNext" - moves the caret to the next character</li>
+		 *       <li>"pageUp" - moves the caret up by one page</li>
+		 *       <li>"pageDown" - moves the caret down by one page</li>
+		 *       <li>"wordPrevious" - moves the caret to the previous word</li>
+		 *       <li>"wordNext" - moves the caret to the next word</li>
+		 *       <li>"textStart" - moves the caret to the beginning of the document</li>
+		 *       <li>"textEnd" - moves the caret to the end of the document</li>
+		 *     </ul>
+		 *   <li>Selection actions. These actions move the caret extending the selection.</li>
+		 *     <ul>
+		 *       <li>"selectLineUp" - moves the caret up by one line</li>
+		 *       <li>"selectLineDown" - moves the caret down by one line</li>
+		 *       <li>"selectLineStart" - moves the caret to beginning of the current line</li>
+		 *       <li>"selectLineEnd" - moves the caret to end of the current line </li>
+		 *       <li>"selectCharPrevious" - moves the caret to the previous character</li>
+		 *       <li>"selectCharNext" - moves the caret to the next character</li>
+		 *       <li>"selectPageUp" - moves the caret up by one page</li>
+		 *       <li>"selectPageDown" - moves the caret down by one page</li>
+		 *       <li>"selectWordPrevious" - moves the caret to the previous word</li>
+		 *       <li>"selectWordNext" - moves the caret to the next word</li>
+		 *       <li>"selectTextStart" - moves the caret to the beginning of the document</li>
+		 *       <li>"selectTextEnd" - moves the caret to the end of the document</li>
+		 *       <li>"selectAll" - selects the entire document</li>
+		 *     </ul>
+		 *   <li>Edit actions. These actions modify the text view text</li>
+		 *     <ul>
+		 *       <li>"deletePrevious" - deletes the character preceding the caret</li>
+		 *       <li>"deleteNext" - deletes the charecter following the caret</li>
+		 *       <li>"deleteWordPrevious" - deletes the word preceding the caret</li>
+		 *       <li>"deleteWordNext" - deletes the word following the caret</li>
+		 *       <li>"tab" - inserts a tab character at the caret</li>
+		 *       <li>"shiftTab" - noop</li>
+		 *       <li>"toggleTabMode" - toggles tab mode.</li>
+		 *       <li>"toggleWrapMode" - toggles wrap mode.</li>
+		 *       <li>"toggleOverwriteMode" - toggles overwrite mode.</li>
+		 *       <li>"enter" - inserts a line delimiter at the caret</li>
+		 *     </ul>
+		 *   <li>Clipboard actions.</li>
+		 *     <ul>
+		 *       <li>"copy" - copies the selected text to the clipboard</li>
+		 *       <li>"cut" - copies the selected text to the clipboard and deletes the selection</li>
+		 *       <li>"paste" - replaces the selected text with the clipboard contents</li>
+		 *     </ul>
+		 * </ul>
+		 * </p>
+		 *
+		 * @param {Boolean} [defaultAction=false] whether or not the predefined actions are included.
+		 * @returns {String[]} an array of action IDs defined in the text view.
+		 *
+		 * @see orion.editor.TextView#invokeAction
+		 * @see orion.editor.TextView#setAction
+		 * @see orion.editor.TextView#setKeyBinding
+		 * @see orion.editor.TextView#getKeyBindings
+		 */
+		getActions: function (defaultAction) {
+			var result = [];
+			var actions = this._actions;
+			for (var i in actions) {
+				if (actions.hasOwnProperty(i)) {
+					if (!defaultAction && actions[i].defaultHandler) { continue; }
+					result.push(i);
+				}
+			}
+			return result;
+		},
+		/**
+		 * Returns the bottom index.
+		 * <p>
+		 * The bottom index is the line that is currently at the bottom of the view.  This
+		 * line may be partially visible depending on the vertical scroll of the view. The parameter
+		 * <code>fullyVisible</code> determines whether to return only fully visible lines. 
+		 * </p>
+		 *
+		 * @param {Boolean} [fullyVisible=false] if <code>true</code>, returns the index of the last fully visible line. This
+		 *    parameter is ignored if the view is not big enough to show one line.
+		 * @returns {Number} the index of the bottom line.
+		 *
+		 * @see orion.editor.TextView#getTopIndex
+		 * @see orion.editor.TextView#setTopIndex
+		 */
+		getBottomIndex: function(fullyVisible) {
+			if (!this._clientDiv) { return 0; }
+			return this._getBottomIndex(fullyVisible);
+		},
+		/**
+		 * Returns the bottom pixel.
+		 * <p>
+		 * The bottom pixel is the pixel position that is currently at
+		 * the bottom edge of the view.  This position is relative to the
+		 * beginning of the document.
+		 * </p>
+		 *
+		 * @returns {Number} the bottom pixel.
+		 *
+		 * @see orion.editor.TextView#getTopPixel
+		 * @see orion.editor.TextView#setTopPixel
+		 * @see orion.editor.TextView#convert
+		 */
+		getBottomPixel: function() {
+			if (!this._clientDiv) { return 0; }
+			return this._getScroll().y + this._getClientHeight();
+		},
+		/**
+		 * Returns the caret offset relative to the start of the document.
+		 *
+		 * @returns {Number} the caret offset relative to the start of the document.
+		 *
+		 * @see orion.editor.TextView#setCaretOffset
+		 * @see orion.editor.TextView#setSelection
+		 * @see orion.editor.TextView#getSelection
+		 */
+		getCaretOffset: function () {
+			var s = this._getSelection();
+			return s.getCaret();
+		},
+		/**
+		 * Returns the client area.
+		 * <p>
+		 * The client area is the portion in pixels of the document that is visible. The
+		 * client area position is relative to the beginning of the document.
+		 * </p>
+		 *
+		 * @returns {Object} the client area rectangle {x, y, width, height}.
+		 *
+		 * @see orion.editor.TextView#getTopPixel
+		 * @see orion.editor.TextView#getBottomPixel
+		 * @see orion.editor.TextView#getHorizontalPixel
+		 * @see orion.editor.TextView#convert
+		 */
+		getClientArea: function() {
+			if (!this._clientDiv) { return {x: 0, y: 0, width: 0, height: 0}; }
+			var scroll = this._getScroll();
+			return {x: scroll.x, y: scroll.y, width: this._getClientWidth(), height: this._getClientHeight()};
+		},
+		/**
+		 * Returns the horizontal pixel.
+		 * <p>
+		 * The horizontal pixel is the pixel position that is currently at
+		 * the left edge of the view.  This position is relative to the
+		 * beginning of the document.
+		 * </p>
+		 *
+		 * @returns {Number} the horizontal pixel.
+		 *
+		 * @see orion.editor.TextView#setHorizontalPixel
+		 * @see orion.editor.TextView#convert
+		 */
+		getHorizontalPixel: function() {
+			if (!this._clientDiv) { return 0; }
+			return this._getScroll().x;
+		},
+		/**
+		 * Returns all the key bindings associated to the given action ID.
+		 *
+		 * @param {String} actionID the action ID.
+		 * @returns {orion.editor.KeyBinding[]} the array of key bindings associated to the given action ID.
+		 *
+		 * @see orion.editor.TextView#setKeyBinding
+		 * @see orion.editor.TextView#setAction
+		 */
+		getKeyBindings: function (actionID) {
+			var result = [];
+			var keyModes = this._keyModes;
+			for (var i = 0; i < keyModes.length; i++) {
+				result = result.concat(keyModes[i].getKeyBindings(actionID));
+			}
+			return result;
+		},
+		/**
+		 * Returns all the key modes added to text view.
+		 *
+		 * @returns {orion.editor.KeyMode[]} the array of key modes.
+		 *
+		 * @see orion.editor.TextView#addKeyMode
+		 * @see orion.editor.TextView#removeKeyMode
+		 */
+		getKeyModes: function() {
+			return this._keyModes.slice(0);
+		},
+		/**
+		 * Returns the line height for a given line index.  Returns the default line
+		 * height if the line index is not specified.
+		 *
+		 * @param {Number} [lineIndex] the line index.
+		 * @returns {Number} the height of the line in pixels.
+		 *
+		 * @see orion.editor.TextView#getLinePixel
+		 */
+		getLineHeight: function(lineIndex) {
+			if (!this._clientDiv) { return 0; }
+			return this._getLineHeight(lineIndex);
+		},
+		/**
+		 * Returns the line index for a given line pixel position relative to the document.
+		 *
+		 * @param {Number} [y] the line pixel.
+		 * @returns {Number} the line index for the specified pixel position.
+		 *
+		 * @see orion.editor.TextView#getLinePixel
+		 */
+		getLineIndex: function(y) {
+			if (!this._clientDiv) { return 0; }
+			return this._getLineIndex(y);
+		},
+		/**
+		 * Returns the top pixel position of a given line index relative to the beginning
+		 * of the document.
+		 * <p>
+		 * Clamps out of range indices.
+		 * </p>
+		 *
+		 * @param {Number} lineIndex the line index.
+		 * @returns {Number} the pixel position of the line.
+		 *
+		 * @see orion.editor.TextView#setTopPixel
+		 * @see orion.editor.TextView#getLineIndex
+		 * @see orion.editor.TextView#convert
+		 */
+		getLinePixel: function(lineIndex) {
+			if (!this._clientDiv) { return 0; }
+			return this._getLinePixel(lineIndex);
+		},
+		/**
+		 * Returns the {x, y} pixel location of the top-left corner of the character
+		 * bounding box at the specified offset in the document.  The pixel location
+		 * is relative to the document.
+		 * <p>
+		 * Clamps out of range offsets.
+		 * </p>
+		 *
+		 * @param {Number} offset the character offset
+		 * @returns {Object} the {x, y} pixel location of the given offset.
+		 *
+		 * @see orion.editor.TextView#getOffsetAtLocation
+		 * @see orion.editor.TextView#convert
+		 */
+		getLocationAtOffset: function(offset) {
+			if (!this._clientDiv) { return {x: 0, y: 0}; }
+			var model = this._model;
+			offset = Math.min(Math.max(0, offset), model.getCharCount());
+			var lineIndex = model.getLineAtOffset(offset);
+			var line = this._getLine(lineIndex);
+			var rect = line.getBoundingClientRect(offset);
+			line.destroy();
+			var x = rect.left;
+			var y = this._getLinePixel(lineIndex) + rect.top;
+			return {x: x, y: y};
+		},
+		/**
+		 * Returns the next character offset after the given offset and options
+		 *
+		 * @param {Number} offset the offset to start from
+		 * @param {Object} options
+		 *   { unit: the type of unit to advance to (eg "character", "word", "wordend", "wordWS", "wordendWS"),
+		 *    count: the number of units to advance (negative to advance backwards) }
+		 * @returns {Number} the next character offset
+		 */
+		getNextOffset: function(offset, options) {
+		  var selection = new Selection(offset, offset, false);
+		  this._doMove(options, selection);
+		  return selection.getCaret();
+		},
+        /**
+		 * Returns the specified view options.
+		 * <p>
+		 * The returned value is either a <code>orion.editor.TextViewOptions</code> or an option value. An option value is returned when only one string paremeter
+		 * is specified. A <code>orion.editor.TextViewOptions</code> is returned when there are no paremeters, or the parameters are a list of options names or a
+		 * <code>orion.editor.TextViewOptions</code>. All view options are returned when there no paremeters.
+		 * </p>
+		 *
+		 * @param {String|orion.editor.TextViewOptions} [options] The options to return.
+		 * @return {Object|orion.editor.TextViewOptions} The requested options or an option value.
+		 *
+		 * @see orion.editor.TextView#setOptions
+		 */
+		getOptions: function() {
+			var options;
+			if (arguments.length === 0) {
+				options = this._defaultOptions();
+			} else if (arguments.length === 1) {
+				var arg = arguments[0];
+				if (typeof arg === "string") { //$NON-NLS-0$
+					return clone(this["_" + arg]); //$NON-NLS-0$
+				}
+				options = arg;
+			} else {
+				options = {};
+				for (var index in arguments) {
+					if (arguments.hasOwnProperty(index)) {
+						options[arguments[index]] = undefined;
+					}
+				}
+			}
+			for (var option in options) {
+				if (options.hasOwnProperty(option)) {
+					options[option] = clone(this["_" + option]); //$NON-NLS-0$
+				}
+			}
+			return options;
+		},
+		/**
+		 * Returns the text model of the text view.
+		 *
+		 * @returns {orion.editor.TextModel} the text model of the view.
+		 */
+		getModel: function() {
+			return this._model;
+		},
+		/**
+		 * Returns the character offset nearest to the given pixel location.  The
+		 * pixel location is relative to the document.
+		 *
+		 * @param x the x of the location
+		 * @param y the y of the location
+		 * @returns {Number} the character offset at the given location.
+		 *
+		 * @see orion.editor.TextView#getLocationAtOffset
+		 */
+		getOffsetAtLocation: function(x, y) {
+			if (!this._clientDiv) { return 0; }
+			var lineIndex = this._getLineIndex(y);
+			var line = this._getLine(lineIndex);
+			var offset = line.getOffset(x, y - this._getLinePixel(lineIndex));
+			line.destroy();
+			return offset;
+		},
+		/**
+		 * Get the view rulers.
+		 *
+		 * @returns {orion.editor.Ruler[]} the view rulers
+		 *
+		 * @see orion.editor.TextView#addRuler
+		 */
+		getRulers: function() {
+			return this._rulers.slice(0);
+		},
+		/**
+		 * Returns the text view selection.
+		 * <p>
+		 * The selection is defined by a start and end character offset relative to the
+		 * document. The character at end offset is not included in the selection.
+		 * </p>
+		 * 
+		 * @returns {orion.editor.Selection} the view selection
+		 *
+		 * @see orion.editor.TextView#setSelection
+		 */
+		getSelection: function () {
+			var s = this._getSelection();
+			return {start: s.start, end: s.end};
+		},
+		/**
+		 * Returns the text for the given range.
+		 * <p>
+		 * The text does not include the character at the end offset.
+		 * </p>
+		 *
+		 * @param {Number} [start=0] the start offset of text range.
+		 * @param {Number} [end=char count] the end offset of text range.
+		 *
+		 * @see orion.editor.TextView#setText
+		 */
+		getText: function(start, end) {
+			var model = this._model;
+			return model.getText(start, end);
+		},
+		/**
+		 * Returns the top index.
+		 * <p>
+		 * The top index is the line that is currently at the top of the view.  This
+		 * line may be partially visible depending on the vertical scroll of the view. The parameter
+		 * <code>fullyVisible</code> determines whether to return only fully visible lines. 
+		 * </p>
+		 *
+		 * @param {Boolean} [fullyVisible=false] if <code>true</code>, returns the index of the first fully visible line. This
+		 *    parameter is ignored if the view is not big enough to show one line.
+		 * @returns {Number} the index of the top line.
+		 *
+		 * @see orion.editor.TextView#getBottomIndex
+		 * @see orion.editor.TextView#setTopIndex
+		 */
+		getTopIndex: function(fullyVisible) {
+			if (!this._clientDiv) { return 0; }
+			return this._getTopIndex(fullyVisible);
+		},
+		/**
+		 * Returns the top pixel.
+		 * <p>
+		 * The top pixel is the pixel position that is currently at
+		 * the top edge of the view.  This position is relative to the
+		 * beginning of the document.
+		 * </p>
+		 *
+		 * @returns {Number} the top pixel.
+		 *
+		 * @see orion.editor.TextView#getBottomPixel
+		 * @see orion.editor.TextView#setTopPixel
+		 * @see orion.editor.TextView#convert
+		 */
+		getTopPixel: function() {
+			if (!this._clientDiv) { return 0; }
+			return this._getScroll().y;
+		},
+		/**
+		 * Executes the action handler associated with the given action ID.
+		 * <p>
+		 * The application defined action takes precedence over predefined actions unless
+		 * the <code>defaultAction</code> paramater is <code>true</code>.
+		 * </p>
+		 * <p>
+		 * If the application defined action returns <code>false</code>, the text view predefined
+		 * action is executed if present.
+		 * </p>
+		 *
+		 * @param {String} actionID the action ID.
+		 * @param {Boolean} [defaultAction] whether to always execute the predefined action only.
+		 * @param {Object} [actionOptions] action specific options to be passed to the action handlers.
+		 * @returns {Boolean} <code>true</code> if the action was executed.
+		 *
+		 * @see orion.editor.TextView#setAction
+		 * @see orion.editor.TextView#getActions
+		 */
+		invokeAction: function (actionID, defaultAction, actionOptions) {
+			if (!this._clientDiv) { return; }
+			var action = this._actions[actionID];
+			if (action) {
+				if (!defaultAction && action.handler) {
+					if (action.handler(actionOptions)) {
+						return true;
+					}
+				}
+				if (action.defaultHandler) {
+					return typeof action.defaultHandler(actionOptions) === "boolean"; //$NON-NLS-0$
+				}
+			}
+			return false;
+		},
+		/**
+		* Returns if the view is destroyed.
+		* @returns {Boolean} <code>true</code> if the view is destroyed.
+		*/
+		isDestroyed: function () {
+			return !this._clientDiv;
+		},
+		/** 
+		 * @class This is the event sent when the user right clicks or otherwise invokes the context menu of the view. 
+		 * <p> 
+		 * <b>See:</b><br/> 
+		 * {@link orion.editor.TextView}<br/> 
+		 * {@link orion.editor.TextView#event:onContextMenu} 
+		 * </p> 
+		 * 
+		 * @name orion.editor.ContextMenuEvent 
+		 * 
+		 * @property {Number} x The pointer location on the x axis, relative to the document the user is editing. 
+		 * @property {Number} y The pointer location on the y axis, relative to the document the user is editing. 
+		 * @property {Number} screenX The pointer location on the x axis, relative to the screen. This is copied from the DOM contextmenu event.screenX property. 
+		 * @property {Number} screenY The pointer location on the y axis, relative to the screen. This is copied from the DOM contextmenu event.screenY property. 
+		 * @property {Boolean} defaultPrevented Determines whether the user agent context menu should be shown. It is shown by default.
+		 * @property {Function} preventDefault If called prevents the user agent context menu from showing.
+		 */ 
+		/** 
+		 * This event is sent when the user invokes the view context menu. 
+		 * 
+		 * @event 
+		 * @param {orion.editor.ContextMenuEvent} contextMenuEvent the event 
+		 */ 
+		onContextMenu: function(contextMenuEvent) {
+			return this.dispatchEvent(contextMenuEvent); 
+		}, 
+		onDragStart: function(dragEvent) {
+			return this.dispatchEvent(dragEvent);
+		},
+		onDrag: function(dragEvent) {
+			return this.dispatchEvent(dragEvent);
+		},
+		onDragEnd: function(dragEvent) {
+			return this.dispatchEvent(dragEvent);
+		},
+		onDragEnter: function(dragEvent) {
+			return this.dispatchEvent(dragEvent);
+		},
+		onDragOver: function(dragEvent) {
+			return this.dispatchEvent(dragEvent);
+		},
+		onDragLeave: function(dragEvent) {
+			return this.dispatchEvent(dragEvent);
+		},
+		onDrop: function(dragEvent) {
+			return this.dispatchEvent(dragEvent);
+		},
+		/**
+		 * @class This is the event sent when the text view is destroyed.
+		 * <p>
+		 * <b>See:</b><br/>
+		 * {@link orion.editor.TextView}<br/>
+		 * {@link orion.editor.TextView#event:onDestroy}
+		 * </p>
+		 * @name orion.editor.DestroyEvent
+		 */
+		/**
+		 * This event is sent when the text view has been destroyed.
+		 *
+		 * @event
+		 * @param {orion.editor.DestroyEvent} destroyEvent the event
+		 *
+		 * @see orion.editor.TextView#destroy
+		 */
+		onDestroy: function(destroyEvent) {
+			return this.dispatchEvent(destroyEvent);
+		},
+		/**
+		 * @class This object is used to define style information for the text view.
+		 * <p>
+		 * <b>See:</b><br/>
+		 * {@link orion.editor.TextView}<br/>
+		 * {@link orion.editor.TextView#event:onLineStyle}
+		 * </p>		 
+		 * @name orion.editor.Style
+		 * 
+		 * @property {String} styleClass A CSS class name.
+		 * @property {Object} style An object with CSS properties.
+		 * @property {String} tagName A DOM tag name.
+		 * @property {Object} attributes An object with DOM attributes.
+		 */
+		/**
+		 * @class This object is used to style range.
+		 * <p>
+		 * <b>See:</b><br/>
+		 * {@link orion.editor.TextView}<br/>
+		 * {@link orion.editor.TextView#event:onLineStyle}
+		 * </p>		 
+		 * @name orion.editor.StyleRange
+		 * 
+		 * @property {Number} start The start character offset, relative to the document, where the style should be applied.
+		 * @property {Number} end The end character offset (exclusive), relative to the document, where the style should be applied.
+		 * @property {orion.editor.Style} style The style for the range.
+		 */
+		/**
+		 * @class This is the event sent when the text view needs the style information for a line.
+		 * <p>
+		 * <b>See:</b><br/>
+		 * {@link orion.editor.TextView}<br/>
+		 * {@link orion.editor.TextView#event:onLineStyle}
+		 * </p>		 
+		 * @name orion.editor.LineStyleEvent
+		 * 
+		 * @property {orion.editor.TextView} textView The text view.		 
+		 * @property {Number} lineIndex The line index.
+		 * @property {String} lineText The line text.
+		 * @property {Number} lineStart The character offset, relative to document, of the first character in the line.
+		 * @property {orion.editor.Style} style The style for the entire line (output argument).
+		 * @property {orion.editor.StyleRange[]} ranges An array of style ranges for the line (output argument).		 
+		 */
+		/**
+		 * This event is sent when the text view needs the style information for a line.
+		 *
+		 * @event
+		 * @param {orion.editor.LineStyleEvent} lineStyleEvent the event
+		 */
+		onLineStyle: function(lineStyleEvent) {
+			return this.dispatchEvent(lineStyleEvent);
+		},
+		/**
+		 * @class This is the event sent for all keyboard events.
+		 * <p>
+		 * <b>See:</b><br/>
+		 * {@link orion.editor.TextView}<br/>
+		 * {@link orion.editor.TextView#event:onKeyDown}<br/>
+		 * {@link orion.editor.TextView#event:onKeyPress}<br/>
+		 * {@link orion.editor.TextView#event:onKeyUp}<br/>
+		 * </p>
+		 * @name orion.editor.KeyEvent
+		 * 
+		 * @property {String} type The type of event.
+		 * @property {DOMEvent} event The key DOM event.
+		 * @property {Boolean} defaultPrevented Determines whether the user agent context menu should be shown. It is shown by default.
+		 * @property {Function} preventDefault If called prevents the user agent context menu from showing.
+		 */
+		/**
+		 * This event is sent for key down events.
+		 *
+		 * @event
+		 * @param {orion.editor.KeyEvent} keyEvent the event
+		 */
+		onKeyDown: function(keyEvent) {
+			return this.dispatchEvent(keyEvent);
+		},
+		/**
+		 * This event is sent for key press events. Key press events are only sent
+		 * for printable characters.
+		 *
+		 * @event
+		 * @param {orion.editor.KeyEvent} keyEvent the event
+		 */
+		onKeyPress: function(keyEvent) {
+			return this.dispatchEvent(keyEvent);
+		},
+		/**
+		 * This event is sent for key up events.
+		 *
+		 * @event
+		 * @param {orion.editor.KeyEvent} keyEvent the event
+		 */
+		onKeyUp: function(keyEvent) {
+			return this.dispatchEvent(keyEvent);
+		},
+		/**
+		 * @class This is the event sent when the text in the model has changed.
+		 * <p>
+		 * <b>See:</b><br/>
+		 * {@link orion.editor.TextView}<br/>
+		 * {@link orion.editor.TextView#event:onModelChanged}<br/>
+		 * {@link orion.editor.TextModel#onChanged}
+		 * </p>
+		 * @name orion.editor.ModelChangedEvent
+		 * 
+		 * @property {Number} start The character offset in the model where the change has occurred.
+		 * @property {Number} removedCharCount The number of characters removed from the model.
+		 * @property {Number} addedCharCount The number of characters added to the model.
+		 * @property {Number} removedLineCount The number of lines removed from the model.
+		 * @property {Number} addedLineCount The number of lines added to the model.
+		 */
+		/**
+		 * This event is sent when the text in the model has changed.
+		 *
+		 * @event
+		 * @param {orion.editor.ModelChangedEvent} modelChangedEvent the event
+		 */
+		onModelChanged: function(modelChangedEvent) {
+			return this.dispatchEvent(modelChangedEvent);
+		},
+		/**
+		 * @class This is the event sent when the text in the model is about to change.
+		 * <p>
+		 * <b>See:</b><br/>
+		 * {@link orion.editor.TextView}<br/>
+		 * {@link orion.editor.TextView#event:onModelChanging}<br/>
+		 * {@link orion.editor.TextModel#onChanging}
+		 * </p>
+		 * @name orion.editor.ModelChangingEvent
+		 * 
+		 * @property {String} text The text that is about to be inserted in the model.
+		 * @property {Number} start The character offset in the model where the change will occur.
+		 * @property {Number} removedCharCount The number of characters being removed from the model.
+		 * @property {Number} addedCharCount The number of characters being added to the model.
+		 * @property {Number} removedLineCount The number of lines being removed from the model.
+		 * @property {Number} addedLineCount The number of lines being added to the model.
+		 */
+		/**
+		 * This event is sent when the text in the model is about to change.
+		 *
+		 * @event
+		 * @param {orion.editor.ModelChangingEvent} modelChangingEvent the event
+		 */
+		onModelChanging: function(modelChangingEvent) {
+			return this.dispatchEvent(modelChangingEvent);
+		},
+		/**
+		 * @class This is the event sent when the text is modified by the text view.
+		 * <p>
+		 * <b>See:</b><br/>
+		 * {@link orion.editor.TextView}<br/>
+		 * {@link orion.editor.TextView#event:onModify}
+		 * </p>
+		 * @name orion.editor.ModifyEvent
+		 */
+		/**
+		 * This event is sent when the text view has changed text in the model.
+		 * <p>
+		 * If the text is changed directly through the model API, this event
+		 * is not sent.
+		 * </p>
+		 *
+		 * @event
+		 * @param {orion.editor.ModifyEvent} modifyEvent the event
+		 */
+		onModify: function(modifyEvent) {
+			return this.dispatchEvent(modifyEvent);
+		},
+		onMouseDown: function(mouseEvent) {
+			return this.dispatchEvent(mouseEvent);
+		},
+		onMouseUp: function(mouseEvent) {
+			return this.dispatchEvent(mouseEvent);
+		},
+		onMouseMove: function(mouseEvent) {
+			return this.dispatchEvent(mouseEvent);
+		},
+		onMouseOver: function(mouseEvent) {
+			return this.dispatchEvent(mouseEvent);
+		},
+		onMouseOut: function(mouseEvent) {
+			return this.dispatchEvent(mouseEvent);
+		},
+		/**
+		 * @class This is the event sent when the selection changes in the text view.
+		 * <p>
+		 * <b>See:</b><br/>
+		 * {@link orion.editor.TextView}<br/>
+		 * {@link orion.editor.TextView#event:onSelection}
+		 * </p>		 
+		 * @name orion.editor.SelectionEvent
+		 * 
+		 * @property {orion.editor.Selection} oldValue The old selection.
+		 * @property {orion.editor.Selection} newValue The new selection.
+		 */
+		/**
+		 * This event is sent when the text view selection has changed.
+		 *
+		 * @event
+		 * @param {orion.editor.SelectionEvent} selectionEvent the event
+		 */
+		onSelection: function(selectionEvent) {
+			return this.dispatchEvent(selectionEvent);
+		},
+		/**
+		 * @class This is the event sent when the text view scrolls.
+		 * <p>
+		 * <b>See:</b><br/>
+		 * {@link orion.editor.TextView}<br/>
+		 * {@link orion.editor.TextView#event:onScroll}
+		 * </p>		 
+		 * @name orion.editor.ScrollEvent
+		 * 
+		 * @property {Object} oldValue The old scroll {x,y}.
+		 * @property {Object} newValue The new scroll {x,y}.
+		 */
+		/**
+		 * This event is sent when the text view scrolls vertically or horizontally.
+		 *
+		 * @event
+		 * @param {orion.editor.ScrollEvent} scrollEvent the event
+		 */
+		onScroll: function(scrollEvent) {
+			return this.dispatchEvent(scrollEvent);
+		},
+		/**
+		 * @class This is the event sent when the text is about to be modified by the text view.
+		 * <p>
+		 * <b>See:</b><br/>
+		 * {@link orion.editor.TextView}<br/>
+		 * {@link orion.editor.TextView#event:onVerify}
+		 * </p>
+		 * @name orion.editor.VerifyEvent
+		 * 
+		 * @property {String} text The text being inserted.
+		 * @property {Number} start The start offset of the text range to be replaced.
+		 * @property {Number} end The end offset (exclusive) of the text range to be replaced.
+		 */
+		/**
+		 * This event is sent when the text view is about to change text in the model.
+		 * <p>
+		 * If the text is changed directly through the model API, this event
+		 * is not sent.
+		 * </p>
+		 * <p>
+		 * Listeners are allowed to change these parameters. Setting text to null
+		 * or undefined stops the change.
+		 * </p>
+		 *
+		 * @event
+		 * @param {orion.editor.VerifyEvent} verifyEvent the event
+		 */
+		onVerify: function(verifyEvent) {
+			return this.dispatchEvent(verifyEvent);
+		},
+		/**
+		 * @class This is the event sent when the text view is focused.
+		 * <p>
+		 * <b>See:</b><br/>
+		 * {@link orion.editor.TextView}<br/>
+		 * {@link orion.editor.TextView#event:onFocus}<br/>
+		 * </p>
+		 * @name orion.editor.FocusEvent
+		 */
+		/**
+		 * This event is sent when the text view is focused.
+		 *
+		 * @event
+		 * @param {orion.editor.FocusEvent} focusEvent the event
+		 */
+		onFocus: function(focusEvent) {
+			return this.dispatchEvent(focusEvent);
+		},
+		/**
+		 * @class This is the event sent when the text view goes out of focus.
+		 * <p>
+		 * <b>See:</b><br/>
+		 * {@link orion.editor.TextView}<br/>
+		 * {@link orion.editor.TextView#event:onBlur}<br/>
+		 * </p>
+		 * @name orion.editor.BlurEvent
+		 */
+		/**
+		 * This event is sent when the text view goes out of focus.
+		 *
+		 * @event
+		 * @param {orion.editor.BlurEvent} blurEvent the event
+		 */
+		onBlur: function(blurEvent) {
+			return this.dispatchEvent(blurEvent);
+		},
+		/**
+		 * Redraws the entire view, including rulers.
+		 *
+		 * @see orion.editor.TextView#redrawLines
+		 * @see orion.editor.TextView#redrawRange
+		 * @see orion.editor.TextView#setRedraw
+		 */
+		redraw: function() {
+			if (this._redrawCount > 0) { return; }
+			var lineCount = this._model.getLineCount();
+			this.redrawRulers(0, lineCount);
+			this.redrawLines(0, lineCount); 
+		},
+		redrawRulers: function(startLine, endLine) {
+			if (this._redrawCount > 0) { return; }
+			var rulers = this.getRulers();
+			for (var i = 0; i < rulers.length; i++) {
+				this.redrawLines(startLine, endLine, rulers[i]);
+			}
+		},
+		/**
+		 * Redraws the text in the given line range.
+		 * <p>
+		 * The line at the end index is not redrawn.
+		 * </p>
+		 *
+		 * @param {Number} [startLine=0] the start line
+		 * @param {Number} [endLine=line count] the end line
+		 *
+		 * @see orion.editor.TextView#redraw
+		 * @see orion.editor.TextView#redrawRange
+		 * @see orion.editor.TextView#setRedraw
+		 */
+		redrawLines: function(startLine, endLine, ruler) {
+			if (this._redrawCount > 0) { return; }
+			if (startLine === undefined) { startLine = 0; }
+			if (endLine === undefined) { endLine = this._model.getLineCount(); }
+			if (startLine === endLine) { return; }
+			var div = this._clientDiv;
+			if (!div) { return; }
+			if (ruler) {
+				var divRuler = this._getRulerParent(ruler);
+				div = divRuler.firstChild;
+				while (div) {
+					if (div._ruler === ruler) {
+						break;
+					}
+					div = div.nextSibling;
+				}
+			}
+			if (ruler) {
+				div.rulerChanged = true;
+			} else {
+				if (this._lineHeight) {
+					this._resetLineHeight(startLine, endLine);
+				}
+			}
+			if (!ruler || ruler.getOverview() === "page") { //$NON-NLS-0$
+				var child = div.firstChild;
+				while (child) {
+					var lineIndex = child.lineIndex;
+					if (startLine <= lineIndex && lineIndex < endLine) {
+						child.lineChanged = true;
+					}
+					child = child.nextSibling;
+				}
+			}
+			if (!ruler) {
+				if (!this._wrapMode) {
+					if (startLine <= this._maxLineIndex && this._maxLineIndex < endLine) {
+						this._checkMaxLineIndex = this._maxLineIndex;
+						this._maxLineIndex = -1;
+						this._maxLineWidth = 0;
+					}
+				}
+			}
+			this._queueUpdate();
+		},
+		/**
+		 * Redraws the text in the given range.
+		 * <p>
+		 * The character at the end offset is not redrawn.
+		 * </p>
+		 *
+		 * @param {Number} [start=0] the start offset of text range
+		 * @param {Number} [end=char count] the end offset of text range
+		 *
+		 * @see orion.editor.TextView#redraw
+		 * @see orion.editor.TextView#redrawLines
+		 * @see orion.editor.TextView#setRedraw
+		 */
+		redrawRange: function(start, end) {
+			if (this._redrawCount > 0) { return; }
+			var model = this._model;
+			if (start === undefined) { start = 0; }
+			if (end === undefined) { end = model.getCharCount(); }
+			var startLine = model.getLineAtOffset(start);
+			var endLine = model.getLineAtOffset(Math.max(start, end - 1)) + 1;
+			this.redrawLines(startLine, endLine);
+		},	
+		/**
+		 * Removes a key mode from the text view.
+		 *
+		 * @param {orion.editor.KeyMode} mode the key mode.
+		 */
+		removeKeyMode: function (mode) {
+			var keyModes = this._keyModes;
+			for (var i=0; i<keyModes.length; i++) {
+				if (keyModes[i] === mode) {
+					keyModes.splice(i, 1);
+					break;
+				}
+			}
+			//TODO: API needed for this
+			if (mode._modeRemoved) {
+				mode._modeRemoved();
+			}
+		},
+		/**
+		 * Removes a ruler from the text view.
+		 *
+		 * @param {orion.editor.Ruler} ruler the ruler.
+		 */
+		removeRuler: function (ruler) {
+			var rulers = this._rulers;
+			for (var i=0; i<rulers.length; i++) {
+				if (rulers[i] === ruler) {
+					rulers.splice(i, 1);
+					ruler.setView(null);
+					this._destroyRuler(ruler);
+					this._update();
+					break;
+				}
+			}
+		},
+		resize: function() {
+			if (!this._clientDiv) { return; }
+			this._handleResize(null);
+		},
+		/**
+		 * @class This object describes an action for the text view.
+		 * <p>
+		 * <b>See:</b><br/>
+		 * {@link orion.editor.TextView}<br/>
+		 * {@link orion.editor.TextView#setAction}
+		 * </p>		 
+		 * @name orion.editor.ActionDescription
+		 *
+		 * @property {String} [name] the name to be used when showing the action as text.
+		 */
+		/**
+		 * Associates an application defined handler to an action ID.
+		 * <p>
+		 * If the action ID is a predefined action, the given handler executes before
+		 * the default action handler.  If the given handler returns <code>true</code>, the
+		 * default action handler is not called.
+		 * </p>
+		 *
+		 * @param {String} actionID the action ID.
+		 * @param {Function} handler the action handler.
+		 * @param {orion.editor.ActionDescription} [actionDescription=undefined] the action description.
+		 *
+		 * @see orion.editor.TextView#getActions
+		 * @see orion.editor.TextView#invokeAction
+		 */
+		setAction: function(actionID, handler, actionDescription) {
+			if (!actionID) { return; }
+			var actions = this._actions;
+			var action = actions[actionID];
+			if (!action) { 
+				action = actions[actionID] = {};
+			}
+			action.handler = handler;
+			if (actionDescription !== undefined) {
+				action.actionDescription = actionDescription;
+			}
+		},
+		/**
+		 * Associates a key binding with the given action ID. Any previous
+		 * association with the specified key binding is overwriten. If the
+		 * action ID is <code>null</code>, the association is removed.
+		 * 
+		 * @param {orion.editor.KeyBinding} keyBinding the key binding
+		 * @param {String} actionID the action ID
+		 */
+		setKeyBinding: function(keyBinding, actionID) {
+			this._keyModes[0].setKeyBinding(keyBinding, actionID);
+		},
+		/**
+		 * Sets the caret offset relative to the start of the document.
+		 *
+		 * @param {Number} caret the caret offset relative to the start of the document.
+		 * @param {Boolean|Number} [show=true] if <code>true</code>, the view will scroll the minimum amount necessary to show the caret location. If
+		 *					<code>show</code> is a <code>Number</code>, the view will scroll the minimum amount necessary to show the caret location plus a
+		 *					percentage of the client area height. The parameter is clamped to the [0,1] range.  In either case, the view will only scroll
+		 *					if the new caret location is visible already.
+		 * @param {Function} [callback] if callback is specified and <code>scrollAnimation</code> is not zero, view scrolling is animated and
+		 *					the callback is called when the animation is done. Otherwise, callback is callback right away.
+		 *
+		 * @see orion.editor.TextView#getCaretOffset
+		 * @see orion.editor.TextView#setSelection
+		 * @see orion.editor.TextView#getSelection
+		 */
+		setCaretOffset: function(offset, show, callback) {
+			var charCount = this._model.getCharCount();
+			offset = Math.max(0, Math.min (offset, charCount));
+			var selection = new Selection(offset, offset, false);
+			this._setSelection (selection, show === undefined || show, true, callback);
+		},
+		/**
+		 * Sets the horizontal pixel.
+		 * <p>
+		 * The horizontal pixel is the pixel position that is currently at
+		 * the left edge of the view.  This position is relative to the
+		 * beginning of the document.
+		 * </p>
+		 *
+		 * @param {Number} pixel the horizontal pixel.
+		 *
+		 * @see orion.editor.TextView#getHorizontalPixel
+		 * @see orion.editor.TextView#convert
+		 */
+		setHorizontalPixel: function(pixel) {
+			if (!this._clientDiv) { return; }
+			pixel = Math.max(0, pixel);
+			this._scrollView(pixel - this._getScroll().x, 0);
+		},
+		/**
+		 * Sets whether the view should update the DOM.
+		 * <p>
+		 * This can be used to improve the performance.
+		 * </p><p>
+		 * When the flag is set to <code>true</code>,
+		 * the entire view is marked as needing to be redrawn. 
+		 * Nested calls to this method are stacked.
+		 * </p>
+		 *
+		 * @param {Boolean} redraw the new redraw state
+		 * 
+		 * @see orion.editor.TextView#redraw
+		 */
+		setRedraw: function(redraw) {
+			if (redraw) {
+				if (--this._redrawCount === 0) {
+					this.redraw();
+				}
+			} else {
+				this._redrawCount++;
+			}
+		},
+		/**
+		 * Sets the text model of the text view.
+		 *
+		 * @param {orion.editor.TextModel} model the text model of the view.
+		 */
+		setModel: function(model) {
+			if (!model) { return; }
+			if (model === this._model) { return; }
+			this._model.removeEventListener("preChanging", this._modelListener.onChanging); //$NON-NLS-0$
+			this._model.removeEventListener("postChanged", this._modelListener.onChanged); //$NON-NLS-0$
+			var oldLineCount = this._model.getLineCount();
+			var oldCharCount = this._model.getCharCount();
+			var newLineCount = model.getLineCount();
+			var newCharCount = model.getCharCount();
+			var newText = model.getText();
+			var e = {
+				type: "ModelChanging", //$NON-NLS-0$
+				text: newText,
+				start: 0,
+				removedCharCount: oldCharCount,
+				addedCharCount: newCharCount,
+				removedLineCount: oldLineCount,
+				addedLineCount: newLineCount
+			};
+			this.onModelChanging(e);
+			this._model = model;
+			e = {
+				type: "ModelChanged", //$NON-NLS-0$
+				start: 0,
+				removedCharCount: oldCharCount,
+				addedCharCount: newCharCount,
+				removedLineCount: oldLineCount,
+				addedLineCount: newLineCount
+			};
+			this.onModelChanged(e); 
+			this._model.addEventListener("preChanging", this._modelListener.onChanging); //$NON-NLS-0$
+			this._model.addEventListener("postChanged", this._modelListener.onChanged); //$NON-NLS-0$
+			this._reset();
+			this._update();
+		},
+		/**
+		 * Sets the view options for the view.
+		 *
+		 * @param {orion.editor.TextViewOptions} options the view options.
+		 * 
+		 * @see orion.editor.TextView#getOptions
+		 */
+		setOptions: function (options) {
+			var defaultOptions = this._defaultOptions();
+			for (var option in options) {
+				if (options.hasOwnProperty(option)) {
+					var newValue = options[option], oldValue = this["_" + option]; //$NON-NLS-0$
+					if (compare(oldValue, newValue)) { continue; }
+					var update = defaultOptions[option] ? defaultOptions[option].update : null;
+					if (update) {
+						update.call(this, newValue);
+						continue;
+					}
+					this["_" + option] = clone(newValue); //$NON-NLS-0$
+				}
+			}
+		},
+		/**
+		 * Sets the text view selection.
+		 * <p>
+		 * The selection is defined by a start and end character offset relative to the
+		 * document. The character at end offset is not included in the selection.
+		 * </p>
+		 * <p>
+		 * The caret is always placed at the end offset. The start offset can be
+		 * greater than the end offset to place the caret at the beginning of the
+		 * selection.
+		 * </p>
+		 * <p>
+		 * Clamps out of range offsets.
+		 * </p>
+		 * 
+		 * @param {Number} start the start offset of the selection
+		 * @param {Number} end the end offset of the selection
+		 * @param {Boolean|Number} [show=true] if <code>true</code>, the view will scroll the minimum amount necessary to show the caret location. If
+		 *					<code>show</code> is a <code>Number</code>, the view will scroll the minimum amount necessary to show the caret location plus a
+		 *					percentage of the client area height. The parameter is clamped to the [0,1] range.  In either case, the view will only scroll
+		 *					if the new caret location is visible already.
+		 * @param {Function} [callback] if callback is specified and <code>scrollAnimation</code> is not zero, view scrolling is animated and
+		 *					the callback is called when the animation is done. Otherwise, callback is callback right away.
+		 *
+		 * @see orion.editor.TextView#getSelection
+		 */
+		setSelection: function (start, end, show, callback) {
+			var caret = start > end;
+			if (caret) {
+				var tmp = start;
+				start = end;
+				end = tmp;
+			}
+			var charCount = this._model.getCharCount();
+			start = Math.max(0, Math.min (start, charCount));
+			end = Math.max(0, Math.min (end, charCount));
+			var selection = new Selection(start, end, caret);
+			this._setSelection(selection, show === undefined || show, true, callback);
+		},
+		/**
+		 * Replaces the text in the given range with the given text.
+		 * <p>
+		 * The character at the end offset is not replaced.
+		 * </p>
+		 * <p>
+		 * When both <code>start</code> and <code>end</code> parameters
+		 * are not specified, the text view places the caret at the beginning
+		 * of the document and scrolls to make it visible.
+		 * </p>
+		 *
+		 * @param {String} text the new text.
+		 * @param {Number} [start=0] the start offset of text range.
+		 * @param {Number} [end=char count] the end offset of text range.
+		 *
+		 * @see orion.editor.TextView#getText
+		 */
+		setText: function (text, start, end) {
+			var reset = start === undefined && end === undefined;
+			if (start === undefined) { start = 0; }
+			if (end === undefined) { end = this._model.getCharCount(); }
+			if (reset) {
+				this._variableLineHeight = false;
+			}
+			this._modifyContent({text: text, start: start, end: end, _code: true}, !reset);
+			if (reset) {
+				this._columnX = -1;
+				this._setSelection(new Selection (0, 0, false), true);
+				
+				/*
+				* Bug in Firefox.  For some reason, the caret does not show after the
+				* view is refreshed.  The fix is to toggle the contentEditable state and
+				* force the clientDiv to loose and receive focus if it is focused.
+				*/
+				if (util.isFirefox) {
+					this._fixCaret();
+				}
+			}
+		},
+		/**
+		 * Sets the top index.
+		 * <p>
+		 * The top index is the line that is currently at the top of the text view.  This
+		 * line may be partially visible depending on the vertical scroll of the view.
+		 * </p>
+		 *
+		 * @param {Number} topIndex the index of the top line.
+		 *
+		 * @see orion.editor.TextView#getBottomIndex
+		 * @see orion.editor.TextView#getTopIndex
+		 */
+		setTopIndex: function(topIndex) {
+			if (!this._clientDiv) { return; }
+			this._scrollView(0, this._getLinePixel(Math.max(0, topIndex)) - this._getScroll().y);
+		},
+		/**
+		 * Sets the top pixel.
+		 * <p>
+		 * The top pixel is the pixel position that is currently at
+		 * the top edge of the view.  This position is relative to the
+		 * beginning of the document.
+		 * </p>
+		 *
+		 * @param {Number} pixel the top pixel.
+		 *
+		 * @see orion.editor.TextView#getBottomPixel
+		 * @see orion.editor.TextView#getTopPixel
+		 * @see orion.editor.TextView#convert
+		 */
+		setTopPixel: function(pixel) {
+			if (!this._clientDiv) { return; }
+			this._scrollView(0, Math.max(0, pixel) - this._getScroll().y);
+		},
+		/**
+		 * Scrolls the selection into view if needed.
+		 *
+		 * @returns {Boolean} true if the view was scrolled.
+		 *
+		 * @see orion.editor.TextView#getSelection
+		 * @see orion.editor.TextView#setSelection
+		 */
+		showSelection: function() {
+			return this._showCaret(true);
+		},
+		update: function(styleChanged, sync) {
+			if (!this._clientDiv) { return; }
+			if (styleChanged) {
+				this._updateStyle();
+			}
+			if (sync === undefined || sync) {
+				this._update();
+			} else {
+				this._queueUpdate();
+			}
+		},
+		
+		/**************************************** Event handlers *********************************/
+		_handleRootMouseDown: function (e) {
+			if (this._ignoreEvent(e)) { return; }
+			if (util.isFirefox && e.which === 1) {
+				this._clientDiv.contentEditable = false;
+				(this._overlayDiv || this._clientDiv).draggable = true;
+				this._ignoreBlur = true;
+			}
+			
+			/* Prevent clicks outside of the client div from taking focus away. */
+			var topNode = this._overlayDiv || this._clientDiv;
+			/* Use view div on IE 8 otherwise it is not possible to scroll. */
+			if (util.isIE < 9) { topNode = this._viewDiv; }
+			var temp = e.target ? e.target : e.srcElement;
+			while (temp) {
+				if (topNode === temp) {
+					return;
+				}
+				temp = temp.parentNode;
+			}
+			if (e.preventDefault) { e.preventDefault(); }
+			if (e.stopPropagation){ e.stopPropagation(); }
+			if (!this._isW3CEvents) {
+				/*
+				* In IE 8 is not possible to prevent the default handler from running
+				* during mouse down event using usual API. The workaround is to give
+				* focus back to the client div.
+				*/ 
+				var self = this;
+				var window = this._getWindow();
+				window.setTimeout(function() {
+					self._clientDiv.focus();
+				}, 0);
+			}
+		},
+		_handleRootMouseUp: function (e) {
+			if (this._ignoreEvent(e)) { return; }
+			if (util.isFirefox && e.which === 1) {
+				this._clientDiv.contentEditable = true;
+				(this._overlayDiv || this._clientDiv).draggable = false;
+				
+				/*
+				* Bug in Firefox.  For some reason, Firefox stops showing the caret
+				* in some cases. For example when the user cancels a drag operation 
+				* by pressing ESC.  The fix is to detect that the drag operation was
+				* cancelled,  toggle the contentEditable state and force the clientDiv
+				* to loose and receive focus if it is focused.
+				*/
+				this._fixCaret();
+				this._ignoreBlur = false;
+			}
+		},
+		_handleBlur: function (e) {
+			if (this._ignoreBlur) { return; }
+			this._hasFocus = false;
+			/*
+			* Bug in IE 8 and earlier. For some reason when text is deselected
+			* the overflow selection at the end of some lines does not get redrawn.
+			* The fix is to create a DOM element in the body to force a redraw.
+			*/
+			if (util.isIE < 9) {
+				if (!this._getSelection().isEmpty()) {
+					var rootDiv = this._rootDiv;
+					var child = util.createElement(rootDiv.ownerDocument, "div"); //$NON-NLS-0$
+					rootDiv.appendChild(child);
+					rootDiv.removeChild(child);
+				}
+			}
+			if (this._cursorDiv) {
+				this._cursorDiv.style.display = "none"; //$NON-NLS-0$
+			}
+			if (this._selDiv1) {
+				var color = "lightgray"; //$NON-NLS-0$
+				this._selDiv1.style.background = color;
+				this._selDiv2.style.background = color;
+				this._selDiv3.style.background = color;
+				/* Clear browser selection if selection is within clientDiv */
+				var temp;
+				var window = this._getWindow();
+				var document = this._selDiv1.ownerDocument;
+				if (window.getSelection) {
+					var sel = window.getSelection();
+					temp = sel.anchorNode;
+					while (temp) {
+						if (temp === this._clientDiv) {
+							if (sel.rangeCount > 0) { sel.removeAllRanges(); }
+							break;
+						}
+						temp = temp.parentNode;
+					}
+				} else if (document.selection) {
+					this._ignoreSelect = false;
+					temp = document.selection.createRange().parentElement();
+					while (temp) {
+						if (temp === this._clientDiv) {
+							document.selection.empty();
+							break;
+						}
+						temp = temp.parentNode;
+					}
+					this._ignoreSelect = true;
+				}
+			}
+			if (!this._ignoreFocus) {
+				this.onBlur({type: "Blur"}); //$NON-NLS-0$
+			}
+		},
+		_handleContextMenu: function (e) {
+			if (this._ignoreEvent(e)) { return; }
+			if (util.isIE && this._lastMouseButton === 3) {
+				// We need to update the DOM selection, because on
+				// right-click the caret moves to the mouse location.
+				// See bug 366312 and 376508.
+				this._updateDOMSelection();
+			}
+			var preventDefault = false;
+			if (this.isListening("ContextMenu")) { //$NON-NLS-0$
+				var evt = this._createMouseEvent("ContextMenu", e); //$NON-NLS-0$
+				evt.screenX = e.screenX;
+				evt.screenY = e.screenY;
+				this.onContextMenu(evt);
+				preventDefault = evt.defaultPrevented;
+			} else if (util.isMac && util.isFirefox && e.button === 0) {
+				// hack to prevent CTRL+Space from showing the browser context menu
+				preventDefault = true;
+			}
+			if (preventDefault) {
+				if (e.preventDefault) { e.preventDefault(); }
+				return false;
+			}
+		},
+		_handleCopy: function (e) {
+			if (this._ignoreEvent(e)) { return; }
+			if (this._ignoreCopy) { return; }
+			if (this._doCopy(e)) {
+				if (e.preventDefault) { e.preventDefault(); }
+				return false;
+			}
+		},
+		_handleCut: function (e) {
+			if (this._ignoreEvent(e)) { return; }
+			if (this._doCut(e)) {
+				if (e.preventDefault) { e.preventDefault(); }
+				return false;
+			}
+		},
+		_handleDataModified: function(e) {
+			if (this._ignoreEvent(e)) { return; }
+			this._startIME();
+		},
+		_handleDblclick: function (e) {
+			if (this._ignoreEvent(e)) { return; }
+			var time = e.timeStamp ? e.timeStamp : new Date().getTime();
+			this._lastMouseTime = time;
+			if (this._clickCount !== 2) {
+				this._clickCount = 2;
+				this._handleMouse(e);
+			}
+		},
+		_handleDragStart: function (e) {
+			if (this._ignoreEvent(e)) { return; }
+			if (util.isFirefox) {
+				var self = this;
+				var window = this._getWindow();
+				window.setTimeout(function() {
+					self._clientDiv.contentEditable = true;
+					self._clientDiv.draggable = false;
+					self._ignoreBlur = false;
+				}, 0);
+			}
+			if (this.isListening("DragStart") && this._dragOffset !== -1) { //$NON-NLS-0$
+				this._isMouseDown = false;
+				this.onDragStart(this._createMouseEvent("DragStart", e)); //$NON-NLS-0$
+				this._dragOffset = -1;
+			} else {
+				if (e.preventDefault) { e.preventDefault(); }
+				return false;
+			}
+		},
+		_handleDrag: function (e) {
+			if (this._ignoreEvent(e)) { return; }
+			if (this.isListening("Drag")) { //$NON-NLS-0$
+				this.onDrag(this._createMouseEvent("Drag", e)); //$NON-NLS-0$
+			}
+		},
+		_handleDragEnd: function (e) {
+			if (this._ignoreEvent(e)) { return; }
+			this._dropTarget = false;
+			this._dragOffset = -1;
+			if (this.isListening("DragEnd")) { //$NON-NLS-0$
+				this.onDragEnd(this._createMouseEvent("DragEnd", e)); //$NON-NLS-0$
+			}
+			if (util.isFirefox) {
+				this._fixCaret();
+				/*
+				* Bug in Firefox.  For some reason, Firefox stops showing the caret when the 
+				* selection is dropped onto itself. The fix is to detected the case and 
+				* call fixCaret() a second time.
+				*/
+				if (e.dataTransfer.dropEffect === "none" && !e.dataTransfer.mozUserCancelled) { //$NON-NLS-0$
+					this._fixCaret();
+				}
+			}
+		},
+		_handleDragEnter: function (e) {
+			if (this._ignoreEvent(e)) { return; }
+			var prevent = true;
+			this._dropTarget = true;
+			if (this.isListening("DragEnter")) { //$NON-NLS-0$
+				prevent = false;
+				this.onDragEnter(this._createMouseEvent("DragEnter", e)); //$NON-NLS-0$
+			}
+			/*
+			* Webkit will not send drop events if this event is not prevented, as spec in HTML5.
+			* Firefox and IE do not follow this spec for contentEditable. Note that preventing this 
+			* event will result is loss of functionality (insertion mark, etc).
+			*/
+			if (util.isWebkit || prevent) {
+				if (e.preventDefault) { e.preventDefault(); }
+				return false;
+			}
+		},
+		_handleDragOver: function (e) {
+			if (this._ignoreEvent(e)) { return; }
+			var prevent = true;
+			if (this.isListening("DragOver")) { //$NON-NLS-0$
+				prevent = false;
+				this.onDragOver(this._createMouseEvent("DragOver", e)); //$NON-NLS-0$
+			}
+			/*
+			* Webkit will not send drop events if this event is not prevented, as spec in HTML5.
+			* Firefox and IE do not follow this spec for contentEditable. Note that preventing this 
+			* event will result is loss of functionality (insertion mark, etc).
+			*/
+			if (util.isWebkit || prevent) {
+				if (prevent) { e.dataTransfer.dropEffect = "none"; } //$NON-NLS-0$
+				if (e.preventDefault) { e.preventDefault(); }
+				return false;
+			}
+		},
+		_handleDragLeave: function (e) {
+			if (this._ignoreEvent(e)) { return; }
+			this._dropTarget = false;
+			if (this.isListening("DragLeave")) { //$NON-NLS-0$
+				this.onDragLeave(this._createMouseEvent("DragLeave", e)); //$NON-NLS-0$
+			}
+		},
+		_handleDrop: function (e) {
+			if (this._ignoreEvent(e)) { return; }
+			this._dropTarget = false;
+			if (this.isListening("Drop")) { //$NON-NLS-0$
+				this.onDrop(this._createMouseEvent("Drop", e)); //$NON-NLS-0$
+			}
+			/*
+			* This event must be prevented otherwise the user agent will modify
+			* the DOM. Note that preventing the event on some user agents (i.e. IE)
+			* indicates that the operation is cancelled. This causes the dropEffect to 
+			* be set to none  in the dragend event causing the implementor to not execute
+			* the code responsible by the move effect.
+			*/
+			if (e.preventDefault) { e.preventDefault(); }
+			return false;
+		},
+		_handleFocus: function (e) {
+			this._hasFocus = true;
+			if (util.isIOS && this._lastTouchOffset !== undefined) {
+				this.setCaretOffset(this._lastTouchOffset, true);
+				this._lastTouchOffset = undefined;
+			} else {
+				this._updateDOMSelection();
+			}
+			if (this._cursorDiv) {
+				this._cursorDiv.style.display = "block"; //$NON-NLS-0$
+			}
+			if (this._selDiv1) {
+				var color = this._highlightRGB;
+				this._selDiv1.style.background = color;
+				this._selDiv2.style.background = color;
+				this._selDiv3.style.background = color;
+			}
+			if (!this._ignoreFocus) {
+				this.onFocus({type: "Focus"}); //$NON-NLS-0$
+			}
+		},
+		_handleKeyDown: function (e) {
+			if (this._ignoreEvent(e)) {	return;	}
+			if (this.isListening("KeyDown")) { //$NON-NLS-0$
+				var keyEvent = this._createKeyEvent("KeyDown", e); //$NON-NLS-0$
+				this.onKeyDown(keyEvent); //$NON-NLS-0$
+				if (keyEvent.defaultPrevented) {
+					/*
+					* Feature in Firefox. Keypress events still happen even if the keydown event
+					* was prevented. The fix is to remember that keydown was prevented and prevent
+					* the keypress ourselves.
+					*/
+					if (util.isFirefox) {
+						this._keyDownPrevented = true;
+					}
+					e.preventDefault();
+					return;
+				}
+			}
+			var modifier = false;
+			switch (e.keyCode) {
+				case 16: /* Shift */
+				case 17: /* Control */
+				case 18: /* Alt */
+				case 91: /* Command */
+					modifier = true;
+					break;
+				default:
+					this._setLinksVisible(false);
+			}
+			if (e.keyCode === 229) {
+				if (this._readonly) {
+					if (e.preventDefault) { e.preventDefault(); }
+					return false;
+				}
+				var startIME = true;
+				
+				/*
+				* Bug in Safari. Some Control+key combinations send key events
+				* with keyCode equals to 229. This is unexpected and causes the
+				* view to start an IME composition. The fix is to ignore these
+				* events.
+				*/
+				if (util.isSafari && util.isMac) {
+					if (e.ctrlKey) {
+						startIME = false;
+						e.keyCode = 0x81;
+					}
+				}
+				if (startIME) {
+					this._startIME();
+				}
+			} else {
+				if (!modifier) {
+					this._commitIME();
+				}
+			}
+			/*
+			* Feature in Firefox. When a key is held down the browser sends 
+			* right number of keypress events but only one keydown. This is
+			* unexpected and causes the view to only execute an action
+			* just one time. The fix is to ignore the keydown event and 
+			* execute the actions from the keypress handler.
+			* Note: This only happens on the Mac and Linux (Firefox 3.6).
+			*
+			* Feature in Opera.  Opera sends keypress events even for non-printable
+			* keys.  The fix is to handle actions in keypress instead of keydown.
+			*/
+			if (((util.isMac || util.isLinux) && util.isFirefox < 4) || util.isOpera) {
+				this._keyDownEvent = e;
+				return true;
+			}
+			
+			if (this._doAction(e)) {
+				if (e.preventDefault) {
+					e.preventDefault(); 
+					e.stopPropagation(); 
+				} else {
+					e.cancelBubble = true;
+					e.returnValue = false;
+					e.keyCode = 0;
+				}
+				return false;
+			}
+		},
+		_handleKeyPress: function (e) {
+			if (this._ignoreEvent(e)) { return; }
+			/*
+			* Feature in Firefox. Keypress events still happen even if the keydown event
+			* was prevented. The fix is to remember that keydown was prevented and prevent
+			* the keypress ourselves.
+			*/
+			if (this._keyDownPrevented) { 
+				if (e.preventDefault) {
+					e.preventDefault(); 
+					e.stopPropagation(); 
+				} 
+				this._keyDownPrevented = undefined;
+				return;
+			}
+			/*
+			* Feature in Embedded WebKit.  Embedded WekKit on Mac runs in compatibility mode and
+			* generates key press events for these Unicode values (Function keys).  This does not
+			* happen in Safari or Chrome.  The fix is to ignore these key events.
+			*/
+			if (util.isMac && util.isWebkit) {
+				if ((0xF700 <= e.keyCode && e.keyCode <= 0xF7FF) || e.keyCode === 13 || e.keyCode === 8) {
+					if (e.preventDefault) { e.preventDefault(); }
+					return false;
+				}
+			}
+			if (((util.isMac || util.isLinux) && util.isFirefox < 4) || util.isOpera) {
+				if (this._doAction(this._keyDownEvent)) {
+					if (e.preventDefault) { e.preventDefault(); }
+					return false;
+				}
+			}
+			var ctrlKey = util.isMac ? e.metaKey : e.ctrlKey;
+			if (e.charCode !== undefined) {
+				if (ctrlKey) {
+					switch (e.charCode) {
+						/*
+						* In Firefox and Safari if ctrl+v, ctrl+c ctrl+x is canceled
+						* the clipboard events are not sent. The fix to allow
+						* the browser to handles these key events.
+						*/
+						case 99://c
+						case 118://v
+						case 120://x
+							return true;
+					}
+				}
+			}
+			if (this.isListening("KeyPress")) { //$NON-NLS-0$
+				var keyEvent = this._createKeyEvent("KeyPress", e); //$NON-NLS-0$
+				this.onKeyPress(keyEvent); //$NON-NLS-0$
+				if (keyEvent.defaultPrevented) {
+					e.preventDefault();
+					return;
+				}
+			}
+			if (this._doAction(e)) {
+				if (e.preventDefault) {
+					e.preventDefault(); 
+					e.stopPropagation(); 
+				} else {
+					e.cancelBubble = true;
+					e.returnValue = false;
+					e.keyCode = 0;
+				}
+				return false;
+			}
+			var ignore = false;
+			if (util.isMac) {
+				if (e.ctrlKey || e.metaKey) { ignore = true; }
+			} else {
+				if (util.isFirefox) {
+					//Firefox clears the state mask when ALT GR generates input
+					if (e.ctrlKey || e.altKey) { ignore = true; }
+				} else {
+					//IE and Chrome only send ALT GR when input is generated
+					if (e.ctrlKey ^ e.altKey) { ignore = true; }
+				}
+			}
+			if (!ignore) {
+				var key = util.isOpera ? e.which : (e.charCode !== undefined ? e.charCode : e.keyCode);
+				if (key > 31) {
+					this._doContent(String.fromCharCode (key));
+					if (e.preventDefault) { e.preventDefault(); }
+					return false;
+				}
+			}
+		},
+		_handleDocKeyUp: function (e) {
+			var ctrlKey = util.isMac ? e.metaKey : e.ctrlKey;
+			if (!ctrlKey) {
+				this._setLinksVisible(false);
+			}
+		},
+		_handleKeyUp: function (e) {
+			if (this._ignoreEvent(e)) { return; }
+			if (this.isListening("KeyUp")) { //$NON-NLS-0$
+				var keyEvent = this._createKeyEvent("KeyUp", e); //$NON-NLS-0$
+				this.onKeyUp(keyEvent); //$NON-NLS-0$
+				if (keyEvent.defaultPrevented) {
+					e.preventDefault();
+					return;
+				}
+			}
+			this._handleDocKeyUp(e);
+			// don't commit for space (it happens during JP composition)  
+			if (e.keyCode === 13) {
+				this._commitIME();
+			}
+		},
+		_handleLinkClick: function (e) {
+			var ctrlKey = util.isMac ? e.metaKey : e.ctrlKey;
+			if (!ctrlKey) {
+				if (e.preventDefault) { e.preventDefault(); }
+				return false;
+			}
+		},
+		_handleMouse: function (e) {
+			var window = this._getWindow();
+			var result = true;
+			var target = window;
+			if (util.isIE || (util.isFirefox && !this._overlayDiv)) { target = this._clientDiv; }
+			if (this._overlayDiv) {
+				if (this._hasFocus) {
+					this._ignoreFocus = true;
+				}
+				var self = this;
+				window.setTimeout(function () {
+					self.focus();
+					self._ignoreFocus = false;
+				}, 0);
+			}
+			if (this._clickCount === 1) {
+				result = this._setSelectionTo(e.clientX, e.clientY, e.shiftKey, !util.isOpera && this._hasFocus && this.isListening("DragStart")); //$NON-NLS-0$
+				if (result) { this._setGrab(target); }
+			} else {
+				/*
+				* Feature in IE8 and older, the sequence of events in the IE8 event model
+				* for a doule-click is:
+				*
+				*	down
+				*	up
+				*	up
+				*	dblclick
+				*
+				* Given that the mouse down/up events are not balanced, it is not possible to
+				* grab on mouse down and ungrab on mouse up.  The fix is to grab on the first
+				* mouse down and ungrab on mouse move when the button 1 is not set.
+				*/
+				if (this._isW3CEvents) { this._setGrab(target); }
+				
+				this._doubleClickSelection = null;
+				this._setSelectionTo(e.clientX, e.clientY, e.shiftKey);
+				this._doubleClickSelection = this._getSelection();
+			}
+			return result;
+		},
+		_handleMouseDown: function (e) {
+			if (this._ignoreEvent(e)) { return; }
+			if (this._linksVisible) {
+				var target = e.target || e.srcElement;
+				if (target.tagName !== "A") { //$NON-NLS-0$
+					this._setLinksVisible(false);
+				} else {
+					return;
+				}
+			}
+			this._commitIME();
+
+			var button = e.which; // 1 - left, 2 - middle, 3 - right
+			if (!button) { 
+				// if IE 8 or older
+				if (e.button === 4) { button = 2; }
+				if (e.button === 2) { button = 3; }
+				if (e.button === 1) { button = 1; }
+			}
+
+			// For middle click we always need getTime(). See _getClipboardText().
+			var time = button !== 2 && e.timeStamp ? e.timeStamp : new Date().getTime();
+			var timeDiff = time - this._lastMouseTime;
+			var deltaX = Math.abs(this._lastMouseX - e.clientX);
+			var deltaY = Math.abs(this._lastMouseY - e.clientY);
+			var sameButton = this._lastMouseButton === button;
+			this._lastMouseX = e.clientX;
+			this._lastMouseY = e.clientY;
+			this._lastMouseTime = time;
+			this._lastMouseButton = button;
+
+			if (button === 1) {
+				this._isMouseDown = true;
+				if (sameButton && timeDiff <= this._clickTime && deltaX <= this._clickDist && deltaY <= this._clickDist) {
+					this._clickCount++;
+				} else {
+					this._clickCount = 1;
+				}
+			}
+			if (this.isListening("MouseDown")) { //$NON-NLS-0$
+				var mouseEvent = this._createMouseEvent("MouseDown", e); //$NON-NLS-0$
+				this.onMouseDown(mouseEvent);
+				if (mouseEvent.defaultPrevented) {
+					e.preventDefault();
+					return;
+				}
+			}
+			if (button === 1) {
+				if (this._handleMouse(e) && (util.isIE >= 9 || util.isOpera || util.isChrome || util.isSafari || (util.isFirefox && !this._overlayDiv))) {
+					if (!this._hasFocus) {
+						this.focus();
+					}
+					e.preventDefault();
+				}
+			}
+			if (util.isFirefox && this._lastMouseButton === 3) {
+				// We need to update the DOM selection, because on
+				// right-click the caret moves to the mouse location.
+				// See bug 366312 and 376508.
+				this._updateDOMSelection();
+			}
+		},
+		_handleMouseOver: function (e) {
+			if (this._ignoreEvent(e)) { return; }
+			if (this._animation) { return; }
+			if (this.isListening("MouseOver")) { //$NON-NLS-0$
+				this.onMouseOver(this._createMouseEvent("MouseOver", e)); //$NON-NLS-0$
+			}
+		},
+		_handleMouseOut: function (e) {
+			if (this._ignoreEvent(e)) { return; }
+			if (this._animation) { return; }
+			if (this.isListening("MouseOut")) { //$NON-NLS-0$
+				this.onMouseOut(this._createMouseEvent("MouseOut", e)); //$NON-NLS-0$
+			}
+		},
+		_handleMouseMove: function (e) {
+			if (this._animation) { return; }
+			var inClient = this._isClientDiv(e);
+			if (this.isListening("MouseMove")) { //$NON-NLS-0$
+				if (inClient){
+					this.onMouseMove(this._createMouseEvent("MouseMove", e)); //$NON-NLS-0$
+				}
+			}
+			if (this._dropTarget) {
+				return;
+			}
+			/*
+			* Bug in IE9. IE sends one mouse event when the user changes the text by
+			* pasting or undo.  These operations usually happen with the Ctrl key
+			* down which causes the view to enter link mode.  Link mode does not end
+			* because there are no further events.  The fix is to only enter link
+			* mode when the coordinates of the mouse move event have changed.
+			*/
+			var changed = this._linksVisible || this._lastMouseMoveX !== e.clientX || this._lastMouseMoveY !== e.clientY;
+			this._lastMouseMoveX = e.clientX;
+			this._lastMouseMoveY = e.clientY;
+			this._setLinksVisible(changed && !this._isMouseDown && (util.isMac ? e.metaKey : e.ctrlKey));
+
+			/*
+			* Feature in IE8 and older, the sequence of events in the IE8 event model
+			* for a doule-click is:
+			*
+			*	down
+			*	up
+			*	up
+			*	dblclick
+			*
+			* Given that the mouse down/up events are not balanced, it is not possible to
+			* grab on mouse down and ungrab on mouse up.  The fix is to grab on the first
+			* mouse down and ungrab on mouse move when the button 1 is not set.
+			*
+			* In order to detect double-click and drag gestures, it is necessary to send
+			* a mouse down event from mouse move when the button is still down and isMouseDown
+			* flag is not set.
+			*/
+			if (!this._isW3CEvents) {
+				if (e.button === 0) {
+					this._setGrab(null);
+					return true;
+				}
+				if (!this._isMouseDown && e.button === 1 && (this._clickCount & 1) !== 0 && inClient) {
+					this._clickCount = 2;
+					return this._handleMouse(e, this._clickCount);
+				}
+			}
+			if (!this._isMouseDown || this._dragOffset !== -1) {
+				return;
+			}
+			
+			var x = e.clientX;
+			var y = e.clientY;
+			var viewPad = this._getViewPadding();
+			var viewRect = this._viewDiv.getBoundingClientRect();
+			var width = this._getClientWidth (), height = this._getClientHeight();
+			var leftEdge = viewRect.left + viewPad.left;
+			var topEdge = viewRect.top + viewPad.top;
+			var rightEdge = viewRect.left + viewPad.left + width;
+			var bottomEdge = viewRect.top + viewPad.top + height;
+			if (y < topEdge) {
+				this._doAutoScroll("up", x, y - topEdge); //$NON-NLS-0$
+			} else if (y > bottomEdge) {
+				this._doAutoScroll("down", x, y - bottomEdge); //$NON-NLS-0$
+			} else if (x < leftEdge && !this._wrapMode) {
+				this._doAutoScroll("left", x - leftEdge, y); //$NON-NLS-0$
+			} else if (x > rightEdge && !this._wrapMode) {
+				this._doAutoScroll("right", x - rightEdge, y); //$NON-NLS-0$
+			} else {
+				this._endAutoScroll();
+				this._setSelectionTo(x, y, true);
+			}
+		},
+		_isClientDiv: function(e) {
+			var topNode = this._overlayDiv || this._clientDiv;
+			var temp = e.target ? e.target : e.srcElement;
+			while (temp) {
+				if (topNode === temp) {
+					return true;
+				}
+				temp = temp.parentNode;
+			}
+			return false;
+		},
+		_createKeyEvent: function(type, e) {
+			return {
+				type: type,
+				event: e,
+				preventDefault: function() {
+					this.defaultPrevented = true;
+				}
+			};
+		},
+		_createMouseEvent: function(type, e) {
+			var pt = this.convert({x: e.clientX, y: e.clientY}, "page", "document"); //$NON-NLS-1$ //$NON-NLS-0$
+			return {
+				type: type,
+				event: e,
+				clickCount: this._clickCount,
+				x: pt.x,
+				y: pt.y,
+				preventDefault: function() {
+					this.defaultPrevented = true;
+				}
+			};
+		},
+		_handleMouseUp: function (e) {
+			var left = e.which ? e.button === 0 : e.button === 1;
+			if (this.isListening("MouseUp")) { //$NON-NLS-0$
+				if (this._isClientDiv(e) || (left && this._isMouseDown)) {
+					this.onMouseUp(this._createMouseEvent("MouseUp", e)); //$NON-NLS-0$
+				}
+			}
+			if (this._linksVisible) {
+				return;
+			}
+			if (left && this._isMouseDown) {
+				if (this._dragOffset !== -1) {
+					var selection = this._getSelection();
+					selection.extend(this._dragOffset);
+					selection.collapse();
+					this._setSelection(selection, true, true);
+					this._dragOffset = -1;
+				}
+				this._isMouseDown = false;
+				this._endAutoScroll();
+				
+				/*
+				* Feature in IE8 and older, the sequence of events in the IE8 event model
+				* for a doule-click is:
+				*
+				*	down
+				*	up
+				*	up
+				*	dblclick
+				*
+				* Given that the mouse down/up events are not balanced, it is not possible to
+				* grab on mouse down and ungrab on mouse up.  The fix is to grab on the first
+				* mouse down and ungrab on mouse move when the button 1 is not set.
+				*/
+				if (this._isW3CEvents) { this._setGrab(null); }
+
+				/*
+				* Note that there cases when Firefox sets the DOM selection in mouse up.
+				* This happens for example after a cancelled drag operation.
+				*
+				* Note that on Chrome and IE, the caret stops blicking if mouse up is
+				* prevented.
+				*/
+				if (util.isFirefox) {
+					e.preventDefault();
+				}
+			}
+		},
+		_handleMouseWheel: function (e) {
+			var lineHeight = this._getLineHeight();
+			var pixelX = 0, pixelY = 0;
+			// Note: On the Mac the correct behaviour is to scroll by pixel.
+			if (util.isIE || util.isOpera) {
+				pixelY = (-e.wheelDelta / 40) * lineHeight;
+			} else if (util.isFirefox) {
+				var pixel;
+				if (util.isMac) {
+					pixel = e.detail * 3;
+				} else {
+					var limit = 256;
+					pixel = Math.max(-limit, Math.min(limit, e.detail)) * lineHeight;
+				}
+				if (e.axis === e.HORIZONTAL_AXIS) {
+					pixelX = pixel;
+				} else {
+					pixelY = pixel;
+				}
+			} else {
+				//Webkit
+				if (util.isMac) {
+					/*
+					* In Safari, the wheel delta is a multiple of 120. In order to
+					* convert delta to pixel values, it is necessary to divide delta
+					* by 40.
+					*
+					* In Chrome and Safari 5, the wheel delta depends on the type of the
+					* mouse. In general, it is the pixel value for Mac mice and track pads,
+					* but it is a multiple of 120 for other mice. There is no presise
+					* way to determine if it is pixel value or a multiple of 120.
+					* 
+					* Note that the current approach does not calculate the correct
+					* pixel value for Mac mice when the delta is a multiple of 120.
+					*
+					* For values that are multiples of 120, the denominator varies on
+					* the time between events.
+					*/
+					var denominatorX, denominatorY;
+					var deltaTime = e.timeStamp - this._wheelTimeStamp;
+					this._wheelTimeStamp = e.timeStamp;
+					if (e.wheelDeltaX % 120 !== 0) { 
+						denominatorX = 1; 
+					} else {
+						denominatorX = deltaTime < 40 ? 40/(40-deltaTime) : 40;
+					}
+					if (e.wheelDeltaY % 120 !== 0) { 
+						denominatorY = 1; 
+					} else {
+						denominatorY = deltaTime < 40 ? 40/(40-deltaTime) : 40; 
+					}
+					pixelX = Math.ceil(-e.wheelDeltaX / denominatorX);
+					if (-1 < pixelX && pixelX < 0) { pixelX = -1; }
+					if (0 < pixelX && pixelX < 1) { pixelX = 1; }
+					pixelY = Math.ceil(-e.wheelDeltaY / denominatorY);
+					if (-1 < pixelY && pixelY < 0) { pixelY = -1; }
+					if (0 < pixelY && pixelY < 1) { pixelY = 1; }
+				} else {
+					pixelX = -e.wheelDeltaX;
+					var linesToScroll = 8;
+					pixelY = (-e.wheelDeltaY / 120 * linesToScroll) * lineHeight;
+				}
+			}
+			/* 
+			* Feature in Safari. If the event target is removed from the DOM 
+			* safari stops smooth scrolling. The fix is keep the element target
+			* in the DOM and remove it on a later time. 
+			*
+			* Note: Using a timer is not a solution, because the timeout needs to
+			* be at least as long as the gesture (which is too long).
+			*/
+			if (util.isSafari) {
+				var lineDiv = e.target;
+				while (lineDiv && lineDiv.lineIndex === undefined) {
+					lineDiv = lineDiv.parentNode;
+				}
+				this._mouseWheelLine = lineDiv;
+			}
+			var oldScroll = this._getScroll();
+			this._scrollView(pixelX, pixelY);
+			var newScroll = this._getScroll();
+			if (oldScroll.x !== newScroll.x || oldScroll.y !== newScroll.y) {
+				if (e.preventDefault) { e.preventDefault(); }
+				return false;
+			}
+		},
+		_handlePaste: function (e) {
+			if (this._ignoreEvent(e)) { return; }
+			if (this._ignorePaste) { return; }
+			if (this._doPaste(e)) {
+				if (util.isIE) {
+					/*
+					 * Bug in IE,  
+					 */
+					var self = this;
+					this._ignoreFocus = true;
+					var window = this._getWindow();
+					window.setTimeout(function() {
+						self._updateDOMSelection();
+						self._ignoreFocus = false;
+					}, 0);
+				}
+				if (e.preventDefault) { e.preventDefault(); }
+				return false;
+			}
+		},
+		_handleResize: function (e) {
+			var newWidth = this._parent.clientWidth;
+			var newHeight = this._parent.clientHeight;
+			if (this._parentWidth !== newWidth || this._parentHeight !== newHeight) {
+				if (this._parentWidth !== newWidth && this._wrapMode) {
+					this._resetLineHeight();
+				}
+				this._parentWidth = newWidth;
+				this._parentHeight = newHeight;
+				/*
+				* Feature in IE7. For some reason, sometimes Internet Explorer 7 
+				* returns incorrect values for element.getBoundingClientRect() when 
+				* inside a resize handler. The fix is to queue the work.
+				*/			
+				var queue = util.isIE < 9;
+
+				/*
+				* The calculated metrics may be out of date when the zoom level changes.
+				*/
+				var metrics = this._calculateMetrics();
+				if (!compare(metrics, this._metrics)) {
+					if (this._variableLineHeight) {
+						this._variableLineHeight = false;
+						this._resetLineHeight();
+					}
+					this._metrics = metrics;
+					queue = true;
+				}
+
+				if (queue) {
+					this._queueUpdate();
+				} else {
+					this._update();
+				}
+			}
+		},
+		_handleRulerEvent: function (e) {
+			var target = e.target ? e.target : e.srcElement;
+			var lineIndex = target.lineIndex;
+			var element = target;
+			while (element && !element._ruler) {
+				if (lineIndex === undefined && element.lineIndex !== undefined) {
+					lineIndex = element.lineIndex;
+				}
+				element = element.parentNode;
+			}
+			var ruler = element ? element._ruler : null;
+			if (lineIndex === undefined && ruler && ruler.getOverview() === "document") { //$NON-NLS-0$
+				var clientHeight = this._getClientHeight ();
+				var lineCount = this._model.getLineCount ();
+				var viewPad = this._getViewPadding();
+				var viewRect = this._viewDiv.getBoundingClientRect();
+				var trackHeight = clientHeight + viewPad.top + viewPad.bottom - 2 * this._metrics.scrollWidth;
+				lineIndex = Math.floor(((e.clientY - viewRect.top) - this._metrics.scrollWidth) * lineCount / trackHeight);
+				if (!(0 <= lineIndex && lineIndex < lineCount)) {
+					lineIndex = undefined;
+				}
+			}
+			if (ruler) {
+				switch (e.type) {
+					case "click": //$NON-NLS-0$
+						if (ruler.onClick) { ruler.onClick(lineIndex, e); }
+						break;
+					case "dblclick": //$NON-NLS-0$
+						if (ruler.onDblClick) { ruler.onDblClick(lineIndex, e); }
+						break;
+					case "mousemove": //$NON-NLS-0$
+						if (ruler.onMouseMove) { ruler.onMouseMove(lineIndex, e); }
+						break;
+					case "mouseover": //$NON-NLS-0$
+						if (ruler.onMouseOver) { ruler.onMouseOver(lineIndex, e); }
+						break;
+					case "mouseout": //$NON-NLS-0$
+						if (ruler.onMouseOut) { 
+							var tmp = e.relatedTarget;
+							while (tmp && tmp !== this._rootDiv) {
+								if (tmp === element) {
+									return;
+								}
+								tmp = tmp.parentNode;
+							}
+							ruler.onMouseOut(lineIndex, e); 
+						}
+						break;
+				}
+			}
+		},
+		_handleScroll: function () {
+			var scroll = this._getScroll(false);
+			var oldX = this._hScroll;
+			var oldY = this._vScroll;
+			if (oldX !== scroll.x || oldY !== scroll.y) {
+				this._hScroll = scroll.x;
+				this._vScroll = scroll.y;
+				this._commitIME();
+				this._update(oldY === scroll.y);
+				var e = {
+					type: "Scroll", //$NON-NLS-0$
+					oldValue: {x: oldX, y: oldY},
+					newValue: scroll
+				};
+				this.onScroll(e);
+			}
+		},
+		_handleSelectStart: function (e) {
+			if (this._ignoreSelect) {
+				if (e && e.preventDefault) { e.preventDefault(); }
+				return false;
+			}
+		},
+		_getModelOffset: function(node, offset) {
+			if (!node) { return; }
+			var lineNode;
+			if (node.tagName === "DIV") { //$NON-NLS-0$
+				lineNode = node;
+			} else {
+				lineNode = node.parentNode.parentNode;
+			}
+			var lineOffset = 0;
+			var lineIndex = lineNode.lineIndex;
+			if (node.tagName !== "DIV") { //$NON-NLS-0$
+				var child = lineNode.firstChild;
+				while (child) {
+					var textNode = child.firstChild;
+					if (textNode === node) {
+						if (child.ignoreChars) { lineOffset -= child.ignoreChars; }
+						lineOffset += offset;
+						break;
+					}
+					if (child.ignoreChars) { lineOffset -= child.ignoreChars; }
+					lineOffset += textNode.data.length;
+					child = child.nextSibling;
+				}
+			}
+			return Math.max(0, lineOffset) + this._model.getLineStart(lineIndex);
+		},
+		_updateSelectionFromDOM: function() {
+			var window = this._getWindow();
+			var selection = window.getSelection();
+			var start = this._getModelOffset(selection.anchorNode, selection.anchorOffset);
+			var end = this._getModelOffset(selection.focusNode, selection.focusOffset);
+			if (start === undefined || end === undefined) {
+			    return;
+			}
+			this._setSelection(new Selection(start, end), false, false);
+		},
+		_handleSelectionChange: function (e) {
+			if (this._imeOffset !== -1) {
+				return;
+			}
+			/*
+			 * Feature in Android. The selection handles are hidden when the DOM changes. Sending
+			 * selection events to the application while the user is moving the selection handles
+			 * may hide the handles unexpectedly.  The fix is to delay updating the selection and
+			 * sending the event to the application.
+			 */
+			if (util.isAndroid) {
+				var window = this._getWindow();
+				if (this._selTimer) {
+					window.clearTimeout(this._selTimer);
+				}
+				var that = this;
+				this._selTimer = window.setTimeout(function() {
+					if (!that._clientDiv) { return; }
+					that._selTimer = null; 
+					that._updateSelectionFromDOM();
+				}, 250);
+			} else {
+				this._updateSelectionFromDOM();
+			}
+		},
+		_handleTextInput: function (e) {
+			if (this._ignoreEvent(e)) { return; }
+			this._imeOffset = -1;
+			if (util.isAndroid) {
+				var selection = this._getWindow().getSelection();
+				var temp = selection.anchorNode;
+				while (temp) {
+					if (temp.lineIndex !== undefined) {
+						break;
+					}
+					temp = temp.parentNode;
+				}
+				if (temp) {
+					var model = this._model;
+					var lineIndex = temp.lineIndex;
+					var oldText = model.getLine(lineIndex), text = oldText;
+					var offset = 0;
+					var lineStart = model.getLineStart(lineIndex);
+					if (selection.rangeCount > 0) {
+						selection.getRangeAt(0).deleteContents();
+						var node = temp.ownerDocument.createTextNode(e.data);
+						selection.getRangeAt(0).insertNode(node);
+						var nodeText = this._getDOMText(temp, node);
+						text = nodeText.text;
+						offset = nodeText.offset;
+						node.parentNode.removeChild(node);
+					}
+					temp.lineRemoved = true;
+					
+					var start = 0;
+					while (oldText.charCodeAt(start) === text.charCodeAt(start) && start < offset) {
+						start++;
+					}
+		
+					var end = oldText.length - 1, delta = text.length - oldText.length;
+					while (oldText.charCodeAt(end) === text.charCodeAt(end + delta) && end + delta >= offset + e.data.length) {
+						end--;
+					}
+					end++;
+					
+					var deltaText = text.substring(start, end + delta);
+					start += lineStart;
+					end += lineStart;
+					
+					this._modifyContent({text: deltaText, start: start, end: end, _ignoreDOMSelection: true}, true);
+				}
+			} else {
+				this._doContent(e.data);
+			}
+			e.preventDefault();
+		},
+		_handleTouchStart: function (e) {
+			this._commitIME();
+			var window = this._getWindow();
+			if (this._touchScrollTimer) {
+				this._vScrollDiv.style.display = "none"; //$NON-NLS-0$
+				this._hScrollDiv.style.display = "none"; //$NON-NLS-0$
+				window.clearInterval(this._touchScrollTimer);
+				this._touchScrollTimer = null;
+			}
+			var touches = e.touches;
+			if (touches.length === 1) {
+				var touch = touches[0];
+				var x = touch.clientX, y = touch.clientY;
+				this._touchStartX = x;
+				this._touchStartY = y;
+				if (util.isAndroid) {
+					/*
+					* Bug in Android 4.  The clientX/Y coordinates of the touch events
+					* include the page scrolling offsets.
+					*/
+				    if (y < (touch.pageY - window.pageYOffset) || x < (touch.pageX - window.pageXOffset) ) {
+						x = touch.pageX - window.pageXOffset;
+						y = touch.pageY - window.pageYOffset;
+				    }
+				}
+				var pt = this.convert({x: x, y: y}, "page", "document"); //$NON-NLS-1$ //$NON-NLS-0$
+				this._lastTouchOffset = this.getOffsetAtLocation(pt.x, pt.y);
+				this._touchStartTime = e.timeStamp;
+				this._touching = true;
+			}
+		},
+		_handleTouchMove: function (e) {
+			var touches = e.touches;
+			if (touches.length === 1) {
+				var touch = touches[0];
+				this._touchCurrentX = touch.clientX;
+				this._touchCurrentY = touch.clientY;
+				var interval = 10;
+				if (!this._touchScrollTimer && (e.timeStamp - this._touchStartTime) < (interval*20)) {
+					this._vScrollDiv.style.display = "block"; //$NON-NLS-0$
+					if (!this._wrapMode) {
+						this._hScrollDiv.style.display = "block"; //$NON-NLS-0$
+					}
+					var self = this;
+					var window = this._getWindow();
+					this._touchScrollTimer = window.setInterval(function() {
+						var deltaX = 0, deltaY = 0;
+						if (self._touching) {
+							deltaX = self._touchStartX - self._touchCurrentX;
+							deltaY = self._touchStartY - self._touchCurrentY;
+							self._touchSpeedX = deltaX / interval;
+							self._touchSpeedY = deltaY / interval;
+							self._touchStartX = self._touchCurrentX;
+							self._touchStartY = self._touchCurrentY;
+						} else {
+							if (Math.abs(self._touchSpeedX) < 0.1 && Math.abs(self._touchSpeedY) < 0.1) {
+								self._vScrollDiv.style.display = "none"; //$NON-NLS-0$
+								self._hScrollDiv.style.display = "none"; //$NON-NLS-0$
+								window.clearInterval(self._touchScrollTimer);
+								self._touchScrollTimer = null;
+								return;
+							} else {
+								deltaX = self._touchSpeedX * interval;
+								deltaY = self._touchSpeedY * interval;
+								self._touchSpeedX *= 0.95;
+								self._touchSpeedY *= 0.95;
+							}
+						}
+						self._scrollView(deltaX, deltaY);
+					}, interval);
+				}
+				if (this._touchScrollTimer) {
+					e.preventDefault();
+				}
+			}
+		},
+		_handleTouchEnd: function (e) {
+			var touches = e.touches;
+			if (touches.length === 0) {
+				this._touching = false;
+			}
+		},
+
+		/************************************ Actions ******************************************/
+		_doAction: function (e) {
+			var mode, i;
+			var keyModes = this._keyModes;
+			for (i = keyModes.length - 1 ; i >= 0; i--) {
+				mode = keyModes[i];
+				if (typeof mode.match === "function") { //$NON-NLS-0$
+					var actionID = mode.match(e);
+					if (actionID !== undefined) {
+						return this.invokeAction(actionID);
+					}
+				}
+			}
+			return false;
+		},
+		_doMove: function(args, selection) {
+			var model = this._model;
+			var caret = selection.getCaret();
+			var lineIndex = model.getLineAtOffset(caret);
+			if (!args.count) {
+				args.count = 1;
+			}
+			while (args.count !== 0) {
+				var lineStart = model.getLineStart(lineIndex);
+				if (args.count < 0 && caret === lineStart) {
+					if (lineIndex > 0) {
+						if (args.unit === "character") { //$NON-NLS-0$
+							args.count++;
+						}
+						lineIndex--;
+						selection.extend(model.getLineEnd(lineIndex));
+					} else {
+						break;
+					}
+				} else if (args.count > 0 && caret === model.getLineEnd(lineIndex)) {
+					if (lineIndex + 1 < model.getLineCount()) {
+						if (args.unit === "character") { //$NON-NLS-0$
+							args.count--;
+						}
+						lineIndex++;
+						selection.extend(model.getLineStart(lineIndex));
+					} else {
+						break;
+					}
+				} else {
+					var removeTab = false;
+					if (args.expandTab && args.unit === "character" && (caret - lineStart) % this._tabSize === 0) { //$NON-NLS-0$
+						var lineText = model.getText(lineStart, caret);
+						removeTab = !/[^ ]/.test(lineText); // Only spaces between line start and caret.
+					}
+					if (removeTab) {
+						selection.extend(caret - this._tabSize);
+						args.count += args.count < 0 ? 1 : -1;
+					} else {
+						var line = this._getLine(lineIndex);
+						selection.extend(line.getNextOffset(caret, args));
+						line.destroy();
+					}
+				}
+				caret = selection.getCaret();
+			}
+			return selection;
+		},
+		_doBackspace: function (args) {
+			var selection = this._getSelection();
+			if (selection.isEmpty()) {
+				if (!args.count) {
+					args.count = 1;
+				}
+				args.count *= -1;
+				args.expandTab = this._expandTab;
+				this._doMove(args, selection);
+			}
+			this._modifyContent({text: "", start: selection.start, end: selection.end}, true);
+			return true;
+		},
+		_doCase: function (args) {
+			var selection = this._getSelection();
+			this._doMove(args, selection);
+			var text = this.getText(selection.start, selection.end);
+			this._setSelection(selection, true);
+			switch (args.type) {
+				case "lower": text = text.toLowerCase(); break; //$NON-NLS-0$
+				case "capitalize": text = text.replace(/(?:^|\s)\S/g, function(a) { return a.toUpperCase(); }); break; //$NON-NLS-0$
+				case "reverse":  //$NON-NLS-0$
+					var newText = "";
+					for (var i=0; i<text.length; i++) {
+						var s = text[i];
+						var l = s.toLowerCase();
+						if (l !== s) {
+							s = l;
+						} else {
+							s = s.toUpperCase();
+						}
+						newText += s;
+					} 
+					text = newText;
+					break;
+				default: text = text.toUpperCase(); break;
+			}
+			this._doContent(text);
+			return true;
+		},
+		_doContent: function (text) {
+			var selection = this._getSelection();
+			if (this._overwriteMode && selection.isEmpty()) {
+				var model = this._model;
+				var lineIndex = model.getLineAtOffset(selection.end);
+				if (selection.end < model.getLineEnd(lineIndex)) {
+					var line = this._getLine(lineIndex);
+					selection.extend(line.getNextOffset(selection.getCaret(), {unit:"character", count:1})); //$NON-NLS-0$
+					line.destroy();
+				}
+			}
+			this._modifyContent({text: text, start: selection.start, end: selection.end, _ignoreDOMSelection: true}, true);
+		},
+		_doCopy: function (e) {
+			var selection = this._getSelection();
+			if (!selection.isEmpty()) {
+				var text = this._getBaseText(selection.start, selection.end);
+				return this._setClipboardText(text, e);
+			}
+			return true;
+		},
+		_doCursorNext: function (args) {
+			var selection = this._getSelection();
+			if (!selection.isEmpty() && !args.select) {
+				selection.start = selection.end;
+			} else {
+				this._doMove(args, selection);
+			}
+			if (!args.select) { selection.collapse(); }
+			this._setSelection(selection, true);
+			return true;
+		},
+		_doCursorPrevious: function (args) {
+			var selection = this._getSelection();
+			if (!selection.isEmpty() && !args.select) {
+				selection.end = selection.start;
+			} else {
+				if (!args.count) {
+					args.count = 1;
+				}
+				args.count *= -1;
+				this._doMove(args, selection);
+			}
+			if (!args.select) { selection.collapse(); }
+			this._setSelection(selection, true);
+			return true;
+		},
+		_doCut: function (e) {
+			var selection = this._getSelection();
+			if (!selection.isEmpty()) {
+				var text = this._getBaseText(selection.start, selection.end);
+				this._doContent("");
+				return this._setClipboardText(text, e);
+			}
+			return true;
+		},
+		_doDelete: function (args) {
+			var selection = this._getSelection();
+			if (selection.isEmpty()) {
+				this._doMove(args, selection);
+			}
+			this._modifyContent({text: "", start: selection.start, end: selection.end}, true);
+			return true;
+		},
+		_doEnd: function (args) {
+			var selection = this._getSelection();
+			var model = this._model;
+			var callback;
+			if (args.ctrl) {
+				selection.extend(model.getCharCount());
+				callback = function() {};
+			} else {
+				var offset = selection.getCaret();
+				var lineIndex = model.getLineAtOffset(offset);
+				if (this._wrapMode) {
+					var line = this._getLine(lineIndex);
+					var visualIndex = line.getLineIndex(offset);
+					if (visualIndex === line.getLineCount() - 1) {
+						offset = model.getLineEnd(lineIndex);
+					} else {
+						offset = line.getLineStart(visualIndex + 1) - 1;
+					}
+					line.destroy();
+				} else {
+					if (args.count && args.count > 0) {
+						lineIndex = Math.min (lineIndex  + args.count - 1, model.getLineCount() - 1);
+					}
+					offset = model.getLineEnd(lineIndex);
+				}
+				selection.extend(offset);
+			}
+			if (!args.select) { selection.collapse(); }
+			this._setSelection(selection, true, true, callback);
+			return true;
+		},
+		_doEnter: function (args) {
+			var model = this._model;
+			var selection = this._getSelection();
+			this._doContent(model.getLineDelimiter()); 
+			if (args && args.noCursor) {
+				selection.end = selection.start;
+				this._setSelection(selection, true);
+			}
+			return true;
+		},
+		_doHome: function (args) {
+			var selection = this._getSelection();
+			var model = this._model;
+			var callback;
+			if (args.ctrl) {
+				selection.extend(0);
+				callback = function() {};
+			} else {
+				var offset = selection.getCaret();
+				var lineIndex = model.getLineAtOffset(offset);
+				if (this._wrapMode) {
+					var line = this._getLine(lineIndex);
+					var visualIndex = line.getLineIndex(offset);
+					offset = line.getLineStart(visualIndex);
+					line.destroy();
+				} else {
+					offset = model.getLineStart(lineIndex);
+				}
+				selection.extend(offset); 
+			}
+			if (!args.select) { selection.collapse(); }
+			this._setSelection(selection, true, true, callback);
+			return true;
+		},
+		_doLineDown: function (args) {
+			var model = this._model;
+			var selection = this._getSelection();
+			var caret = selection.getCaret();
+			var lineIndex = model.getLineAtOffset(caret), visualIndex;
+			var line = this._getLine(lineIndex);
+			var x = this._columnX, y = 1, lastLine = false;
+			if (x === -1 || args.wholeLine || (args.select && util.isIE)) {
+				var offset = args.wholeLine ? model.getLineEnd(lineIndex + 1) : caret;
+				x = line.getBoundingClientRect(offset).left;
+			}
+			if ((visualIndex = line.getLineIndex(caret)) < line.getLineCount() - 1) {
+				y = line.getClientRects(visualIndex + 1).top + 1;
+			} else {
+				var lastLineCount = model.getLineCount() - 1;
+				lastLine = lineIndex === lastLineCount;
+				if (args.count && args.count > 0) {
+					lineIndex = Math.min (lineIndex + args.count, lastLineCount);
+				} else {
+					lineIndex++;
+				}
+			}
+			var select = false;
+			if (lastLine) {
+				if (args.select || (util.isMac || util.isLinux)) {
+					selection.extend(model.getCharCount());
+					select = true;
+				}
+			} else {
+				if (line.lineIndex !== lineIndex) {
+					line.destroy();
+					line = this._getLine(lineIndex);
+				}
+				selection.extend(line.getOffset(x, y));
+				select = true;
+			}
+			if (select) {
+				if (!args.select) { selection.collapse(); }
+				this._setSelection(selection, true, true);
+			}
+			this._columnX = x;
+			line.destroy();
+			return true;
+		},
+		_doLineUp: function (args) {
+			var model = this._model;
+			var selection = this._getSelection();
+			var caret = selection.getCaret();
+			var lineIndex = model.getLineAtOffset(caret), visualIndex;
+			var line = this._getLine(lineIndex);
+			var x = this._columnX, firstLine = false, y;
+			if (x === -1 || args.wholeLine || (args.select && util.isIE)) {
+				var offset = args.wholeLine ? model.getLineStart(lineIndex - 1) : caret;
+				x = line.getBoundingClientRect(offset).left;
+			}
+			if ((visualIndex = line.getLineIndex(caret)) > 0) {
+				y = line.getClientRects(visualIndex - 1).top + 1;
+			} else {
+				firstLine = lineIndex === 0;
+				if (!firstLine) {
+					if (args.count && args.count > 0) {
+						lineIndex = Math.max (lineIndex - args.count, 0);
+					} else {
+						lineIndex--;
+					}
+					y = this._getLineHeight(lineIndex) - 1;
+				}
+			}
+			var select = false;
+			if (firstLine) {
+				if (args.select || (util.isMac || util.isLinux)) {
+					selection.extend(0);
+					select = true;
+				}
+			} else {
+				if (line.lineIndex !== lineIndex) {
+					line.destroy();
+					line = this._getLine(lineIndex);
+				}
+				selection.extend(line.getOffset(x, y));
+				select = true;
+			}
+			if (select) {
+				if (!args.select) { selection.collapse(); }
+				this._setSelection(selection, true, true);
+			}
+			this._columnX = x;
+			line.destroy();
+			return true;
+		},
+		_doNoop: function () {
+			return true;
+		},
+		_doPageDown: function (args) {
+			var self = this;
+			var model = this._model;
+			var selection = this._getSelection();
+			var caret = selection.getCaret();
+			var caretLine = model.getLineAtOffset(caret);
+			var lineCount = model.getLineCount();
+			var scroll = this._getScroll();
+			var clientHeight = this._getClientHeight(), x, line;
+			if (this._lineHeight) {
+				x = this._columnX;
+				var caretRect = this._getBoundsAtOffset(caret);
+				if (x === -1 || (args.select && util.isIE)) {
+					x = caretRect.left;
+				}
+				var lineIndex = this._getLineIndex(caretRect.top + clientHeight);
+				line = this._getLine(lineIndex);
+				var linePixel = this._getLinePixel(lineIndex);
+				var y = caretRect.top + clientHeight - linePixel;
+				caret = line.getOffset(x, y);
+				var rect = line.getBoundingClientRect(caret);
+				line.destroy();
+				selection.extend(caret);
+				if (!args.select) { selection.collapse(); }
+				this._setSelection(selection, true, true, function() {
+					self._columnX = x;
+				}, rect.top + linePixel - caretRect.top);
+				return true;
+			}
+			if (caretLine < lineCount - 1) {
+				var lineHeight = this._getLineHeight();
+				var lines = Math.floor(clientHeight / lineHeight);
+				var scrollLines = Math.min(lineCount - caretLine - 1, lines);
+				scrollLines = Math.max(1, scrollLines);
+				x = this._columnX;
+				if (x === -1 || (args.select && util.isIE)) {
+					line = this._getLine(caretLine);
+					x = line.getBoundingClientRect(caret).left;
+					line.destroy();
+				}
+				line = this._getLine(caretLine + scrollLines);
+				selection.extend(line.getOffset(x, 0));
+				line.destroy();
+				if (!args.select) { selection.collapse(); }
+				var verticalMaximum = lineCount * lineHeight;
+				var scrollOffset = scroll.y + scrollLines * lineHeight;
+				if (scrollOffset + clientHeight > verticalMaximum) {
+					scrollOffset = verticalMaximum - clientHeight;
+				}
+				this._setSelection(selection, true, true, function() {
+					self._columnX = x;
+				}, scrollOffset - scroll.y);
+			}
+			return true;
+		},
+		_doPageUp: function (args) {
+			var self = this;
+			var model = this._model;
+			var selection = this._getSelection();
+			var caret = selection.getCaret();
+			var caretLine = model.getLineAtOffset(caret);
+			var scroll = this._getScroll();
+			var clientHeight = this._getClientHeight(), x, line;
+			if (this._lineHeight) {
+				x = this._columnX;
+				var caretRect = this._getBoundsAtOffset(caret);
+				if (x === -1 || (args.select && util.isIE)) {
+					x = caretRect.left;
+				}
+				var lineIndex = this._getLineIndex(caretRect.bottom - clientHeight);
+				line = this._getLine(lineIndex);
+				var linePixel = this._getLinePixel(lineIndex);
+				var y = (caretRect.bottom - clientHeight) - linePixel;
+				caret = line.getOffset(x, y);
+				var rect = line.getBoundingClientRect(caret);
+				line.destroy();
+				selection.extend(caret);
+				if (!args.select) { selection.collapse(); }
+				this._setSelection(selection, true, true, function() {
+					self._columnX = x;
+				}, rect.top + linePixel - caretRect.top);
+				return true;
+			}
+			if (caretLine > 0) {
+				var lineHeight = this._getLineHeight();
+				var lines = Math.floor(clientHeight / lineHeight);
+				var scrollLines = Math.max(1, Math.min(caretLine, lines));
+				x = this._columnX;
+				if (x === -1 || (args.select && util.isIE)) {
+					line = this._getLine(caretLine);
+					x = line.getBoundingClientRect(caret).left;
+					line.destroy();
+				}
+				line = this._getLine(caretLine - scrollLines);
+				selection.extend(line.getOffset(x, this._getLineHeight(caretLine - scrollLines) - 1));
+				line.destroy();
+				if (!args.select) { selection.collapse(); }
+				var scrollOffset = Math.max(0, scroll.y - scrollLines * lineHeight);
+				this._setSelection(selection, true, true, function() {
+					self._columnX = x;
+				}, scrollOffset - scroll.y);
+			}
+			return true;
+		},
+		_doPaste: function(e) {
+			var self = this;
+			var result = this._getClipboardText(e, function(text) {
+				if (text) {
+					if (util.isLinux && self._lastMouseButton === 2) {
+						var timeDiff = new Date().getTime() - self._lastMouseTime;
+						if (timeDiff <= self._clickTime) {
+							self._setSelectionTo(self._lastMouseX, self._lastMouseY);
+						}
+					}
+					self._doContent(text);
+				}
+			});
+			return result !== null;
+		},
+		_doScroll: function (args) {
+			var type = args.type;
+			var model = this._model;
+			var lineCount = model.getLineCount();
+			var clientHeight = this._getClientHeight();
+			var lineHeight = this._getLineHeight();
+			var verticalMaximum = lineCount * lineHeight;
+			var verticalScrollOffset = this._getScroll().y;
+			var pixel;
+			switch (type) {
+				case "textStart": pixel = 0; break; //$NON-NLS-0$
+				case "textEnd": pixel = verticalMaximum - clientHeight; break; //$NON-NLS-0$
+				case "pageDown": pixel = verticalScrollOffset + clientHeight; break; //$NON-NLS-0$
+				case "pageUp": pixel = verticalScrollOffset - clientHeight; break; //$NON-NLS-0$
+				case "lineDown": pixel = verticalScrollOffset + lineHeight; break; //$NON-NLS-0$
+				case "lineUp": pixel = verticalScrollOffset - lineHeight; break; //$NON-NLS-0$
+				case "centerLine": //$NON-NLS-0$
+					var selection = this._getSelection();
+					var lineStart = model.getLineAtOffset(selection.start);
+					var lineEnd = model.getLineAtOffset(selection.end);
+					var selectionHeight = (lineEnd - lineStart + 1) * lineHeight;
+					pixel = (lineStart * lineHeight) - (clientHeight / 2) + (selectionHeight / 2);
+					break;
+			}
+			if (pixel !== undefined) {
+				pixel = Math.min(Math.max(0, pixel), verticalMaximum - clientHeight);
+				this._scrollViewAnimated(0, pixel - verticalScrollOffset, function() {});
+			}
+			return true;
+		},
+		_doSelectAll: function (args) {
+			var model = this._model;
+			var selection = this._getSelection();
+			selection.setCaret(0);
+			selection.extend(model.getCharCount());
+			this._setSelection(selection, false);
+			return true;
+		},
+		_doTab: function (args) {
+			if (!this._tabMode || this._readonly) { return; }
+			var text = "\t"; //$NON-NLS-0$
+			if (this._expandTab) {
+				var model = this._model;
+				var caret = this._getSelection().getCaret();
+				var lineIndex = model.getLineAtOffset(caret);
+				var lineStart = model.getLineStart(lineIndex);
+				var spaces = this._tabSize - ((caret - lineStart) % this._tabSize);
+				text = (new Array(spaces + 1)).join(" "); //$NON-NLS-0$
+			}
+			this._doContent(text);
+			return true;
+		},
+		_doShiftTab: function (args) {
+			if (!this._tabMode || this._readonly) { return; }
+			return true;
+		},
+		_doOverwriteMode: function (args) {
+			if (this._readonly) { return; }
+			this.setOptions({overwriteMode: !this.getOptions("overwriteMode")}); //$NON-NLS-0$
+			return true;
+		},
+		_doTabMode: function (args) {
+			this._tabMode = !this._tabMode;
+			return true;
+		},
+		_doWrapMode: function (args) {
+			this.setOptions({wrapMode: !this.getOptions("wrapMode")}); //$NON-NLS-0$
+			return true;
+		},
+		
+		/************************************ Internals ******************************************/
+		_autoScroll: function () {
+			var model = this._model;
+			var selection = this._getSelection();
+			var pt = this.convert({x: this._autoScrollX, y: this._autoScrollY}, "page", "document"); //$NON-NLS-1$ //$NON-NLS-0$
+			var caret = selection.getCaret();
+			var lineCount = model.getLineCount();
+			var caretLine = model.getLineAtOffset(caret), lineIndex, line;
+			if (this._autoScrollDir === "up" || this._autoScrollDir === "down") { //$NON-NLS-1$ //$NON-NLS-0$
+				var scroll = this._autoScrollY / this._getLineHeight();
+				scroll = scroll < 0 ? Math.floor(scroll) : Math.ceil(scroll);
+				lineIndex = caretLine;
+				lineIndex = Math.max(0, Math.min(lineCount - 1, lineIndex + scroll));
+			} else if (this._autoScrollDir === "left" || this._autoScrollDir === "right") { //$NON-NLS-1$ //$NON-NLS-0$
+				lineIndex = this._getLineIndex(pt.y);
+				line = this._getLine(caretLine); 
+				pt.x += line.getBoundingClientRect(caret, false).left;
+				line.destroy();
+			}
+			if (lineIndex === 0 && (util.isMac || util.isLinux)) {
+				selection.extend(0);
+			} else if (lineIndex === lineCount - 1 && (util.isMac || util.isLinux)) {
+				selection.extend(model.getCharCount());
+			} else {
+				line = this._getLine(lineIndex);
+				selection.extend(line.getOffset(pt.x, pt.y - this._getLinePixel(lineIndex)));
+				line.destroy();
+			}
+			this._setSelection(selection, true);
+		},
+		_autoScrollTimer: function () {
+			this._autoScroll();
+			var self = this;
+			var window = this._getWindow();
+			this._autoScrollTimerID = window.setTimeout(function () {self._autoScrollTimer();}, this._AUTO_SCROLL_RATE);
+		},
+		_calculateLineHeightTimer: function(calculate) {
+			if (!this._lineHeight) { return; }
+			if (this._calculateLHTimer) { return; }
+			var lineCount = this._model.getLineCount(), i = 0;
+			if (calculate) {
+				var c = 0;
+				var MAX_TIME = 100;
+				var start = new Date().getTime(), firstLine = 0;
+				while (i < lineCount) {
+					if (!this._lineHeight[i]) {
+						c++;
+						if (!firstLine) { firstLine = i; }
+						this._lineHeight[i] = this._calculateLineHeight(i);
+					}
+					i++;
+					if ((new Date().getTime() - start) > MAX_TIME) {
+						break;
+					}
+				}
+				this.redrawRulers(0, lineCount);
+				this._queueUpdate();
+			}
+			var window = this._getWindow();
+			if (i !== lineCount) {
+				var self = this;
+				this._calculateLHTimer = window.setTimeout(function() {
+					self._calculateLHTimer = null;
+					self._calculateLineHeightTimer(true);
+				}, 0);
+				return;
+			}
+			if (this._calculateLHTimer) {
+				window.clearTimeout(this._calculateLHTimer);
+				this._calculateLHTimer = undefined;
+			}
+		},
+		_calculateLineHeight: function(lineIndex) {
+			var line = this._getLine(lineIndex);
+			var rect = line.getBoundingClientRect();
+			line.destroy();
+			return Math.max(1, rect.bottom - rect.top);
+		},
+		_calculateMetrics: function() {
+			var parent = this._clientDiv;
+			var document = parent.ownerDocument;
+			var c = " "; //$NON-NLS-0$
+			var line = util.createElement(document, "div"); //$NON-NLS-0$
+			line.style.lineHeight = "normal"; //$NON-NLS-0$
+			var model = this._model;
+			var lineText = model.getLine(0);
+			var e = {type:"LineStyle", textView: this, 0: 0, lineText: lineText, lineStart: 0}; //$NON-NLS-0$
+			this.onLineStyle(e);
+			applyStyle(e.style, line);
+			line.style.position = "fixed"; //$NON-NLS-0$
+			line.style.left = "-1000px"; //$NON-NLS-0$
+			var span1 = util.createElement(document, "span"); //$NON-NLS-0$
+			span1.appendChild(document.createTextNode(c));
+			line.appendChild(span1);
+			var span2 = util.createElement(document, "span"); //$NON-NLS-0$
+			span2.style.fontStyle = "italic"; //$NON-NLS-0$
+			span2.appendChild(document.createTextNode(c));
+			line.appendChild(span2);
+			var span3 = util.createElement(document, "span"); //$NON-NLS-0$
+			span3.style.fontWeight = "bold"; //$NON-NLS-0$
+			span3.appendChild(document.createTextNode(c));
+			line.appendChild(span3);
+			var span4 = util.createElement(document, "span"); //$NON-NLS-0$
+			span4.style.fontWeight = "bold"; //$NON-NLS-0$
+			span4.style.fontStyle = "italic"; //$NON-NLS-0$
+			span4.appendChild(document.createTextNode(c));
+			line.appendChild(span4);
+			parent.appendChild(line);
+			var lineRect = line.getBoundingClientRect();
+			var spanRect1 = span1.getBoundingClientRect();
+			var spanRect2 = span2.getBoundingClientRect();
+			var spanRect3 = span3.getBoundingClientRect();
+			var spanRect4 = span4.getBoundingClientRect();
+			var h1 = spanRect1.bottom - spanRect1.top;
+			var h2 = spanRect2.bottom - spanRect2.top;
+			var h3 = spanRect3.bottom - spanRect3.top;
+			var h4 = spanRect4.bottom - spanRect4.top;
+			var fontStyle = 0;
+			var invalid = (lineRect.bottom - lineRect.top) <= 0;
+			var lineHeight = Math.max(1, lineRect.bottom - lineRect.top);
+			if (h2 > h1) {
+				fontStyle = 1;
+			}
+			if (h3 > h2) {
+				fontStyle = 2;
+			}
+			if (h4 > h3) {
+				fontStyle = 3;
+			}
+			var style;
+			if (fontStyle !== 0) {
+				style = {style: {}};
+				if ((fontStyle & 1) !== 0) {
+					style.style.fontStyle = "italic"; //$NON-NLS-0$
+				}
+				if ((fontStyle & 2) !== 0) {
+					style.style.fontWeight = "bold"; //$NON-NLS-0$
+				}
+			}
+			var trim = getLineTrim(line);
+			parent.removeChild(line);
+			
+			// calculate pad and scroll width
+			var pad = getPadding(this._viewDiv);
+			var div1 = util.createElement(document, "div"); //$NON-NLS-0$
+			div1.style.position = "fixed"; //$NON-NLS-0$
+			div1.style.left = "-1000px"; //$NON-NLS-0$
+			div1.style.paddingLeft = pad.left + "px"; //$NON-NLS-0$
+			div1.style.paddingTop = pad.top + "px"; //$NON-NLS-0$
+			div1.style.paddingRight = pad.right + "px"; //$NON-NLS-0$
+			div1.style.paddingBottom = pad.bottom + "px"; //$NON-NLS-0$
+			div1.style.width = "100px"; //$NON-NLS-0$
+			div1.style.height = "100px"; //$NON-NLS-0$
+			var div2 = util.createElement(document, "div"); //$NON-NLS-0$
+			div2.style.width = "100%"; //$NON-NLS-0$
+			div2.style.height = "100%"; //$NON-NLS-0$
+			div1.appendChild(div2);
+			parent.appendChild(div1);
+			var rect1 = div1.getBoundingClientRect();
+			var rect2 = div2.getBoundingClientRect();
+			var scrollWidth = 0;
+			if (!this._singleMode) {
+				div1.style.overflow = 'hidden'; //$NON-NLS-0$
+				div2.style.height = "200px"; //$NON-NLS-0$
+				var w1 = div1.clientWidth;
+				div1.style.overflow = 'scroll'; //$NON-NLS-0$
+				var w2 = div1.clientWidth;
+				scrollWidth = w1 - w2;
+			}
+			parent.removeChild(div1);
+			pad = {
+				left: rect2.left - rect1.left,
+				top: rect2.top - rect1.top,
+				right: rect1.right - rect2.right,
+				bottom: rect1.bottom - rect2.bottom
+			};
+			var wrapWidth = 0, marginWidth = 0;
+			if (!invalid) {
+				if (this._wrapOffset || this._marginOffset) {
+					div1 = util.createElement(document, "div"); //$NON-NLS-0$
+					div1.style.position = "fixed"; //$NON-NLS-0$
+					div1.style.left = "-1000px"; //$NON-NLS-0$
+					div1.innerHTML = new Array(this._wrapOffset + 1).join(" "); //$NON-NLS-0$
+					parent.appendChild(div1);
+					rect1 = div1.getBoundingClientRect();
+					wrapWidth = Math.ceil(rect1.right - rect1.left);
+					div1.innerHTML = new Array(this._marginOffset + 1).join(" "); //$NON-NLS-0$
+					rect2 = div1.getBoundingClientRect();
+					marginWidth = Math.ceil(rect2.right - rect2.left);
+					parent.removeChild(div1);
+				}
+			}
+			return {
+				lineHeight: lineHeight,
+				largestFontStyle: style,
+				lineTrim: trim,
+				viewPadding: pad,
+				scrollWidth: scrollWidth,
+				wrapWidth: wrapWidth,
+				marginWidth: marginWidth,
+				invalid: invalid
+			};
+		},
+		_cancelAnimation: function() {
+			if (this._animation) {
+				this._animation.stop();
+				this._animation = null;
+			}
+		},
+		_clearSelection: function (direction) {
+			var selection = this._getSelection();
+			if (selection.isEmpty()) { return false; }
+			if (direction === "next") { //$NON-NLS-0$
+				selection.start = selection.end;
+			} else {
+				selection.end = selection.start;
+			}
+			this._setSelection(selection, true);
+			return true;
+		},
+		_commitIME: function () {
+			if (this._imeOffset === -1) { return; }
+			// make the state of the IME match the state the view expects it be in
+			// when the view commits the text and IME also need to be committed
+			// this can be accomplished by changing the focus around
+			this._scrollDiv.focus();
+			this._clientDiv.focus();
+			
+			var model = this._model;
+			var lineIndex = model.getLineAtOffset(this._imeOffset);
+			var lineStart = model.getLineStart(lineIndex);
+			var newText = this._getDOMText(this._getLineNode(lineIndex)).text;
+			var oldText = model.getLine(lineIndex);
+			var start = this._imeOffset - lineStart;
+			var end = start + newText.length - oldText.length;
+			if (start !== end) {
+				var insertText = newText.substring(start, end);
+				this._doContent(insertText);
+			}
+			this._imeOffset = -1;
+		},
+		_createActions: function () {
+			this.addKeyMode(new mKeyModes.DefaultKeyMode(this));
+			//1 to 1, no duplicates
+			var self = this;
+			this._actions = {
+				"noop": {defaultHandler: function() {return self._doNoop();}}, //$NON-NLS-0$
+
+				"lineUp": {defaultHandler: function(data) {return self._doLineUp(merge(data,{select: false}));}, actionDescription: {name: messages.lineUp}}, //$NON-NLS-0$
+				"lineDown": {defaultHandler: function(data) {return self._doLineDown(merge(data,{select: false}));}, actionDescription: {name: messages.lineDown}}, //$NON-NLS-0$
+				"lineStart": {defaultHandler: function(data) {return self._doHome(merge(data,{select: false, ctrl:false}));}, actionDescription: {name: messages.lineStart}}, //$NON-NLS-0$
+				"lineEnd": {defaultHandler: function(data) {return self._doEnd(merge(data,{select: false, ctrl:false}));}, actionDescription: {name: messages.lineEnd}}, //$NON-NLS-0$
+				"charPrevious": {defaultHandler: function(data) {return self._doCursorPrevious(merge(data,{select: false, unit:"character"}));}, actionDescription: {name: messages.charPrevious}}, //$NON-NLS-1$ //$NON-NLS-0$
+				"charNext": {defaultHandler: function(data) {return self._doCursorNext(merge(data,{select: false, unit:"character"}));}, actionDescription: {name: messages.charNext}}, //$NON-NLS-1$ //$NON-NLS-0$
+				"pageUp": {defaultHandler: function(data) {return self._doPageUp(merge(data,{select: false}));}, actionDescription: {name: messages.pageUp}}, //$NON-NLS-0$
+				"pageDown": {defaultHandler: function(data) {return self._doPageDown(merge(data,{select: false}));}, actionDescription: {name: messages.pageDown}}, //$NON-NLS-0$
+				"scrollPageUp": {defaultHandler: function(data) {return self._doScroll(merge(data,{type: "pageUp"}));}, actionDescription: {name: messages.scrollPageUp}}, //$NON-NLS-1$ //$NON-NLS-0$
+				"scrollPageDown": {defaultHandler: function(data) {return self._doScroll(merge(data,{type: "pageDown"}));}, actionDescription: {name: messages.scrollPageDown}}, //$NON-NLS-1$ //$NON-NLS-0$
+				"scrollLineUp": {defaultHandler: function(data) {return self._doScroll(merge(data,{type: "lineUp"}));}, actionDescription: {name: messages.scrollLineUp}}, //$NON-NLS-1$ //$NON-NLS-0$
+				"scrollLineDown": {defaultHandler: function(data) {return self._doScroll(merge(data,{type: "lineDown"}));}, actionDescription: {name: messages.scrollLineDown}}, //$NON-NLS-1$ //$NON-NLS-0$
+				"wordPrevious": {defaultHandler: function(data) {return self._doCursorPrevious(merge(data,{select: false, unit:"word"}));}, actionDescription: {name: messages.wordPrevious}}, //$NON-NLS-1$ //$NON-NLS-0$
+				"wordNext": {defaultHandler: function(data) {return self._doCursorNext(merge(data,{select: false, unit:"word"}));}, actionDescription: {name: messages.wordNext}}, //$NON-NLS-1$ //$NON-NLS-0$
+				"textStart": {defaultHandler: function(data) {return self._doHome(merge(data,{select: false, ctrl:true}));}, actionDescription: {name: messages.textStart}}, //$NON-NLS-0$
+				"textEnd": {defaultHandler: function(data) {return self._doEnd(merge(data,{select: false, ctrl:true}));}, actionDescription: {name: messages.textEnd}}, //$NON-NLS-0$
+				"scrollTextStart": {defaultHandler: function(data) {return self._doScroll(merge(data,{type: "textStart"}));}, actionDescription: {name: messages.scrollTextStart}}, //$NON-NLS-1$ //$NON-NLS-0$
+				"scrollTextEnd": {defaultHandler: function(data) {return self._doScroll(merge(data,{type: "textEnd"}));}, actionDescription: {name: messages.scrollTextEnd}}, //$NON-NLS-1$ //$NON-NLS-0$
+				"centerLine": {defaultHandler: function(data) {return self._doScroll(merge(data,{type: "centerLine"}));}, actionDescription: {name: messages.centerLine}}, //$NON-NLS-1$ //$NON-NLS-0$
+				
+				"selectLineUp": {defaultHandler: function(data) {return self._doLineUp(merge(data,{select: true}));}, actionDescription: {name: messages.selectLineUp}}, //$NON-NLS-0$
+				"selectLineDown": {defaultHandler: function(data) {return self._doLineDown(merge(data,{select: true}));}, actionDescription: {name: messages.selectLineDown}}, //$NON-NLS-0$
+				"selectWholeLineUp": {defaultHandler: function(data) {return self._doLineUp(merge(data,{select: true, wholeLine: true}));}, actionDescription: {name: messages.selectWholeLineUp}}, //$NON-NLS-0$
+				"selectWholeLineDown": {defaultHandler: function(data) {return self._doLineDown(merge(data,{select: true, wholeLine: true}));}, actionDescription: {name: messages.selectWholeLineDown}}, //$NON-NLS-0$
+				"selectLineStart": {defaultHandler: function(data) {return self._doHome(merge(data,{select: true, ctrl:false}));}, actionDescription: {name: messages.selectLineStart}}, //$NON-NLS-0$
+				"selectLineEnd": {defaultHandler: function(data) {return self._doEnd(merge(data,{select: true, ctrl:false}));}, actionDescription: {name: messages.selectLineEnd}}, //$NON-NLS-0$
+				"selectCharPrevious": {defaultHandler: function(data) {return self._doCursorPrevious(merge(data,{select: true, unit:"character"}));}, actionDescription: {name: messages.selectCharPrevious}}, //$NON-NLS-1$ //$NON-NLS-0$
+				"selectCharNext": {defaultHandler: function(data) {return self._doCursorNext(merge(data,{select: true, unit:"character"}));}, actionDescription: {name: messages.selectCharNext}}, //$NON-NLS-1$ //$NON-NLS-0$
+				"selectPageUp": {defaultHandler: function(data) {return self._doPageUp(merge(data,{select: true}));}, actionDescription: {name: messages.selectPageUp}}, //$NON-NLS-0$
+				"selectPageDown": {defaultHandler: function(data) {return self._doPageDown(merge(data,{select: true}));}, actionDescription: {name: messages.selectPageDown}}, //$NON-NLS-0$
+				"selectWordPrevious": {defaultHandler: function(data) {return self._doCursorPrevious(merge(data,{select: true, unit:"word"}));}, actionDescription: {name: messages.selectWordPrevious}}, //$NON-NLS-1$ //$NON-NLS-0$
+				"selectWordNext": {defaultHandler: function(data) {return self._doCursorNext(merge(data,{select: true, unit:"word"}));}, actionDescription: {name: messages.selectWordNext}}, //$NON-NLS-1$ //$NON-NLS-0$
+				"selectTextStart": {defaultHandler: function(data) {return self._doHome(merge(data,{select: true, ctrl:true}));}, actionDescription: {name: messages.selectTextStart}}, //$NON-NLS-0$
+				"selectTextEnd": {defaultHandler: function(data) {return self._doEnd(merge(data,{select: true, ctrl:true}));}, actionDescription: {name: messages.selectTextEnd}}, //$NON-NLS-0$
+
+				"deletePrevious": {defaultHandler: function(data) {return self._doBackspace(merge(data,{unit:"character"}));}, actionDescription: {name: messages.deletePrevious}}, //$NON-NLS-1$ //$NON-NLS-0$
+				"deleteNext": {defaultHandler: function(data) {return self._doDelete(merge(data,{unit:"character"}));}, actionDescription: {name: messages.deleteNext}}, //$NON-NLS-1$ //$NON-NLS-0$
+				"deleteWordPrevious": {defaultHandler: function(data) {return self._doBackspace(merge(data,{unit:"word"}));}, actionDescription: {name: messages.deleteWordPrevious}}, //$NON-NLS-1$ //$NON-NLS-0$
+				"deleteWordNext": {defaultHandler: function(data) {return self._doDelete(merge(data,{unit:"word"}));}, actionDescription: {name: messages.deleteWordNext}}, //$NON-NLS-1$ //$NON-NLS-0$
+				"deleteLineStart": {defaultHandler: function(data) {return self._doBackspace(merge(data,{unit: "line"}));}, actionDescription: {name: messages.deleteLineStart}}, //$NON-NLS-1$ //$NON-NLS-0$
+				"deleteLineEnd": {defaultHandler: function(data) {return self._doDelete(merge(data,{unit: "line"}));}, actionDescription: {name: messages.deleteLineEnd}}, //$NON-NLS-1$ //$NON-NLS-0$
+				"tab": {defaultHandler: function(data) {return self._doTab();}, actionDescription: {name: messages.tab}}, //$NON-NLS-0$
+				"shiftTab": {defaultHandler: function(data) {return self._doShiftTab();}, actionDescription: {name: messages.shiftTab}}, //$NON-NLS-0$
+				"enter": {defaultHandler: function(data) {return self._doEnter();}, actionDescription: {name: messages.enter}}, //$NON-NLS-0$
+				"enterNoCursor": {defaultHandler: function(data) {return self._doEnter(merge(data,{noCursor:true}));}, actionDescription: {name: messages.enterNoCursor}}, //$NON-NLS-0$
+				"selectAll": {defaultHandler: function(data) {return self._doSelectAll();}, actionDescription: {name: messages.selectAll}}, //$NON-NLS-0$
+				"copy": {defaultHandler: function(data) {return self._doCopy();}, actionDescription: {name: messages.copy}}, //$NON-NLS-0$
+				"cut": {defaultHandler: function(data) {return self._doCut();}, actionDescription: {name: messages.cut}}, //$NON-NLS-0$
+				"paste": {defaultHandler: function(data) {return self._doPaste();}, actionDescription: {name: messages.paste}}, //$NON-NLS-0$
+				
+				"uppercase": {defaultHandler: function(data) {return self._doCase(merge(data,{type: "upper"}));}, actionDescription: {name: messages.uppercase}}, //$NON-NLS-1$ //$NON-NLS-0$
+				"lowercase": {defaultHandler: function(data) {return self._doCase(merge(data,{type: "lower"}));}, actionDescription: {name: messages.lowercase}}, //$NON-NLS-1$ //$NON-NLS-0$
+				"capitalize": {defaultHandler: function(data) {return self._doCase(merge(data,{unit: "word", type: "capitalize"}));}, actionDescription: {name: messages.capitalize}}, //$NON-NLS-2$ //$NON-NLS-1$ //$NON-NLS-0$
+				"reversecase": {defaultHandler: function(data) {return self._doCase(merge(data,{type: "reverse"}));}, actionDescription: {name: messages.reversecase}}, //$NON-NLS-2$ //$NON-NLS-1$ //$NON-NLS-0$
+				
+				"toggleOverwriteMode": {defaultHandler: function(data) {return self._doOverwriteMode();}, actionDescription: {name: messages.toggleOverwriteMode}}, //$NON-NLS-0$
+				"toggleTabMode": {defaultHandler: function(data) {return self._doTabMode();}, actionDescription: {name: messages.toggleTabMode}}, //$NON-NLS-0$
+				"toggleWrapMode": {defaultHandler: function(data) {return self._doWrapMode();}, actionDescription: {name: messages.toggleWrapMode}} //$NON-NLS-0$
+			};
+		},
+		_createRulerParent: function(className) {
+			var div = util.createElement(document, "div"); //$NON-NLS-0$
+			div.className = className;
+			div.tabIndex = -1;
+			div.style.overflow = "hidden"; //$NON-NLS-0$
+			div.style.MozUserSelect = "none"; //$NON-NLS-0$
+			div.style.WebkitUserSelect = "none"; //$NON-NLS-0$
+			div.style.position = "absolute"; //$NON-NLS-0$
+			div.style.top = "0px"; //$NON-NLS-0$
+			div.style.bottom = "0px"; //$NON-NLS-0$
+			div.style.cursor = "default"; //$NON-NLS-0$
+			div.style.display = "none"; //$NON-NLS-0$
+			div.setAttribute("aria-hidden", "true"); //$NON-NLS-1$ //$NON-NLS-0$
+			this._rootDiv.appendChild(div);
+			return div;
+		},
+		_createRuler: function(ruler, index) {
+			if (!this._clientDiv) { return; }
+			var rulerParent = this._getRulerParent(ruler);
+			if (!rulerParent) { return; }
+			if (rulerParent !== this._marginDiv || this._marginOffset) {
+				rulerParent.style.display = "block"; //$NON-NLS-0$
+			}
+			var div = util.createElement(rulerParent.ownerDocument, "div"); //$NON-NLS-0$
+			div._ruler = ruler;
+			div.rulerChanged = true;
+			div.style.position = "relative"; //$NON-NLS-0$
+			div.style.cssFloat = "left"; //$NON-NLS-0$
+			div.style.styleFloat = "left"; //$NON-NLS-0$
+			div.style.outline = "none"; //$NON-NLS-0$
+			if (index === undefined || index < 0 || index >= rulerParent.children.length) {
+				rulerParent.appendChild(div);
+			} else {
+				var sibling = rulerParent.firstChild;
+				while (sibling && index-- > 0) {
+					sibling = sibling.nextSibling;
+				}
+				rulerParent.insertBefore(div, sibling);
+			}
+		},
+		_createView: function() {
+			if (this._clientDiv) { return; }
+			var parent = this._parent;
+			while (parent.hasChildNodes()) { parent.removeChild(parent.lastChild); }
+
+			var document = parent.ownerDocument;
+			var rootDiv = util.createElement(document, "div"); //$NON-NLS-0$
+			this._rootDiv = rootDiv;
+			rootDiv.tabIndex = -1;
+			rootDiv.style.position = "relative"; //$NON-NLS-0$
+			rootDiv.style.overflow = "hidden"; //$NON-NLS-0$
+			rootDiv.style.width = "100%"; //$NON-NLS-0$
+			rootDiv.style.height = "100%"; //$NON-NLS-0$
+			rootDiv.style.overflow = "hidden"; //$NON-NLS-0$
+			rootDiv.style.WebkitTextSizeAdjust = "100%"; //$NON-NLS-0$
+			rootDiv.setAttribute("role", "application"); //$NON-NLS-1$ //$NON-NLS-0$
+			parent.appendChild(rootDiv);
+			
+			var leftDiv = this._leftDiv = this._createRulerParent("textviewLeftRuler"); //$NON-NLS-0$
+
+			var viewDiv = util.createElement(document, "div"); //$NON-NLS-0$
+			viewDiv.className = "textviewScroll"; //$NON-NLS-0$
+			this._viewDiv = viewDiv;
+			viewDiv.tabIndex = -1;
+			viewDiv.style.position = "absolute"; //$NON-NLS-0$
+			viewDiv.style.top = "0px"; //$NON-NLS-0$
+			viewDiv.style.bottom = "0px"; //$NON-NLS-0$
+			viewDiv.style.borderWidth = "0px"; //$NON-NLS-0$
+			viewDiv.style.margin = "0px"; //$NON-NLS-0$
+			viewDiv.style.outline = "none"; //$NON-NLS-0$
+			viewDiv.style.background = "transparent"; //$NON-NLS-0$
+			if (util.isMac && util.isWebkit) {
+				viewDiv.style.pointerEvents = "none"; //$NON-NLS-0$
+				viewDiv.style.zIndex = "2"; //$NON-NLS-0$
+			}
+			rootDiv.appendChild(viewDiv);
+			
+			var rightDiv = this._rightDiv = this._createRulerParent("textviewRightRuler"); //$NON-NLS-0$
+			rightDiv.style.right = "0px"; //$NON-NLS-0$
+				
+			var scrollDiv = util.createElement(document, "div"); //$NON-NLS-0$
+			this._scrollDiv = scrollDiv;
+			scrollDiv.style.margin = "0px"; //$NON-NLS-0$
+			scrollDiv.style.borderWidth = "0px"; //$NON-NLS-0$
+			scrollDiv.style.padding = "0px"; //$NON-NLS-0$
+			viewDiv.appendChild(scrollDiv);
+			
+			var marginDiv = this._marginDiv = this._createRulerParent("textviewMarginRuler"); //$NON-NLS-0$
+			marginDiv.style.zIndex = "4"; //$NON-NLS-0$
+			
+			if (!util.isIE && !util.isIOS) {
+				var clipDiv = util.createElement(document, "div"); //$NON-NLS-0$
+				this._clipDiv = clipDiv;
+				clipDiv.style.position = "absolute"; //$NON-NLS-0$
+				clipDiv.style.overflow = "hidden"; //$NON-NLS-0$
+				clipDiv.style.margin = "0px"; //$NON-NLS-0$
+				clipDiv.style.borderWidth = "0px"; //$NON-NLS-0$
+				clipDiv.style.padding = "0px"; //$NON-NLS-0$
+				clipDiv.style.background = "transparent"; //$NON-NLS-0$
+				rootDiv.appendChild(clipDiv);
+				
+				var clipScrollDiv = util.createElement(document, "div"); //$NON-NLS-0$
+				this._clipScrollDiv = clipScrollDiv;
+				clipScrollDiv.style.position = "absolute"; //$NON-NLS-0$
+				clipScrollDiv.style.height = "1px"; //$NON-NLS-0$
+				clipScrollDiv.style.top = "-1000px"; //$NON-NLS-0$
+				clipScrollDiv.style.background = "transparent"; //$NON-NLS-0$
+				clipDiv.appendChild(clipScrollDiv);
+			}
+			
+			this._setFullSelection(this._fullSelection, true);
+
+			var clientDiv = util.createElement(document, "div"); //$NON-NLS-0$
+			clientDiv.className = "textviewContent"; //$NON-NLS-0$
+			this._clientDiv = clientDiv;
+			clientDiv.tabIndex = 0;
+			clientDiv.style.position = "absolute"; //$NON-NLS-0$
+			clientDiv.style.borderWidth = "0px"; //$NON-NLS-0$
+			clientDiv.style.margin = "0px"; //$NON-NLS-0$
+			clientDiv.style.padding = "0px"; //$NON-NLS-0$
+			clientDiv.style.outline = "none"; //$NON-NLS-0$
+			clientDiv.style.zIndex = "1"; //$NON-NLS-0$
+			clientDiv.style.WebkitUserSelect = "text"; //$NON-NLS-0$
+			clientDiv.setAttribute("spellcheck", "false"); //$NON-NLS-1$ //$NON-NLS-0$
+			if (util.isIOS || util.isAndroid) {
+				clientDiv.style.WebkitTapHighlightColor = "transparent"; //$NON-NLS-0$
+			}
+			(this._clipDiv || rootDiv).appendChild(clientDiv);
+			
+			if (util.isIOS || util.isAndroid) {
+				var vScrollDiv = util.createElement(document, "div"); //$NON-NLS-0$
+				this._vScrollDiv = vScrollDiv;
+				vScrollDiv.style.position = "absolute"; //$NON-NLS-0$
+				vScrollDiv.style.borderWidth = "1px"; //$NON-NLS-0$
+				vScrollDiv.style.borderColor = "white"; //$NON-NLS-0$
+				vScrollDiv.style.borderStyle = "solid"; //$NON-NLS-0$
+				vScrollDiv.style.borderRadius = "4px"; //$NON-NLS-0$
+				vScrollDiv.style.backgroundColor = "black"; //$NON-NLS-0$
+				vScrollDiv.style.opacity = "0.5"; //$NON-NLS-0$
+				vScrollDiv.style.margin = "0px"; //$NON-NLS-0$
+				vScrollDiv.style.padding = "0px"; //$NON-NLS-0$
+				vScrollDiv.style.outline = "none"; //$NON-NLS-0$
+				vScrollDiv.style.zIndex = "3"; //$NON-NLS-0$
+				vScrollDiv.style.width = "8px"; //$NON-NLS-0$
+				vScrollDiv.style.display = "none"; //$NON-NLS-0$
+				rootDiv.appendChild(vScrollDiv);
+				var hScrollDiv = util.createElement(document, "div"); //$NON-NLS-0$
+				this._hScrollDiv = hScrollDiv;
+				hScrollDiv.style.position = "absolute"; //$NON-NLS-0$
+				hScrollDiv.style.borderWidth = "1px"; //$NON-NLS-0$
+				hScrollDiv.style.borderColor = "white"; //$NON-NLS-0$
+				hScrollDiv.style.borderStyle = "solid"; //$NON-NLS-0$
+				hScrollDiv.style.borderRadius = "4px"; //$NON-NLS-0$
+				hScrollDiv.style.backgroundColor = "black"; //$NON-NLS-0$
+				hScrollDiv.style.opacity = "0.5"; //$NON-NLS-0$
+				hScrollDiv.style.margin = "0px"; //$NON-NLS-0$
+				hScrollDiv.style.padding = "0px"; //$NON-NLS-0$
+				hScrollDiv.style.outline = "none"; //$NON-NLS-0$
+				hScrollDiv.style.zIndex = "3"; //$NON-NLS-0$
+				hScrollDiv.style.height = "8px"; //$NON-NLS-0$
+				hScrollDiv.style.display = "none"; //$NON-NLS-0$
+				rootDiv.appendChild(hScrollDiv);
+			}
+
+			if (util.isFirefox && !clientDiv.setCapture) {
+				var overlayDiv = util.createElement(document, "div"); //$NON-NLS-0$
+				this._overlayDiv = overlayDiv;
+				overlayDiv.style.position = clientDiv.style.position;
+				overlayDiv.style.borderWidth = clientDiv.style.borderWidth;
+				overlayDiv.style.margin = clientDiv.style.margin;
+				overlayDiv.style.padding = clientDiv.style.padding;
+				overlayDiv.style.cursor = "text"; //$NON-NLS-0$
+				overlayDiv.style.zIndex = "2"; //$NON-NLS-0$
+				(this._clipDiv || rootDiv).appendChild(overlayDiv);
+			}
+			clientDiv.contentEditable = "true"; //$NON-NLS-0$
+			clientDiv.setAttribute("role", "textbox"); //$NON-NLS-1$ //$NON-NLS-0$
+			clientDiv.setAttribute("aria-multiline", "true"); //$NON-NLS-1$ //$NON-NLS-0$
+			this._setWrapMode(this._wrapMode, true);
+			this._setReadOnly(this._readonly);
+			this._setThemeClass(this._themeClass, true);
+			this._setTabSize(this._tabSize, true);
+			this._setMarginOffset(this._marginOffset, true);
+			this._hookEvents();
+			var rulers = this._rulers;
+			for (var i=0; i<rulers.length; i++) {
+				this._createRuler(rulers[i]);
+			}
+			this._update();
+		},
+		_defaultOptions: function() {
+			return {
+				parent: {value: undefined, update: null},
+				model: {value: undefined, update: this.setModel},
+				scrollAnimation: {value: 0, update: null},
+				readonly: {value: false, update: this._setReadOnly},
+				fullSelection: {value: true, update: this._setFullSelection},
+				tabMode: { value: true, update: null },
+				tabSize: {value: 8, update: this._setTabSize},
+				expandTab: {value: false, update: null},
+				singleMode: {value: false, update: this._setSingleMode},
+				overwriteMode: { value: false, update: this._setOverwriteMode },
+				blockCursorVisible: { value: false, update: this._setBlockCursor},
+				marginOffset: {value: 0, update: this._setMarginOffset},
+				wrapOffset: {value: 0, update: this._setWrapOffset},
+				wrapMode: {value: false, update: this._setWrapMode},
+				wrappable: {value: false, update: null},
+				theme: {value: mTextTheme.TextTheme.getTheme(), update: this._setTheme},
+				themeClass: {value: undefined, update: this._setThemeClass}
+			};
+		},
+		_destroyRuler: function(ruler) {
+			var rulerParent = this._getRulerParent(ruler);
+			if (rulerParent) {
+				var div = rulerParent.firstChild;
+				while (div) {
+					if (div._ruler === ruler) {
+						div._ruler = undefined;
+						rulerParent.removeChild(div);
+						if (rulerParent.children.length === 0 && (rulerParent !== this._marginDiv || !this._marginOffset)) {
+							rulerParent.style.display = "none"; //$NON-NLS-0$
+						}
+						break;
+					}
+					div = div.nextSibling;
+				}
+			}
+		},
+		_destroyView: function() {
+			var clientDiv = this._clientDiv;
+			if (!clientDiv) { return; }
+			this._setGrab(null);
+			this._unhookEvents();
+
+			/* Destroy timers */
+			var window = this._getWindow();
+			if (this._autoScrollTimerID) {
+				window.clearTimeout(this._autoScrollTimerID);
+				this._autoScrollTimerID = null;
+			}
+			if (this._updateTimer) {
+				window.clearTimeout(this._updateTimer);
+				this._updateTimer = null;
+			}
+			
+			var rootDiv = this._rootDiv;
+			rootDiv.parentNode.removeChild(rootDiv);
+
+			/* Destroy DOM */
+			this._selDiv1 = null;
+			this._selDiv2 = null;
+			this._selDiv3 = null;
+			this._clipboardDiv = null;
+			this._rootDiv = null;
+			this._scrollDiv = null;
+			this._viewDiv = null;
+			this._clipDiv = null;
+			this._clipScrollDiv = null;
+			this._clientDiv = null;
+			this._overlayDiv = null;
+			this._leftDiv = null;
+			this._rightDiv = null;
+			this._marginDiv = null;
+			this._cursorDiv = null;
+			this._vScrollDiv = null;
+			this._hScrollDiv = null;
+		},
+		_doAutoScroll: function (direction, x, y) {
+			this._autoScrollDir = direction;
+			this._autoScrollX = x;
+			this._autoScrollY = y;
+			if (!this._autoScrollTimerID) {
+				this._autoScrollTimer();
+			}
+		},
+		_endAutoScroll: function () {
+			if (this._autoScrollTimerID) {
+				var window = this._getWindow();
+				window.clearTimeout(this._autoScrollTimerID);
+			}
+			this._autoScrollDir = undefined;
+			this._autoScrollTimerID = undefined;
+		},
+		_fixCaret: function() {
+			var clientDiv = this._clientDiv;
+			if (clientDiv) {
+				var hasFocus = this._hasFocus;
+				this._ignoreFocus = true;
+				if (hasFocus) { clientDiv.blur(); }
+				clientDiv.contentEditable = false;
+				clientDiv.contentEditable = true;
+				if (hasFocus) { clientDiv.focus(); }
+				this._ignoreFocus = false;
+			}
+		},
+		_getBaseText: function(start, end) {
+			var model = this._model;
+			/* This is the only case the view access the base model, alternatively the view could use a event to application to customize the text */
+			if (model.getBaseModel) {
+				start = model.mapOffset(start);
+				end = model.mapOffset(end);
+				model = model.getBaseModel();
+			}
+			return model.getText(start, end);
+		},
+		_getBottomIndex: function (fullyVisible) {
+			var child = this._bottomChild;
+			if (fullyVisible && this._getClientHeight() > this._getLineHeight()) {
+				var rect = child.getBoundingClientRect();
+				var clientRect = this._clientDiv.getBoundingClientRect();
+				if (rect.bottom > clientRect.bottom) {
+					child = this._getLinePrevious(child) || child;
+				}
+			}
+			return child.lineIndex;
+		},
+		_getBoundsAtOffset: function(offset) {
+			var model = this._model;
+			var line = this._getLine(model.getLineAtOffset(offset));
+			var result = line.getBoundingClientRect(offset);
+			var linePixel = this._getLinePixel(line.lineIndex);
+			result.top += linePixel;
+			result.bottom += linePixel;
+			line.destroy();
+			return result;
+		},
+		_getClientHeight: function() {
+			var viewPad = this._getViewPadding();
+			return Math.max(0, this._viewDiv.clientHeight - viewPad.top - viewPad.bottom);
+		},
+		_getClientWidth: function() {
+			var viewPad = this._getViewPadding();
+			return Math.max(0, this._viewDiv.clientWidth - viewPad.left - viewPad.right);
+		},
+		_getClipboardText: function (event, handler) {
+			var delimiter = this._model.getLineDelimiter();
+			var clipboadText, text;
+			// IE
+			var window = this._getWindow();
+			var clipboardData = window.clipboardData;
+			// WebKit and Firefox > 21
+			if (!clipboardData && event) {
+				clipboardData = event.clipboardData;
+			}
+			if (clipboardData) {
+				clipboadText = [];
+				text = clipboardData.getData(util.isIE ? "Text" : "text/plain"); //$NON-NLS-1$"//$NON-NLS-0$
+				convertDelimiter(text, function(t) {clipboadText.push(t);}, function() {clipboadText.push(delimiter);});
+				text = clipboadText.join("");
+				if (handler) { handler(text); }
+				return text;
+			}
+			if (util.isFirefox) {
+				this._ignoreFocus = true;
+				var clipboardDiv = this._clipboardDiv;
+				var document = this._rootDiv.ownerDocument;
+				if (!clipboardDiv) {
+					clipboardDiv = util.createElement(document, "div"); //$NON-NLS-0$
+					this._clipboardDiv = clipboardDiv;
+					clipboardDiv.style.position = "fixed"; //$NON-NLS-0$
+					clipboardDiv.style.whiteSpace = "pre"; //$NON-NLS-0$
+					clipboardDiv.style.left = "-1000px"; //$NON-NLS-0$
+					this._rootDiv.appendChild(clipboardDiv);
+				}
+				clipboardDiv.innerHTML = "<pre contenteditable=''></pre>"; //$NON-NLS-0$
+				clipboardDiv.firstChild.focus();
+				var self = this;
+				var _getText = function() {
+					var noteText = self._getTextFromElement(clipboardDiv);
+					clipboardDiv.innerHTML = "";
+					clipboadText = [];
+					convertDelimiter(noteText, function(t) {clipboadText.push(t);}, function() {clipboadText.push(delimiter);});
+					return clipboadText.join("");
+				};
+				
+				/* Try execCommand first. Works on firefox with clipboard permission. */
+				var result = false;
+				this._ignorePaste = true;
+
+				/* Do not try execCommand if middle-click is used, because if we do, we get the clipboard text, not the primary selection text. */
+				if (!util.isLinux || this._lastMouseButton !== 2) {
+					try {
+						result = document.execCommand("paste", false, null); //$NON-NLS-0$
+					} catch (ex) {
+						/* Firefox can throw even when execCommand() works, see bug 362835. */
+						result = clipboardDiv.childNodes.length > 1 || clipboardDiv.firstChild && clipboardDiv.firstChild.childNodes.length > 0;
+					}
+				}
+				this._ignorePaste = false;
+				if (!result) {
+					/* Try native paste in DOM, works for firefox during the paste event. */
+					if (event) {
+						window.setTimeout(function() {
+							self.focus();
+							text = _getText();
+							if (text && handler) {
+								handler(text);
+							}
+							self._ignoreFocus = false;
+						}, 0);
+						return null;
+					} else {
+						/* no event and no clipboard permission, paste can't be performed */
+						this.focus();
+						this._ignoreFocus = false;
+						return "";
+					}
+				}
+				this.focus();
+				this._ignoreFocus = false;
+				text = _getText();
+				if (text && handler) {
+					handler(text);
+				}
+				return text;
+			}
+			return "";
+		},
+		_getDOMText: function(child, offsetNode) {
+			var lineChild = child.firstChild;
+			var text = "", offset = 0;
+			while (lineChild) {
+				var textNode;
+				if (lineChild.ignore) {
+					lineChild = lineChild.nextSibling;
+					continue;
+				}
+				if (lineChild.ignoreChars) {
+					textNode = lineChild.lastChild;
+					var ignored = 0, childText = [], childOffset = -1;
+					while (textNode) {
+						var data = textNode.data;
+						for (var i = data.length - 1; i >= 0; i--) {
+							var ch = data.substring(i, i + 1);
+							if (ignored < lineChild.ignoreChars && (ch === " " || ch === "\u200C" || ch === "\uFEFF")) { //$NON-NLS-2$ //$NON-NLS-1$ //$NON-NLS-0$
+								ignored++;
+							} else {
+								childText.push(ch === "\u00A0" ? "\t" : ch); //$NON-NLS-1$ //$NON-NLS-0$
+							}
+						}
+						if (offsetNode === textNode) {
+							childOffset = childText.length;
+						}
+						textNode = textNode.previousSibling;
+					}
+					childText = childText.reverse().join("");
+					if (childOffset !== -1) {
+						offset = text.length + childText.length - childOffset;
+					}
+					text += childText;
+				} else {
+					textNode = lineChild.firstChild;
+					while (textNode) {
+						if (offsetNode === textNode) {
+							offset = text.length;
+						}
+						text += textNode.data;
+						textNode = textNode.nextSibling;
+					}
+				}
+				lineChild = lineChild.nextSibling;
+			}
+			return {text: text, offset: offset};
+		},
+		_getTextFromElement: function(element) {
+			var document = element.ownerDocument;
+			var window = document.defaultView;
+			if (!window.getSelection) {
+				return element.innerText || element.textContent;
+			}
+
+			var newRange = document.createRange();
+			newRange.selectNode(element);
+
+			var selection = window.getSelection();
+			var oldRanges = [], i;
+			for (i = 0; i < selection.rangeCount; i++) {
+				oldRanges.push(selection.getRangeAt(i));
+			}
+
+			this._ignoreSelect = true;
+			selection.removeAllRanges();
+			selection.addRange(newRange);
+
+			var text = selection.toString();
+
+			selection.removeAllRanges();
+			for (i = 0; i < oldRanges.length; i++) {
+				selection.addRange(oldRanges[i]);
+			}
+
+			this._ignoreSelect = false;
+			return text;
+		},
+		_getViewPadding: function() {
+			return this._metrics.viewPadding;
+		},
+		_getLine: function(lineIndex) {
+			var child = this._getLineNode(lineIndex);
+			if (child && !child.lineChanged && !child.lineRemoved) {
+				return child._line;
+			}
+			return new TextLine(this, lineIndex);
+		},
+		_getLineHeight: function(lineIndex, calculate) {
+			if (lineIndex !== undefined && this._lineHeight) {
+				var lineHeight = this._lineHeight[lineIndex];
+				if (lineHeight) { return lineHeight; }
+				if (calculate || calculate === undefined) {
+					var height = this._lineHeight[lineIndex] = this._calculateLineHeight(lineIndex);
+					return height;
+				}
+			}
+			return this._metrics.lineHeight;
+		},
+		_getLineNode: function (lineIndex) {
+			var clientDiv = this._clientDiv;
+			var child = clientDiv.firstChild;
+			while (child) {
+				if (lineIndex === child.lineIndex) {
+					return child;
+				}
+				child = child.nextSibling;
+			}
+			return undefined;
+		},
+		_getLineNext: function (lineNode) {
+			var node = lineNode ? lineNode.nextSibling : this._clientDiv.firstChild;
+			while (node && node.lineIndex === -1) {
+				node = node.nextSibling;
+			}
+			return node;
+		},
+		_getLinePrevious: function (lineNode) {
+			var node = lineNode ? lineNode.previousSibling : this._clientDiv.lastChild;
+			while (node && node.lineIndex === -1) {
+				node = node.previousSibling;
+			}
+			return node;
+		},
+		_getLinePixel: function(lineIndex) {
+			lineIndex = Math.min(Math.max(0, lineIndex), this._model.getLineCount());
+			if (this._lineHeight) {
+				var topIndex = this._getTopIndex();
+				var pixel = -this._topIndexY + this._getScroll().y, i;
+				if (lineIndex > topIndex) {
+					for (i = topIndex; i < lineIndex; i++) {
+						pixel += this._getLineHeight(i);
+					}
+				} else {
+					for (i = topIndex - 1; i >= lineIndex; i--) {
+						pixel -= this._getLineHeight(i);
+					}
+				}
+				return pixel;
+			}
+			var lineHeight = this._getLineHeight();
+			return lineHeight * lineIndex;
+		},
+		_getLineIndex: function(y) {
+			var lineHeight, lineIndex = 0;
+			var lineCount = this._model.getLineCount();
+			if (this._lineHeight) {
+				lineIndex = this._getTopIndex();
+				var pixel = -this._topIndexY + this._getScroll().y;
+				if (y !== pixel) {
+					if (y < pixel) {
+						while (y < pixel && lineIndex > 0) {
+							y += this._getLineHeight(--lineIndex);
+						}
+					} else {
+						lineHeight = this._getLineHeight(lineIndex);
+						while (y - lineHeight >= pixel && lineIndex < lineCount - 1) {
+							y -= lineHeight;
+							lineHeight = this._getLineHeight(++lineIndex);
+						}
+					}
+				}
+			} else {
+				lineHeight = this._getLineHeight();
+				lineIndex = Math.floor(y / lineHeight);
+			}
+			return Math.max(0, Math.min(lineCount - 1, lineIndex));
+		},
+		_getRulerParent: function(ruler) {
+			switch (ruler.getLocation()) {
+				case "left": return this._leftDiv; //$NON-NLS-0$
+				case "right": return this._rightDiv; //$NON-NLS-0$
+				case "margin": return this._marginDiv; //$NON-NLS-0$
+			}
+			return null;
+		},
+		_getScroll: function(cancelAnimation) {
+			if (cancelAnimation === undefined || cancelAnimation) {
+				this._cancelAnimation();
+			}
+			var viewDiv = this._viewDiv;
+			return {x: viewDiv.scrollLeft, y: viewDiv.scrollTop};
+		},
+		_getSelection: function () {
+			return this._selection.clone();
+		},
+		_getTopIndex: function (fullyVisible) {
+			var child = this._topChild;
+			if (fullyVisible && this._getClientHeight() > this._getLineHeight()) {
+				var rect = child.getBoundingClientRect();
+				var viewPad = this._getViewPadding();
+				var viewRect = this._viewDiv.getBoundingClientRect();
+				if (rect.top < viewRect.top + viewPad.top) {
+					child = this._getLineNext(child) || child;
+				}
+			}
+			return child.lineIndex;
+		},
+		_hookEvents: function() {
+			var self = this;
+			this._modelListener = {
+				/** @private */
+				onChanging: function(modelChangingEvent) {
+					self._onModelChanging(modelChangingEvent);
+				},
+				/** @private */
+				onChanged: function(modelChangedEvent) {
+					self._onModelChanged(modelChangedEvent);
+				}
+			};
+			this._model.addEventListener("preChanging", this._modelListener.onChanging); //$NON-NLS-0$
+			this._model.addEventListener("postChanged", this._modelListener.onChanged); //$NON-NLS-0$
+			
+			this._themeListener = {
+				onChanged: function(themeChangedEvent) {
+					self._setThemeClass(self._themeClass);
+				}
+			};
+			this._theme.addEventListener("ThemeChanged", this._themeListener.onChanged); //$NON-NLS-0$
+			
+			var handlers = this._handlers = [];
+			var clientDiv = this._clientDiv, viewDiv = this._viewDiv, rootDiv = this._rootDiv;
+			var topNode = this._overlayDiv || clientDiv;
+			var document = clientDiv.ownerDocument;
+			var window = this._getWindow();
+			var grabNode = util.isIE ? document : window;
+			handlers.push({target: window, type: "resize", handler: function(e) { return self._handleResize(e ? e : window.event);}}); //$NON-NLS-0$
+			handlers.push({target: clientDiv, type: "blur", handler: function(e) { return self._handleBlur(e ? e : window.event);}}); //$NON-NLS-0$
+			handlers.push({target: clientDiv, type: "focus", handler: function(e) { return self._handleFocus(e ? e : window.event);}}); //$NON-NLS-0$
+			handlers.push({target: viewDiv, type: "focus", handler: function(e) { clientDiv.focus(); }}); //$NON-NLS-0$
+			handlers.push({target: viewDiv, type: "scroll", handler: function(e) { return self._handleScroll(e ? e : window.event);}}); //$NON-NLS-0$
+			handlers.push({target: clientDiv, type: "textInput", handler: function(e) { return self._handleTextInput(e ? e : window.event); }}); //$NON-NLS-0$
+			handlers.push({target: clientDiv, type: "keydown", handler: function(e) { return self._handleKeyDown(e ? e : window.event);}}); //$NON-NLS-0$
+			handlers.push({target: clientDiv, type: "keypress", handler: function(e) { return self._handleKeyPress(e ? e : window.event);}}); //$NON-NLS-0$
+			handlers.push({target: clientDiv, type: "keyup", handler: function(e) { return self._handleKeyUp(e ? e : window.event);}}); //$NON-NLS-0$
+			if (util.isIE) {
+				handlers.push({target: document, type: "keyup", handler: function(e) { return self._handleDocKeyUp(e ? e : window.event);}}); //$NON-NLS-0$
+			}
+			handlers.push({target: clientDiv, type: "contextmenu", handler: function(e) { return self._handleContextMenu(e ? e : window.event);}}); //$NON-NLS-0$
+			handlers.push({target: clientDiv, type: "copy", handler: function(e) { return self._handleCopy(e ? e : window.event);}}); //$NON-NLS-0$
+			handlers.push({target: clientDiv, type: "cut", handler: function(e) { return self._handleCut(e ? e : window.event);}}); //$NON-NLS-0$
+			handlers.push({target: clientDiv, type: "paste", handler: function(e) { return self._handlePaste(e ? e : window.event);}}); //$NON-NLS-0$
+			if (util.isIOS || util.isAndroid) {
+				handlers.push({target: document, type: "selectionchange", handler: function(e) { return self._handleSelectionChange(e ? e : window.event); }}); //$NON-NLS-0$
+				handlers.push({target: clientDiv, type: "touchstart", handler: function(e) { return self._handleTouchStart(e ? e : window.event); }}); //$NON-NLS-0$
+				handlers.push({target: clientDiv, type: "touchmove", handler: function(e) { return self._handleTouchMove(e ? e : window.event); }}); //$NON-NLS-0$
+				handlers.push({target: clientDiv, type: "touchend", handler: function(e) { return self._handleTouchEnd(e ? e : window.event); }}); //$NON-NLS-0$
+			} else {
+				handlers.push({target: clientDiv, type: "selectstart", handler: function(e) { return self._handleSelectStart(e ? e : window.event);}}); //$NON-NLS-0$
+				handlers.push({target: clientDiv, type: "mousedown", handler: function(e) { return self._handleMouseDown(e ? e : window.event);}}); //$NON-NLS-0$
+				handlers.push({target: clientDiv, type: "mouseover", handler: function(e) { return self._handleMouseOver(e ? e : window.event);}}); //$NON-NLS-0$
+				handlers.push({target: clientDiv, type: "mouseout", handler: function(e) { return self._handleMouseOut(e ? e : window.event);}}); //$NON-NLS-0$
+				handlers.push({target: grabNode, type: "mouseup", handler: function(e) { return self._handleMouseUp(e ? e : window.event);}}); //$NON-NLS-0$
+				handlers.push({target: grabNode, type: "mousemove", handler: function(e) { return self._handleMouseMove(e ? e : window.event);}}); //$NON-NLS-0$
+				handlers.push({target: rootDiv, type: "mousedown", handler: function(e) { return self._handleRootMouseDown(e ? e : window.event);}}); //$NON-NLS-0$
+				handlers.push({target: rootDiv, type: "mouseup", handler: function(e) { return self._handleRootMouseUp(e ? e : window.event);}}); //$NON-NLS-0$
+				handlers.push({target: topNode, type: "dragstart", handler: function(e) { return self._handleDragStart(e ? e : window.event);}}); //$NON-NLS-0$
+				handlers.push({target: topNode, type: "drag", handler: function(e) { return self._handleDrag(e ? e : window.event);}}); //$NON-NLS-0$
+				handlers.push({target: topNode, type: "dragend", handler: function(e) { return self._handleDragEnd(e ? e : window.event);}}); //$NON-NLS-0$
+				handlers.push({target: topNode, type: "dragenter", handler: function(e) { return self._handleDragEnter(e ? e : window.event);}}); //$NON-NLS-0$
+				handlers.push({target: topNode, type: "dragover", handler: function(e) { return self._handleDragOver(e ? e : window.event);}}); //$NON-NLS-0$
+				handlers.push({target: topNode, type: "dragleave", handler: function(e) { return self._handleDragLeave(e ? e : window.event);}}); //$NON-NLS-0$
+				handlers.push({target: topNode, type: "drop", handler: function(e) { return self._handleDrop(e ? e : window.event);}}); //$NON-NLS-0$
+				handlers.push({target: this._clientDiv, type: util.isFirefox ? "DOMMouseScroll" : "mousewheel", handler: function(e) { return self._handleMouseWheel(e ? e : window.event); }}); //$NON-NLS-1$ //$NON-NLS-0$
+				if (this._clipDiv) {
+					handlers.push({target: this._clipDiv, type: util.isFirefox ? "DOMMouseScroll" : "mousewheel", handler: function(e) { return self._handleMouseWheel(e ? e : window.event); }}); //$NON-NLS-1$ //$NON-NLS-0$
+				}
+				if (util.isFirefox && (!util.isWindows || util.isFirefox >= 15)) {
+					var MutationObserver = window.MutationObserver || window.MozMutationObserver;
+					if (MutationObserver) {
+						this._mutationObserver = new MutationObserver(function(mutations) { self._handleDataModified(mutations); });
+						this._mutationObserver.observe(clientDiv, {subtree: true, characterData: true});
+					} else {
+						handlers.push({target: this._clientDiv, type: "DOMCharacterDataModified", handler: function (e) { return self._handleDataModified(e ? e : window.event); }}); //$NON-NLS-0$
+					}
+				}
+				if (this._overlayDiv) {
+					handlers.push({target: this._overlayDiv, type: "mousedown", handler: function(e) { return self._handleMouseDown(e ? e : window.event);}}); //$NON-NLS-0$
+					handlers.push({target: this._overlayDiv, type: "mouseover", handler: function(e) { return self._handleMouseOver(e ? e : window.event);}}); //$NON-NLS-0$
+					handlers.push({target: this._overlayDiv, type: "mouseout", handler: function(e) { return self._handleMouseOut(e ? e : window.event);}}); //$NON-NLS-0$
+					handlers.push({target: this._overlayDiv, type: "contextmenu", handler: function(e) { return self._handleContextMenu(e ? e : window.event); }}); //$NON-NLS-0$
+				}
+				if (!this._isW3CEvents) {
+					handlers.push({target: this._clientDiv, type: "dblclick", handler: function(e) { return self._handleDblclick(e ? e : window.event); }}); //$NON-NLS-0$
+				}
+			}
+
+			this._hookRulerEvents(this._leftDiv, handlers);
+			this._hookRulerEvents(this._rightDiv, handlers);
+			this._hookRulerEvents(this._marginDiv, handlers);
+			
+			for (var i=0; i<handlers.length; i++) {
+				var h = handlers[i];
+				addHandler(h.target, h.type, h.handler, h.capture);
+			}
+		},
+		_hookRulerEvents: function(div, handlers) {
+			if (!div) { return; }
+			var self = this;
+			var window = this._getWindow();
+			if (util.isIE) {
+				handlers.push({target: div, type: "selectstart", handler: function() {return false;}}); //$NON-NLS-0$
+			}
+			handlers.push({target: div, type: util.isFirefox ? "DOMMouseScroll" : "mousewheel", handler: function(e) { return self._handleMouseWheel(e ? e : window.event); }}); //$NON-NLS-1$ //$NON-NLS-0$
+			handlers.push({target: div, type: "click", handler: function(e) { self._handleRulerEvent(e ? e : window.event); }}); //$NON-NLS-0$
+			handlers.push({target: div, type: "dblclick", handler: function(e) { self._handleRulerEvent(e ? e : window.event); }}); //$NON-NLS-0$
+			handlers.push({target: div, type: "mousemove", handler: function(e) { self._handleRulerEvent(e ? e : window.event); }}); //$NON-NLS-0$
+			handlers.push({target: div, type: "mouseover", handler: function(e) { self._handleRulerEvent(e ? e : window.event); }}); //$NON-NLS-0$
+			handlers.push({target: div, type: "mouseout", handler: function(e) { self._handleRulerEvent(e ? e : window.event); }}); //$NON-NLS-0$
+		},
+		_getWindow: function() {
+			return getWindow(this._parent.ownerDocument);
+		},
+		_ignoreEvent: function(e) {
+			var node = e.target;
+			while (node && node !== this._clientDiv) {
+				if (node.ignore) { return true; }
+				node = node.parentNode;
+			}
+			return false;
+		},
+		_init: function(options) {
+			var parent = options.parent;
+			if (typeof(parent) === "string") { //$NON-NLS-0$
+				parent = (options.document || document).getElementById(parent);
+			}
+			if (!parent) { throw "no parent"; } //$NON-NLS-0$
+			options.parent = parent;
+			options.model = options.model || new mTextModel.TextModel();
+			var defaultOptions = this._defaultOptions();
+			for (var option in defaultOptions) {
+				if (defaultOptions.hasOwnProperty(option)) {
+					var value;
+					if (options[option] !== undefined) {
+						value = options[option];
+					} else {
+						value = defaultOptions[option].value;
+					}
+					this["_" + option] = value; //$NON-NLS-0$
+				}
+			}
+			this._keyModes = [];
+			this._rulers = [];
+			this._selection = new Selection (0, 0, false);
+			this._linksVisible = false;
+			this._redrawCount = 0;
+			this._maxLineWidth = 0;
+			this._maxLineIndex = -1;
+			this._ignoreSelect = true;
+			this._ignoreFocus = false;
+			this._hasFocus = false;
+			this._columnX = -1;
+			this._dragOffset = -1;
+			this._isRangeRects = (!util.isIE || util.isIE >= 9) && typeof parent.ownerDocument.createRange().getBoundingClientRect === "function"; //$NON-NLS-0$
+			this._isW3CEvents = parent.addEventListener;
+
+			/* Auto scroll */
+			this._autoScrollX = null;
+			this._autoScrollY = null;
+			this._autoScrollTimerID = null;
+			this._AUTO_SCROLL_RATE = 50;
+			this._grabControl = null;
+			this._moseMoveClosure  = null;
+			this._mouseUpClosure = null;
+			
+			/* Double click */
+			this._lastMouseX = 0;
+			this._lastMouseY = 0;
+			this._lastMouseTime = 0;
+			this._clickCount = 0;
+			this._clickTime = 250;
+			this._clickDist = 5;
+			this._isMouseDown = false;
+			this._doubleClickSelection = null;
+			
+			/* Scroll */
+			this._hScroll = 0;
+			this._vScroll = 0;
+
+			/* IME */
+			this._imeOffset = -1;
+			
+			/* Create elements */
+			this._createActions();
+			this._createView();
+		},
+		_modifyContent: function(e, updateCaret) {
+			if (this._readonly && !e._code) {
+				return;
+			}
+			e.type = "Verify"; //$NON-NLS-0$
+			this.onVerify(e);
+
+			if (e.text === null || e.text === undefined) { return; }
+			
+			var model = this._model;
+			try {
+				if (e._ignoreDOMSelection) { this._ignoreDOMSelection = true; }
+				model.setText(e.text, e.start, e.end);
+			} finally {
+				if (e._ignoreDOMSelection) { this._ignoreDOMSelection = false; }
+			}
+			
+			if (updateCaret) {
+				var selection = this._getSelection ();
+				selection.setCaret(e.start + e.text.length);
+				this._setSelection(selection, true);
+			}
+			this.onModify({type: "Modify"}); //$NON-NLS-0$
+		},
+		_onModelChanged: function(modelChangedEvent) {
+			modelChangedEvent.type = "ModelChanged"; //$NON-NLS-0$
+			this.onModelChanged(modelChangedEvent);
+			modelChangedEvent.type = "Changed"; //$NON-NLS-0$
+			var start = modelChangedEvent.start;
+			var addedCharCount = modelChangedEvent.addedCharCount;
+			var removedCharCount = modelChangedEvent.removedCharCount;
+			var addedLineCount = modelChangedEvent.addedLineCount;
+			var removedLineCount = modelChangedEvent.removedLineCount;
+			var selection = this._getSelection();
+			if (selection.end > start) {
+				if (selection.end > start && selection.start < start + removedCharCount) {
+					// selection intersects replaced text. set caret behind text change
+					selection.setCaret(start + addedCharCount);
+				} else {
+					// move selection to keep same text selected
+					selection.start +=  addedCharCount - removedCharCount;
+					selection.end +=  addedCharCount - removedCharCount;
+				}
+				this._setSelection(selection, false, false);
+			}
+			
+			var model = this._model;
+			var startLine = model.getLineAtOffset(start);
+			var child = this._getLineNext();
+			while (child) {
+				var lineIndex = child.lineIndex;
+				if (startLine <= lineIndex && lineIndex <= startLine + removedLineCount) {
+					if (startLine === lineIndex && !child.modelChangedEvent && !child.lineRemoved) {
+						child.modelChangedEvent = modelChangedEvent;
+						child.lineChanged = true;
+					} else {
+						child.lineRemoved = true;
+						child.lineChanged = false;
+						child.modelChangedEvent = null;
+					}
+				}
+				if (lineIndex > startLine + removedLineCount) {
+					child.lineIndex = lineIndex + addedLineCount - removedLineCount;
+					child._line.lineIndex = child.lineIndex;
+				}
+				child = this._getLineNext(child);
+			}
+			if (this._lineHeight) {
+				var args = [startLine, removedLineCount].concat(new Array(addedLineCount));
+				Array.prototype.splice.apply(this._lineHeight, args);
+			}
+			if (!this._wrapMode) {
+				if (startLine <= this._maxLineIndex && this._maxLineIndex <= startLine + removedLineCount) {
+					this._checkMaxLineIndex = this._maxLineIndex;
+					this._maxLineIndex = -1;
+					this._maxLineWidth = 0;
+				}
+			}
+			this._update();
+		},
+		_onModelChanging: function(modelChangingEvent) {
+			modelChangingEvent.type = "ModelChanging"; //$NON-NLS-0$
+			this.onModelChanging(modelChangingEvent);
+			modelChangingEvent.type = "Changing"; //$NON-NLS-0$
+		},
+		_queueUpdate: function() {
+			if (this._updateTimer || this._ignoreQueueUpdate) { return; }
+			var self = this;
+			var window = this._getWindow();
+			this._updateTimer = window.setTimeout(function() { 
+				self._updateTimer = null;
+				self._update();
+			}, 0);
+		},
+		_resetLineHeight: function(startLine, endLine) {
+			if (this._wrapMode || this._variableLineHeight) {
+				if (startLine !== undefined && endLine !== undefined) {
+					for (var i = startLine; i < endLine; i++) {
+						this._lineHeight[i] = undefined;
+					}
+				} else {
+					this._lineHeight = new Array(this._model.getLineCount());
+				}
+				this._calculateLineHeightTimer();
+			} else {
+				this._lineHeight = null;
+			}
+		},
+		_resetLineWidth: function() {
+			var clientDiv = this._clientDiv;
+			if (clientDiv) {
+				var child = clientDiv.firstChild;
+				while (child) {
+					child.lineWidth = undefined;
+					child = child.nextSibling;
+				}
+			}
+		},
+		_reset: function() {
+			this._maxLineIndex = -1;
+			this._maxLineWidth = 0;
+			this._columnX = -1;
+			this._topChild = null;
+			this._bottomChild = null;
+			this._topIndexY = 0;
+			this._variableLineHeight = false;
+			this._resetLineHeight();
+			this._setSelection(new Selection (0, 0, false), false, false);
+			if (this._viewDiv) {
+				this._viewDiv.scrollLeft = 0;
+				this._viewDiv.scrollTop = 0;
+			}
+			var clientDiv = this._clientDiv;
+			if (clientDiv) {
+				var child = clientDiv.firstChild;
+				while (child) {
+					child.lineRemoved = true;
+					child = child.nextSibling;
+				}
+				/*
+				* Bug in Firefox.  For some reason, the caret does not show after the
+				* view is refreshed.  The fix is to toggle the contentEditable state and
+				* force the clientDiv to loose and receive focus if it is focused.
+				*/
+				if (util.isFirefox) {
+					this._ignoreFocus = false;
+					var hasFocus = this._hasFocus;
+					if (hasFocus) { clientDiv.blur(); }
+					clientDiv.contentEditable = false;
+					clientDiv.contentEditable = true;
+					if (hasFocus) { clientDiv.focus(); }
+					this._ignoreFocus = false;
+				}
+			}
+		},
+		_scrollViewAnimated: function (pixelX, pixelY, callback) {
+			var window = this._getWindow();
+			if (callback && this._scrollAnimation) {
+				var self = this;
+				this._animation = new Animation({
+					window: window,
+					duration: this._scrollAnimation,
+					curve: [pixelY, 0],
+					onAnimate: function(x) {
+						var deltaY = pixelY - Math.floor(x);
+						self._scrollView (0, deltaY);
+						pixelY -= deltaY;
+					},
+					onEnd: function() {
+						self._animation = null;
+						self._scrollView (pixelX, pixelY);
+						if (callback) {
+							window.setTimeout(callback, 0);
+						}
+					}
+				});
+				this._animation.play();
+			} else {
+				this._scrollView (pixelX, pixelY);
+				if (callback) {
+					window.setTimeout(callback, 0);
+				}
+			}
+		}, 
+		_scrollView: function (pixelX, pixelY) {
+			/*
+			* Always set _ensureCaretVisible to false so that the view does not scroll
+			* to show the caret when scrollView is not called from showCaret().
+			*/
+			this._ensureCaretVisible = false;
+			
+			/*
+			* Scrolling is done only by setting the scrollLeft and scrollTop fields in the
+			* view div. This causes an update from the scroll event. In some browsers 
+			* this event is asynchronous and forcing update page to run synchronously
+			* leads to redraw problems. 
+			* On Chrome 11, the view redrawing at times when holding PageDown/PageUp key.
+			* On Firefox 4 for Linux, the view redraws the first page when holding 
+			* PageDown/PageUp key, but it will not redraw again until the key is released.
+			*/
+			var viewDiv = this._viewDiv;
+			if (pixelX) { viewDiv.scrollLeft += pixelX; }
+			if (pixelY) { viewDiv.scrollTop += pixelY; }
+		},
+		_setClipboardText: function (text, event) {
+			var clipboardText;
+			// IE
+			var window = this._getWindow();
+			var clipboardData = window.clipboardData;
+			// WebKit and Firefox > 21
+			if (!clipboardData && event) {
+				clipboardData = event.clipboardData;
+			}
+			if (clipboardData) {
+				clipboardText = [];
+				convertDelimiter(text, function(t) {clipboardText.push(t);}, function() {clipboardText.push(util.platformDelimiter);});
+				if (clipboardData.setData(util.isIE ? "Text" : "text/plain", clipboardText.join(""))) { //$NON-NLS-1$ //$NON-NLS-0$
+					return true;
+				}
+			}
+			var document = this._parent.ownerDocument;
+			var child = util.createElement(document, "pre"); //$NON-NLS-0$
+			child.style.position = "fixed"; //$NON-NLS-0$
+			child.style.left = "-1000px"; //$NON-NLS-0$
+			convertDelimiter(text, 
+				function(t) {
+					child.appendChild(document.createTextNode(t));
+				}, 
+				function() {
+					child.appendChild(util.createElement(document, "br")); //$NON-NLS-0$
+				}
+			);
+			child.appendChild(document.createTextNode(" ")); //$NON-NLS-0$
+			this._clientDiv.appendChild(child);
+			var range = document.createRange();
+			range.setStart(child.firstChild, 0);
+			range.setEndBefore(child.lastChild);
+			var sel = window.getSelection();
+			if (sel.rangeCount > 0) { sel.removeAllRanges(); }
+			sel.addRange(range);
+			var self = this;
+			/** @ignore */
+			var cleanup = function() {
+				if (child && child.parentNode === self._clientDiv) {
+					self._clientDiv.removeChild(child);
+				}
+				self._updateDOMSelection();
+			};
+			var result = false;
+			/* 
+			* Try execCommand first, it works on firefox with clipboard permission,
+			* chrome 5, safari 4.
+			*/
+			this._ignoreCopy = true;
+			try {
+				result = document.execCommand("copy", false, null); //$NON-NLS-0$
+			} catch (e) {}
+			this._ignoreCopy = false;
+			if (!result) {
+				if (event) {
+					window.setTimeout(cleanup, 0);
+					return false;
+				}
+			}
+			/* no event and no permission, copy can not be done */
+			cleanup();
+			return true;
+		},
+		_setDOMSelection: function (startNode, startOffset, endNode, endOffset, startCaret) {
+			var startLineNode, startLineOffset, endLineNode, endLineOffset;
+			var offset = 0;
+			var lineChild = startNode.firstChild;
+			var node, nodeLength, model = this._model;
+			var startLineEnd = model.getLine(startNode.lineIndex).length;
+			while (lineChild) {
+				if (lineChild.ignore) {
+					lineChild = lineChild.nextSibling;
+					continue;
+				}
+				node = lineChild.firstChild;
+				nodeLength = node.length;
+				if (lineChild.ignoreChars) {
+					nodeLength -= lineChild.ignoreChars;
+				}
+				if (offset + nodeLength > startOffset || offset + nodeLength >= startLineEnd) {
+					startLineNode = node;
+					startLineOffset = startOffset - offset;
+					if (lineChild.ignoreChars && nodeLength > 0 && startLineOffset === nodeLength) {
+						startLineOffset += lineChild.ignoreChars; 
+					}
+					break;
+				}
+				offset += nodeLength;
+				lineChild = lineChild.nextSibling;
+			}
+			offset = 0;
+			lineChild = endNode.firstChild;
+			var endLineEnd = this._model.getLine(endNode.lineIndex).length;
+			while (lineChild) {
+				if (lineChild.ignore) {
+					lineChild = lineChild.nextSibling;
+					continue;
+				}
+				node = lineChild.firstChild;
+				nodeLength = node.length;
+				if (lineChild.ignoreChars) {
+					nodeLength -= lineChild.ignoreChars;
+				}
+				if (nodeLength + offset > endOffset || offset + nodeLength >= endLineEnd) {
+					endLineNode = node;
+					endLineOffset = endOffset - offset;
+					if (lineChild.ignoreChars && nodeLength > 0 && endLineOffset === nodeLength) {
+						endLineOffset += lineChild.ignoreChars; 
+					}
+					break;
+				}
+				offset += nodeLength;
+				lineChild = lineChild.nextSibling;
+			}
+			
+			this._setDOMFullSelection(startNode, startOffset, startLineEnd, endNode, endOffset, endLineEnd);
+
+			var range;
+			var window = this._getWindow();
+			var document = this._parent.ownerDocument;
+			if (window.getSelection) {
+				//W3C
+				var sel = window.getSelection();
+				range = document.createRange();
+				range.setStart(startLineNode, startLineOffset);
+				range.setEnd(endLineNode, endLineOffset);
+				if (this._hasFocus && (
+					sel.anchorNode !== startLineNode || sel.anchorOffset !== startLineOffset ||
+					sel.focusNode !== endLineNode || sel.focusOffset !== endLineOffset ||
+					sel.anchorNode !== endLineNode || sel.anchorOffset !== endLineOffset ||
+					sel.focusNode !== startLineNode || sel.focusOffset !== startLineOffset))
+				{
+					this._ignoreSelect = false;
+					if (sel.rangeCount > 0) { sel.removeAllRanges(); }
+					sel.addRange(range);
+					this._ignoreSelect = true;
+				}
+				if (this._cursorDiv) {
+					range = document.createRange();
+					if (startCaret) {
+						range.setStart(startLineNode, startLineOffset);
+						range.setEnd(startLineNode, startLineOffset);
+					} else {
+						range.setStart(endLineNode, endLineOffset);
+						range.setEnd(endLineNode, endLineOffset);
+					}
+					var rect = range.getClientRects()[0];
+					var cursorParent = this._cursorDiv.parentNode;
+					var clientRect = cursorParent.getBoundingClientRect();
+					if (rect && clientRect) {
+						this._cursorDiv.style.top = (rect.top - clientRect.top + cursorParent.scrollTop) + "px"; //$NON-NLS-0$
+						this._cursorDiv.style.left = (rect.left - clientRect.left + cursorParent.scrollLeft) + "px"; //$NON-NLS-0$
+					}
+				}
+			} else if (document.selection) {
+				if (!this._hasFocus) { return; }
+				//IE < 9
+				var body = document.body;
+
+				/*
+				* Bug in IE. For some reason when text is deselected the overflow
+				* selection at the end of some lines does not get redrawn.  The
+				* fix is to create a DOM element in the body to force a redraw.
+				*/
+				var child = util.createElement(document, "div"); //$NON-NLS-0$
+				body.appendChild(child);
+				body.removeChild(child);
+				
+				range = body.createTextRange();
+				range.moveToElementText(startLineNode.parentNode);
+				range.moveStart("character", startLineOffset); //$NON-NLS-0$
+				var endRange = body.createTextRange();
+				endRange.moveToElementText(endLineNode.parentNode);
+				endRange.moveStart("character", endLineOffset); //$NON-NLS-0$
+				range.setEndPoint("EndToStart", endRange); //$NON-NLS-0$
+				this._ignoreSelect = false;
+				range.select();
+				this._ignoreSelect = true;
+			}
+		},
+		_setDOMFullSelection: function(startNode, startOffset, startLineEnd, endNode, endOffset, endLineEnd) {
+			if (!this._selDiv1) { return; }
+			var selDiv = this._selDiv1;
+			selDiv.style.width = "0px"; //$NON-NLS-0$
+			selDiv.style.height = "0px"; //$NON-NLS-0$
+			selDiv = this._selDiv2;
+			selDiv.style.width = "0px"; //$NON-NLS-0$
+			selDiv.style.height = "0px"; //$NON-NLS-0$
+			selDiv = this._selDiv3;
+			selDiv.style.width = "0px"; //$NON-NLS-0$
+			selDiv.style.height = "0px"; //$NON-NLS-0$
+			if (startNode === endNode && startOffset === endOffset) { return; }
+			var model = this._model;
+			var viewPad = this._getViewPadding();
+			var clientRect = this._clientDiv.getBoundingClientRect();
+			var viewRect = this._viewDiv.getBoundingClientRect();
+			var left = viewRect.left + viewPad.left;
+			var right = clientRect.right;
+			var top = viewRect.top + viewPad.top;
+			var bottom = clientRect.bottom;
+			var hd = 0, vd = 0;
+			if (this._clipDiv) {
+				var clipRect = this._clipDiv.getBoundingClientRect();
+				hd = clipRect.left - this._clipDiv.scrollLeft;
+				vd = clipRect.top;
+			} else {
+				var rootpRect = this._rootDiv.getBoundingClientRect();
+				hd = rootpRect.left;
+				vd = rootpRect.top;
+			}
+			this._ignoreDOMSelection = true;
+			var startLine = new TextLine(this, startNode.lineIndex, startNode);
+			var startRect = startLine.getBoundingClientRect(model.getLineStart(startNode.lineIndex) + startOffset, false);
+			var l = startRect.left;
+			var endLine = new TextLine(this, endNode.lineIndex, endNode);
+			var endRect = endLine.getBoundingClientRect(model.getLineStart(endNode.lineIndex) + endOffset, false);
+			var r = endRect.left;
+			this._ignoreDOMSelection = false;
+			var sel1Div = this._selDiv1;
+			var sel1Left = Math.min(right, Math.max(left, l));
+			var sel1Top = Math.min(bottom, Math.max(top, startRect.top));
+			var sel1Right = right;
+			var sel1Bottom = Math.min(bottom, Math.max(top, startRect.bottom));
+			sel1Div.style.left = (sel1Left - hd) + "px"; //$NON-NLS-0$
+			sel1Div.style.top = (sel1Top - vd) + "px"; //$NON-NLS-0$
+			sel1Div.style.width = Math.max(0, sel1Right - sel1Left) + "px"; //$NON-NLS-0$
+			sel1Div.style.height = Math.max(0, sel1Bottom - sel1Top) + "px"; //$NON-NLS-0$
+			if (startNode.lineIndex === endNode.lineIndex) {
+				sel1Right = Math.min(r, right);
+				sel1Div.style.width = Math.max(0, sel1Right - sel1Left) + "px"; //$NON-NLS-0$
+			} else {
+				var sel3Left = left;
+				var sel3Top = Math.min(bottom, Math.max(top, endRect.top));
+				var sel3Right = Math.min(right, Math.max(left, r));
+				var sel3Bottom = Math.min(bottom, Math.max(top, endRect.bottom));
+				var sel3Div = this._selDiv3;
+				sel3Div.style.left = (sel3Left - hd) + "px"; //$NON-NLS-0$
+				sel3Div.style.top = (sel3Top - vd) + "px"; //$NON-NLS-0$
+				sel3Div.style.width = Math.max(0, sel3Right - sel3Left) + "px"; //$NON-NLS-0$
+				sel3Div.style.height = Math.max(0, sel3Bottom - sel3Top) + "px"; //$NON-NLS-0$
+				if (Math.abs(startNode.lineIndex - endNode.lineIndex) > 1) {
+					var sel2Div = this._selDiv2;
+					sel2Div.style.left = (left - hd)  + "px"; //$NON-NLS-0$
+					sel2Div.style.top = (sel1Bottom - vd) + "px"; //$NON-NLS-0$
+					sel2Div.style.width = Math.max(0, right - left) + "px"; //$NON-NLS-0$
+					sel2Div.style.height = Math.max(0, sel3Top - sel1Bottom) + "px"; //$NON-NLS-0$
+				}
+			}
+		},
+		_setGrab: function (target) {
+			if (target === this._grabControl) { return; }
+			if (target) {
+				if (target.setCapture) { target.setCapture(); }
+				this._grabControl = target;
+			} else {
+				if (this._grabControl.releaseCapture) { this._grabControl.releaseCapture(); }
+				this._grabControl = null;
+			}
+		},
+		_setLinksVisible: function(visible) {
+			if (this._linksVisible === visible) { return; }
+			this._linksVisible = visible;
+			/*
+			* Feature in IE.  The client div looses focus and does not regain it back
+			* when the content editable flag is reset. The fix is to remember that it
+			* had focus when the flag is cleared and give focus back to the div when
+			* the flag is set.
+			*/
+			if (util.isIE && visible) {
+				this._hadFocus = this._hasFocus;
+			}
+			var clientDiv = this._clientDiv;
+			clientDiv.contentEditable = !visible;
+			if (this._hadFocus && !visible) {
+				clientDiv.focus();
+			}
+			if (this._overlayDiv) {
+				this._overlayDiv.style.zIndex = visible ? "-1" : "1"; //$NON-NLS-1$ //$NON-NLS-0$
+			}
+			var line = this._getLineNext();
+			while (line) {
+				if (line.hasLink) {
+					var lineChild = line.firstChild;
+					while (lineChild) {
+						if (lineChild.ignore) {
+							lineChild = lineChild.nextSibling;
+							continue;
+						}
+						var next = lineChild.nextSibling;
+						var style = lineChild.viewStyle;
+						if (style && style.tagName && style.tagName.toLowerCase() === "a") { //$NON-NLS-0$
+							line.replaceChild(line._line._createSpan(line, lineChild.firstChild.data, style), lineChild);
+						}
+						lineChild = next;
+					}
+				}
+				line = this._getLineNext(line);
+			}
+			this._updateDOMSelection();
+		},
+		_setSelection: function (selection, scroll, update, callback, pageScroll) {
+			if (selection) {
+				this._columnX = -1;
+				if (update === undefined) { update = true; }
+				var oldSelection = this._selection; 
+				this._selection = selection;
+
+				/* 
+				* Always showCaret(), even when the selection is not changing, to ensure the
+				* caret is visible. Note that some views do not scroll to show the caret during
+				* keyboard navigation when the selection does not chanage. For example, line down
+				* when the caret is already at the last line.
+				*/
+				if (scroll !== false) { /*update = !*/this._showCaret(false, callback, scroll, pageScroll); }
+				
+				/* 
+				* Sometimes the browser changes the selection 
+				* as result of method calls or "leaked" events. 
+				* The fix is to set the visual selection even
+				* when the logical selection is not changed.
+				*/
+				if (update) { this._updateDOMSelection(); }
+				
+				if (!oldSelection.equals(selection)) {
+					var e = {
+						type: "Selection", //$NON-NLS-0$
+						oldValue: {start:oldSelection.start, end:oldSelection.end},
+						newValue: {start:selection.start, end:selection.end}
+					};
+					this.onSelection(e);
+				}
+			}
+		},
+		_setSelectionTo: function (x, y, extent, drag) {
+			var model = this._model, offset;
+			var selection = this._getSelection();
+			var pt = this.convert({x: x, y: y}, "page", "document"); //$NON-NLS-1$ //$NON-NLS-0$
+			var lineIndex = this._getLineIndex(pt.y), line;
+			if (this._clickCount === 1) {
+				line = this._getLine(lineIndex);
+				offset = line.getOffset(pt.x, pt.y - this._getLinePixel(lineIndex));
+				line.destroy();
+				if (drag && !extent) {
+					if (selection.start <= offset && offset < selection.end) {
+						this._dragOffset = offset;
+						return false;
+					}
+				}
+				selection.extend(offset);
+				if (!extent) { selection.collapse(); }
+			} else {
+				var word = (this._clickCount & 1) === 0;
+				var start, end;
+				if (word) {
+					line = this._getLine(lineIndex);
+					offset = line.getOffset(pt.x, pt.y - this._getLinePixel(lineIndex));
+					if (this._doubleClickSelection) {
+						if (offset >= this._doubleClickSelection.start) {
+							start = this._doubleClickSelection.start;
+							end = line.getNextOffset(offset, {unit:"wordend", count:1}); //$NON-NLS-0$
+						} else {
+							start = line.getNextOffset(offset, {unit:"word", count:-1}); //$NON-NLS-0$
+							end = this._doubleClickSelection.end;
+						}
+					} else {
+						start = line.getNextOffset(offset, {unit:"word", count:-1}); //$NON-NLS-0$
+						end = line.getNextOffset(start, {unit:"wordend", count:1}); //$NON-NLS-0$
+					}
+					line.destroy();
+				} else {
+					if (this._doubleClickSelection) {
+						var doubleClickLine = model.getLineAtOffset(this._doubleClickSelection.start);
+						if (lineIndex >= doubleClickLine) {
+							start = model.getLineStart(doubleClickLine);
+							end = model.getLineEnd(lineIndex);
+						} else {
+							start = model.getLineStart(lineIndex);
+							end = model.getLineEnd(doubleClickLine);
+						}
+					} else {
+						start = model.getLineStart(lineIndex);
+						end = model.getLineEnd(lineIndex);
+					}
+				}
+				selection.setCaret(start);
+				selection.extend(end);
+			} 
+			this._setSelection(selection, true, true);
+			return true;
+		},
+		_setFullSelection: function(fullSelection, init) {
+			this._fullSelection = fullSelection;
+			if (util.isWebkit) {
+				this._fullSelection = true;
+			}
+			var parent = this._clipDiv || this._rootDiv;
+			if (!parent) {
+				return;
+			}
+			if (!this._fullSelection) {
+				if (this._selDiv1) {
+					parent.removeChild(this._selDiv1);
+					this._selDiv1 = null;
+				}
+				if (this._selDiv2) {
+					parent.removeChild(this._selDiv2);
+					this._selDiv2 = null;
+				}
+				if (this._selDiv3) {
+					parent.removeChild(this._selDiv3);
+					this._selDiv3 = null;
+				}
+				return;
+			}
+			
+			if (!this._selDiv1 && (this._fullSelection && !util.isIOS)) {
+				var document = parent.ownerDocument;
+				this._highlightRGB = util.isWebkit ? "transparent" : "Highlight"; //$NON-NLS-1$ //$NON-NLS-0$
+				var selDiv1 = util.createElement(document, "div"); //$NON-NLS-0$
+				this._selDiv1 = selDiv1;
+				selDiv1.style.position = "absolute"; //$NON-NLS-0$
+				selDiv1.style.borderWidth = "0px"; //$NON-NLS-0$
+				selDiv1.style.margin = "0px"; //$NON-NLS-0$
+				selDiv1.style.padding = "0px"; //$NON-NLS-0$
+				selDiv1.style.outline = "none"; //$NON-NLS-0$
+				selDiv1.style.background = this._highlightRGB;
+				selDiv1.style.width = "0px"; //$NON-NLS-0$
+				selDiv1.style.height = "0px"; //$NON-NLS-0$
+				selDiv1.style.zIndex = "0"; //$NON-NLS-0$
+				parent.appendChild(selDiv1);
+				var selDiv2 = util.createElement(document, "div"); //$NON-NLS-0$
+				this._selDiv2 = selDiv2;
+				selDiv2.style.position = "absolute"; //$NON-NLS-0$
+				selDiv2.style.borderWidth = "0px"; //$NON-NLS-0$
+				selDiv2.style.margin = "0px"; //$NON-NLS-0$
+				selDiv2.style.padding = "0px"; //$NON-NLS-0$
+				selDiv2.style.outline = "none"; //$NON-NLS-0$
+				selDiv2.style.background = this._highlightRGB;
+				selDiv2.style.width = "0px"; //$NON-NLS-0$
+				selDiv2.style.height = "0px"; //$NON-NLS-0$
+				selDiv2.style.zIndex = "0"; //$NON-NLS-0$
+				parent.appendChild(selDiv2);
+				var selDiv3 = util.createElement(document, "div"); //$NON-NLS-0$
+				this._selDiv3 = selDiv3;
+				selDiv3.style.position = "absolute"; //$NON-NLS-0$
+				selDiv3.style.borderWidth = "0px"; //$NON-NLS-0$
+				selDiv3.style.margin = "0px"; //$NON-NLS-0$
+				selDiv3.style.padding = "0px"; //$NON-NLS-0$
+				selDiv3.style.outline = "none"; //$NON-NLS-0$
+				selDiv3.style.background = this._highlightRGB;
+				selDiv3.style.width = "0px"; //$NON-NLS-0$
+				selDiv3.style.height = "0px"; //$NON-NLS-0$
+				selDiv3.style.zIndex = "0"; //$NON-NLS-0$
+				parent.appendChild(selDiv3);
+				
+				/*
+				* Bug in Firefox. The Highlight color is mapped to list selection
+				* background instead of the text selection background.  The fix
+				* is to map known colors using a table or fallback to light blue.
+				*/
+				if (util.isFirefox && util.isMac) {
+					var window = this._getWindow();
+					var style = window.getComputedStyle(selDiv3, null);
+					var rgb = style.getPropertyValue("background-color"); //$NON-NLS-0$
+					switch (rgb) {
+						case "rgb(119, 141, 168)": rgb = "rgb(199, 208, 218)"; break; //$NON-NLS-1$ //$NON-NLS-0$
+						case "rgb(127, 127, 127)": rgb = "rgb(198, 198, 198)"; break; //$NON-NLS-1$ //$NON-NLS-0$
+						case "rgb(255, 193, 31)": rgb = "rgb(250, 236, 115)"; break; //$NON-NLS-1$ //$NON-NLS-0$
+						case "rgb(243, 70, 72)": rgb = "rgb(255, 176, 139)"; break; //$NON-NLS-1$ //$NON-NLS-0$
+						case "rgb(255, 138, 34)": rgb = "rgb(255, 209, 129)"; break; //$NON-NLS-1$ //$NON-NLS-0$
+						case "rgb(102, 197, 71)": rgb = "rgb(194, 249, 144)"; break; //$NON-NLS-1$ //$NON-NLS-0$
+						case "rgb(140, 78, 184)": rgb = "rgb(232, 184, 255)"; break; //$NON-NLS-1$ //$NON-NLS-0$
+						default: rgb = "rgb(180, 213, 255)"; break; //$NON-NLS-0$
+					}
+					this._highlightRGB = rgb;
+					selDiv1.style.background = rgb;
+					selDiv2.style.background = rgb;
+					selDiv3.style.background = rgb;
+				}
+				if (!init) {
+					this._updateDOMSelection();
+				}
+			}
+		},
+		_setBlockCursor: function (visible) {
+			this._blockCursorVisible = visible;
+			this._updateBlockCursorVisible();
+		},
+		_setOverwriteMode: function (overwrite) {
+			this._overwriteMode = overwrite;
+			this._updateBlockCursorVisible();
+		},
+		_updateBlockCursorVisible: function () {
+			if (this._blockCursorVisible || this._overwriteMode) {
+				if (!this._cursorDiv) {
+					var cursorDiv = util.createElement(document, "div"); //$NON-NLS-0$
+					cursorDiv.className = "textviewBlockCursor"; //$NON-NLS-0$
+					this._cursorDiv = cursorDiv;
+					cursorDiv.tabIndex = -1;
+					cursorDiv.style.zIndex = "2"; //$NON-NLS-0$
+					cursorDiv.style.color = "transparent"; //$NON-NLS-0$
+					cursorDiv.style.position = "absolute"; //$NON-NLS-0$
+					cursorDiv.style.pointerEvents = "none"; //$NON-NLS-0$
+					cursorDiv.innerHTML = "&nbsp;"; //$NON-NLS-0$
+					this._viewDiv.appendChild(cursorDiv);
+					this._updateDOMSelection();
+				}
+			} else {
+				if (this._cursorDiv) {
+					this._cursorDiv.parentNode.removeChild(this._cursorDiv);
+					this._cursorDiv = null;
+				}
+			}
+		},
+		_setMarginOffset: function(marginOffset, init) {
+			this._marginOffset = marginOffset;
+			this._marginDiv.style.display = marginOffset ? "block" : "none"; //$NON-NLS-1$ //$NON-NLS-0$
+			if (!init) {
+				this._metrics = this._calculateMetrics();
+				this._queueUpdate();
+			}
+		},
+		_setWrapOffset: function(wrapOffset, init) {
+			this._wrapOffset = wrapOffset;
+			if (!init) {
+				this._metrics = this._calculateMetrics();
+				this._queueUpdate();
+			}
+		},
+		_setReadOnly: function (readOnly) {
+			this._readonly = readOnly;
+			this._clientDiv.setAttribute("aria-readonly", readOnly ? "true" : "false"); //$NON-NLS-2$ //$NON-NLS-1$ //$NON-NLS-0$
+		},
+		_setSingleMode: function (singleMode, init) {
+			this._singleMode = singleMode;
+			this._updateOverflow();
+			this._updateStyle(init);
+		},
+		_setTabSize: function (tabSize, init) {
+			this._tabSize = tabSize;
+			this._customTabSize = undefined;
+			var clientDiv = this._clientDiv;
+			if (util.isOpera) {
+				if (clientDiv) { clientDiv.style.OTabSize = this._tabSize+""; }
+			} else if (util.isWebkit >= 537.1) {
+				if (clientDiv) { clientDiv.style.tabSize = this._tabSize+""; }
+			} else if (util.isFirefox >= 4) {
+				if (clientDiv) {  clientDiv.style.MozTabSize = this._tabSize+""; }
+			} else if (this._tabSize !== 8) {
+				this._customTabSize = this._tabSize;
+			}
+			if (!init) {
+				this.redrawLines();
+				this._resetLineWidth();
+			}
+		},
+		_setTheme: function(theme) {
+			if (this._theme) {
+				this._theme.removeEventListener("ThemeChanged", this._themeListener.onChanged); //$NON-NLS-0$
+			}
+			this._theme = theme;
+			if (this._theme) {
+				this._theme.addEventListener("ThemeChanged", this._themeListener.onChanged); //$NON-NLS-0$
+			}
+			this._setThemeClass(this._themeClass);
+		},
+		_setThemeClass: function (themeClass, init) {
+			this._themeClass = themeClass;
+			var viewContainerClass = "textview"; //$NON-NLS-0$
+			var globalThemeClass = this._theme.getThemeClass();
+			if (globalThemeClass) { viewContainerClass += " " + globalThemeClass; } //$NON-NLS-0$
+			if (this._themeClass && globalThemeClass !== this._themeClass) { viewContainerClass += " " + this._themeClass; } //$NON-NLS-0$
+			this._rootDiv.className = viewContainerClass;
+			this._updateStyle(init);
+		},
+		_setWrapMode: function (wrapMode, init) {
+			this._wrapMode = wrapMode && this._wrappable;
+			var clientDiv = this._clientDiv;
+			if (this._wrapMode) {
+				clientDiv.style.whiteSpace = "pre-wrap"; //$NON-NLS-0$
+				clientDiv.style.wordWrap = "break-word"; //$NON-NLS-0$
+			} else {
+				clientDiv.style.whiteSpace = "pre"; //$NON-NLS-0$
+				clientDiv.style.wordWrap = "normal"; //$NON-NLS-0$
+			}
+			this._updateOverflow();
+			if (!init) {
+				this.redraw();
+				this._resetLineWidth();
+			}
+			this._resetLineHeight();
+		},
+		_showCaret: function (allSelection, callback, scrollAlign, pageScroll) {
+			if (!this._clientDiv) { return; }
+			var model = this._model;
+			var selection = this._getSelection();
+			var scroll = this._getScroll();
+			var caret = selection.getCaret();
+			var start = selection.start;
+			var end = selection.end;
+			var endLine = model.getLineAtOffset(end);
+			var endInclusive = Math.max(Math.max(start, model.getLineStart(endLine)), end - 1);
+			var clientWidth = this._getClientWidth();
+			var clientHeight = this._getClientHeight();
+			var minScroll = clientWidth / 4;
+			var bounds = this._getBoundsAtOffset(caret === start ? start : endInclusive);
+			var left = bounds.left;
+			var right = bounds.right;
+			var top = bounds.top;
+			var bottom = bounds.bottom;
+			if (allSelection && !selection.isEmpty()) {
+				bounds = this._getBoundsAtOffset(caret === end ? start : endInclusive);
+				if (bounds.top === top) {
+					if (caret === start) {
+						right = left + Math.min(bounds.right - left, clientWidth);
+					} else {
+						left = right - Math.min(right - bounds.left, clientWidth);
+					}
+				} else {
+					if (caret === start) {
+						bottom = top + Math.min(bounds.bottom - top, clientHeight);
+					} else {
+						top = bottom - Math.min(bottom - bounds.top, clientHeight);
+					}
+				}
+			}
+			var pixelX = 0;
+			if (left < scroll.x) {
+				pixelX = Math.min(left - scroll.x, -minScroll);
+			}
+			if (right > scroll.x + clientWidth) {
+				pixelX = Math.max(right - scroll.x - clientWidth, minScroll);
+			}
+			var pixelY = 0;
+			if (top < scroll.y) {
+				pixelY = top - scroll.y;
+			} else if (bottom > scroll.y + clientHeight) {
+				pixelY = bottom - scroll.y - clientHeight;
+			}
+			if (pageScroll) {
+				if (pageScroll > 0) {
+					if (pixelY > 0) {
+						pixelY = Math.max(pixelY, pageScroll);
+					}
+				} else {
+					if (pixelY < 0) {
+						pixelY = Math.min(pixelY, pageScroll);
+					}
+				}
+			}
+			if (pixelX !== 0 || pixelY !== 0) {
+				if (pixelY !== 0 && typeof scrollAlign === "number") { //$NON-NLS-0$
+					if (scrollAlign < 0) { scrollAlign = 0; }
+					if (scrollAlign > 1) { scrollAlign = 1; }
+					pixelY += Math.floor(pixelY > 0 ? scrollAlign * clientHeight : -scrollAlign * clientHeight);
+				}
+				this._scrollViewAnimated(pixelX, pixelY, callback);
+				/*
+				* When the view scrolls it is possible that one of the scrollbars can show over the caret.
+				* Depending on the browser scrolling can be synchronous (Safari), in which case the change 
+				* can be detected before showCaret() returns. When scrolling is asynchronous (most browsers), 
+				* the detection is done during the next update page.
+				*/
+				if (clientHeight !== this._getClientHeight() || clientWidth !== this._getClientWidth()) {
+					this._showCaret();
+				} else {
+					this._ensureCaretVisible = true;
+				}
+				return true;
+			} else {
+				if (callback) {
+					callback();
+				}
+			}
+			return false;
+		},
+		_startIME: function () {
+			if (this._imeOffset !== -1) { return; }
+			var selection = this._getSelection();
+			if (!selection.isEmpty()) {
+				this._modifyContent({text: "", start: selection.start, end: selection.end}, true);
+			}
+			this._imeOffset = selection.start;
+		},
+		_unhookEvents: function() {
+			this._model.removeEventListener("preChanging", this._modelListener.onChanging); //$NON-NLS-0$
+			this._model.removeEventListener("postChanged", this._modelListener.onChanged); //$NON-NLS-0$
+			this._theme.removeEventListener("ThemeChanged", this._themeListener.onChanged); //$NON-NLS-0$
+			this._modelListener = null;
+			for (var i=0; i<this._handlers.length; i++) {
+				var h = this._handlers[i];
+				removeHandler(h.target, h.type, h.handler);
+			}
+			this._handlers = null;
+			if (this._mutationObserver) {
+				this._mutationObserver.disconnect();
+				this._mutationObserver = null;
+			}
+		},
+		_updateDOMSelection: function () {
+			if (this._redrawCount > 0) { return; }
+			if (this._ignoreDOMSelection) { return; }
+			if (!this._clientDiv) { return; }
+			var selection = this._getSelection();
+			var model = this._model;
+			var startLine = model.getLineAtOffset(selection.start);
+			var endLine = model.getLineAtOffset(selection.end);
+			var firstNode = this._getLineNext();
+			/*
+			* Bug in Firefox. For some reason, after a update page sometimes the 
+			* firstChild returns null incorrectly. The fix is to ignore show selection.
+			*/
+			if (!firstNode) { return; }
+			var lastNode = this._getLinePrevious();
+			
+			var topNode, bottomNode, topOffset, bottomOffset;
+			if (startLine < firstNode.lineIndex) {
+				topNode = firstNode;
+				topOffset = 0;
+			} else if (startLine > lastNode.lineIndex) {
+				topNode = lastNode;
+				topOffset = 0;
+			} else {
+				topNode = this._getLineNode(startLine);
+				topOffset = selection.start - model.getLineStart(startLine);
+			}
+
+			if (endLine < firstNode.lineIndex) {
+				bottomNode = firstNode;
+				bottomOffset = 0;
+			} else if (endLine > lastNode.lineIndex) {
+				bottomNode = lastNode;
+				bottomOffset = 0;
+			} else {
+				bottomNode = this._getLineNode(endLine);
+				bottomOffset = selection.end - model.getLineStart(endLine);
+			}
+			this._setDOMSelection(topNode, topOffset, bottomNode, bottomOffset, selection.caret);
+		},
+		_update: function(hScrollOnly) {
+			if (this._redrawCount > 0) { return; }
+			if (this._updateTimer) {
+				var window = this._getWindow();
+				window.clearTimeout(this._updateTimer);
+				this._updateTimer = null;
+				hScrollOnly = false;
+			}
+			var clientDiv = this._clientDiv;
+			var viewDiv = this._viewDiv;
+			if (!clientDiv) { return; }
+			if (this._metrics.invalid) {
+				this._ignoreQueueUpdate = true;
+				this._updateStyle();
+				this._ignoreQueueUpdate = false;
+			}
+			var model = this._model;
+			var scroll = this._getScroll(false);
+			var viewPad = this._getViewPadding();
+			var lineCount = model.getLineCount();
+			var lineHeight = this._getLineHeight();
+			var needUpdate = false;
+			var hScroll = false, vScroll = false;
+			var scrollbarWidth = this._metrics.scrollWidth;
+			
+			if (this._wrapMode) {
+				clientDiv.style.width = (this._metrics.wrapWidth || this._getClientWidth()) + "px"; //$NON-NLS-0$
+			}
+			
+			/*
+			* topIndex - top line index of the view (maybe be particialy visible)
+			* lineStart - top line minus one line (if any)
+			* topIndexY - portion of the top line that is NOT visible.
+			* top - topIndexY plus height of the line before top line (if any)
+			*/
+			var topIndex, lineStart, top, topIndexY,
+				leftWidth, leftRect,
+				clientWidth, clientHeight, scrollWidth, scrollHeight,
+				totalHeight = 0, totalLineIndex = 0, tempLineHeight;
+			if (this._lineHeight) {
+				while (totalLineIndex < lineCount) {
+					tempLineHeight = this._getLineHeight(totalLineIndex);
+					if (totalHeight + tempLineHeight > scroll.y) {
+						break;
+					}
+					totalHeight += tempLineHeight;
+					totalLineIndex++;
+				}
+				topIndex = totalLineIndex;
+				lineStart = Math.max(0, topIndex - 1);
+				topIndexY = top = scroll.y - totalHeight;
+				if (topIndex > 0) {
+					top += this._getLineHeight(topIndex - 1);
+				}
+			} else {
+				var firstLine = Math.max(0, scroll.y) / lineHeight;
+				topIndex = Math.floor(firstLine);
+				lineStart = Math.max(0, topIndex - 1);
+				top = Math.round((firstLine - lineStart) * lineHeight);
+				topIndexY = Math.round((firstLine - topIndex) * lineHeight);
+				scrollHeight = lineCount * lineHeight;
+			}
+			this._topIndexY = topIndexY;
+			var parent = this._parent;
+			var parentWidth = parent.clientWidth;
+			var parentHeight = parent.clientHeight;
+			if (hScrollOnly) {
+				leftWidth = 0;
+				if (this._leftDiv) {
+					leftRect = this._leftDiv.getBoundingClientRect();
+					leftWidth = leftRect.right - leftRect.left;
+				}
+				clientWidth = this._getClientWidth();
+				clientHeight = this._getClientHeight();
+				scrollWidth = clientWidth;
+				if (this._wrapMode) {
+					if (this._metrics.wrapWidth) {
+						scrollWidth = this._metrics.wrapWidth;
+					}
+				} else {
+					scrollWidth = Math.max(this._maxLineWidth, scrollWidth);
+				}
+				while (totalLineIndex < lineCount) {
+					tempLineHeight = this._getLineHeight(totalLineIndex, false);
+					totalHeight += tempLineHeight;
+					totalLineIndex++;
+				}
+				scrollHeight = totalHeight;
+			} else {
+				clientHeight = this._getClientHeight();
+
+				var linesPerPage = Math.floor((clientHeight + topIndexY) / lineHeight);
+				var bottomIndex = Math.min(topIndex + linesPerPage, lineCount - 1);
+				var lineEnd = Math.min(bottomIndex + 1, lineCount - 1);
+				
+				var lineIndex, lineWidth;
+				var child = clientDiv.firstChild;
+				while (child) {
+					lineIndex = child.lineIndex;
+					var nextChild = child.nextSibling;
+					if (!(lineStart <= lineIndex && lineIndex <= lineEnd) || child.lineRemoved || child.lineIndex === -1) {
+						if (this._mouseWheelLine === child) {
+							child.style.display = "none"; //$NON-NLS-0$
+							child.lineIndex = -1;
+						} else {
+							clientDiv.removeChild(child);
+						}
+					}
+					child = nextChild;
+				}
+	
+				child = this._getLineNext();
+				var document = viewDiv.ownerDocument;
+				var frag = document.createDocumentFragment();
+				for (lineIndex=lineStart; lineIndex<=lineEnd; lineIndex++) {
+					if (!child || child.lineIndex > lineIndex) {
+						new TextLine(this, lineIndex).create(frag, null);
+					} else {
+						if (frag.firstChild) {
+							clientDiv.insertBefore(frag, child);
+							frag = document.createDocumentFragment();
+						}
+						if (child && child.lineChanged) {
+							child = new TextLine(this, lineIndex).create(frag, child);
+							child.lineChanged = false;
+						}
+						child = this._getLineNext(child);
+					}
+				}
+				if (frag.firstChild) { clientDiv.insertBefore(frag, child); }
+	
+				/*
+				* Feature in WekKit. Webkit limits the width of the lines
+				* computed below to the width of the client div.  This causes
+				* the lines to be wrapped even though "pre" is set.  The fix
+				* is to set the width of the client div to "0x7fffffffpx"
+				* before computing the lines width.  Note that this value is
+				* reset to the appropriate value further down.
+				*/ 
+				if (util.isWebkit && !this._wrapMode) {
+					clientDiv.style.width = "0x7fffffffpx"; //$NON-NLS-0$
+				}
+	
+				var rect;
+				child = this._getLineNext();
+				var bottomHeight = clientHeight + top;
+				var foundBottomIndex = false;
+				while (child) {
+					lineWidth = child.lineWidth;
+					if (lineWidth === undefined) {
+						rect = child._line.getBoundingClientRect();
+						lineWidth = child.lineWidth = Math.ceil(rect.right - rect.left);
+						var lh = rect.bottom - rect.top;
+						if (this._lineHeight) {
+							this._lineHeight[child.lineIndex] = lh;
+						} else if (lineHeight !== 0 && lh !== 0 && Math.ceil(lineHeight) !== Math.ceil(lh)) {
+							this._variableLineHeight = true;
+							this._lineHeight = [];
+							this._lineHeight[child.lineIndex] = lh;
+						}
+					}
+					if (this._lineHeight && !foundBottomIndex) {
+						bottomHeight -= this._lineHeight[child.lineIndex];
+						if (bottomHeight < 0) {
+							bottomIndex = child.lineIndex;
+							foundBottomIndex = true;
+						}
+					}
+					if (!this._wrapMode) {
+						if (lineWidth >= this._maxLineWidth) {
+							this._maxLineWidth = lineWidth;
+							this._maxLineIndex = child.lineIndex;
+						}
+						if (this._checkMaxLineIndex === child.lineIndex) { this._checkMaxLineIndex = -1; }
+					}
+					if (child.lineIndex === topIndex) { this._topChild = child; }
+					if (child.lineIndex === bottomIndex) { this._bottomChild = child; }
+					child = this._getLineNext(child);
+				}
+				if (this._checkMaxLineIndex !== -1) {
+					lineIndex = this._checkMaxLineIndex;
+					this._checkMaxLineIndex = -1;
+					if (0 <= lineIndex && lineIndex < lineCount) {
+						var line = new TextLine(this, lineIndex);
+						rect = line.getBoundingClientRect();
+						lineWidth = rect.right - rect.left;
+						if (lineWidth >= this._maxLineWidth) {
+							this._maxLineWidth = lineWidth;
+							this._maxLineIndex = lineIndex;
+						}
+						line.destroy();
+					}
+				}
+				
+				while (totalLineIndex < lineCount) {
+					tempLineHeight = this._getLineHeight(totalLineIndex, totalLineIndex <= bottomIndex);
+					totalHeight += tempLineHeight;
+					totalLineIndex++;
+				}
+				scrollHeight = totalHeight;
+	
+				// Update rulers
+				this._updateRuler(this._leftDiv, topIndex, lineEnd, parentHeight);
+				this._updateRuler(this._rightDiv, topIndex, lineEnd, parentHeight);
+				this._updateRuler(this._marginDiv, topIndex, lineEnd, parentHeight);
+				
+				leftWidth = 0;
+				if (this._leftDiv) {
+					leftRect = this._leftDiv.getBoundingClientRect();
+					leftWidth = leftRect.right - leftRect.left;
+				}
+				var rightWidth = 0;
+				if (this._rightDiv) {
+					var rightRect = this._rightDiv.getBoundingClientRect();
+					rightWidth = rightRect.right - rightRect.left;
+				}
+				viewDiv.style.left = leftWidth + "px"; //$NON-NLS-0$
+				viewDiv.style.right = rightWidth + "px"; //$NON-NLS-0$
+
+				/* Need to set the height first in order for the width to consider the vertical scrollbar */
+				var scrollDiv = this._scrollDiv;
+				scrollDiv.style.height = scrollHeight + "px"; //$NON-NLS-0$
+				
+				clientWidth = this._getClientWidth();
+				if (!this._singleMode && !this._wrapMode) {
+					var clientHeightNoScroll = clientHeight, clientHeightScroll = clientHeight;
+					var oldHScroll = viewDiv.style.overflowX === "scroll"; //$NON-NLS-0$
+					if (oldHScroll) {
+						clientHeightNoScroll += scrollbarWidth;
+					} else {
+						clientHeightScroll -= scrollbarWidth;
+					}
+					var clientWidthNoScroll = clientWidth, clientWidthScroll = clientWidth;
+					var oldVScroll = viewDiv.style.overflowY === "scroll"; //$NON-NLS-0$
+					if (oldVScroll) {
+						clientWidthNoScroll += scrollbarWidth;
+					} else {
+						clientWidthScroll -= scrollbarWidth;
+					}
+					clientHeight = clientHeightNoScroll;
+					clientWidth = clientWidthNoScroll;
+					if (scrollHeight > clientHeight) {
+						vScroll = true;
+						clientWidth = clientWidthScroll;
+					}
+					if (this._maxLineWidth > clientWidth) {
+						hScroll = true;
+						clientHeight = clientHeightScroll;
+						if (scrollHeight > clientHeight) {
+							vScroll = true;
+							clientWidth = clientWidthScroll;
+						}
+					}
+					if (oldHScroll !== hScroll) {
+						viewDiv.style.overflowX = hScroll ? "scroll" : "hidden"; //$NON-NLS-1$ //$NON-NLS-0$
+					}
+					if (oldVScroll !== vScroll) {
+						viewDiv.style.overflowY = vScroll ? "scroll" : "hidden"; //$NON-NLS-1$ //$NON-NLS-0$
+					}
+					needUpdate = oldHScroll !== hScroll || oldVScroll !== vScroll;
+				}
+				
+				var width = clientWidth;
+				if (this._wrapMode) {
+					if (this._metrics.wrapWidth) {
+						width = this._metrics.wrapWidth;
+					}
+				} else {
+					width = Math.max(this._maxLineWidth, width);
+				}
+				/*
+				* Except by IE 8 and earlier, all other browsers are not allocating enough space for the right padding 
+				* in the scrollbar. It is possible this a bug since all other paddings are considered.
+				*/
+				scrollWidth = width;
+				if ((!util.isIE || util.isIE >= 9) && this._maxLineWidth > clientWidth) { width += viewPad.right + viewPad.left; }
+				scrollDiv.style.width = width + "px"; //$NON-NLS-0$
+				if (this._clipScrollDiv) {
+					this._clipScrollDiv.style.width = width + "px"; //$NON-NLS-0$
+				}
+				/* Get the left scroll after setting the width of the scrollDiv as this can change the horizontal scroll offset. */
+				scroll = this._getScroll(false);
+			}
+			if (this._vScrollDiv) {
+				var trackHeight = clientHeight - 8;
+				var thumbHeight = Math.max(15, Math.ceil(Math.min(1, trackHeight / (scrollHeight + viewPad.top + viewPad.bottom)) * trackHeight));
+				this._vScrollDiv.style.left = (leftWidth + clientWidth - 8) + "px"; //$NON-NLS-0$
+				this._vScrollDiv.style.top = Math.floor(Math.max(0, (scroll.y * trackHeight / scrollHeight))) + "px"; //$NON-NLS-0$
+				this._vScrollDiv.style.height = thumbHeight + "px"; //$NON-NLS-0$
+			}
+			if (!this._wrapMode && this._hScrollDiv) {
+				var trackWidth = clientWidth - 8;
+				var thumbWidth = Math.max(15, Math.ceil(Math.min(1, trackWidth / (this._maxLineWidth + viewPad.left + viewPad.right)) * trackWidth));
+				this._hScrollDiv.style.left = leftWidth + Math.floor(Math.max(0, Math.floor(scroll.x * trackWidth / this._maxLineWidth))) + "px"; //$NON-NLS-0$
+				this._hScrollDiv.style.top = (clientHeight - 9) + "px"; //$NON-NLS-0$
+				this._hScrollDiv.style.width = thumbWidth + "px"; //$NON-NLS-0$
+			}
+			var left = scroll.x;	
+			var clipDiv = this._clipDiv;
+			var overlayDiv = this._overlayDiv;
+			var marginDiv = this._marginDiv;
+			var clipLeft, clipTop;
+			if (marginDiv) {
+				marginDiv.style.left = (-left + leftWidth + this._metrics.marginWidth + viewPad.left) + "px"; //$NON-NLS-0$
+				marginDiv.style.bottom = (viewDiv.style.overflowX === "scroll" ? scrollbarWidth : 0) + "px"; //$NON-NLS-1$ //$NON-NLS-0$
+			}
+			if (clipDiv) {
+				clipDiv.scrollLeft = left;
+				clipDiv.scrollTop = 0;
+				clipLeft = leftWidth + viewPad.left;
+				clipTop = viewPad.top;
+				var clipWidth = clientWidth;
+				var clipHeight = clientHeight;
+				var clientLeft = 0, clientTop = -top;
+				if (scroll.x === 0) {
+					clipLeft -= viewPad.left;
+					clipWidth += viewPad.left;
+					clientLeft = viewPad.left;
+				} 
+				if (scroll.x + clientWidth === scrollWidth) {
+					clipWidth += viewPad.right;
+				}
+				if (scroll.y === 0) {
+					clipTop -= viewPad.top;
+					clipHeight += viewPad.top;
+					clientTop += viewPad.top;
+				}
+				if (scroll.y + clientHeight === scrollHeight) { 
+					clipHeight += viewPad.bottom; 
+				}
+				clipDiv.style.left = clipLeft + "px"; //$NON-NLS-0$
+				clipDiv.style.top = clipTop + "px"; //$NON-NLS-0$
+				clipDiv.style.right = (parentWidth - clipWidth - clipLeft) + "px"; //$NON-NLS-0$
+				clipDiv.style.bottom = (parentHeight - clipHeight - clipTop) + "px"; //$NON-NLS-0$
+				clientDiv.style.left = clientLeft + "px"; //$NON-NLS-0$
+				clientDiv.style.top = clientTop + "px"; //$NON-NLS-0$
+				clientDiv.style.width = scrollWidth + "px"; //$NON-NLS-0$
+				clientDiv.style.height = (clientHeight + top) + "px"; //$NON-NLS-0$
+				if (overlayDiv) {
+					overlayDiv.style.left = clientDiv.style.left;
+					overlayDiv.style.top = clientDiv.style.top;
+					overlayDiv.style.width = clientDiv.style.width;
+					overlayDiv.style.height = clientDiv.style.height;
+				}
+			} else {
+				clipLeft = left;
+				clipTop = top;
+				var clipRight = left + clientWidth;
+				var clipBottom = top + clientHeight;
+				if (clipLeft === 0) { clipLeft -= viewPad.left; }
+				if (clipTop === 0) { clipTop -= viewPad.top; }
+				if (clipRight === scrollWidth) { clipRight += viewPad.right; }
+				if (scroll.y + clientHeight === scrollHeight) { clipBottom += viewPad.bottom; }
+				clientDiv.style.clip = "rect(" + clipTop + "px," + clipRight + "px," + clipBottom + "px," + clipLeft + "px)"; //$NON-NLS-4$ //$NON-NLS-3$ //$NON-NLS-2$ //$NON-NLS-1$ //$NON-NLS-0$
+				clientDiv.style.left = (-left + leftWidth + viewPad.left) + "px"; //$NON-NLS-0$
+				clientDiv.style.width = (this._wrapMode || util.isWebkit ? scrollWidth : clientWidth + left) + "px"; //$NON-NLS-0$
+				if (!hScrollOnly) {
+					clientDiv.style.top = (-top + viewPad.top) + "px"; //$NON-NLS-0$
+					clientDiv.style.height = (clientHeight + top) + "px"; //$NON-NLS-0$
+				}
+				if (overlayDiv) {
+					overlayDiv.style.clip = clientDiv.style.clip;
+					overlayDiv.style.left = clientDiv.style.left;
+					overlayDiv.style.width = clientDiv.style.width;
+					if (!hScrollOnly) {
+						overlayDiv.style.top = clientDiv.style.top;
+						overlayDiv.style.height = clientDiv.style.height;
+					}
+				}
+			}
+			this._updateDOMSelection();
+
+			if (needUpdate) {
+				var ensureCaretVisible = this._ensureCaretVisible;
+				this._ensureCaretVisible = false;
+				if (ensureCaretVisible) {
+					this._showCaret();
+				}
+				this._queueUpdate();
+			}
+		},
+		_updateOverflow: function() {
+			var viewDiv = this._viewDiv;
+			if (this._wrapMode) {
+				viewDiv.style.overflowX = "hidden"; //$NON-NLS-0$
+				viewDiv.style.overflowY = "scroll"; //$NON-NLS-0$
+			} else {
+				viewDiv.style.overflow = "hidden"; //$NON-NLS-0$
+			}
+		},
+		_updateRuler: function (divRuler, topIndex, bottomIndex, parentHeight) {
+			if (!divRuler) { return; }
+			var document = this._parent.ownerDocument;
+			var lineHeight = this._getLineHeight();
+			var viewPad = this._getViewPadding();
+			var div = divRuler.firstChild;
+			while (div) {
+				var ruler = div._ruler;
+				var offset = lineHeight;
+				var overview = ruler.getOverview();
+				if (overview === "page") { offset += this._topIndexY; } //$NON-NLS-0$
+				div.style.top = -offset + "px"; //$NON-NLS-0$
+				div.style.height = (parentHeight + offset) + "px"; //$NON-NLS-0$
+				
+				if (div.rulerChanged) {
+					applyStyle(ruler.getRulerStyle(), div);
+				}
+				
+				var widthDiv;
+				var child = div.firstChild;
+				if (child) {
+					widthDiv = child;
+					child = child.nextSibling;
+				} else {
+					widthDiv = util.createElement(document, "div"); //$NON-NLS-0$
+					widthDiv.style.visibility = "hidden"; //$NON-NLS-0$
+					div.appendChild(widthDiv);
+				}
+				var lineIndex, annotation;
+				if (div.rulerChanged) {
+					if (widthDiv) {
+						lineIndex = -1;
+						annotation = ruler.getWidestAnnotation();
+						if (annotation) {
+							applyStyle(annotation.style, widthDiv);
+							if (annotation.html) {
+								widthDiv.innerHTML = annotation.html;
+							}
+						}
+						widthDiv.lineIndex = lineIndex;
+						widthDiv.style.height = (lineHeight + viewPad.top) + "px"; //$NON-NLS-0$
+					}
+				}
+
+				var lineDiv, frag, annotations;
+				if (overview === "page") { //$NON-NLS-0$
+					annotations = ruler.getAnnotations(topIndex, bottomIndex + 1);
+					while (child) {
+						lineIndex = child.lineIndex;
+						var nextChild = child.nextSibling;
+						if (!(topIndex <= lineIndex && lineIndex <= bottomIndex) || child.lineChanged) {
+							div.removeChild(child);
+						}
+						child = nextChild;
+					}
+					child = div.firstChild.nextSibling;
+					frag = document.createDocumentFragment();
+					for (lineIndex=topIndex; lineIndex<=bottomIndex; lineIndex++) {
+						if (!child || child.lineIndex > lineIndex) {
+							lineDiv = util.createElement(document, "div"); //$NON-NLS-0$
+							annotation = annotations[lineIndex];
+							if (annotation) {
+								applyStyle(annotation.style, lineDiv);
+								if (annotation.html) {
+									lineDiv.innerHTML = annotation.html;
+								}
+								lineDiv.annotation = annotation;
+							}
+							lineDiv.lineIndex = lineIndex;
+							lineDiv.style.height = this._getLineHeight(lineIndex) + "px"; //$NON-NLS-0$
+							frag.appendChild(lineDiv);
+						} else {
+							if (frag.firstChild) {
+								div.insertBefore(frag, child);
+								frag = document.createDocumentFragment();
+							}
+							if (child) {
+								child = child.nextSibling;
+							}
+						}
+					}
+					if (frag.firstChild) { div.insertBefore(frag, child); }
+				} else {
+					var clientHeight = this._getClientHeight ();
+					var lineCount = this._model.getLineCount ();
+					var contentHeight = lineHeight * lineCount;
+					var trackHeight = clientHeight + viewPad.top + viewPad.bottom - 2 * this._metrics.scrollWidth;
+					var divHeight;
+					if (contentHeight < trackHeight) {
+						divHeight = lineHeight;
+					} else {
+						divHeight = trackHeight / lineCount;
+					}
+					if (div.rulerChanged) {
+						var count = div.childNodes.length;
+						while (count > 1) {
+							div.removeChild(div.lastChild);
+							count--;
+						}
+						annotations = ruler.getAnnotations(0, lineCount);
+						frag = document.createDocumentFragment();
+						for (var prop in annotations) {
+							lineIndex = prop >>> 0;
+							if (lineIndex < 0) { continue; }
+							lineDiv = util.createElement(document, "div"); //$NON-NLS-0$
+							annotation = annotations[prop];
+							applyStyle(annotation.style, lineDiv);
+							lineDiv.style.position = "absolute"; //$NON-NLS-0$
+							lineDiv.style.top = this._metrics.scrollWidth + lineHeight + Math.floor(lineIndex * divHeight) + "px"; //$NON-NLS-0$
+							if (annotation.html) {
+								lineDiv.innerHTML = annotation.html;
+							}
+							lineDiv.annotation = annotation;
+							lineDiv.lineIndex = lineIndex;
+							frag.appendChild(lineDiv);
+						}
+						div.appendChild(frag);
+					} else if (div._oldTrackHeight !== trackHeight) {
+						lineDiv = div.firstChild ? div.firstChild.nextSibling : null;
+						while (lineDiv) {
+							lineDiv.style.top = this._metrics.scrollWidth + lineHeight + Math.floor(lineDiv.lineIndex * divHeight) + "px"; //$NON-NLS-0$
+							lineDiv = lineDiv.nextSibling;
+						}
+					}
+					div._oldTrackHeight = trackHeight;
+				}
+				div.rulerChanged = false;
+				div = div.nextSibling;
+			}
+		},
+		_updateStyleSheet: function() {
+			var styleText = "";
+			if (util.isWebkit && this._metrics.scrollWidth > 0) {
+				styleText += "\n.textview ::-webkit-scrollbar-corner {background: #eeeeee;}"; //$NON-NLS-0$
+			}
+			if (util.isFirefox && util.isMac && this._highlightRGB && this._highlightRGB !== "Highlight") { //$NON-NLS-0$
+				styleText += "\n.textview ::-moz-selection {background: " + this._highlightRGB + ";}"; //$NON-NLS-1$ //$NON-NLS-0$
+			}
+			if (styleText) {
+				var node = document.getElementById("_textviewStyle"); //$NON-NLS-0$
+				if (!node) {
+					node = util.createElement(document, "style"); //$NON-NLS-0$
+					node.id = "_textviewStyle"; //$NON-NLS-0$
+					var head = document.getElementsByTagName("head")[0] || document.documentElement; //$NON-NLS-0$
+					node.appendChild(document.createTextNode(styleText));
+					head.insertBefore(node, head.firstChild);
+				} else {
+					node.removeChild(node.firstChild);
+					node.appendChild(document.createTextNode(styleText));
+				}
+			}
+		},
+		_updateStyle: function (init) {
+			if (!init && util.isIE) {
+				this._rootDiv.style.lineHeight = "normal"; //$NON-NLS-0$
+			}
+			var metrics = this._metrics = this._calculateMetrics();
+			if (util.isIE) {
+				this._rootDiv.style.lineHeight = (metrics.lineHeight - (metrics.lineTrim.top + metrics.lineTrim.bottom)) + "px"; //$NON-NLS-0$
+			} else {
+				this._rootDiv.style.lineHeight = "normal"; //$NON-NLS-0$
+			}
+			this._updateStyleSheet();
+			if (!init) {
+				this.redraw();
+				this._resetLineWidth();
+			}
+		}
+	};//end prototype
+	mEventTarget.EventTarget.addMixin(TextView.prototype);
+	
+	return {TextView: TextView};
+});
+
+
+/*******************************************************************************
+ * @license
  * Copyright (c) 2010, 2012 IBM Corporation and others.
  * All rights reserved. This program and the accompanying materials are made 
  * available under the terms of the Eclipse Public License v1.0 
@@ -1123,7 +9289,7 @@ define("orion/editor/projectionTextModel", ['orion/editor/textModel', 'orion/edi
 		 * </p>
 		 * @param {orion.editor.Projection} projection The projection range to be added.
 		 * 
-		 * @see #removeProjection
+		 * @see orion.editor.ProjectionTextModel#removeProjection
 		 */
 		addProjection: function(projection) {
 			if (!projection) {return;}
@@ -1170,7 +9336,7 @@ define("orion/editor/projectionTextModel", ['orion/editor/textModel', 'orion/edi
 		 * 
 		 * @return {orion.editor.Projection[]} The projection ranges.
 		 * 
-		 * @see #addProjection
+		 * @see orion.editor.ProjectionTextModel#addProjection
 		 */
 		getProjections: function() {
 			return this._projections.slice(0);
@@ -1222,7 +9388,7 @@ define("orion/editor/projectionTextModel", ['orion/editor/textModel', 'orion/edi
 		 * 
 		 * @param {orion.editor.Projection} projection The projection range to be removed.
 		 * 
-		 * @see #addProjection
+		 * @see orion.editor.ProjectionTextModel#addProjection
 		 */
 		removeProjection: function(projection) {
 			//TODO remove listeners from model
@@ -1654,6924 +9820,6 @@ define("orion/editor/projectionTextModel", ['orion/editor/textModel', 'orion/edi
 
 /*global define */
 
-define("orion/keyBinding", ['orion/util'], function(util) { //$NON-NLS-1$ //$NON-NLS-0$
-
-	/**
-	 * Constructs a new key binding with the given key code and modifiers.
-	 * 
-	 * @param {String|Number} keyCode the key code.
-	 * @param {Boolean} mod1 the primary modifier (usually Command on Mac and Control on other platforms).
-	 * @param {Boolean} mod2 the secondary modifier (usually Shift).
-	 * @param {Boolean} mod3 the third modifier (usually Alt).
-	 * @param {Boolean} mod4 the fourth modifier (usually Control on the Mac).
-	 * 
-	 * @class A KeyBinding represents of a key code and a modifier state that can be triggered by the user using the keyboard.
-	 * @name orion.editor.KeyBinding
-	 * 
-	 * @property {String|Number} keyCode The key code.
-	 * @property {Boolean} mod1 The primary modifier (usually Command on Mac and Control on other platforms).
-	 * @property {Boolean} mod2 The secondary modifier (usually Shift).
-	 * @property {Boolean} mod3 The third modifier (usually Alt).
-	 * @property {Boolean} mod4 The fourth modifier (usually Control on the Mac).
-	 *
-	 * @see orion.editor.TextView#setKeyBinding
-	 */
-	function KeyBinding (keyCode, mod1, mod2, mod3, mod4) {
-		if (typeof(keyCode) === "string") { //$NON-NLS-0$
-			this.keyCode = keyCode.toUpperCase().charCodeAt(0);
-		} else {
-			this.keyCode = keyCode;
-		}
-		this.mod1 = mod1 !== undefined && mod1 !== null ? mod1 : false;
-		this.mod2 = mod2 !== undefined && mod2 !== null ? mod2 : false;
-		this.mod3 = mod3 !== undefined && mod3 !== null ? mod3 : false;
-		this.mod4 = mod4 !== undefined && mod4 !== null ? mod4 : false;
-	}
-	KeyBinding.prototype = /** @lends orion.editor.KeyBinding.prototype */ {
-		/**
-		 * Returns whether this key binding matches the given key event.
-		 * 
-		 * @param e the key event.
-		 * @returns {Boolean} <code>true</code> whether the key binding matches the key event.
-		 */
-		match: function (e) {
-			if (this.keyCode === e.keyCode) {
-				var mod1 = util.isMac ? e.metaKey : e.ctrlKey;
-				if (this.mod1 !== mod1) { return false; }
-				if (this.mod2 !== e.shiftKey) { return false; }
-				if (this.mod3 !== e.altKey) { return false; }
-				if (util.isMac && this.mod4 !== e.ctrlKey) { return false; }
-				return true;
-			}
-			return false;
-		},
-		/**
-		 * Returns whether this key binding is the same as the given parameter.
-		 * 
-		 * @param {orion.editor.KeyBinding} kb the key binding to compare with.
-		 * @returns {Boolean} whether or not the parameter and the receiver describe the same key binding.
-		 */
-		equals: function(kb) {
-			if (!kb) { return false; }
-			if (this.keyCode !== kb.keyCode) { return false; }
-			if (this.mod1 !== kb.mod1) { return false; }
-			if (this.mod2 !== kb.mod2) { return false; }
-			if (this.mod3 !== kb.mod3) { return false; }
-			if (this.mod4 !== kb.mod4) { return false; }
-			return true;
-		} 
-	};
-	return {KeyBinding: KeyBinding};
-});
-
-/*******************************************************************************
- * @license
- * Copyright (c) 2010, 2012 IBM Corporation and others.
- * All rights reserved. This program and the accompanying materials are made 
- * available under the terms of the Eclipse Public License v1.0 
- * (http://www.eclipse.org/legal/epl-v10.html), and the Eclipse Distribution 
- * License v1.0 (http://www.eclipse.org/org/documents/edl-v10.html). 
- * 
- * Contributors: 
- *		Felipe Heidrich (IBM Corporation) - initial API and implementation
- *		Silenio Quarti (IBM Corporation) - initial API and implementation
- *		Mihai Sucan (Mozilla Foundation) - fix for Bug#334583 Bug#348471 Bug#349485 Bug#350595 Bug#360726 Bug#361180 Bug#362835 Bug#362428 Bug#362286 Bug#354270 Bug#361474 Bug#363945 Bug#366312 Bug#370584
- ******************************************************************************/
-
-/*global define document*/
-
-define("orion/editor/textView", ['orion/editor/textModel', 'orion/keyBinding', 'orion/editor/eventTarget', 'orion/editor/textTheme', 'orion/util'], function(mTextModel, mKeyBinding, mEventTarget, mTextTheme, util) { //$NON-NLS-5$ //$NON-NLS-4$ //$NON-NLS-3$ //$NON-NLS-2$ //$NON-NLS-1$ //$NON-NLS-0$
-
-	/** @private */
-	function getWindow(document) {
-		return document.defaultView || document.parentWindow;
-	}
-	/** @private */
-	function addHandler(node, type, handler, capture) {
-		if (typeof node.addEventListener === "function") { //$NON-NLS-0$
-			node.addEventListener(type, handler, capture === true);
-		} else {
-			node.attachEvent("on" + type, handler); //$NON-NLS-0$
-		}
-	}
-	/** @private */
-	function removeHandler(node, type, handler, capture) {
-		if (typeof node.removeEventListener === "function") { //$NON-NLS-0$
-			node.removeEventListener(type, handler, capture === true);
-		} else {
-			node.detachEvent("on" + type, handler); //$NON-NLS-0$
-		}
-	}
-	/** @private */
-	function applyStyle(style, node, reset) {
-		if (reset) {
-			node.className = "";
-			var attrs = node.attributes;
-			for (var i= attrs.length; i-->0;) {
-				if (!util.isIE || util.isIE >= 9 || (util.isIE < 9 && attrs[i].specified)) {
-					node.removeAttribute(attrs[i].name); 
-				}
-			}
-		}
-		if (!style) {
-			return;
-		}
-		if (style.styleClass) {
-			node.className = style.styleClass;
-		}
-		var properties = style.style;
-		if (properties) {
-			for (var s in properties) {
-				if (properties.hasOwnProperty(s)) {
-					node.style[s] = properties[s];
-				}
-			}
-		}
-		var attributes = style.attributes;
-		if (attributes) {
-			for (var a in attributes) {
-				if (attributes.hasOwnProperty(a)) {
-					node.setAttribute(a, attributes[a]);
-				}
-			}
-		}
-	}
-	/** @private */
-	function clone(obj) {
-		/*Note that this code only works because of the limited types used in TextViewOptions */
-		if (obj instanceof Array) {
-			return obj.slice(0);
-		}
-		return obj;
-	}
-	/** @private */
-	function compare(s1, s2) {
-		if (s1 === s2) { return true; }
-		if (s1 && !s2 || !s1 && s2) { return false; }
-		if ((s1 && s1.constructor === String) || (s2 && s2.constructor === String)) { return false; }
-		if (s1 instanceof Array || s2 instanceof Array) {
-			if (!(s1 instanceof Array && s2 instanceof Array)) { return false; }
-			if (s1.length !== s2.length) { return false; }
-			for (var i = 0; i < s1.length; i++) {
-				if (!compare(s1[i], s2[i])) {
-					return false;
-				}
-			}
-			return true;
-		}
-		if (!(s1 instanceof Object) || !(s2 instanceof Object)) { return false; }
-		var p;
-		for (p in s1) {
-			if (s1.hasOwnProperty(p)) {
-				if (!s2.hasOwnProperty(p)) { return false; }
-				if (!compare(s1[p], s2[p])) {return false; }
-			}
-		}
-		for (p in s2) {
-			if (!s1.hasOwnProperty(p)) { return false; }
-		}
-		return true;
-	}
-	/** @private */
-	function convertDelimiter(text, addTextFunc, addDelimiterFunc) {
-		var cr = 0, lf = 0, index = 0, length = text.length;
-		while (index < length) {
-			if (cr !== -1 && cr <= index) { cr = text.indexOf("\r", index); } //$NON-NLS-0$
-			if (lf !== -1 && lf <= index) { lf = text.indexOf("\n", index); } //$NON-NLS-0$
-			var start = index, end;
-			if (lf === -1 && cr === -1) {
-				addTextFunc(text.substring(index));
-				break;
-			}
-			if (cr !== -1 && lf !== -1) {
-				if (cr + 1 === lf) {
-					end = cr;
-					index = lf + 1;
-				} else {
-					end = cr < lf ? cr : lf;
-					index = (cr < lf ? cr : lf) + 1;
-				}
-			} else if (cr !== -1) {
-				end = cr;
-				index = cr + 1;
-			} else {
-				end = lf;
-				index = lf + 1;
-			}
-			addTextFunc(text.substring(start, end));
-			addDelimiterFunc();
-		}
-	}
-	/** @private */
-	function getBorder(node) {
-		var left,top,right,bottom;
-		var window = getWindow(node.ownerDocument);
-		if (window.getComputedStyle) {
-			var style = window.getComputedStyle(node, null);
-			left = style.getPropertyValue("border-left-width"); //$NON-NLS-0$
-			top = style.getPropertyValue("border-top-width"); //$NON-NLS-0$
-			right = style.getPropertyValue("border-right-width"); //$NON-NLS-0$
-			bottom = style.getPropertyValue("border-bottom-width"); //$NON-NLS-0$
-		} else if (node.currentStyle) {
-			left = node.currentStyle.borderLeftWidth;
-			top = node.currentStyle.borderTopWidth;
-			right = node.currentStyle.borderRightWidth;
-			bottom = node.currentStyle.borderBottomWidth;
-		}
-		return {
-			left: parseInt(left, 10) || 0,
-			top: parseInt(top, 10) || 0,
-			right: parseInt(right, 10) || 0,
-			bottom: parseInt(bottom, 10) || 0
-		};
-	}
-	/** @private */
-	function getPadding(node) {
-		var left,top,right,bottom;
-		var window = getWindow(node.ownerDocument);
-		if (window.getComputedStyle) {
-			var style = window.getComputedStyle(node, null);
-			left = style.getPropertyValue("padding-left"); //$NON-NLS-0$
-			top = style.getPropertyValue("padding-top"); //$NON-NLS-0$
-			right = style.getPropertyValue("padding-right"); //$NON-NLS-0$
-			bottom = style.getPropertyValue("padding-bottom"); //$NON-NLS-0$
-		} else if (node.currentStyle) {
-			left = node.currentStyle.paddingLeft;
-			top = node.currentStyle.paddingTop;
-			right = node.currentStyle.paddingRight;
-			bottom = node.currentStyle.paddingBottom;
-		}
-		return {
-			left: parseInt(left, 10) || 0, 
-			top: parseInt(top, 10) || 0,
-			right: parseInt(right, 10) || 0,
-			bottom: parseInt(bottom, 10) || 0
-		};
-	}
-	/** @private */
-	function getLineTrim(line) {
-		var trim = line._trim;
-		if (!trim) {
-			trim = getPadding(line);
-			var border = getBorder(line);
-			trim.left += border.left;
-			trim.top += border.top;
-			trim.right += border.right;
-			trim.bottom += border.bottom;
-			line._trim = trim;
-		}
-		return trim;
-	}
-	
-	/**
-	 * @class
-	 * @private
-	 * @name orion.editor.Animation
-	 * @description Creates an animation.
-	 * @param {Object} options Options controlling the animation.
-	 * @param {Array} options.curve Array of 2 values giving the start and end points for the animation.
-	 * @param {Number} [options.duration=350] Duration of the animation, in milliseconds.
-	 * @param {Function} [options.easing]
-	 * @param {Function} [options.onAnimate]
-	 * @param {Function} [options.onEnd]
-	 * @param {Number} [options.rate=20] The time between frames, in milliseconds.
-	 */
-	var Animation = /** @ignore */ (function() {
-		function Animation(options) {
-			this.options = options;
-		}
-		/**
-		 * Plays this animation.
-		 * @methodOf orion.editor.Animation.prototype
-		 * @name play
-		 */
-		Animation.prototype.play = function() {
-			var duration = (typeof this.options.duration === "number") ? this.options.duration : 350, //$NON-NLS-0$
-			    rate = (typeof this.options.rate === "number") ? this.options.rate : 20, //$NON-NLS-0$
-			    easing = this.options.easing || this.defaultEasing,
-			    onAnimate = this.options.onAnimate || function() {},
-			    start = this.options.curve[0],
-			    end = this.options.curve[1],
-			    range = (end - start),
-			    startedAt = -1,
-				propertyValue,
-				self = this;
-
-			function onFrame() {
-				startedAt = (startedAt === -1) ? new Date().getTime() : startedAt;
-				var now = new Date().getTime(),
-				    percentDone = (now - startedAt) / duration;
-				if (percentDone < 1) {
-					var eased = easing(percentDone);
-					propertyValue = start + (eased * range);
-					onAnimate(propertyValue);
-				} else {
-					onAnimate(end);
-					self.stop();
-				}
-			}
-			this.interval = this.options.window.setInterval(onFrame, rate);
-		};
-		/**
-		 * Stops this animation.
-		 * @methodOf orion.editor.Animation.prototype
-		 */
-		Animation.prototype.stop = function() {
-			this.options.window.clearInterval(this.interval);
-		    var onEnd = this.options.onEnd || function () {};
-			onEnd();
-		};
-		Animation.prototype.defaultEasing = function(x) {
-			return Math.sin(x * (Math.PI / 2));
-		};
-		return Animation;
-	}());
-	
-	/** 
-	 * Constructs a new Selection object.
-	 * 
-	 * @class A Selection represents a range of selected text in the view.
-	 * @name orion.editor.Selection
-	 */
-	function Selection (start, end, caret) {
-		/**
-		 * The selection start offset.
-		 *
-		 * @name orion.editor.Selection#start
-		 */
-		this.start = start;
-		/**
-		 * The selection end offset.
-		 *
-		 * @name orion.editor.Selection#end
-		 */
-		this.end = end;
-		/** @private */
-		this.caret = caret; //true if the start, false if the caret is at end
-	}
-	Selection.prototype = /** @lends orion.editor.Selection.prototype */ {
-		/** @private */
-		clone: function() {
-			return new Selection(this.start, this.end, this.caret);
-		},
-		/** @private */
-		collapse: function() {
-			if (this.caret) {
-				this.end = this.start;
-			} else {
-				this.start = this.end;
-			}
-		},
-		/** @private */
-		extend: function (offset) {
-			if (this.caret) {
-				this.start = offset;
-			} else {
-				this.end = offset;
-			}
-			if (this.start > this.end) {
-				var tmp = this.start;
-				this.start = this.end;
-				this.end = tmp;
-				this.caret = !this.caret;
-			}
-		},
-		/** @private */
-		setCaret: function(offset) {
-			this.start = offset;
-			this.end = offset;
-			this.caret = false;
-		},
-		/** @private */
-		getCaret: function() {
-			return this.caret ? this.start : this.end;
-		},
-		/** @private */
-		toString: function() {
-			return "start=" + this.start + " end=" + this.end + (this.caret ? " caret is at start" : " caret is at end"); //$NON-NLS-3$ //$NON-NLS-2$ //$NON-NLS-1$ //$NON-NLS-0$
-		},
-		/** @private */
-		isEmpty: function() {
-			return this.start === this.end;
-		},
-		/** @private */
-		equals: function(object) {
-			return this.caret === object.caret && this.start === object.start && this.end === object.end;
-		}
-	};
-	/** @private */
-	function TextRect (rect) {
-		this.left = rect.left;
-		this.top = rect.top;
-		this.right = rect.right;
-		this.bottom = rect.bottom;
-	}
-	TextRect.prototype = /** @lends orion.editor.TextRect.prototype */ {
-		/** @private */
-		toString: function() {
-			return "{l=" + this.left + ", t=" + this.top + ", r=" + this.right + ", b=" + this.bottom + "}"; //$NON-NLS-4$ //$NON-NLS-3$ //$NON-NLS-2$ //$NON-NLS-1$ //$NON-NLS-0$
-		}
-	};
-	/** 
-	 * Constructs a new TextLine object.
-	 * 
-	 * @class A TextLine represents a line of text in the view.
-	 * @name orion.editor.TextLine
-	 * @private
-	 */
-	function TextLine (view, lineIndex, lineDiv) {
-		/**
-		 * The view.
-		 *
-		 * @name orion.editor.TextLine#view
-		 * @private
-		 */
-		this.view = view;
-		/**
-		 * The line index.
-		 *
-		 * @name orion.editor.TextLine#lineIndex
-		 * @private
-		 */
-		this.lineIndex = lineIndex;
-		
-		this._lineDiv = lineDiv;
-	}
-	TextLine.prototype = /** @lends orion.editor.TextLine.prototype */ {
-		/** @private */
-		create: function(parent, div) {
-			if (this._lineDiv) { return; }
-			var child = this._lineDiv = this._createLine(parent, div, this.lineIndex);
-			child._line = this;
-			return child;
-		},
-		_createLine: function(parent, div, lineIndex) {
-			var view = this.view;
-			var model = view._model;
-			var lineText = model.getLine(lineIndex);
-			var lineStart = model.getLineStart(lineIndex);
-			var e = {type:"LineStyle", textView: view, lineIndex: lineIndex, lineText: lineText, lineStart: lineStart}; //$NON-NLS-0$
-			if (lineText.length < 2000) {
-				view.onLineStyle(e);
-			}
-			var lineDiv = div || util.createElement(parent.ownerDocument, "div"); //$NON-NLS-0$
-			if (!div || !compare(div.viewStyle, e.style)) {
-				applyStyle(e.style, lineDiv, div);
-				if (div) { div._trim = null; }
-				lineDiv.viewStyle = e.style;
-				lineDiv.setAttribute("role", "presentation"); //$NON-NLS-1$ //$NON-NLS-0$
-			}
-			lineDiv.lineIndex = lineIndex;
-			var ranges = [];
-			var data = {tabOffset: 0, ranges: ranges};
-			this._createRanges(e.ranges, lineText, 0, lineText.length, lineStart, data);
-			
-			/*
-			* A trailing span with a whitespace is added for three different reasons:
-			* 1. Make sure the height of each line is the largest of the default font
-			* in normal, italic, bold, and italic-bold.
-			* 2. When full selection is off, Firefox, Opera and IE9 do not extend the 
-			* selection at the end of the line when the line is fully selected. 
-			* 3. The height of a div with only an empty span is zero.
-			*/
-			var c = " "; //$NON-NLS-0$
-			if (!view._fullSelection && util.isIE < 9) {
-				/* 
-				* IE8 already selects extra space at end of a line fully selected,
-				* adding another space at the end of the line causes the selection 
-				* to look too big. The fix is to use a zero-width space (\uFEFF) instead. 
-				*/
-				c = "\uFEFF"; //$NON-NLS-0$
-			}
-			if (util.isWebkit) {
-				/*
-				* Feature in WekKit. Adding a regular white space to the line will
-				* cause the longest line in the view to wrap even though "pre" is set.
-				* The fix is to use the zero-width non-joiner character (\u200C) instead.
-				* Note: To not use \uFEFF because in old version of Chrome this character 
-				* shows a glyph;
-				*/
-				c = "\u200C"; //$NON-NLS-0$
-			}
-			ranges.push({text: c, style: view._metrics.largestFontStyle, ignoreChars: 1});
-			
-			var range, span, style, oldSpan, oldStyle, text, oldText, end = 0, oldEnd = 0, next;
-			var changeCount, changeStart;
-			if (div) {
-				var modelChangedEvent = div.modelChangedEvent;
-				if (modelChangedEvent) {
-					if (modelChangedEvent.removedLineCount === 0 && modelChangedEvent.addedLineCount === 0) {
-						changeStart = modelChangedEvent.start - lineStart;
-						changeCount = modelChangedEvent.addedCharCount - modelChangedEvent.removedCharCount;
-					} else {
-						changeStart = -1;
-					}
-					div.modelChangedEvent = undefined;
-				}
-				oldSpan = div.firstChild;
-			}
-			for (var i = 0; i < ranges.length; i++) {
-				range = ranges[i];
-				text = range.text;
-				end += text.length;
-				style = range.style;
-				if (oldSpan) {
-					oldText = oldSpan.firstChild.data;
-					oldStyle = oldSpan.viewStyle;
-					if (oldText === text && compare(style, oldStyle)) {
-						oldEnd += oldText.length;
-						oldSpan._rectsCache = undefined;
-						span = oldSpan = oldSpan.nextSibling;
-						continue;
-					} else {
-						while (oldSpan) {
-							if (changeStart !== -1) {
-								var spanEnd = end;
-								if (spanEnd >= changeStart) {
-									spanEnd -= changeCount;
-								}
-								var t = oldSpan.firstChild.data;
-								var length = t ? t.length : 0;
-								if (oldEnd + length > spanEnd) { break; }
-								oldEnd += length;
-							}
-							next = oldSpan.nextSibling;
-							lineDiv.removeChild(oldSpan);
-							oldSpan = next;
-						}
-					}
-				}
-				span = this._createSpan(lineDiv, text, style, range.ignoreChars);
-				if (oldSpan) {
-					lineDiv.insertBefore(span, oldSpan);
-				} else {
-					lineDiv.appendChild(span);
-				}
-				if (div) {
-					div.lineWidth = undefined;
-				}
-			}
-			if (div) {
-				var tmp = span ? span.nextSibling : null;
-				while (tmp) {
-					next = tmp.nextSibling;
-					div.removeChild(tmp);
-					tmp = next;
-				}
-			} else {
-				parent.appendChild(lineDiv);
-			}
-			return lineDiv;
-		},
-		_createRanges: function(ranges, text, start, end, lineStart, data) {
-			if (start >= end) { return; }
-			if (ranges) {
-				for (var i = 0; i < ranges.length; i++) {
-					var range = ranges[i];
-					if (range.end <= lineStart + start) { continue; }
-					var styleStart = Math.max(lineStart + start, range.start) - lineStart;
-					if (styleStart >= end) { break; }
-					var styleEnd = Math.min(lineStart + end, range.end) - lineStart;
-					if (styleStart < styleEnd) {
-						styleStart = Math.max(start, styleStart);
-						styleEnd = Math.min(end, styleEnd);
-						if (start < styleStart) {
-							this._createRange(text, start, styleStart, null, data);
-						}
-						while (i + 1 < ranges.length && ranges[i + 1].start - lineStart === styleEnd && compare(range.style, ranges[i + 1].style)) {
-							range = ranges[i + 1];
-							styleEnd = Math.min(lineStart + end, range.end) - lineStart;
-							i++;
-						}
-						this._createRange(text, styleStart, styleEnd, range.style, data);
-						start = styleEnd;
-					}
-				}
-			}
-			if (start < end) {
-				this._createRange(text, start, end, null, data);
-			}
-		},
-		_createRange: function(text, start, end, style, data) {
-			if (start >= end) { return; }
-			var tabSize = this.view._customTabSize, range;
-			if (tabSize && tabSize !== 8) {
-				var tabIndex = text.indexOf("\t", start); //$NON-NLS-0$
-				while (tabIndex !== -1 && tabIndex < end) {
-					if (start < tabIndex) {
-						range = {text: text.substring(start, tabIndex), style: style};
-						data.ranges.push(range);
-						data.tabOffset += range.text.length;
-					}
-					var spacesCount = tabSize - (data.tabOffset % tabSize);
-					if (spacesCount > 0) {
-						//TODO hack to preserve tabs in getDOMText()
-						var spaces = "\u00A0"; //$NON-NLS-0$
-						for (var i = 1; i < spacesCount; i++) {
-							spaces += " "; //$NON-NLS-0$
-						}
-						range = {text: spaces, style: style, ignoreChars: spacesCount - 1};
-						data.ranges.push(range);
-						data.tabOffset += range.text.length;
-					}
-					start = tabIndex + 1;
-					tabIndex = text.indexOf("\t", start); //$NON-NLS-0$
-				}
-			}
-			if (start < end) {
-				range = {text: text.substring(start, end), style: style};
-				data.ranges.push(range);
-				data.tabOffset += range.text.length;
-			}
-		},
-		_createSpan: function(parent, text, style, ignoreChars) {
-			var isLink = style && style.tagName === "A"; //$NON-NLS-0$
-			if (isLink) { parent.hasLink = true; }
-			var tagName = isLink && this.view._linksVisible ? "a" : "span"; //$NON-NLS-1$ //$NON-NLS-0$
-			var document = parent.ownerDocument;
-			var child = util.createElement(parent.ownerDocument, tagName);
-			child.appendChild(document.createTextNode(text));
-			applyStyle(style, child);
-			if (tagName === "A") { //$NON-NLS-0$
-				var self = this.view;
-				var window = this._getWindow();
-				addHandler(child, "click", function(e) { return self._handleLinkClick(e ? e : window.event); }, false); //$NON-NLS-0$
-			}
-			child.viewStyle = style;
-			if (ignoreChars) {
-				child.ignoreChars = ignoreChars;
-			}
-			return child;
-		},
-		_ensureCreated: function() {
-			if (this._lineDiv) { return this._lineDiv; }
-			return (this._createdDiv = this.create(this.view._clientDiv, null));
-		},
-		/** @private */
-		getBoundingClientRect: function(offset, absolute) {
-			var child = this._ensureCreated();
-			var view = this.view;
-			if (offset === undefined) {
-				return this._getLineBoundingClientRect(child, true);
-			}
-			var model = view._model;
-			var document = child.ownerDocument;
-			var lineIndex = this.lineIndex;
-			var result = null;
-			if (offset < model.getLineEnd(lineIndex)) {
-				var lineOffset = model.getLineStart(lineIndex);
-				var lineChild = child.firstChild;
-				while (lineChild) {
-					var textNode = lineChild.firstChild;
-					var nodeLength = textNode.length; 
-					if (lineChild.ignoreChars) {
-						nodeLength -= lineChild.ignoreChars;
-					}
-					if (lineOffset + nodeLength > offset) {
-						var index = offset - lineOffset;
-						var range;
-						if (view._isRangeRects) {
-							range = document.createRange();
-							range.setStart(textNode, index);
-							range.setEnd(textNode, index + 1);
-							result = new TextRect(range.getBoundingClientRect());
-						} else if (util.isIE) {
-							range = document.body.createTextRange();
-							range.moveToElementText(lineChild);
-							range.collapse();
-							range.moveEnd("character", index + 1); //$NON-NLS-0$
-							range.moveStart("character", index); //$NON-NLS-0$
-							result = new TextRect(range.getBoundingClientRect());
-						} else {
-							var text = textNode.data;
-							lineChild.removeChild(textNode);
-							lineChild.appendChild(document.createTextNode(text.substring(0, index)));
-							var span = util.createElement(document, "span"); //$NON-NLS-0$
-							span.appendChild(document.createTextNode(text.substring(index, index + 1)));
-							lineChild.appendChild(span);
-							lineChild.appendChild(document.createTextNode(text.substring(index + 1)));
-							result = new TextRect(span.getBoundingClientRect());
-							lineChild.innerHTML = "";
-							lineChild.appendChild(textNode);
-							if (!this._createdDiv) {
-								/*
-								 * Removing the element node that holds the selection start or end
-								 * causes the selection to be lost. The fix is to detect this case
-								 * and restore the selection. 
-								 */
-								var s = view._getSelection();
-								if ((lineOffset <= s.start && s.start < lineOffset + nodeLength) ||  (lineOffset <= s.end && s.end < lineOffset + nodeLength)) {
-									view._updateDOMSelection();
-								}
-							}
-						}
-						if (util.isIE) {
-							var window = getWindow(child.ownerDocument);
-							var xFactor = window.screen.logicalXDPI / window.screen.deviceXDPI;
-							var yFactor = window.screen.logicalYDPI / window.screen.deviceYDPI;
-							result.left = result.left * xFactor;
-							result.right = result.right * xFactor;
-							result.top = result.top * yFactor;
-							result.bottom = result.bottom * yFactor;
-						}
-						break;
-					}
-					lineOffset += nodeLength;
-					lineChild = lineChild.nextSibling;
-				}
-			}
-			var rect = this.getBoundingClientRect();
-			if (!result) {
-				if (view._wrapMode) {
-					var rects = this.getClientRects();
-					result = rects[rects.length - 1];
-					result.left = result.right;
-					result.left += rect.left;
-					result.top += rect.top;
-					result.right += rect.left;
-					result.bottom += rect.top;
-				} else {
-					result = new TextRect(rect);
-					result.left = result.right;
-				}
-			}
-			if (absolute || absolute === undefined) {
-				result.left -= rect.left;
-				result.top -= rect.top;
-				result.right -= rect.left;
-				result.bottom -= rect.top;
-			}
-			return result;
-		},
-		/** @private */
-		_getClientRects: function(element, parentRect) {
-			var rects, newRects, rect, i;
-			if (!element._rectsCache) {
-				rects = element.getClientRects();
-				newRects = new Array(rects.length);
-				for (i = 0; i<rects.length; i++) {
-					rect = newRects[i] = new TextRect(rects[i]);
-					rect.left -= parentRect.left;
-					rect.top -= parentRect.top;
-					rect.right -= parentRect.left;
-					rect.bottom -= parentRect.top;
-				}
-				element._rectsCache = newRects;
-			}
-			rects = element._rectsCache;
-			newRects = [rects.length];
-			for (i = 0; i<rects.length; i++) {
-				newRects[i] = new TextRect(rects[i]);
-			}
-			return newRects;
-		},
-		/** @private */
-		getClientRects: function(lineIndex) {
-			if (!this.view._wrapMode) { return [this.getBoundingClientRect()]; }
-			var child = this._ensureCreated();
-			//TODO [perf] cache rects
-			var result = [];
-			var lineChild = child.firstChild, i, r, parentRect = child.getBoundingClientRect();
-			while (lineChild) {
-				var rects = this._getClientRects(lineChild, parentRect);
-				for (i = 0; i < rects.length; i++) {
-					var rect = rects[i], j;
-					if (rect.top === rect.bottom) { continue; }
-					var center = rect.top + (rect.bottom - rect.top) / 2;
-					for (j = 0; j < result.length; j++) {
-						r = result[j];
-						if ((r.top <= center && center < r.bottom)) {
-							break;
-						}
-					}
-					if (j === result.length) {
-						result.push(rect);
-					} else {
-						if (rect.left < r.left) { r.left = rect.left; }
-						if (rect.top < r.top) { r.top = rect.top; }
-						if (rect.right > r.right) { r.right = rect.right; }
-						if (rect.bottom > r.bottom) { r.bottom = rect.bottom; }
-					}
-				}
-				lineChild = lineChild.nextSibling;
-			}
-			if (lineIndex !== undefined) {
-				return result[lineIndex];
-			}
-			return result;
-		},
-		/** @private */
-		_getLineBoundingClientRect: function (child, noTrim) {
-			var rect = new TextRect(child.getBoundingClientRect());
-			if (this.view._wrapMode) {
-			} else {
-				rect.right = rect.left;
-				var lastChild = child.lastChild;
-				//Remove any artificial trailing whitespace in the line
-				while (lastChild && lastChild.ignoreChars === lastChild.firstChild.length) {
-					lastChild = lastChild.previousSibling;
-				}
-				if (lastChild) {
-					var lastRect = lastChild.getBoundingClientRect();
-					rect.right = lastRect.right + getLineTrim(child).right;
-				}
-			}
-			if (noTrim) {
-				var padding = getLineTrim(child);
-				rect.left = rect.left + padding.left;
-				rect.right = rect.right - padding.right;
-			}
-			return rect;
-		},
-		/** @private */
-		getLineCount: function () {
-			if (!this.view._wrapMode) { return 1; }
-			return this.getClientRects().length;
-		},
-		/** @private */
-		getLineIndex: function(offset) {
-			if (!this.view._wrapMode) { return 0; }
-			var rects = this.getClientRects();
-			var rect = this.getBoundingClientRect(offset);
-			var center = rect.top + ((rect.bottom - rect.top) / 2);
-			for (var i = 0; i < rects.length; i++) {
-				if (rects[i].top <= center && center < rects[i].bottom) {
-					return i;
-				}
-			}
-			return rects.length - 1;
-		},
-		/** @private */
-		getLineStart: function (lineIndex) {
-			if (!this.view._wrapMode || lineIndex === 0) {
-				return this.view._model.getLineStart(lineIndex);
-			}
-			var rects = this.getClientRects();
-			return this.getOffset(rects[lineIndex].left + 1, rects[lineIndex].top + 1);
-		},
-		/** @private */
-		getOffset: function(x, y) {
-			var view = this.view;
-			var model = view._model;
-			var lineIndex = this.lineIndex;
-			var lineStart = model.getLineStart(lineIndex);
-			var lineEnd = model.getLineEnd(lineIndex);
-			if (lineStart === lineEnd) {
-				return lineStart;
-			}
-			var child = this._ensureCreated();
-			var lineRect = this.getBoundingClientRect(), rects, rect;
-			if (view._wrapMode) {
-				rects = this.getClientRects();
-				if (y < rects[0].top) {
-					y = rects[0].top;
-				}
-				for (var i = 0; i < rects.length; i++) {
-					rect = rects[i];
-					if (rect.top <= y && y < rect.bottom) {
-						break;
-					}
-				}
-				if (x < rect.left) { x = rect.left; }
-				if (x > rect.right) { x = rect.right - 1; }
-			} else {
-				if (x < 0) { x = 0; }
-				if (x > (lineRect.right - lineRect.left)) { x = lineRect.right - lineRect.left; }
-			}
-			var document = child.ownerDocument;
-			var window = getWindow(document);
-			var xFactor = util.isIE ? window.screen.logicalXDPI / window.screen.deviceXDPI : 1;
-			var yFactor = util.isIE ? window.screen.logicalYDPI / window.screen.deviceYDPI : 1;
-			var offset = lineStart;
-			var lineChild = child.firstChild;
-			done:
-			while (lineChild) {
-				var textNode = lineChild.firstChild;
-				var nodeLength = textNode.length;
-				if (lineChild.ignoreChars) {
-					nodeLength -= lineChild.ignoreChars;
-				}
-				var rangeLeft, rangeTop, rangeRight, rangeBottom;
-				rects = this._getClientRects(lineChild, lineRect);
-				for (var j = 0; j < rects.length; j++) {
-					rect = rects[j];
-					if (rect.left <= x && x < rect.right && (!view._wrapMode || (rect.top <= y && y < rect.bottom))) {
-						var range, start, end;
-						if (util.isIE || view._isRangeRects) {
-							range = view._isRangeRects ? document.createRange() : document.body.createTextRange();
-							var high = nodeLength;
-							var low = -1;
-							while ((high - low) > 1) {
-								var mid = Math.floor((high + low) / 2);
-								start = low + 1;
-								end = mid === nodeLength - 1 && lineChild.ignoreChars ? textNode.length : mid + 1;
-								if (view._isRangeRects) {
-									range.setStart(textNode, start);
-									range.setEnd(textNode, end);
-								} else {
-									range.moveToElementText(lineChild);
-									range.move("character", start); //$NON-NLS-0$
-									range.moveEnd("character", end - start); //$NON-NLS-0$
-								}
-								rects = range.getClientRects();
-								var found = false;
-								for (var k = 0; k < rects.length; k++) {
-									rect = rects[k];
-									rangeLeft = rect.left * xFactor - lineRect.left;
-									rangeRight = rect.right * xFactor - lineRect.left;
-									rangeTop = rect.top * yFactor - lineRect.top;
-									rangeBottom = rect.bottom * yFactor - lineRect.top;
-									if (rangeLeft <= x && x < rangeRight && (!view._wrapMode || (rangeTop <= y && y < rangeBottom))) {
-										found = true;
-										break;
-									}
-								}
-								if (found) {
-									high = mid;
-								} else {
-									low = mid;
-								}
-							}
-							offset += high;
-							start = high;
-							end = high === nodeLength - 1 && lineChild.ignoreChars ? textNode.length : Math.min(high + 1, textNode.length);
-							if (view._isRangeRects) {
-								range.setStart(textNode, start);
-								range.setEnd(textNode, end);
-							} else {
-								range.moveToElementText(lineChild);
-								range.move("character", start); //$NON-NLS-0$
-								range.moveEnd("character", end - start); //$NON-NLS-0$
-							}
-							rect = range.getClientRects()[0];
-							rangeLeft = rect.left * xFactor - lineRect.left;
-							rangeRight = rect.right * xFactor - lineRect.left;
-							//TODO test for character trailing (wrong for bidi)
-							if (x > (rangeLeft + (rangeRight - rangeLeft) / 2)) {
-								offset++;
-							}
-						} else {
-							var newText = [];
-							for (var q = 0; q < nodeLength; q++) {
-								newText.push("<span>"); //$NON-NLS-0$
-								if (q === nodeLength - 1) {
-									newText.push(textNode.data.substring(q));
-								} else {
-									newText.push(textNode.data.substring(q, q + 1));
-								}
-								newText.push("</span>"); //$NON-NLS-0$
-							}
-							lineChild.innerHTML = newText.join("");
-							var rangeChild = lineChild.firstChild;
-							while (rangeChild) {
-								rect = rangeChild.getBoundingClientRect();
-								rangeLeft = rect.left - lineRect.left;
-								rangeRight = rect.right - lineRect.left;
-								if (rangeLeft <= x && x < rangeRight) {
-									//TODO test for character trailing (wrong for bidi)
-									if (x > rangeLeft + (rangeRight - rangeLeft) / 2) {
-										offset++;
-									}
-									break;
-								}
-								offset++;
-								rangeChild = rangeChild.nextSibling;
-							}
-							if (!this._createdDiv) {
-								lineChild.innerHTML = "";
-								lineChild.appendChild(textNode);
-								/*
-								 * Removing the element node that holds the selection start or end
-								 * causes the selection to be lost. The fix is to detect this case
-								 * and restore the selection. 
-								 */
-								var s = view._getSelection();
-								if ((offset <= s.start && s.start < offset + nodeLength) || (offset <= s.end && s.end < offset + nodeLength)) {
-									view._updateDOMSelection();
-								}
-							}
-						}
-						break done;
-					}
-				}
-				offset += nodeLength;
-				lineChild = lineChild.nextSibling;
-			}
-			return Math.min(lineEnd, Math.max(lineStart, offset));
-		},
-		/** @private */
-		getNextOffset: function (offset, unit, direction) {
-			if (unit === "line") { //$NON-NLS-0$
-				var view = this.view;
-				var model = view._model;
-				var lineIndex = model.getLineAtOffset(offset);
-				if (direction > 0) {
-					return model.getLineEnd(lineIndex);
-				}
-				return model.getLineStart(lineIndex);
-			}
-			if (unit === "wordend") { //$NON-NLS-0$
-				return this._getNextOffset_W3C(offset, unit, direction);
-			}
-			return util.isIE ? this._getNextOffset_IE(offset, unit, direction) : this._getNextOffset_W3C(offset, unit, direction);
-		},
-		/** @private */
-		_getNextOffset_W3C: function (offset, unit, direction) {
-			function _isPunctuation(c) {
-				return (33 <= c && c <= 47) || (58 <= c && c <= 64) || (91 <= c && c <= 94) || c === 96 || (123 <= c && c <= 126);
-			}
-			function _isWhitespace(c) {
-				return c === 32 || c === 9;
-			}
-			if (unit === "word" || unit === "wordend") { //$NON-NLS-1$ //$NON-NLS-0$
-				var view = this.view;
-				var model = view._model;
-				var lineIndex = model.getLineAtOffset(offset);
-				var lineText = model.getLine(lineIndex);
-				var lineStart = model.getLineStart(lineIndex);
-				var lineEnd = model.getLineEnd(lineIndex);
-				var lineLength = lineText.length;
-				var offsetInLine = offset - lineStart;
-				
-				
-				var c, previousPunctuation, previousLetterOrDigit, punctuation, letterOrDigit;
-				if (direction > 0) {
-					if (offsetInLine === lineLength) { return lineEnd; }
-					c = lineText.charCodeAt(offsetInLine);
-					previousPunctuation = _isPunctuation(c); 
-					previousLetterOrDigit = !previousPunctuation && !_isWhitespace(c);
-					offsetInLine++;
-					while (offsetInLine < lineLength) {
-						c = lineText.charCodeAt(offsetInLine);
-						punctuation = _isPunctuation(c);
-						if (unit === "wordend") { //$NON-NLS-0$
-							if (!punctuation && previousPunctuation) { break; }
-						} else {
-							if (punctuation && !previousPunctuation) { break; }
-						}
-						letterOrDigit  = !punctuation && !_isWhitespace(c);
-						if (unit === "wordend") { //$NON-NLS-0$
-							if (!letterOrDigit && previousLetterOrDigit) { break; }
-						} else {
-							if (letterOrDigit && !previousLetterOrDigit) { break; }
-						}
-						previousLetterOrDigit = letterOrDigit;
-						previousPunctuation = punctuation;
-						offsetInLine++;
-					}
-				} else {
-					if (offsetInLine === 0) { return lineStart; }
-					offsetInLine--;
-					c = lineText.charCodeAt(offsetInLine);
-					previousPunctuation = _isPunctuation(c); 
-					previousLetterOrDigit = !previousPunctuation && !_isWhitespace(c);
-					while (0 < offsetInLine) {
-						c = lineText.charCodeAt(offsetInLine - 1);
-						punctuation = _isPunctuation(c);
-						if (unit === "wordend") { //$NON-NLS-0$
-							if (punctuation && !previousPunctuation) { break; }
-						} else {
-							if (!punctuation && previousPunctuation) { break; }
-						}
-						letterOrDigit  = !punctuation && !_isWhitespace(c);
-						if (unit === "wordend") { //$NON-NLS-0$
-							if (letterOrDigit && !previousLetterOrDigit) { break; }
-						} else {
-							if (!letterOrDigit && previousLetterOrDigit) { break; }
-						}
-						previousLetterOrDigit = letterOrDigit;
-						previousPunctuation = punctuation;
-						offsetInLine--;
-					}
-				}
-				return lineStart + offsetInLine;
-			}
-			return offset + direction;
-		},
-		/** @private */
-		_getNextOffset_IE: function (offset, unit, direction) {
-			var child = this._ensureCreated();
-			var view = this.view;
-			var model = view._model;
-			var lineIndex = this.lineIndex;
-			var result = 0, range, length;
-			var lineOffset = model.getLineStart(lineIndex);
-			var document = child.ownerDocument;
-			var lineChild;
-			if (offset === model.getLineEnd(lineIndex)) {
-				lineChild = child.lastChild;
-				while (lineChild && lineChild.ignoreChars) {
-					lineChild = lineChild.previousSibling;
-				}
-				if (!lineChild) {
-					return lineOffset;
-				}
-				range = document.body.createTextRange();
-				range.moveToElementText(lineChild);
-				length = range.text.length;
-				range.moveEnd(unit, direction);
-				result = offset + range.text.length - length;
-			} else if (offset === lineOffset && direction < 0) {
-				result = lineOffset;
-			} else {
-				lineChild = child.firstChild;
-				while (lineChild) {
-					var textNode = lineChild.firstChild;
-					var nodeLength = textNode.length;
-					if (lineChild.ignoreChars) {
-						nodeLength -= lineChild.ignoreChars;
-					}
-					if (lineOffset + nodeLength > offset) {
-						range = document.body.createTextRange();
-						if (offset === lineOffset && direction < 0) {
-							range.moveToElementText(lineChild.previousSibling);
-						} else {
-							range.moveToElementText(lineChild);
-							range.collapse();
-							range.moveEnd("character", offset - lineOffset); //$NON-NLS-0$
-						}
-						length = range.text.length;
-						range.moveEnd(unit, direction);
-						result = offset + range.text.length - length;
-						break;
-					}
-					lineOffset = nodeLength + lineOffset;
-					lineChild = lineChild.nextSibling;
-				}
-			}
-			return result;
-		},
-		/** @private */
-		destroy: function() {
-			var div = this._createdDiv;
-			if (div) {
-				div.parentNode.removeChild(div);
-				this._createdDiv = null;
-			}
-		}
-	};
-	
-	/**
-	 * @class This object describes the options for the text view.
-	 * <p>
-	 * <b>See:</b><br/>
-	 * {@link orion.editor.TextView}<br/>
-	 * {@link orion.editor.TextView#setOptions}
-	 * {@link orion.editor.TextView#getOptions}	 
-	 * </p>		 
-	 * @name orion.editor.TextViewOptions
-	 *
-	 * @property {String|DOMElement} parent the parent element for the view, it can be either a DOM element or an ID for a DOM element.
-	 * @property {orion.editor.TextModel} [model] the text model for the view. If it is not set the view creates an empty {@link orion.editor.TextModel}.
-	 * @property {Boolean} [readonly=false] whether or not the view is read-only.
-	 * @property {Boolean} [fullSelection=true] whether or not the view is in full selection mode.
-	 * @property {Boolean} [tabMode=true] whether or not the tab keypress is consumed by the view or is used for focus traversal.
-	 * @property {Boolean} [expandTab=false] whether or not the tab key inserts white spaces.
-	 * @property {orion.editor.TextTheme} [theme=orion.editor.TextTheme.getTheme()] the TextTheme manager. TODO more info on this
-	 * @property {String} [themeClass] the CSS class for the view theming.
-	 * @property {Number} [tabSize=8] The number of spaces in a tab.
-	 * @property {Boolean} [wrapMode=false] whether or not the view wraps lines.
-	 * @property {Number} [scrollAnimation=0] the time duration in miliseconds for scrolling animation. <code>0</code> means no animation.
-	 */
-	/**
-	 * Constructs a new text view.
-	 * 
-	 * @param {orion.editor.TextViewOptions} options the view options.
-	 * 
-	 * @class A TextView is a user interface for editing text.
-	 * @name orion.editor.TextView
-	 * @borrows orion.editor.EventTarget#addEventListener as #addEventListener
-	 * @borrows orion.editor.EventTarget#removeEventListener as #removeEventListener
-	 * @borrows orion.editor.EventTarget#dispatchEvent as #dispatchEvent
-	 */
-	function TextView (options) {
-		this._init(options || {});
-	}
-	
-	TextView.prototype = /** @lends orion.editor.editor.prototype */ {
-		/**
-		 * Adds a ruler to the text view at the specified position.
-		 * <p>
-		 * The position is relative to the ruler location.
-		 * </p>
-		 *
-		 * @param {orion.editor.Ruler} ruler the ruler.
-		 * @param {Number} [index=length] the ruler index.
-		 */
-		addRuler: function (ruler, index) {
-			ruler.setView(this);
-			var rulers = this._rulers;
-			if (index !== undefined) {
-				var i, sideIndex;
-				for (i = 0, sideIndex=0; i < rulers.length && sideIndex < index; i++) {
-					if (ruler.getLocation() === rulers[i].getLocation()) {
-						sideIndex++;
-					}
-				}
-				rulers.splice(sideIndex, 0, ruler);
-				index = sideIndex;
-			} else {
-				rulers.push(ruler);
-			}
-			this._createRuler(ruler, index);
-			this._update();
-		},
-		computeSize: function() {
-			var w = 0, h = 0;
-			var model = this._model, clientDiv = this._clientDiv;
-			if (!clientDiv) { return {width: w, height: h}; }
-			var clientWidth = clientDiv.style.width;
-			/*
-			* Feature in WekKit. Webkit limits the width of the lines
-			* computed below to the width of the client div.  This causes
-			* the lines to be wrapped even though "pre" is set.  The fix
-			* is to set the width of the client div to a "0x7fffffffpx"
-			* before computing the lines width.  Note that this value is
-			* reset to the appropriate value further down.
-			*/
-			if (util.isWebkit) {
-				clientDiv.style.width = "0x7fffffffpx"; //$NON-NLS-0$
-			}
-			var lineCount = model.getLineCount();
-			for (var lineIndex=0; lineIndex<lineCount; lineIndex++) {
-				var line = this._getLine(lineIndex);
-				var rect = line.getBoundingClientRect();
-				w = Math.max(w, rect.right - rect.left);
-				h += rect.bottom - rect.top;
-				line.destroy();
-			}
-			if (util.isWebkit) {
-				clientDiv.style.width = clientWidth;
-			}
-			var viewPadding = this._getViewPadding();
-			w += viewPadding.right + viewPadding.left + this._metrics.scrollWidth;
-			h += viewPadding.bottom + viewPadding.top + this._metrics.scrollWidth;
-			return {width: w, height: h};
-		},
-		/**
-		 * Converts the given rectangle from one coordinate spaces to another.
-		 * <p>The supported coordinate spaces are:
-		 * <ul>
-		 *   <li>"document" - relative to document, the origin is the top-left corner of first line</li>
-		 *   <li>"page" - relative to html page that contains the text view</li>
-		 * </ul>
-		 * </p>
-		 * <p>All methods in the view that take or return a position are in the document coordinate space.</p>
-		 *
-		 * @param rect the rectangle to convert.
-		 * @param rect.x the x of the rectangle.
-		 * @param rect.y the y of the rectangle.
-		 * @param rect.width the width of the rectangle.
-		 * @param rect.height the height of the rectangle.
-		 * @param {String} from the source coordinate space.
-		 * @param {String} to the destination coordinate space.
-		 *
-		 * @see #getLocationAtOffset
-		 * @see #getOffsetAtLocation
-		 * @see #getTopPixel
-		 * @see #setTopPixel
-		 */
-		convert: function(rect, from, to) {
-			if (!this._clientDiv) { return; }
-			var scroll = this._getScroll();
-			var viewPad = this._getViewPadding();
-			var viewRect = this._viewDiv.getBoundingClientRect();
-			if (from === "document") { //$NON-NLS-0$
-				if (rect.x !== undefined) {
-					rect.x += - scroll.x + viewRect.left + viewPad.left;
-				}
-				if (rect.y !== undefined) {
-					rect.y += - scroll.y + viewRect.top + viewPad.top;
-				}
-			}
-			//At this point rect is in the widget coordinate space
-			if (to === "document") { //$NON-NLS-0$
-				if (rect.x !== undefined) {
-					rect.x += scroll.x - viewRect.left - viewPad.left;
-				}
-				if (rect.y !== undefined) {
-					rect.y += scroll.y - viewRect.top - viewPad.top;
-				}
-			}
-			return rect;
-		},
-		/**
-		 * Destroys the text view. 
-		 * <p>
-		 * Removes the view from the page and frees all resources created by the view.
-		 * Calling this function causes the "Destroy" event to be fire so that all components
-		 * attached to view can release their references.
-		 * </p>
-		 *
-		 * @see #onDestroy
-		 */
-		destroy: function() {
-			/* Destroy rulers*/
-			for (var i=0; i< this._rulers.length; i++) {
-				this._rulers[i].setView(null);
-			}
-			this.rulers = null;
-			
-			this._destroyView();
-
-			var e = {type: "Destroy"}; //$NON-NLS-0$
-			this.onDestroy(e);
-
-			this._parent = null;
-			this._model = null;
-			this._theme = null;
-			this._selection = null;
-			this._doubleClickSelection = null;
-			this._keyBindings = null;
-			this._actions = null;
-		},
-		/**
-		 * Gives focus to the text view.
-		 */
-		focus: function() {
-			if (!this._clientDiv) { return; }
-			/*
-			* Feature in Chrome. When focus is called in the clientDiv without
-			* setting selection the browser will set the selection to the first dom 
-			* element, which can be above the client area. When this happen the 
-			* browser also scrolls the window to show that element.
-			* The fix is to call _updateDOMSelection() before calling focus().
-			*/
-			this._updateDOMSelection();
-			if (util.isOpera) { this._clientDiv.blur(); }
-			this._clientDiv.focus();
-			/*
-			* Feature in Safari. When focus is called the browser selects the clientDiv
-			* itself. The fix is to call _updateDOMSelection() after calling focus().
-			*/
-			this._updateDOMSelection();
-		},
-		/**
-		 * Check if the text view has focus.
-		 *
-		 * @returns {Boolean} <code>true</code> if the text view has focus, otherwise <code>false</code>.
-		 */
-		hasFocus: function() {
-			return this._hasFocus;
-		},
-		/**
-		 * Returns the action description for a given action ID.
-		 *
-		 * @returns {orion.editor.ActionDescrition} the action description
-		 */
-		getActionDescription: function(actionID) {
-			var action = this._actions[actionID];
-			if (action) {
-				return action.actionDescription;
-			}
-			return undefined;
-		},
-		/**
-		 * Returns all action IDs defined in the text view.
-		 * <p>
-		 * There are two types of actions, the predefined actions of the view 
-		 * and the actions added by application code.
-		 * </p>
-		 * <p>
-		 * The predefined actions are:
-		 * <ul>
-		 *   <li>Navigation actions. These actions move the caret collapsing the selection.</li>
-		 *     <ul>
-		 *       <li>"lineUp" - moves the caret up by one line</li>
-		 *       <li>"lineDown" - moves the caret down by one line</li>
-		 *       <li>"lineStart" - moves the caret to beginning of the current line</li>
-		 *       <li>"lineEnd" - moves the caret to end of the current line </li>
-		 *       <li>"charPrevious" - moves the caret to the previous character</li>
-		 *       <li>"charNext" - moves the caret to the next character</li>
-		 *       <li>"pageUp" - moves the caret up by one page</li>
-		 *       <li>"pageDown" - moves the caret down by one page</li>
-		 *       <li>"wordPrevious" - moves the caret to the previous word</li>
-		 *       <li>"wordNext" - moves the caret to the next word</li>
-		 *       <li>"textStart" - moves the caret to the beginning of the document</li>
-		 *       <li>"textEnd" - moves the caret to the end of the document</li>
-		 *     </ul>
-		 *   <li>Selection actions. These actions move the caret extending the selection.</li>
-		 *     <ul>
-		 *       <li>"selectLineUp" - moves the caret up by one line</li>
-		 *       <li>"selectLineDown" - moves the caret down by one line</li>
-		 *       <li>"selectLineStart" - moves the caret to beginning of the current line</li>
-		 *       <li>"selectLineEnd" - moves the caret to end of the current line </li>
-		 *       <li>"selectCharPrevious" - moves the caret to the previous character</li>
-		 *       <li>"selectCharNext" - moves the caret to the next character</li>
-		 *       <li>"selectPageUp" - moves the caret up by one page</li>
-		 *       <li>"selectPageDown" - moves the caret down by one page</li>
-		 *       <li>"selectWordPrevious" - moves the caret to the previous word</li>
-		 *       <li>"selectWordNext" - moves the caret to the next word</li>
-		 *       <li>"selectTextStart" - moves the caret to the beginning of the document</li>
-		 *       <li>"selectTextEnd" - moves the caret to the end of the document</li>
-		 *       <li>"selectAll" - selects the entire document</li>
-		 *     </ul>
-		 *   <li>Edit actions. These actions modify the text view text</li>
-		 *     <ul>
-		 *       <li>"deletePrevious" - deletes the character preceding the caret</li>
-		 *       <li>"deleteNext" - deletes the charecter following the caret</li>
-		 *       <li>"deleteWordPrevious" - deletes the word preceding the caret</li>
-		 *       <li>"deleteWordNext" - deletes the word following the caret</li>
-		 *       <li>"tab" - inserts a tab character at the caret</li>
-		 *       <li>"shiftTab" - noop</li>
-		 *       <li>"toggleTabMode" - toggles tab mode.</li>
-		 *       <li>"toggleWrapMode" - toggles wrap mode.</li>
-		 *       <li>"enter" - inserts a line delimiter at the caret</li>
-		 *     </ul>
-		 *   <li>Clipboard actions.</li>
-		 *     <ul>
-		 *       <li>"copy" - copies the selected text to the clipboard</li>
-		 *       <li>"cut" - copies the selected text to the clipboard and deletes the selection</li>
-		 *       <li>"paste" - replaces the selected text with the clipboard contents</li>
-		 *     </ul>
-		 * </ul>
-		 * </p>
-		 *
-		 * @param {Boolean} [defaultAction=false] whether or not the predefined actions are included.
-		 * @returns {String[]} an array of action IDs defined in the text view.
-		 *
-		 * @see #invokeAction
-		 * @see #setAction
-		 * @see #setKeyBinding
-		 * @see #getKeyBindings
-		 */
-		getActions: function (defaultAction) {
-			var result = [];
-			var actions = this._actions;
-			for (var i in actions) {
-				if (actions.hasOwnProperty(i)) {
-					if (!defaultAction && actions[i].defaultHandler) { continue; }
-					result.push(i);
-				}
-			}
-			return result;
-		},
-		/**
-		 * Returns the bottom index.
-		 * <p>
-		 * The bottom index is the line that is currently at the bottom of the view.  This
-		 * line may be partially visible depending on the vertical scroll of the view. The parameter
-		 * <code>fullyVisible</code> determines whether to return only fully visible lines. 
-		 * </p>
-		 *
-		 * @param {Boolean} [fullyVisible=false] if <code>true</code>, returns the index of the last fully visible line. This
-		 *    parameter is ignored if the view is not big enough to show one line.
-		 * @returns {Number} the index of the bottom line.
-		 *
-		 * @see #getTopIndex
-		 * @see #setTopIndex
-		 */
-		getBottomIndex: function(fullyVisible) {
-			if (!this._clientDiv) { return 0; }
-			return this._getBottomIndex(fullyVisible);
-		},
-		/**
-		 * Returns the bottom pixel.
-		 * <p>
-		 * The bottom pixel is the pixel position that is currently at
-		 * the bottom edge of the view.  This position is relative to the
-		 * beginning of the document.
-		 * </p>
-		 *
-		 * @returns {Number} the bottom pixel.
-		 *
-		 * @see #getTopPixel
-		 * @see #setTopPixel
-		 * @see #convert
-		 */
-		getBottomPixel: function() {
-			if (!this._clientDiv) { return 0; }
-			return this._getScroll().y + this._getClientHeight();
-		},
-		/**
-		 * Returns the caret offset relative to the start of the document.
-		 *
-		 * @returns the caret offset relative to the start of the document.
-		 *
-		 * @see #setCaretOffset
-		 * @see #setSelection
-		 * @see #getSelection
-		 */
-		getCaretOffset: function () {
-			var s = this._getSelection();
-			return s.getCaret();
-		},
-		/**
-		 * Returns the client area.
-		 * <p>
-		 * The client area is the portion in pixels of the document that is visible. The
-		 * client area position is relative to the beginning of the document.
-		 * </p>
-		 *
-		 * @returns the client area rectangle {x, y, width, height}.
-		 *
-		 * @see #getTopPixel
-		 * @see #getBottomPixel
-		 * @see #getHorizontalPixel
-		 * @see #convert
-		 */
-		getClientArea: function() {
-			if (!this._clientDiv) { return {x: 0, y: 0, width: 0, height: 0}; }
-			var scroll = this._getScroll();
-			return {x: scroll.x, y: scroll.y, width: this._getClientWidth(), height: this._getClientHeight()};
-		},
-		/**
-		 * Returns the horizontal pixel.
-		 * <p>
-		 * The horizontal pixel is the pixel position that is currently at
-		 * the left edge of the view.  This position is relative to the
-		 * beginning of the document.
-		 * </p>
-		 *
-		 * @returns {Number} the horizontal pixel.
-		 *
-		 * @see #setHorizontalPixel
-		 * @see #convert
-		 */
-		getHorizontalPixel: function() {
-			if (!this._clientDiv) { return 0; }
-			return this._getScroll().x;
-		},
-		/**
-		 * Returns all the key bindings associated to the given action ID.
-		 *
-		 * @param {String} actionID the action ID.
-		 * @returns {orion.editor.KeyBinding[]} the array of key bindings associated to the given action ID.
-		 *
-		 * @see #setKeyBinding
-		 * @see #setAction
-		 */
-		getKeyBindings: function (actionID) {
-			var result = [];
-			var keyBindings = this._keyBindings;
-			for (var i = 0; i < keyBindings.length; i++) {
-				if (keyBindings[i].actionID === actionID) {
-					result.push(keyBindings[i].keyBinding);
-				}
-			}
-			return result;
-		},
-		/**
-		 * Returns the line height for a given line index.  Returns the default line
-		 * height if the line index is not specified.
-		 *
-		 * @param {Number} [lineIndex] the line index.
-		 * @returns {Number} the height of the line in pixels.
-		 *
-		 * @see #getLinePixel
-		 */
-		getLineHeight: function(lineIndex) {
-			if (!this._clientDiv) { return 0; }
-			return this._getLineHeight(lineIndex);
-		},
-		/**
-		 * Returns the line index for a given line pixel position relative to the document.
-		 *
-		 * @param {Number} [y] the line pixel.
-		 * @returns {Number} the line index for the specified pixel position.
-		 *
-		 * @see #getLinePixel
-		 */
-		getLineIndex: function(y) {
-			if (!this._clientDiv) { return 0; }
-			return this._getLineIndex(y);
-		},
-		/**
-		 * Returns the top pixel position of a given line index relative to the beginning
-		 * of the document.
-		 * <p>
-		 * Clamps out of range indices.
-		 * </p>
-		 *
-		 * @param {Number} lineIndex the line index.
-		 * @returns {Number} the pixel position of the line.
-		 *
-		 * @see #setTopPixel
-		 * @see #getLineIndex
-		 * @see #convert
-		 */
-		getLinePixel: function(lineIndex) {
-			if (!this._clientDiv) { return 0; }
-			return this._getLinePixel(lineIndex);
-		},
-		/**
-		 * Returns the {x, y} pixel location of the top-left corner of the character
-		 * bounding box at the specified offset in the document.  The pixel location
-		 * is relative to the document.
-		 * <p>
-		 * Clamps out of range offsets.
-		 * </p>
-		 *
-		 * @param {Number} offset the character offset
-		 * @returns the {x, y} pixel location of the given offset.
-		 *
-		 * @see #getOffsetAtLocation
-		 * @see #convert
-		 */
-		getLocationAtOffset: function(offset) {
-			if (!this._clientDiv) { return {x: 0, y: 0}; }
-			var model = this._model;
-			offset = Math.min(Math.max(0, offset), model.getCharCount());
-			var lineIndex = model.getLineAtOffset(offset);
-			var line = this._getLine(lineIndex);
-			var rect = line.getBoundingClientRect(offset);
-			line.destroy();
-			var x = rect.left;
-			var y = this._getLinePixel(lineIndex) + rect.top;
-			return {x: x, y: y};
-		},
-		/**
-		 * Returns the specified view options.
-		 * <p>
-		 * The returned value is either a <code>orion.editor.TextViewOptions</code> or an option value. An option value is returned when only one string paremeter
-		 * is specified. A <code>orion.editor.TextViewOptions</code> is returned when there are no paremeters, or the parameters are a list of options names or a
-		 * <code>orion.editor.TextViewOptions</code>. All view options are returned when there no paremeters.
-		 * </p>
-		 *
-		 * @param {String|orion.editor.TextViewOptions} [options] The options to return.
-		 * @return {Object|orion.editor.TextViewOptions} The requested options or an option value.
-		 *
-		 * @see #setOptions
-		 */
-		getOptions: function() {
-			var options;
-			if (arguments.length === 0) {
-				options = this._defaultOptions();
-			} else if (arguments.length === 1) {
-				var arg = arguments[0];
-				if (typeof arg === "string") { //$NON-NLS-0$
-					return clone(this["_" + arg]); //$NON-NLS-0$
-				}
-				options = arg;
-			} else {
-				options = {};
-				for (var index in arguments) {
-					if (arguments.hasOwnProperty(index)) {
-						options[arguments[index]] = undefined;
-					}
-				}
-			}
-			for (var option in options) {
-				if (options.hasOwnProperty(option)) {
-					options[option] = clone(this["_" + option]); //$NON-NLS-0$
-				}
-			}
-			return options;
-		},
-		/**
-		 * Returns the text model of the text view.
-		 *
-		 * @returns {orion.editor.TextModel} the text model of the view.
-		 */
-		getModel: function() {
-			return this._model;
-		},
-		/**
-		 * Returns the character offset nearest to the given pixel location.  The
-		 * pixel location is relative to the document.
-		 *
-		 * @param x the x of the location
-		 * @param y the y of the location
-		 * @returns the character offset at the given location.
-		 *
-		 * @see #getLocationAtOffset
-		 */
-		getOffsetAtLocation: function(x, y) {
-			if (!this._clientDiv) { return 0; }
-			var lineIndex = this._getLineIndex(y);
-			var line = this._getLine(lineIndex);
-			var offset = line.getOffset(x, y - this._getLinePixel(lineIndex));
-			line.destroy();
-			return offset;
-		},
-		/**
-		 * Get the view rulers.
-		 *
-		 * @returns the view rulers
-		 *
-		 * @see #addRuler
-		 */
-		getRulers: function() {
-			return this._rulers.slice(0);
-		},
-		/**
-		 * Returns the text view selection.
-		 * <p>
-		 * The selection is defined by a start and end character offset relative to the
-		 * document. The character at end offset is not included in the selection.
-		 * </p>
-		 * 
-		 * @returns {orion.editor.Selection} the view selection
-		 *
-		 * @see #setSelection
-		 */
-		getSelection: function () {
-			var s = this._getSelection();
-			return {start: s.start, end: s.end};
-		},
-		/**
-		 * Returns the text for the given range.
-		 * <p>
-		 * The text does not include the character at the end offset.
-		 * </p>
-		 *
-		 * @param {Number} [start=0] the start offset of text range.
-		 * @param {Number} [end=char count] the end offset of text range.
-		 *
-		 * @see #setText
-		 */
-		getText: function(start, end) {
-			var model = this._model;
-			return model.getText(start, end);
-		},
-		/**
-		 * Returns the top index.
-		 * <p>
-		 * The top index is the line that is currently at the top of the view.  This
-		 * line may be partially visible depending on the vertical scroll of the view. The parameter
-		 * <code>fullyVisible</code> determines whether to return only fully visible lines. 
-		 * </p>
-		 *
-		 * @param {Boolean} [fullyVisible=false] if <code>true</code>, returns the index of the first fully visible line. This
-		 *    parameter is ignored if the view is not big enough to show one line.
-		 * @returns {Number} the index of the top line.
-		 *
-		 * @see #getBottomIndex
-		 * @see #setTopIndex
-		 */
-		getTopIndex: function(fullyVisible) {
-			if (!this._clientDiv) { return 0; }
-			return this._getTopIndex(fullyVisible);
-		},
-		/**
-		 * Returns the top pixel.
-		 * <p>
-		 * The top pixel is the pixel position that is currently at
-		 * the top edge of the view.  This position is relative to the
-		 * beginning of the document.
-		 * </p>
-		 *
-		 * @returns {Number} the top pixel.
-		 *
-		 * @see #getBottomPixel
-		 * @see #setTopPixel
-		 * @see #convert
-		 */
-		getTopPixel: function() {
-			if (!this._clientDiv) { return 0; }
-			return this._getScroll().y;
-		},
-		/**
-		 * Executes the action handler associated with the given action ID.
-		 * <p>
-		 * The application defined action takes precedence over predefined actions unless
-		 * the <code>defaultAction</code> paramater is <code>true</code>.
-		 * </p>
-		 * <p>
-		 * If the application defined action returns <code>false</code>, the text view predefined
-		 * action is executed if present.
-		 * </p>
-		 *
-		 * @param {String} actionID the action ID.
-		 * @param {Boolean} [defaultAction] whether to always execute the predefined action.
-		 * @returns {Boolean} <code>true</code> if the action was executed.
-		 *
-		 * @see #setAction
-		 * @see #getActions
-		 */
-		invokeAction: function (actionID, defaultAction) {
-			if (!this._clientDiv) { return; }
-			var action = this._actions[actionID];
-			if (action) {
-				if (!defaultAction && action.handler) {
-					if (action.handler()) { return; }
-				}
-				if (action.defaultHandler) { return action.defaultHandler(); }
-			}
-			return false;
-		},
-		/**
-		* Returns if the view is destroyed.
-		* @returns {Boolean} <code>true</code> if the view is destroyed.
-		*/
-		isDestroyed: function () {
-			return !this._clientDiv;
-		},
-		/** 
-		 * @class This is the event sent when the user right clicks or otherwise invokes the context menu of the view. 
-		 * <p> 
-		 * <b>See:</b><br/> 
-		 * {@link orion.editor.TextView}<br/> 
-		 * {@link orion.editor.TextView#event:onContextMenu} 
-		 * </p> 
-		 * 
-		 * @name orion.editor.ContextMenuEvent 
-		 * 
-		 * @property {Number} x The pointer location on the x axis, relative to the document the user is editing. 
-		 * @property {Number} y The pointer location on the y axis, relative to the document the user is editing. 
-		 * @property {Number} screenX The pointer location on the x axis, relative to the screen. This is copied from the DOM contextmenu event.screenX property. 
-		 * @property {Number} screenY The pointer location on the y axis, relative to the screen. This is copied from the DOM contextmenu event.screenY property. 
-		 * @property {Boolean} defaultPrevented Determines whether the user agent context menu should be shown. It is shown by default.
-		 * @property {Function} preventDefault If called prevents the user agent context menu from showing.
-		 */ 
-		/** 
-		 * This event is sent when the user invokes the view context menu. 
-		 * 
-		 * @event 
-		 * @param {orion.editor.ContextMenuEvent} contextMenuEvent the event 
-		 */ 
-		onContextMenu: function(contextMenuEvent) {
-			return this.dispatchEvent(contextMenuEvent); 
-		}, 
-		onDragStart: function(dragEvent) {
-			return this.dispatchEvent(dragEvent);
-		},
-		onDrag: function(dragEvent) {
-			return this.dispatchEvent(dragEvent);
-		},
-		onDragEnd: function(dragEvent) {
-			return this.dispatchEvent(dragEvent);
-		},
-		onDragEnter: function(dragEvent) {
-			return this.dispatchEvent(dragEvent);
-		},
-		onDragOver: function(dragEvent) {
-			return this.dispatchEvent(dragEvent);
-		},
-		onDragLeave: function(dragEvent) {
-			return this.dispatchEvent(dragEvent);
-		},
-		onDrop: function(dragEvent) {
-			return this.dispatchEvent(dragEvent);
-		},
-		/**
-		 * @class This is the event sent when the text view is destroyed.
-		 * <p>
-		 * <b>See:</b><br/>
-		 * {@link orion.editor.TextView}<br/>
-		 * {@link orion.editor.TextView#event:onDestroy}
-		 * </p>
-		 * @name orion.editor.DestroyEvent
-		 */
-		/**
-		 * This event is sent when the text view has been destroyed.
-		 *
-		 * @event
-		 * @param {orion.editor.DestroyEvent} destroyEvent the event
-		 *
-		 * @see #destroy
-		 */
-		onDestroy: function(destroyEvent) {
-			return this.dispatchEvent(destroyEvent);
-		},
-		/**
-		 * @class This object is used to define style information for the text view.
-		 * <p>
-		 * <b>See:</b><br/>
-		 * {@link orion.editor.TextView}<br/>
-		 * {@link orion.editor.TextView#event:onLineStyle}
-		 * </p>		 
-		 * @name orion.editor.Style
-		 * 
-		 * @property {String} styleClass A CSS class name.
-		 * @property {Object} style An object with CSS properties.
-		 * @property {String} tagName A DOM tag name.
-		 * @property {Object} attributes An object with DOM attributes.
-		 */
-		/**
-		 * @class This object is used to style range.
-		 * <p>
-		 * <b>See:</b><br/>
-		 * {@link orion.editor.TextView}<br/>
-		 * {@link orion.editor.TextView#event:onLineStyle}
-		 * </p>		 
-		 * @name orion.editor.StyleRange
-		 * 
-		 * @property {Number} start The start character offset, relative to the document, where the style should be applied.
-		 * @property {Number} end The end character offset (exclusive), relative to the document, where the style should be applied.
-		 * @property {orion.editor.Style} style The style for the range.
-		 */
-		/**
-		 * @class This is the event sent when the text view needs the style information for a line.
-		 * <p>
-		 * <b>See:</b><br/>
-		 * {@link orion.editor.TextView}<br/>
-		 * {@link orion.editor.TextView#event:onLineStyle}
-		 * </p>		 
-		 * @name orion.editor.LineStyleEvent
-		 * 
-		 * @property {orion.editor.TextView} textView The text view.		 
-		 * @property {Number} lineIndex The line index.
-		 * @property {String} lineText The line text.
-		 * @property {Number} lineStart The character offset, relative to document, of the first character in the line.
-		 * @property {orion.editor.Style} style The style for the entire line (output argument).
-		 * @property {orion.editor.StyleRange[]} ranges An array of style ranges for the line (output argument).		 
-		 */
-		/**
-		 * This event is sent when the text view needs the style information for a line.
-		 *
-		 * @event
-		 * @param {orion.editor.LineStyleEvent} lineStyleEvent the event
-		 */
-		onLineStyle: function(lineStyleEvent) {
-			return this.dispatchEvent(lineStyleEvent);
-		},
-		/**
-		 * @class This is the event sent when the text in the model has changed.
-		 * <p>
-		 * <b>See:</b><br/>
-		 * {@link orion.editor.TextView}<br/>
-		 * {@link orion.editor.TextView#event:onModelChanged}<br/>
-		 * {@link orion.editor.TextModel#onChanged}
-		 * </p>
-		 * @name orion.editor.ModelChangedEvent
-		 * 
-		 * @property {Number} start The character offset in the model where the change has occurred.
-		 * @property {Number} removedCharCount The number of characters removed from the model.
-		 * @property {Number} addedCharCount The number of characters added to the model.
-		 * @property {Number} removedLineCount The number of lines removed from the model.
-		 * @property {Number} addedLineCount The number of lines added to the model.
-		 */
-		/**
-		 * This event is sent when the text in the model has changed.
-		 *
-		 * @event
-		 * @param {orion.editor.ModelChangedEvent} modelChangedEvent the event
-		 */
-		onModelChanged: function(modelChangedEvent) {
-			return this.dispatchEvent(modelChangedEvent);
-		},
-		/**
-		 * @class This is the event sent when the text in the model is about to change.
-		 * <p>
-		 * <b>See:</b><br/>
-		 * {@link orion.editor.TextView}<br/>
-		 * {@link orion.editor.TextView#event:onModelChanging}<br/>
-		 * {@link orion.editor.TextModel#onChanging}
-		 * </p>
-		 * @name orion.editor.ModelChangingEvent
-		 * 
-		 * @property {String} text The text that is about to be inserted in the model.
-		 * @property {Number} start The character offset in the model where the change will occur.
-		 * @property {Number} removedCharCount The number of characters being removed from the model.
-		 * @property {Number} addedCharCount The number of characters being added to the model.
-		 * @property {Number} removedLineCount The number of lines being removed from the model.
-		 * @property {Number} addedLineCount The number of lines being added to the model.
-		 */
-		/**
-		 * This event is sent when the text in the model is about to change.
-		 *
-		 * @event
-		 * @param {orion.editor.ModelChangingEvent} modelChangingEvent the event
-		 */
-		onModelChanging: function(modelChangingEvent) {
-			return this.dispatchEvent(modelChangingEvent);
-		},
-		/**
-		 * @class This is the event sent when the text is modified by the text view.
-		 * <p>
-		 * <b>See:</b><br/>
-		 * {@link orion.editor.TextView}<br/>
-		 * {@link orion.editor.TextView#event:onModify}
-		 * </p>
-		 * @name orion.editor.ModifyEvent
-		 */
-		/**
-		 * This event is sent when the text view has changed text in the model.
-		 * <p>
-		 * If the text is changed directly through the model API, this event
-		 * is not sent.
-		 * </p>
-		 *
-		 * @event
-		 * @param {orion.editor.ModifyEvent} modifyEvent the event
-		 */
-		onModify: function(modifyEvent) {
-			return this.dispatchEvent(modifyEvent);
-		},
-		onMouseDown: function(mouseEvent) {
-			return this.dispatchEvent(mouseEvent);
-		},
-		onMouseUp: function(mouseEvent) {
-			return this.dispatchEvent(mouseEvent);
-		},
-		onMouseMove: function(mouseEvent) {
-			return this.dispatchEvent(mouseEvent);
-		},
-		onMouseOver: function(mouseEvent) {
-			return this.dispatchEvent(mouseEvent);
-		},
-		onMouseOut: function(mouseEvent) {
-			return this.dispatchEvent(mouseEvent);
-		},
-		/**
-		 * @class This is the event sent when the selection changes in the text view.
-		 * <p>
-		 * <b>See:</b><br/>
-		 * {@link orion.editor.TextView}<br/>
-		 * {@link orion.editor.TextView#event:onSelection}
-		 * </p>		 
-		 * @name orion.editor.SelectionEvent
-		 * 
-		 * @property {orion.editor.Selection} oldValue The old selection.
-		 * @property {orion.editor.Selection} newValue The new selection.
-		 */
-		/**
-		 * This event is sent when the text view selection has changed.
-		 *
-		 * @event
-		 * @param {orion.editor.SelectionEvent} selectionEvent the event
-		 */
-		onSelection: function(selectionEvent) {
-			return this.dispatchEvent(selectionEvent);
-		},
-		/**
-		 * @class This is the event sent when the text view scrolls.
-		 * <p>
-		 * <b>See:</b><br/>
-		 * {@link orion.editor.TextView}<br/>
-		 * {@link orion.editor.TextView#event:onScroll}
-		 * </p>		 
-		 * @name orion.editor.ScrollEvent
-		 * 
-		 * @property oldValue The old scroll {x,y}.
-		 * @property newValue The new scroll {x,y}.
-		 */
-		/**
-		 * This event is sent when the text view scrolls vertically or horizontally.
-		 *
-		 * @event
-		 * @param {orion.editor.ScrollEvent} scrollEvent the event
-		 */
-		onScroll: function(scrollEvent) {
-			return this.dispatchEvent(scrollEvent);
-		},
-		/**
-		 * @class This is the event sent when the text is about to be modified by the text view.
-		 * <p>
-		 * <b>See:</b><br/>
-		 * {@link orion.editor.TextView}<br/>
-		 * {@link orion.editor.TextView#event:onVerify}
-		 * </p>
-		 * @name orion.editor.VerifyEvent
-		 * 
-		 * @property {String} text The text being inserted.
-		 * @property {Number} start The start offset of the text range to be replaced.
-		 * @property {Number} end The end offset (exclusive) of the text range to be replaced.
-		 */
-		/**
-		 * This event is sent when the text view is about to change text in the model.
-		 * <p>
-		 * If the text is changed directly through the model API, this event
-		 * is not sent.
-		 * </p>
-		 * <p>
-		 * Listeners are allowed to change these parameters. Setting text to null
-		 * or undefined stops the change.
-		 * </p>
-		 *
-		 * @event
-		 * @param {orion.editor.VerifyEvent} verifyEvent the event
-		 */
-		onVerify: function(verifyEvent) {
-			return this.dispatchEvent(verifyEvent);
-		},
-		/**
-		 * @class This is the event sent when the text view is focused.
-		 * <p>
-		 * <b>See:</b><br/>
-		 * {@link orion.editor.TextView}<br/>
-		 * {@link orion.editor.TextView#event:onFocus}<br/>
-		 * </p>
-		 * @name orion.editor.FocusEvent
-		 */
-		/**
-		 * This event is sent when the text view is focused.
-		 *
-		 * @event
-		 * @param {orion.editor.FocusEvent} focusEvent the event
-		 */
-		onFocus: function(focusEvent) {
-			return this.dispatchEvent(focusEvent);
-		},
-		/**
-		 * @class This is the event sent when the text view goes out of focus.
-		 * <p>
-		 * <b>See:</b><br/>
-		 * {@link orion.editor.TextView}<br/>
-		 * {@link orion.editor.TextView#event:onBlur}<br/>
-		 * </p>
-		 * @name orion.editor.BlurEvent
-		 */
-		/**
-		 * This event is sent when the text view goes out of focus.
-		 *
-		 * @event
-		 * @param {orion.editor.BlurEvent} blurEvent the event
-		 */
-		onBlur: function(blurEvent) {
-			return this.dispatchEvent(blurEvent);
-		},
-		/**
-		 * Redraws the entire view, including rulers.
-		 *
-		 * @see #redrawLines
-		 * @see #redrawRange
-		 * @see #setRedraw
-		 */
-		redraw: function() {
-			if (this._redrawCount > 0) { return; }
-			var lineCount = this._model.getLineCount();
-			this.redrawRulers(0, lineCount);
-			this.redrawLines(0, lineCount); 
-		},
-		redrawRulers: function(startLine, endLine) {
-			if (this._redrawCount > 0) { return; }
-			var rulers = this.getRulers();
-			for (var i = 0; i < rulers.length; i++) {
-				this.redrawLines(startLine, endLine, rulers[i]);
-			}
-		},
-		/**
-		 * Redraws the text in the given line range.
-		 * <p>
-		 * The line at the end index is not redrawn.
-		 * </p>
-		 *
-		 * @param {Number} [startLine=0] the start line
-		 * @param {Number} [endLine=line count] the end line
-		 *
-		 * @see #redraw
-		 * @see #redrawRange
-		 * @see #setRedraw
-		 */
-		redrawLines: function(startLine, endLine, ruler) {
-			if (this._redrawCount > 0) { return; }
-			if (startLine === undefined) { startLine = 0; }
-			if (endLine === undefined) { endLine = this._model.getLineCount(); }
-			if (startLine === endLine) { return; }
-			var div = this._clientDiv;
-			if (!div) { return; }
-			if (ruler) {
-				var location = ruler.getLocation();//"left" or "right"
-				var divRuler = location === "left" ? this._leftDiv : this._rightDiv; //$NON-NLS-0$
-				div = divRuler.firstChild;
-				while (div) {
-					if (div._ruler === ruler) {
-						break;
-					}
-					div = div.nextSibling;
-				}
-			}
-			if (ruler) {
-				div.rulerChanged = true;
-			} else {
-				if (this._lineHeight) {
-					this._resetLineHeight(startLine, endLine);
-				}
-			}
-			if (!ruler || ruler.getOverview() === "page") { //$NON-NLS-0$
-				var child = div.firstChild;
-				while (child) {
-					var lineIndex = child.lineIndex;
-					if (startLine <= lineIndex && lineIndex < endLine) {
-						child.lineChanged = true;
-					}
-					child = child.nextSibling;
-				}
-			}
-			if (!ruler) {
-				if (!this._wrapMode) {
-					if (startLine <= this._maxLineIndex && this._maxLineIndex < endLine) {
-						this._checkMaxLineIndex = this._maxLineIndex;
-						this._maxLineIndex = -1;
-						this._maxLineWidth = 0;
-					}
-				}
-			}
-			this._queueUpdate();
-		},
-		/**
-		 * Redraws the text in the given range.
-		 * <p>
-		 * The character at the end offset is not redrawn.
-		 * </p>
-		 *
-		 * @param {Number} [start=0] the start offset of text range
-		 * @param {Number} [end=char count] the end offset of text range
-		 *
-		 * @see #redraw
-		 * @see #redrawLines
-		 * @see #setRedraw
-		 */
-		redrawRange: function(start, end) {
-			if (this._redrawCount > 0) { return; }
-			var model = this._model;
-			if (start === undefined) { start = 0; }
-			if (end === undefined) { end = model.getCharCount(); }
-			var startLine = model.getLineAtOffset(start);
-			var endLine = model.getLineAtOffset(Math.max(start, end - 1)) + 1;
-			this.redrawLines(startLine, endLine);
-		},
-		/**
-		 * Removes a ruler from the text view.
-		 *
-		 * @param {orion.editor.Ruler} ruler the ruler.
-		 */
-		removeRuler: function (ruler) {
-			var rulers = this._rulers;
-			for (var i=0; i<rulers.length; i++) {
-				if (rulers[i] === ruler) {
-					rulers.splice(i, 1);
-					ruler.setView(null);
-					this._destroyRuler(ruler);
-					this._update();
-					break;
-				}
-			}
-		},
-		resize: function() {
-			if (!this._clientDiv) { return; }
-			this._handleResize(null);
-		},
-		/**
-		 * @class This object describes an action for the text view.
-		 * <p>
-		 * <b>See:</b><br/>
-		 * {@link orion.editor.TextView}<br/>
-		 * {@link orion.editor.TextView#setAction}
-		 * </p>		 
-		 * @name orion.editor.ActionDescription
-		 *
-		 * @property {String} [name] the name to be used when showing the action as text.
-		 */
-		/**
-		 * Associates an application defined handler to an action ID.
-		 * <p>
-		 * If the action ID is a predefined action, the given handler executes before
-		 * the default action handler.  If the given handler returns <code>true</code>, the
-		 * default action handler is not called.
-		 * </p>
-		 *
-		 * @param {String} actionID the action ID.
-		 * @param {Function} handler the action handler.
-		 * @param {orion.editor.ActionDescription} [actionDescription=undefined] the action description.
-		 *
-		 * @see #getActions
-		 * @see #invokeAction
-		 */
-		setAction: function(actionID, handler, actionDescription) {
-			if (!actionID) { return; }
-			var actions = this._actions;
-			var action = actions[actionID];
-			if (!action) { 
-				action = actions[actionID] = {};
-			}
-			action.handler = handler;
-			action.actionDescription = actionDescription;
-		},
-		/**
-		 * Associates a key binding with the given action ID. Any previous
-		 * association with the specified key binding is overwriten. If the
-		 * action ID is <code>null</code>, the association is removed.
-		 * 
-		 * @param {orion.editor.KeyBinding} keyBinding the key binding
-		 * @param {String} actionID the action ID
-		 */
-		setKeyBinding: function(keyBinding, actionID) {
-			var keyBindings = this._keyBindings;
-			for (var i = 0; i < keyBindings.length; i++) {
-				var kb = keyBindings[i]; 
-				if (kb.keyBinding.equals(keyBinding)) {
-					if (actionID) {
-						kb.actionID = actionID;
-					} else {
-						if (kb.predefined) {
-							kb.actionID = null;
-						} else {
-							keyBindings.splice(i, 1);
-						}
-					}
-					return;
-				}
-			}
-			if (actionID) {
-				keyBindings.push({keyBinding: keyBinding, actionID: actionID});
-			}
-		},
-		/**
-		 * Sets the caret offset relative to the start of the document.
-		 *
-		 * @param {Number} caret the caret offset relative to the start of the document.
-		 * @param {Boolean|Number} [show=true] if <code>true</code>, the view will scroll the minimum amount necessary to show the caret location. If
-		 *					<code>show</code> is a <code>Number</code>, the view will scroll the minimum amount necessary to show the caret location plus a
-		 *					percentage of the client area height. The parameter is clamped to the [0,1] range.  In either case, the view will only scroll
-		 *					if the new caret location is visible already.
-		 * @param {Function} [callback] if callback is specified and <code>scrollAnimation</code> is not zero, view scrolling is animated and
-		 *					the callback is called when the animation is done. Otherwise, callback is callback right away. The callback is not
-		 *					if the view does not scroll.
-		 *
-		 * @see #getCaretOffset
-		 * @see #setSelection
-		 * @see #getSelection
-		 */
-		setCaretOffset: function(offset, show, callback) {
-			var charCount = this._model.getCharCount();
-			offset = Math.max(0, Math.min (offset, charCount));
-			var selection = new Selection(offset, offset, false);
-			this._setSelection (selection, show === undefined || show, true, callback);
-		},
-		/**
-		 * Sets the horizontal pixel.
-		 * <p>
-		 * The horizontal pixel is the pixel position that is currently at
-		 * the left edge of the view.  This position is relative to the
-		 * beginning of the document.
-		 * </p>
-		 *
-		 * @param {Number} pixel the horizontal pixel.
-		 *
-		 * @see #getHorizontalPixel
-		 * @see #convert
-		 */
-		setHorizontalPixel: function(pixel) {
-			if (!this._clientDiv) { return; }
-			pixel = Math.max(0, pixel);
-			this._scrollView(pixel - this._getScroll().x, 0);
-		},
-		/**
-		 * Sets whether the view should update the DOM.
-		 * <p>
-		 * This can be used to improve the performance.
-		 * </p><p>
-		 * When the flag is set to <code>true</code>,
-		 * the entire view is marked as needing to be redrawn. 
-		 * Nested calls to this method are stacked.
-		 * </p>
-		 *
-		 * @param {Boolean} redraw the new redraw state
-		 * 
-		 * @see #redraw
-		 */
-		setRedraw: function(redraw) {
-			if (redraw) {
-				if (--this._redrawCount === 0) {
-					this.redraw();
-				}
-			} else {
-				this._redrawCount++;
-			}
-		},
-		/**
-		 * Sets the text model of the text view.
-		 *
-		 * @param {orion.editor.TextModel} model the text model of the view.
-		 */
-		setModel: function(model) {
-			if (!model) { return; }
-			if (model === this._model) { return; }
-			this._model.removeEventListener("preChanging", this._modelListener.onChanging); //$NON-NLS-0$
-			this._model.removeEventListener("postChanged", this._modelListener.onChanged); //$NON-NLS-0$
-			var oldLineCount = this._model.getLineCount();
-			var oldCharCount = this._model.getCharCount();
-			var newLineCount = model.getLineCount();
-			var newCharCount = model.getCharCount();
-			var newText = model.getText();
-			var e = {
-				type: "ModelChanging", //$NON-NLS-0$
-				text: newText,
-				start: 0,
-				removedCharCount: oldCharCount,
-				addedCharCount: newCharCount,
-				removedLineCount: oldLineCount,
-				addedLineCount: newLineCount
-			};
-			this.onModelChanging(e);
-			this._model = model;
-			e = {
-				type: "ModelChanged", //$NON-NLS-0$
-				start: 0,
-				removedCharCount: oldCharCount,
-				addedCharCount: newCharCount,
-				removedLineCount: oldLineCount,
-				addedLineCount: newLineCount
-			};
-			this.onModelChanged(e); 
-			this._model.addEventListener("preChanging", this._modelListener.onChanging); //$NON-NLS-0$
-			this._model.addEventListener("postChanged", this._modelListener.onChanged); //$NON-NLS-0$
-			this._reset();
-			this._update();
-		},
-		/**
-		 * Sets the view options for the view.
-		 *
-		 * @param {orion.editor.TextViewOptions} options the view options.
-		 * 
-		 * @see #getOptions
-		 */
-		setOptions: function (options) {
-			var defaultOptions = this._defaultOptions();
-			for (var option in options) {
-				if (options.hasOwnProperty(option)) {
-					var newValue = options[option], oldValue = this["_" + option]; //$NON-NLS-0$
-					if (compare(oldValue, newValue)) { continue; }
-					var update = defaultOptions[option] ? defaultOptions[option].update : null;
-					if (update) {
-						update.call(this, newValue);
-						continue;
-					}
-					this["_" + option] = clone(newValue); //$NON-NLS-0$
-				}
-			}
-		},
-		/**
-		 * Sets the text view selection.
-		 * <p>
-		 * The selection is defined by a start and end character offset relative to the
-		 * document. The character at end offset is not included in the selection.
-		 * </p>
-		 * <p>
-		 * The caret is always placed at the end offset. The start offset can be
-		 * greater than the end offset to place the caret at the beginning of the
-		 * selection.
-		 * </p>
-		 * <p>
-		 * Clamps out of range offsets.
-		 * </p>
-		 * 
-		 * @param {Number} start the start offset of the selection
-		 * @param {Number} end the end offset of the selection
-		 * @param {Boolean|Number} [show=true] if <code>true</code>, the view will scroll the minimum amount necessary to show the caret location. If
-		 *					<code>show</code> is a <code>Number</code>, the view will scroll the minimum amount necessary to show the caret location plus a
-		 *					percentage of the client area height. The parameter is clamped to the [0,1] range.  In either case, the view will only scroll
-		 *					if the new caret location is visible already.
-		 * @param {Function} [callback] if callback is specified and <code>scrollAnimation</code> is not zero, view scrolling is animated and
-		 *					the callback is called when the animation is done. Otherwise, callback is callback right away. The callback is not
-		 *					if the view does not scroll.
-		 *
-		 * @see #getSelection
-		 */
-		setSelection: function (start, end, show, callback) {
-			var caret = start > end;
-			if (caret) {
-				var tmp = start;
-				start = end;
-				end = tmp;
-			}
-			var charCount = this._model.getCharCount();
-			start = Math.max(0, Math.min (start, charCount));
-			end = Math.max(0, Math.min (end, charCount));
-			var selection = new Selection(start, end, caret);
-			this._setSelection(selection, show === undefined || show, true, callback);
-		},
-		/**
-		 * Replaces the text in the given range with the given text.
-		 * <p>
-		 * The character at the end offset is not replaced.
-		 * </p>
-		 * <p>
-		 * When both <code>start</code> and <code>end</code> parameters
-		 * are not specified, the text view places the caret at the beginning
-		 * of the document and scrolls to make it visible.
-		 * </p>
-		 *
-		 * @param {String} text the new text.
-		 * @param {Number} [start=0] the start offset of text range.
-		 * @param {Number} [end=char count] the end offset of text range.
-		 *
-		 * @see #getText
-		 */
-		setText: function (text, start, end) {
-			var reset = start === undefined && end === undefined;
-			if (start === undefined) { start = 0; }
-			if (end === undefined) { end = this._model.getCharCount(); }
-			this._modifyContent({text: text, start: start, end: end, _code: true}, !reset);
-			if (reset) {
-				this._columnX = -1;
-				this._setSelection(new Selection (0, 0, false), true);
-				
-				/*
-				* Bug in Firefox.  For some reason, the caret does not show after the
-				* view is refreshed.  The fix is to toggle the contentEditable state and
-				* force the clientDiv to loose and receive focus if it is focused.
-				*/
-				if (util.isFirefox) {
-					this._fixCaret();
-				}
-			}
-		},
-		/**
-		 * Sets the top index.
-		 * <p>
-		 * The top index is the line that is currently at the top of the text view.  This
-		 * line may be partially visible depending on the vertical scroll of the view.
-		 * </p>
-		 *
-		 * @param {Number} topIndex the index of the top line.
-		 *
-		 * @see #getBottomIndex
-		 * @see #getTopIndex
-		 */
-		setTopIndex: function(topIndex) {
-			if (!this._clientDiv) { return; }
-			this._scrollView(0, this._getLinePixel(Math.max(0, topIndex)) - this._getScroll().y);
-		},
-		/**
-		 * Sets the top pixel.
-		 * <p>
-		 * The top pixel is the pixel position that is currently at
-		 * the top edge of the view.  This position is relative to the
-		 * beginning of the document.
-		 * </p>
-		 *
-		 * @param {Number} pixel the top pixel.
-		 *
-		 * @see #getBottomPixel
-		 * @see #getTopPixel
-		 * @see #convert
-		 */
-		setTopPixel: function(pixel) {
-			if (!this._clientDiv) { return; }
-			this._scrollView(0, Math.max(0, pixel) - this._getScroll().y);
-		},
-		/**
-		 * Scrolls the selection into view if needed.
-		 *
-		 * @returns true if the view was scrolled. 
-		 *
-		 * @see #getSelection
-		 * @see #setSelection
-		 */
-		showSelection: function() {
-			return this._showCaret(true);
-		},
-		update: function(styleChanged, sync) {
-			if (!this._clientDiv) { return; }
-			if (styleChanged) {
-				this._updateStyle();
-			}
-			if (sync === undefined || sync) {
-				this._update();
-			} else {
-				this._queueUpdate();
-			}
-		},
-		
-		/**************************************** Event handlers *********************************/
-		_handleRootMouseDown: function (e) {
-			if (util.isFirefox && e.which === 1) {
-				this._clientDiv.contentEditable = false;
-				(this._overlayDiv || this._clientDiv).draggable = true;
-				this._ignoreBlur = true;
-			}
-			
-			/* Prevent clicks outside of the client div from taking focus away. */
-			var topNode = this._overlayDiv || this._clientDiv;
-			/* Use view div on IE 8 otherwise it is not possible to scroll. */
-			if (util.isIE < 9) { topNode = this._viewDiv; }
-			var temp = e.target ? e.target : e.srcElement;
-			while (temp) {
-				if (topNode === temp) {
-					return;
-				}
-				temp = temp.parentNode;
-			}
-			if (e.preventDefault) { e.preventDefault(); }
-			if (e.stopPropagation){ e.stopPropagation(); }
-			if (!this._isW3CEvents) {
-				/*
-				* In IE 8 is not possible to prevent the default handler from running
-				* during mouse down event using usual API. The workaround is to give
-				* focus back to the client div.
-				*/ 
-				var self = this;
-				var window = this._getWindow();
-				window.setTimeout(function() {
-					self._clientDiv.focus();
-				}, 0);
-			}
-		},
-		_handleRootMouseUp: function (e) {
-			if (util.isFirefox && e.which === 1) {
-				this._clientDiv.contentEditable = true;
-				(this._overlayDiv || this._clientDiv).draggable = false;
-				
-				/*
-				* Bug in Firefox.  For some reason, Firefox stops showing the caret
-				* in some cases. For example when the user cancels a drag operation 
-				* by pressing ESC.  The fix is to detect that the drag operation was
-				* cancelled,  toggle the contentEditable state and force the clientDiv
-				* to loose and receive focus if it is focused.
-				*/
-				this._fixCaret();
-				this._ignoreBlur = false;
-			}
-		},
-		_handleBlur: function (e) {
-			if (this._ignoreBlur) { return; }
-			this._hasFocus = false;
-			/*
-			* Bug in IE 8 and earlier. For some reason when text is deselected
-			* the overflow selection at the end of some lines does not get redrawn.
-			* The fix is to create a DOM element in the body to force a redraw.
-			*/
-			if (util.isIE < 9) {
-				if (!this._getSelection().isEmpty()) {
-					var rootDiv = this._rootDiv;
-					var child = util.createElement(rootDiv.ownerDocument, "div"); //$NON-NLS-0$
-					rootDiv.appendChild(child);
-					rootDiv.removeChild(child);
-				}
-			}
-			if (this._selDiv1) {
-				var color = "lightgray"; //$NON-NLS-0$
-				this._selDiv1.style.background = color;
-				this._selDiv2.style.background = color;
-				this._selDiv3.style.background = color;
-				/* Clear browser selection if selection is within clientDiv */
-				var temp;
-				var window = this._getWindow();
-				var document = this._selDiv1.ownerDocument;
-				if (window.getSelection) {
-					var sel = window.getSelection();
-					temp = sel.anchorNode;
-					while (temp) {
-						if (temp === this._clientDiv) {
-							if (sel.rangeCount > 0) { sel.removeAllRanges(); }
-							break;
-						}
-						temp = temp.parentNode;
-					}
-				} else if (document.selection) {
-					this._ignoreSelect = false;
-					temp = document.selection.createRange().parentElement();
-					while (temp) {
-						if (temp === this._clientDiv) {
-							document.selection.empty();
-							break;
-						}
-						temp = temp.parentNode;
-					}
-					this._ignoreSelect = true;
-				}
-			}
-			if (!this._ignoreFocus) {
-				this.onBlur({type: "Blur"}); //$NON-NLS-0$
-			}
-		},
-		_handleContextMenu: function (e) {
-			if (util.isIE && this._lastMouseButton === 3) {
-				// We need to update the DOM selection, because on
-				// right-click the caret moves to the mouse location.
-				// See bug 366312 and 376508.
-				this._updateDOMSelection();
-			}
-			var preventDefault = false;
-			if (this.isListening("ContextMenu")) { //$NON-NLS-0$
-				var evt = this._createMouseEvent("ContextMenu", e); //$NON-NLS-0$
-				evt.screenX = e.screenX;
-				evt.screenY = e.screenY;
-				this.onContextMenu(evt);
-				preventDefault = evt.defaultPrevented;
-			}
-			if (preventDefault) {
-				if (e.preventDefault) { e.preventDefault(); }
-				return false;
-			}
-		},
-		_handleCopy: function (e) {
-			if (this._ignoreCopy) { return; }
-			if (this._doCopy(e)) {
-				if (e.preventDefault) { e.preventDefault(); }
-				return false;
-			}
-		},
-		_handleCut: function (e) {
-			if (this._doCut(e)) {
-				if (e.preventDefault) { e.preventDefault(); }
-				return false;
-			}
-		},
-		_handleDataModified: function(e) {
-			this._startIME();
-		},
-		_handleDblclick: function (e) {
-			var time = e.timeStamp ? e.timeStamp : new Date().getTime();
-			this._lastMouseTime = time;
-			if (this._clickCount !== 2) {
-				this._clickCount = 2;
-				this._handleMouse(e);
-			}
-		},
-		_handleDragStart: function (e) {
-			if (util.isFirefox) {
-				var self = this;
-				var window = this._getWindow();
-				window.setTimeout(function() {
-					self._clientDiv.contentEditable = true;
-					self._clientDiv.draggable = false;
-					self._ignoreBlur = false;
-				}, 0);
-			}
-			if (this.isListening("DragStart") && this._dragOffset !== -1) { //$NON-NLS-0$
-				this._isMouseDown = false;
-				this.onDragStart(this._createMouseEvent("DragStart", e)); //$NON-NLS-0$
-				this._dragOffset = -1;
-			} else {
-				if (e.preventDefault) { e.preventDefault(); }
-				return false;
-			}
-		},
-		_handleDrag: function (e) {
-			if (this.isListening("Drag")) { //$NON-NLS-0$
-				this.onDrag(this._createMouseEvent("Drag", e)); //$NON-NLS-0$
-			}
-		},
-		_handleDragEnd: function (e) {
-			this._dropTarget = false;
-			this._dragOffset = -1;
-			if (this.isListening("DragEnd")) { //$NON-NLS-0$
-				this.onDragEnd(this._createMouseEvent("DragEnd", e)); //$NON-NLS-0$
-			}
-			if (util.isFirefox) {
-				this._fixCaret();
-				/*
-				* Bug in Firefox.  For some reason, Firefox stops showing the caret when the 
-				* selection is dropped onto itself. The fix is to detected the case and 
-				* call fixCaret() a second time.
-				*/
-				if (e.dataTransfer.dropEffect === "none" && !e.dataTransfer.mozUserCancelled) { //$NON-NLS-0$
-					this._fixCaret();
-				}
-			}
-		},
-		_handleDragEnter: function (e) {
-			var prevent = true;
-			this._dropTarget = true;
-			if (this.isListening("DragEnter")) { //$NON-NLS-0$
-				prevent = false;
-				this.onDragEnter(this._createMouseEvent("DragEnter", e)); //$NON-NLS-0$
-			}
-			/*
-			* Webkit will not send drop events if this event is not prevented, as spec in HTML5.
-			* Firefox and IE do not follow this spec for contentEditable. Note that preventing this 
-			* event will result is loss of functionality (insertion mark, etc).
-			*/
-			if (util.isWebkit || prevent) {
-				if (e.preventDefault) { e.preventDefault(); }
-				return false;
-			}
-		},
-		_handleDragOver: function (e) {
-			var prevent = true;
-			if (this.isListening("DragOver")) { //$NON-NLS-0$
-				prevent = false;
-				this.onDragOver(this._createMouseEvent("DragOver", e)); //$NON-NLS-0$
-			}
-			/*
-			* Webkit will not send drop events if this event is not prevented, as spec in HTML5.
-			* Firefox and IE do not follow this spec for contentEditable. Note that preventing this 
-			* event will result is loss of functionality (insertion mark, etc).
-			*/
-			if (util.isWebkit || prevent) {
-				if (prevent) { e.dataTransfer.dropEffect = "none"; } //$NON-NLS-0$
-				if (e.preventDefault) { e.preventDefault(); }
-				return false;
-			}
-		},
-		_handleDragLeave: function (e) {
-			this._dropTarget = false;
-			if (this.isListening("DragLeave")) { //$NON-NLS-0$
-				this.onDragLeave(this._createMouseEvent("DragLeave", e)); //$NON-NLS-0$
-			}
-		},
-		_handleDrop: function (e) {
-			this._dropTarget = false;
-			if (this.isListening("Drop")) { //$NON-NLS-0$
-				this.onDrop(this._createMouseEvent("Drop", e)); //$NON-NLS-0$
-			}
-			/*
-			* This event must be prevented otherwise the user agent will modify
-			* the DOM. Note that preventing the event on some user agents (i.e. IE)
-			* indicates that the operation is cancelled. This causes the dropEffect to 
-			* be set to none  in the dragend event causing the implementor to not execute
-			* the code responsible by the move effect.
-			*/
-			if (e.preventDefault) { e.preventDefault(); }
-			return false;
-		},
-		_handleFocus: function (e) {
-			this._hasFocus = true;
-			if (util.isIOS && this._lastTouchOffset !== undefined) {
-				this.setCaretOffset(this._lastTouchOffset, true);
-				this._lastTouchOffset = undefined;
-			} else {
-				this._updateDOMSelection();
-			}
-			if (this._selDiv1) {
-				var color = this._highlightRGB;
-				this._selDiv1.style.background = color;
-				this._selDiv2.style.background = color;
-				this._selDiv3.style.background = color;
-			}
-			if (!this._ignoreFocus) {
-				this.onFocus({type: "Focus"}); //$NON-NLS-0$
-			}
-		},
-		_handleKeyDown: function (e) {
-			var modifier = false;
-			switch (e.keyCode) {
-				case 16: /* Shift */
-				case 17: /* Control */
-				case 18: /* Alt */
-				case 91: /* Command */
-					modifier = true;
-					break;
-				default:
-					this._setLinksVisible(false);
-			}
-			if (e.keyCode === 229) {
-				if (this._readonly) {
-					if (e.preventDefault) { e.preventDefault(); }
-					return false;
-				}
-				var startIME = true;
-				
-				/*
-				* Bug in Safari. Some Control+key combinations send key events
-				* with keyCode equals to 229. This is unexpected and causes the
-				* view to start an IME composition. The fix is to ignore these
-				* events.
-				*/
-				if (util.isSafari && util.isMac) {
-					if (e.ctrlKey) {
-						startIME = false;
-					}
-				}
-				if (startIME) {
-					this._startIME();
-				}
-			} else {
-				if (!modifier) {
-					this._commitIME();
-				}
-			}
-			/*
-			* Feature in Firefox. When a key is held down the browser sends 
-			* right number of keypress events but only one keydown. This is
-			* unexpected and causes the view to only execute an action
-			* just one time. The fix is to ignore the keydown event and 
-			* execute the actions from the keypress handler.
-			* Note: This only happens on the Mac and Linux (Firefox 3.6).
-			*
-			* Feature in Opera.  Opera sends keypress events even for non-printable
-			* keys.  The fix is to handle actions in keypress instead of keydown.
-			*/
-			if (((util.isMac || util.isLinux) && util.isFirefox < 4) || util.isOpera) {
-				this._keyDownEvent = e;
-				return true;
-			}
-			
-			if (this._doAction(e)) {
-				if (e.preventDefault) {
-					e.preventDefault(); 
-					e.stopPropagation(); 
-				} else {
-					e.cancelBubble = true;
-					e.returnValue = false;
-					e.keyCode = 0;
-				}
-				return false;
-			}
-		},
-		_handleKeyPress: function (e) {
-			/*
-			* Feature in Embedded WebKit.  Embedded WekKit on Mac runs in compatibility mode and
-			* generates key press events for these Unicode values (Function keys).  This does not
-			* happen in Safari or Chrome.  The fix is to ignore these key events.
-			*/
-			if (util.isMac && util.isWebkit) {
-				if ((0xF700 <= e.keyCode && e.keyCode <= 0xF7FF) || e.keyCode === 13 || e.keyCode === 8) {
-					if (e.preventDefault) { e.preventDefault(); }
-					return false;
-				}
-			}
-			if (((util.isMac || util.isLinux) && util.isFirefox < 4) || util.isOpera) {
-				if (this._doAction(this._keyDownEvent)) {
-					if (e.preventDefault) { e.preventDefault(); }
-					return false;
-				}
-			}
-			var ctrlKey = util.isMac ? e.metaKey : e.ctrlKey;
-			if (e.charCode !== undefined) {
-				if (ctrlKey) {
-					switch (e.charCode) {
-						/*
-						* In Firefox and Safari if ctrl+v, ctrl+c ctrl+x is canceled
-						* the clipboard events are not sent. The fix to allow
-						* the browser to handles these key events.
-						*/
-						case 99://c
-						case 118://v
-						case 120://x
-							return true;
-					}
-				}
-			}
-			var ignore = false;
-			if (util.isMac) {
-				if (e.ctrlKey || e.metaKey) { ignore = true; }
-			} else {
-				if (util.isFirefox) {
-					//Firefox clears the state mask when ALT GR generates input
-					if (e.ctrlKey || e.altKey) { ignore = true; }
-				} else {
-					//IE and Chrome only send ALT GR when input is generated
-					if (e.ctrlKey ^ e.altKey) { ignore = true; }
-				}
-			}
-			if (!ignore) {
-				var key = util.isOpera ? e.which : (e.charCode !== undefined ? e.charCode : e.keyCode);
-				if (key > 31) {
-					this._doContent(String.fromCharCode (key));
-					if (e.preventDefault) { e.preventDefault(); }
-					return false;
-				}
-			}
-		},
-		_handleKeyUp: function (e) {
-			var ctrlKey = util.isMac ? e.metaKey : e.ctrlKey;
-			if (!ctrlKey) {
-				this._setLinksVisible(false);
-			}
-			// don't commit for space (it happens during JP composition)  
-			if (e.keyCode === 13) {
-				this._commitIME();
-			}
-		},
-		_handleLinkClick: function (e) {
-			var ctrlKey = util.isMac ? e.metaKey : e.ctrlKey;
-			if (!ctrlKey) {
-				if (e.preventDefault) { e.preventDefault(); }
-				return false;
-			}
-		},
-		_handleMouse: function (e) {
-			var window = this._getWindow();
-			var result = true;
-			var target = window;
-			if (util.isIE || (util.isFirefox && !this._overlayDiv)) { target = this._clientDiv; }
-			if (this._overlayDiv) {
-				if (this._hasFocus) {
-					this._ignoreFocus = true;
-				}
-				var self = this;
-				window.setTimeout(function () {
-					self.focus();
-					self._ignoreFocus = false;
-				}, 0);
-			}
-			if (this._clickCount === 1) {
-				result = this._setSelectionTo(e.clientX, e.clientY, e.shiftKey, !util.isOpera && this._hasFocus && this.isListening("DragStart")); //$NON-NLS-0$
-				if (result) { this._setGrab(target); }
-			} else {
-				/*
-				* Feature in IE8 and older, the sequence of events in the IE8 event model
-				* for a doule-click is:
-				*
-				*	down
-				*	up
-				*	up
-				*	dblclick
-				*
-				* Given that the mouse down/up events are not balanced, it is not possible to
-				* grab on mouse down and ungrab on mouse up.  The fix is to grab on the first
-				* mouse down and ungrab on mouse move when the button 1 is not set.
-				*/
-				if (this._isW3CEvents) { this._setGrab(target); }
-				
-				this._doubleClickSelection = null;
-				this._setSelectionTo(e.clientX, e.clientY, e.shiftKey);
-				this._doubleClickSelection = this._getSelection();
-			}
-			return result;
-		},
-		_handleMouseDown: function (e) {
-			if (this._linksVisible) {
-				var target = e.target || e.srcElement;
-				if (target.tagName !== "A") { //$NON-NLS-0$
-					this._setLinksVisible(false);
-				} else {
-					return;
-				}
-			}
-			this._commitIME();
-
-			var button = e.which; // 1 - left, 2 - middle, 3 - right
-			if (!button) { 
-				// if IE 8 or older
-				if (e.button === 4) { button = 2; }
-				if (e.button === 2) { button = 3; }
-				if (e.button === 1) { button = 1; }
-			}
-
-			// For middle click we always need getTime(). See _getClipboardText().
-			var time = button !== 2 && e.timeStamp ? e.timeStamp : new Date().getTime();
-			var timeDiff = time - this._lastMouseTime;
-			var deltaX = Math.abs(this._lastMouseX - e.clientX);
-			var deltaY = Math.abs(this._lastMouseY - e.clientY);
-			var sameButton = this._lastMouseButton === button;
-			this._lastMouseX = e.clientX;
-			this._lastMouseY = e.clientY;
-			this._lastMouseTime = time;
-			this._lastMouseButton = button;
-
-			if (button === 1) {
-				this._isMouseDown = true;
-				if (sameButton && timeDiff <= this._clickTime && deltaX <= this._clickDist && deltaY <= this._clickDist) {
-					this._clickCount++;
-				} else {
-					this._clickCount = 1;
-				}
-			}
-			if (this.isListening("MouseDown")) { //$NON-NLS-0$
-				var mouseEvent = this._createMouseEvent("MouseDown", e); //$NON-NLS-0$
-				this.onMouseDown(mouseEvent);
-				if (mouseEvent.defaultPrevented) {
-					e.preventDefault();
-					return;
-				}
-			}
-			if (button === 1) {
-				if (this._handleMouse(e) && (util.isIE >= 9 || util.isOpera || util.isChrome || util.isSafari || (util.isFirefox && !this._overlayDiv))) {
-					if (!this._hasFocus) {
-						this.focus();
-					}
-					e.preventDefault();
-				}
-			}
-			if (util.isFirefox && this._lastMouseButton === 3) {
-				// We need to update the DOM selection, because on
-				// right-click the caret moves to the mouse location.
-				// See bug 366312 and 376508.
-				this._updateDOMSelection();
-			}
-		},
-		_handleMouseOver: function (e) {
-			if (this._animation) { return; }
-			if (this.isListening("MouseOver")) { //$NON-NLS-0$
-				this.onMouseOver(this._createMouseEvent("MouseOver", e)); //$NON-NLS-0$
-			}
-		},
-		_handleMouseOut: function (e) {
-			if (this._animation) { return; }
-			if (this.isListening("MouseOut")) { //$NON-NLS-0$
-				this.onMouseOut(this._createMouseEvent("MouseOut", e)); //$NON-NLS-0$
-			}
-		},
-		_handleMouseMove: function (e) {
-			if (this._animation) { return; }
-			var inClient = this._isClientDiv(e);
-			if (this.isListening("MouseMove")) { //$NON-NLS-0$
-				if (inClient){
-					this.onMouseMove(this._createMouseEvent("MouseMove", e)); //$NON-NLS-0$
-				}
-			}
-			if (this._dropTarget) {
-				return;
-			}
-			/*
-			* Bug in IE9. IE sends one mouse event when the user changes the text by
-			* pasting or undo.  These operations usually happen with the Ctrl key
-			* down which causes the view to enter link mode.  Link mode does not end
-			* because there are no further events.  The fix is to only enter link
-			* mode when the coordinates of the mouse move event have changed.
-			*/
-			var changed = this._linksVisible || this._lastMouseMoveX !== e.clientX || this._lastMouseMoveY !== e.clientY;
-			this._lastMouseMoveX = e.clientX;
-			this._lastMouseMoveY = e.clientY;
-			this._setLinksVisible(changed && !this._isMouseDown && (util.isMac ? e.metaKey : e.ctrlKey));
-
-			/*
-			* Feature in IE8 and older, the sequence of events in the IE8 event model
-			* for a doule-click is:
-			*
-			*	down
-			*	up
-			*	up
-			*	dblclick
-			*
-			* Given that the mouse down/up events are not balanced, it is not possible to
-			* grab on mouse down and ungrab on mouse up.  The fix is to grab on the first
-			* mouse down and ungrab on mouse move when the button 1 is not set.
-			*
-			* In order to detect double-click and drag gestures, it is necessary to send
-			* a mouse down event from mouse move when the button is still down and isMouseDown
-			* flag is not set.
-			*/
-			if (!this._isW3CEvents) {
-				if (e.button === 0) {
-					this._setGrab(null);
-					return true;
-				}
-				if (!this._isMouseDown && e.button === 1 && (this._clickCount & 1) !== 0 && inClient) {
-					this._clickCount = 2;
-					return this._handleMouse(e, this._clickCount);
-				}
-			}
-			if (!this._isMouseDown || this._dragOffset !== -1) {
-				return;
-			}
-			
-			var x = e.clientX;
-			var y = e.clientY;
-			var viewPad = this._getViewPadding();
-			var viewRect = this._viewDiv.getBoundingClientRect();
-			var width = this._getClientWidth (), height = this._getClientHeight();
-			var leftEdge = viewRect.left + viewPad.left;
-			var topEdge = viewRect.top + viewPad.top;
-			var rightEdge = viewRect.left + viewPad.left + width;
-			var bottomEdge = viewRect.top + viewPad.top + height;
-			var model = this._model;
-			var caretLine = model.getLineAtOffset(this._getSelection().getCaret());
-			if (y < topEdge && caretLine !== 0) {
-				this._doAutoScroll("up", x, y - topEdge); //$NON-NLS-0$
-			} else if (y > bottomEdge && caretLine !== model.getLineCount() - 1) {
-				this._doAutoScroll("down", x, y - bottomEdge); //$NON-NLS-0$
-			} else if (x < leftEdge && !this._wrapMode) {
-				this._doAutoScroll("left", x - leftEdge, y); //$NON-NLS-0$
-			} else if (x > rightEdge && !this._wrapMode) {
-				this._doAutoScroll("right", x - rightEdge, y); //$NON-NLS-0$
-			} else {
-				this._endAutoScroll();
-				this._setSelectionTo(x, y, true);
-			}
-		},
-		_isClientDiv: function(e) {
-			var topNode = this._overlayDiv || this._clientDiv;
-			var temp = e.target ? e.target : e.srcElement;
-			while (temp) {
-				if (topNode === temp) {
-					return true;
-				}
-				temp = temp.parentNode;
-			}
-			return false;
-		},
-		_createMouseEvent: function(type, e) {
-			var pt = this.convert({x: e.clientX, y: e.clientY}, "page", "document"); //$NON-NLS-1$ //$NON-NLS-0$
-			return {
-				type: type,
-				event: e,
-				clickCount: this._clickCount,
-				x: pt.x,
-				y: pt.y,
-				preventDefault: function() {
-					this.defaultPrevented = true;
-				}
-			};
-		},
-		_handleMouseUp: function (e) {
-			var left = e.which ? e.button === 0 : e.button === 1;
-			if (this.isListening("MouseUp")) { //$NON-NLS-0$
-				if (this._isClientDiv(e) || (left && this._isMouseDown)) {
-					this.onMouseUp(this._createMouseEvent("MouseUp", e)); //$NON-NLS-0$
-				}
-			}
-			if (this._linksVisible) {
-				return;
-			}
-			if (left && this._isMouseDown) {
-				if (this._dragOffset !== -1) {
-					var selection = this._getSelection();
-					selection.extend(this._dragOffset);
-					selection.collapse();
-					this._setSelection(selection, true, true);
-					this._dragOffset = -1;
-				}
-				this._isMouseDown = false;
-				this._endAutoScroll();
-				
-				/*
-				* Feature in IE8 and older, the sequence of events in the IE8 event model
-				* for a doule-click is:
-				*
-				*	down
-				*	up
-				*	up
-				*	dblclick
-				*
-				* Given that the mouse down/up events are not balanced, it is not possible to
-				* grab on mouse down and ungrab on mouse up.  The fix is to grab on the first
-				* mouse down and ungrab on mouse move when the button 1 is not set.
-				*/
-				if (this._isW3CEvents) { this._setGrab(null); }
-
-				/*
-				* Note that there cases when Firefox sets the DOM selection in mouse up.
-				* This happens for example after a cancelled drag operation.
-				*
-				* Note that on Chrome and IE, the caret stops blicking if mouse up is
-				* prevented.
-				*/
-				if (util.isFirefox) {
-					e.preventDefault();
-				}
-			}
-		},
-		_handleMouseWheel: function (e) {
-			var lineHeight = this._getLineHeight();
-			var pixelX = 0, pixelY = 0;
-			// Note: On the Mac the correct behaviour is to scroll by pixel.
-			if (util.isIE || util.isOpera) {
-				pixelY = (-e.wheelDelta / 40) * lineHeight;
-			} else if (util.isFirefox) {
-				var pixel;
-				if (util.isMac) {
-					pixel = e.detail * 3;
-				} else {
-					var limit = 256;
-					pixel = Math.max(-limit, Math.min(limit, e.detail)) * lineHeight;
-				}
-				if (e.axis === e.HORIZONTAL_AXIS) {
-					pixelX = pixel;
-				} else {
-					pixelY = pixel;
-				}
-			} else {
-				//Webkit
-				if (util.isMac) {
-					/*
-					* In Safari, the wheel delta is a multiple of 120. In order to
-					* convert delta to pixel values, it is necessary to divide delta
-					* by 40.
-					*
-					* In Chrome and Safari 5, the wheel delta depends on the type of the
-					* mouse. In general, it is the pixel value for Mac mice and track pads,
-					* but it is a multiple of 120 for other mice. There is no presise
-					* way to determine if it is pixel value or a multiple of 120.
-					* 
-					* Note that the current approach does not calculate the correct
-					* pixel value for Mac mice when the delta is a multiple of 120.
-					*/
-					var denominatorX = 40, denominatorY = 40;
-					if (e.wheelDeltaX % 120 !== 0) { denominatorX = 1; }
-					if (e.wheelDeltaY % 120 !== 0) { denominatorY = 1; }
-					pixelX = -e.wheelDeltaX / denominatorX;
-					if (-1 < pixelX && pixelX < 0) { pixelX = -1; }
-					if (0 < pixelX && pixelX < 1) { pixelX = 1; }
-					pixelY = -e.wheelDeltaY / denominatorY;
-					if (-1 < pixelY && pixelY < 0) { pixelY = -1; }
-					if (0 < pixelY && pixelY < 1) { pixelY = 1; }
-				} else {
-					pixelX = -e.wheelDeltaX;
-					var linesToScroll = 8;
-					pixelY = (-e.wheelDeltaY / 120 * linesToScroll) * lineHeight;
-				}
-			}
-			/* 
-			* Feature in Safari. If the event target is removed from the DOM 
-			* safari stops smooth scrolling. The fix is keep the element target
-			* in the DOM and remove it on a later time. 
-			*
-			* Note: Using a timer is not a solution, because the timeout needs to
-			* be at least as long as the gesture (which is too long).
-			*/
-			if (util.isSafari) {
-				var lineDiv = e.target;
-				while (lineDiv && lineDiv.lineIndex === undefined) {
-					lineDiv = lineDiv.parentNode;
-				}
-				this._mouseWheelLine = lineDiv;
-			}
-			var oldScroll = this._getScroll();
-			this._scrollView(pixelX, pixelY);
-			var newScroll = this._getScroll();
-			if (oldScroll.x !== newScroll.x || oldScroll.y !== newScroll.y) {
-				if (e.preventDefault) { e.preventDefault(); }
-				return false;
-			}
-		},
-		_handlePaste: function (e) {
-			if (this._ignorePaste) { return; }
-			if (this._doPaste(e)) {
-				if (util.isIE) {
-					/*
-					 * Bug in IE,  
-					 */
-					var self = this;
-					this._ignoreFocus = true;
-					var window = this._getWindow();
-					window.setTimeout(function() {
-						self._updateDOMSelection();
-						self._ignoreFocus = false;
-					}, 0);
-				}
-				if (e.preventDefault) { e.preventDefault(); }
-				return false;
-			}
-		},
-		_handleResize: function (e) {
-			var newWidth = this._parent.clientWidth;
-			var newHeight = this._parent.clientHeight;
-			if (this._parentWidth !== newWidth || this._parentHeight !== newHeight) {
-				if (this._parentWidth !== newWidth) {
-					this._resetLineHeight();
-				}
-				this._parentWidth = newWidth;
-				this._parentHeight = newHeight;
-				/*
-				* Feature in IE7. For some reason, sometimes Internet Explorer 7 
-				* returns incorrect values for element.getBoundingClientRect() when 
-				* inside a resize handler. The fix is to queue the work.
-				*/
-				if (util.isIE < 9) {
-					this._queueUpdate();
-				} else {
-					this._update();
-				}
-			}
-		},
-		_handleRulerEvent: function (e) {
-			var target = e.target ? e.target : e.srcElement;
-			var lineIndex = target.lineIndex;
-			var element = target;
-			while (element && !element._ruler) {
-				if (lineIndex === undefined && element.lineIndex !== undefined) {
-					lineIndex = element.lineIndex;
-				}
-				element = element.parentNode;
-			}
-			var ruler = element ? element._ruler : null;
-			if (lineIndex === undefined && ruler && ruler.getOverview() === "document") { //$NON-NLS-0$
-				var clientHeight = this._getClientHeight ();
-				var lineCount = this._model.getLineCount ();
-				var viewPad = this._getViewPadding();
-				var viewRect = this._viewDiv.getBoundingClientRect();
-				var trackHeight = clientHeight + viewPad.top + viewPad.bottom - 2 * this._metrics.scrollWidth;
-				lineIndex = Math.floor(((e.clientY - viewRect.top) - this._metrics.scrollWidth) * lineCount / trackHeight);
-				if (!(0 <= lineIndex && lineIndex < lineCount)) {
-					lineIndex = undefined;
-				}
-			}
-			if (ruler) {
-				switch (e.type) {
-					case "click": //$NON-NLS-0$
-						if (ruler.onClick) { ruler.onClick(lineIndex, e); }
-						break;
-					case "dblclick": //$NON-NLS-0$
-						if (ruler.onDblClick) { ruler.onDblClick(lineIndex, e); }
-						break;
-					case "mousemove": //$NON-NLS-0$
-						if (ruler.onMouseMove) { ruler.onMouseMove(lineIndex, e); }
-						break;
-					case "mouseover": //$NON-NLS-0$
-						if (ruler.onMouseOver) { ruler.onMouseOver(lineIndex, e); }
-						break;
-					case "mouseout": //$NON-NLS-0$
-						if (ruler.onMouseOut) { ruler.onMouseOut(lineIndex, e); }
-						break;
-				}
-			}
-		},
-		_handleScroll: function () {
-			var scroll = this._getScroll(false);
-			var oldX = this._hScroll;
-			var oldY = this._vScroll;
-			if (oldX !== scroll.x || oldY !== scroll.y) {
-				this._hScroll = scroll.x;
-				this._vScroll = scroll.y;
-				this._commitIME();
-				this._update(oldY === scroll.y);
-				var e = {
-					type: "Scroll", //$NON-NLS-0$
-					oldValue: {x: oldX, y: oldY},
-					newValue: scroll
-				};
-				this.onScroll(e);
-			}
-		},
-		_handleSelectStart: function (e) {
-			if (this._ignoreSelect) {
-				if (e && e.preventDefault) { e.preventDefault(); }
-				return false;
-			}
-		},
-		_getModelOffset: function(node, offset) {
-			if (!node) { return; }
-			var lineNode;
-			if (node.tagName === "DIV") { //$NON-NLS-0$
-				lineNode = node;
-			} else {
-				lineNode = node.parentNode.parentNode;
-			}
-			var lineOffset = 0;
-			var lineIndex = lineNode.lineIndex;
-			if (node.tagName !== "DIV") { //$NON-NLS-0$
-				var child = lineNode.firstChild;
-				while (child) {
-					var textNode = child.firstChild;
-					if (textNode === node) {
-						if (child.ignoreChars) { lineOffset -= child.ignoreChars; }
-						lineOffset += offset;
-						break;
-					}
-					if (child.ignoreChars) { lineOffset -= child.ignoreChars; }
-					lineOffset += textNode.data.length;
-					child = child.nextSibling;
-				}
-			}
-			return Math.max(0, lineOffset) + this._model.getLineStart(lineIndex);
-		},
-		_updateSelectionFromDOM: function() {
-			var window = this._getWindow();
-			var selection = window.getSelection();
-			var start = this._getModelOffset(selection.anchorNode, selection.anchorOffset);
-			var end = this._getModelOffset(selection.focusNode, selection.focusOffset);
-			if (start === undefined || end === undefined) {
-			    return;
-			}
-			this._setSelection(new Selection(start, end), false, false);
-		},
-		_handleSelectionChange: function (e) {
-			if (this._imeOffset !== -1) {
-				return;
-			}
-			/*
-			 * Feature in Android. The selection handles are hidden when the DOM changes. Sending
-			 * selection events to the application while the user is moving the selection handles
-			 * may hide the handles unexpectedly.  The fix is to delay updating the selection and
-			 * sending the event to the application.
-			 */
-			if (util.isAndroid) {
-				var window = this._getWindow();
-				if (this._selTimer) {
-					window.clearTimeout(this._selTimer);
-				}
-				var that = this;
-				this._selTimer = window.setTimeout(function() {
-					if (!that._clientDiv) { return; }
-					that._selTimer = null; 
-					that._updateSelectionFromDOM();
-				}, 250);
-			} else {
-				this._updateSelectionFromDOM();
-			}
-		},
-		_handleTextInput: function (e) {
-			this._imeOffset = -1;
-			if (util.isAndroid) {
-				var selection = this._getWindow().getSelection();
-				var temp = selection.anchorNode;
-				while (temp) {
-					if (temp.lineIndex !== undefined) {
-						break;
-					}
-					temp = temp.parentNode;
-				}
-				if (temp) {
-					var model = this._model;
-					var lineIndex = temp.lineIndex;
-					var oldText = model.getLine(lineIndex), text = oldText;
-					var offset = 0;
-					var lineStart = model.getLineStart(lineIndex);
-					if (selection.rangeCount > 0) {
-						selection.getRangeAt(0).deleteContents();
-						var node = temp.ownerDocument.createTextNode(e.data);
-						selection.getRangeAt(0).insertNode(node);
-						var nodeText = this._getDOMText(temp, node);
-						text = nodeText.text;
-						offset = nodeText.offset;
-						node.parentNode.removeChild(node);
-					}
-					temp.lineRemoved = true;
-					
-					var start = 0;
-					while (oldText.charCodeAt(start) === text.charCodeAt(start) && start < offset) {
-						start++;
-					}
-		
-					var end = oldText.length - 1, delta = text.length - oldText.length;
-					while (oldText.charCodeAt(end) === text.charCodeAt(end + delta) && end + delta >= offset + e.data.length) {
-						end--;
-					}
-					end++;
-					
-					var deltaText = text.substring(start, end + delta);
-					start += lineStart;
-					end += lineStart;
-					
-					this._modifyContent({text: deltaText, start: start, end: end, _ignoreDOMSelection: true}, true);
-				}
-			} else {
-				this._doContent(e.data);
-			}
-			e.preventDefault();
-		},
-		_handleTouchStart: function (e) {
-			this._commitIME();
-			var window = this._getWindow();
-			if (this._touchScrollTimer) {
-				this._vScrollDiv.style.display = "none"; //$NON-NLS-0$
-				this._hScrollDiv.style.display = "none"; //$NON-NLS-0$
-				window.clearInterval(this._touchScrollTimer);
-				this._touchScrollTimer = null;
-			}
-			var touches = e.touches;
-			if (touches.length === 1) {
-				var touch = touches[0];
-				var x = touch.clientX, y = touch.clientY;
-				this._touchStartX = x;
-				this._touchStartY = y;
-				if (util.isAndroid) {
-					/*
-					* Bug in Android 4.  The clientX/Y coordinates of the touch events
-					* include the page scrolling offsets.
-					*/
-				    if (y < (touch.pageY - window.pageYOffset) || x < (touch.pageX - window.pageXOffset) ) {
-						x = touch.pageX - window.pageXOffset;
-						y = touch.pageY - window.pageYOffset;
-				    }
-				}
-				var pt = this.convert({x: x, y: y}, "page", "document"); //$NON-NLS-1$ //$NON-NLS-0$
-				this._lastTouchOffset = this.getOffsetAtLocation(pt.x, pt.y);
-				this._touchStartTime = e.timeStamp;
-				this._touching = true;
-			}
-		},
-		_handleTouchMove: function (e) {
-			var touches = e.touches;
-			if (touches.length === 1) {
-				var touch = touches[0];
-				this._touchCurrentX = touch.clientX;
-				this._touchCurrentY = touch.clientY;
-				var interval = 10;
-				if (!this._touchScrollTimer && (e.timeStamp - this._touchStartTime) < (interval*20)) {
-					this._vScrollDiv.style.display = "block"; //$NON-NLS-0$
-					if (!this._wrapMode) {
-						this._hScrollDiv.style.display = "block"; //$NON-NLS-0$
-					}
-					var self = this;
-					var window = this._getWindow();
-					this._touchScrollTimer = window.setInterval(function() {
-						var deltaX = 0, deltaY = 0;
-						if (self._touching) {
-							deltaX = self._touchStartX - self._touchCurrentX;
-							deltaY = self._touchStartY - self._touchCurrentY;
-							self._touchSpeedX = deltaX / interval;
-							self._touchSpeedY = deltaY / interval;
-							self._touchStartX = self._touchCurrentX;
-							self._touchStartY = self._touchCurrentY;
-						} else {
-							if (Math.abs(self._touchSpeedX) < 0.1 && Math.abs(self._touchSpeedY) < 0.1) {
-								self._vScrollDiv.style.display = "none"; //$NON-NLS-0$
-								self._hScrollDiv.style.display = "none"; //$NON-NLS-0$
-								window.clearInterval(self._touchScrollTimer);
-								self._touchScrollTimer = null;
-								return;
-							} else {
-								deltaX = self._touchSpeedX * interval;
-								deltaY = self._touchSpeedY * interval;
-								self._touchSpeedX *= 0.95;
-								self._touchSpeedY *= 0.95;
-							}
-						}
-						self._scrollView(deltaX, deltaY);
-					}, interval);
-				}
-				if (this._touchScrollTimer) {
-					e.preventDefault();
-				}
-			}
-		},
-		_handleTouchEnd: function (e) {
-			var touches = e.touches;
-			if (touches.length === 0) {
-				this._touching = false;
-			}
-		},
-
-		/************************************ Actions ******************************************/
-		_doAction: function (e) {
-			var keyBindings = this._keyBindings;
-			for (var i = 0; i < keyBindings.length; i++) {
-				var kb = keyBindings[i];
-				if (kb.keyBinding.match(e)) {
-					if (kb.actionID) {
-						var actions = this._actions;
-						var action = actions[kb.actionID];
-						if (action) {
-							if (action.handler) {
-								if (!action.handler()) {
-									if (action.defaultHandler) {
-										return typeof(action.defaultHandler()) === "boolean"; //$NON-NLS-0$
-									} else {
-										return false;
-									}
-								} else {
-									// Firefox feature. without this else branch execution goes into the else branch above 
-									// and defaults are *not* prevented
-								}
-							} else if (action.defaultHandler) {
-								return typeof(action.defaultHandler()) === "boolean"; //$NON-NLS-0$
-							}
-						}
-					}
-					return true;
-				}
-			}
-			return false;
-		},
-		_doBackspace: function (args) {
-			var selection = this._getSelection();
-			if (selection.isEmpty()) {
-				var model = this._model;
-				var caret = selection.getCaret();
-				var lineIndex = model.getLineAtOffset(caret);
-				var lineStart = model.getLineStart(lineIndex);
-				if (caret === lineStart) {
-					if (lineIndex > 0) {
-						selection.extend(model.getLineEnd(lineIndex - 1));
-					}
-				} else {
-					var removeTab = false;
-					if (this._expandTab && args.unit === "character" && (caret - lineStart) % this._tabSize === 0) { //$NON-NLS-0$
-						var lineText = model.getText(lineStart, caret);
-						removeTab = !/[^ ]/.test(lineText); // Only spaces between line start and caret.
-					}
-					if (removeTab) {
-						selection.extend(caret - this._tabSize);
-					} else {
-						var line = this._getLine(lineIndex);
-						selection.extend(line.getNextOffset(caret, args.unit, -1));
-						line.destroy();
-					}
-				}
-			}
-			this._modifyContent({text: "", start: selection.start, end: selection.end}, true);
-			return true;
-		},
-		_doContent: function (text) {
-			var selection = this._getSelection();
-			this._modifyContent({text: text, start: selection.start, end: selection.end, _ignoreDOMSelection: true}, true);
-		},
-		_doCopy: function (e) {
-			var selection = this._getSelection();
-			if (!selection.isEmpty()) {
-				var text = this._getBaseText(selection.start, selection.end);
-				return this._setClipboardText(text, e);
-			}
-			return true;
-		},
-		_doCursorNext: function (args) {
-			if (!args.select) {
-				if (this._clearSelection("next")) { return true; } //$NON-NLS-0$
-			}
-			var model = this._model;
-			var selection = this._getSelection();
-			var caret = selection.getCaret();
-			var lineIndex = model.getLineAtOffset(caret);
-			if (caret === model.getLineEnd(lineIndex)) {
-				if (lineIndex + 1 < model.getLineCount()) {
-					selection.extend(model.getLineStart(lineIndex + 1));
-				}
-			} else {
-				var line = this._getLine(lineIndex);
-				selection.extend(line.getNextOffset(caret, args.unit, 1));
-				line.destroy();
-			}
-			if (!args.select) { selection.collapse(); }
-			this._setSelection(selection, true);
-			return true;
-		},
-		_doCursorPrevious: function (args) {
-			if (!args.select) {
-				if (this._clearSelection("previous")) { return true; } //$NON-NLS-0$
-			}
-			var model = this._model;
-			var selection = this._getSelection();
-			var caret = selection.getCaret();
-			var lineIndex = model.getLineAtOffset(caret);
-			if (caret === model.getLineStart(lineIndex)) {
-				if (lineIndex > 0) {
-					selection.extend(model.getLineEnd(lineIndex - 1));
-				}
-			} else {
-				var line = this._getLine(lineIndex);
-				selection.extend(line.getNextOffset(caret, args.unit, -1));
-				line.destroy();
-			}
-			if (!args.select) { selection.collapse(); }
-			this._setSelection(selection, true);
-			return true;
-		},
-		_doCut: function (e) {
-			var selection = this._getSelection();
-			if (!selection.isEmpty()) {
-				var text = this._getBaseText(selection.start, selection.end);
-				this._doContent("");
-				return this._setClipboardText(text, e);
-			}
-			return true;
-		},
-		_doDelete: function (args) {
-			var selection = this._getSelection();
-			if (selection.isEmpty()) {
-				var model = this._model;
-				var caret = selection.getCaret();
-				var lineIndex = model.getLineAtOffset(caret);
-				if (caret === model.getLineEnd (lineIndex)) {
-					if (lineIndex + 1 < model.getLineCount()) {
-						selection.extend(model.getLineStart(lineIndex + 1));
-					}
-				} else {
-					var line = this._getLine(lineIndex);
-					selection.extend(line.getNextOffset(caret, args.unit, 1));
-					line.destroy();
-				}
-			}
-			this._modifyContent({text: "", start: selection.start, end: selection.end}, true);
-			return true;
-		},
-		_doEnd: function (args) {
-			var selection = this._getSelection();
-			var model = this._model;
-			var callback;
-			if (args.ctrl) {
-				selection.extend(model.getCharCount());
-				callback = function() {};
-			} else {
-				var offset = selection.getCaret();
-				var lineIndex = model.getLineAtOffset(offset);
-				if (this._wrapMode) {
-					var line = this._getLine(lineIndex);
-					var visualIndex = line.getLineIndex(offset);
-					if (visualIndex === line.getLineCount() - 1) {
-						offset = model.getLineEnd(lineIndex);
-					} else {
-						offset = line.getLineStart(visualIndex + 1) - 1;
-					}
-					line.destroy();
-				} else {
-					offset = model.getLineEnd(lineIndex);
-				}
-				selection.extend(offset);
-			}
-			if (!args.select) { selection.collapse(); }
-			this._setSelection(selection, true, true, callback);
-			return true;
-		},
-		_doEnter: function (args) {
-			var model = this._model;
-			var selection = this._getSelection();
-			this._doContent(model.getLineDelimiter()); 
-			if (args && args.noCursor) {
-				selection.end = selection.start;
-				this._setSelection(selection, true);
-			}
-			return true;
-		},
-		_doHome: function (args) {
-			var selection = this._getSelection();
-			var model = this._model;
-			var callback;
-			if (args.ctrl) {
-				selection.extend(0);
-				callback = function() {};
-			} else {
-				var offset = selection.getCaret();
-				var lineIndex = model.getLineAtOffset(offset);
-				if (this._wrapMode) {
-					var line = this._getLine(lineIndex);
-					var visualIndex = line.getLineIndex(offset);
-					offset = line.getLineStart(visualIndex);
-					line.destroy();
-				} else {
-					offset = model.getLineStart(lineIndex);
-				}
-				selection.extend(offset); 
-			}
-			if (!args.select) { selection.collapse(); }
-			this._setSelection(selection, true, true, callback);
-			return true;
-		},
-		_doLineDown: function (args) {
-			var model = this._model;
-			var selection = this._getSelection();
-			var caret = selection.getCaret();
-			var lineIndex = model.getLineAtOffset(caret), visualIndex;
-			var line = this._getLine(lineIndex);
-			var x = this._columnX, y = 1, lastLine = false;
-			if (x === -1 || args.wholeLine || (args.select && util.isIE)) {
-				var offset = args.wholeLine ? model.getLineEnd(lineIndex + 1) : caret;
-				x = line.getBoundingClientRect(offset).left;
-			}
-			if ((visualIndex = line.getLineIndex(caret)) < line.getLineCount() - 1) {
-				y = line.getClientRects(visualIndex + 1).top + 1;
-			} else {
-				lastLine = lineIndex === model.getLineCount() - 1;
-				lineIndex++;
-			}
-			if (lastLine) {
-				if (args.select) {
-					selection.extend(model.getCharCount());
-					this._setSelection(selection, true, true);
-				}
-			} else {
-				if (line.lineIndex !== lineIndex) {
-					line.destroy();
-					line = this._getLine(lineIndex);
-				}
-				selection.extend(line.getOffset(x, y));
-				if (!args.select) { selection.collapse(); }
-				this._setSelection(selection, true, true);
-			}
-			this._columnX = x;
-			line.destroy();
-			return true;
-		},
-		_doLineUp: function (args) {
-			var model = this._model;
-			var selection = this._getSelection();
-			var caret = selection.getCaret();
-			var lineIndex = model.getLineAtOffset(caret), visualIndex;
-			var line = this._getLine(lineIndex);
-			var x = this._columnX, firstLine = false, y;
-			if (x === -1 || args.wholeLine || (args.select && util.isIE)) {
-				var offset = args.wholeLine ? model.getLineStart(lineIndex - 1) : caret;
-				x = line.getBoundingClientRect(offset).left;
-			}
-			if ((visualIndex = line.getLineIndex(caret)) > 0) {
-				y = line.getClientRects(visualIndex - 1).top + 1;
-			} else {
-				firstLine = lineIndex === 0;
-				if (!firstLine) {
-					lineIndex--;
-					y = this._getLineHeight(lineIndex) - 1;
-				}
-			}
-			if (firstLine) {
-				if (args.select) {
-					selection.extend(0);
-					this._setSelection(selection, true, true);
-				}
-			} else {
-				if (line.lineIndex !== lineIndex) {
-					line.destroy();
-					line = this._getLine(lineIndex);
-				}
-				selection.extend(line.getOffset(x, y));
-				if (!args.select) { selection.collapse(); }
-				this._setSelection(selection, true, true);
-			}
-			this._columnX = x;
-			line.destroy();
-			return true;
-		},
-		_doPageDown: function (args) {
-			var self = this;
-			var model = this._model;
-			var selection = this._getSelection();
-			var caret = selection.getCaret();
-			var caretLine = model.getLineAtOffset(caret);
-			var lineCount = model.getLineCount();
-			var scroll = this._getScroll();
-			var clientHeight = this._getClientHeight(), x, line;
-			if (this._lineHeight) {
-				x = this._columnX;
-				var caretRect = this._getBoundsAtOffset(caret);
-				if (x === -1 || (args.select && util.isIE)) {
-					x = caretRect.left;
-				}
-				var lineIndex = this._getLineIndex(caretRect.top + clientHeight);
-				line = this._getLine(lineIndex);
-				var linePixel = this._getLinePixel(lineIndex);
-				var y = caretRect.top + clientHeight - linePixel;
-				caret = line.getOffset(x, y);
-				var rect = line.getBoundingClientRect(caret);
-				line.destroy();
-				selection.extend(caret);
-				if (!args.select) { selection.collapse(); }
-				this._setSelection(selection, true, true, function() {
-					self._columnX = x;
-				}, rect.top + linePixel - caretRect.top);
-				return true;
-			}
-			if (caretLine < lineCount - 1) {
-				var lineHeight = this._getLineHeight();
-				var lines = Math.floor(clientHeight / lineHeight);
-				var scrollLines = Math.min(lineCount - caretLine - 1, lines);
-				scrollLines = Math.max(1, scrollLines);
-				x = this._columnX;
-				if (x === -1 || (args.select && util.isIE)) {
-					line = this._getLine(caretLine);
-					x = line.getBoundingClientRect(caret).left;
-					line.destroy();
-				}
-				line = this._getLine(caretLine + scrollLines);
-				selection.extend(line.getOffset(x, 0));
-				line.destroy();
-				if (!args.select) { selection.collapse(); }
-				var verticalMaximum = lineCount * lineHeight;
-				var scrollOffset = scroll.y + scrollLines * lineHeight;
-				if (scrollOffset + clientHeight > verticalMaximum) {
-					scrollOffset = verticalMaximum - clientHeight;
-				}
-				this._setSelection(selection, true, true, function() {
-					self._columnX = x;
-				}, scrollOffset - scroll.y);
-			}
-			return true;
-		},
-		_doPageUp: function (args) {
-			var self = this;
-			var model = this._model;
-			var selection = this._getSelection();
-			var caret = selection.getCaret();
-			var caretLine = model.getLineAtOffset(caret);
-			var scroll = this._getScroll();
-			var clientHeight = this._getClientHeight(), x, line;
-			if (this._lineHeight) {
-				x = this._columnX;
-				var caretRect = this._getBoundsAtOffset(caret);
-				if (x === -1 || (args.select && util.isIE)) {
-					x = caretRect.left;
-				}
-				var lineIndex = this._getLineIndex(caretRect.bottom - clientHeight);
-				line = this._getLine(lineIndex);
-				var linePixel = this._getLinePixel(lineIndex);
-				var y = (caretRect.bottom - clientHeight) - linePixel;
-				caret = line.getOffset(x, y);
-				var rect = line.getBoundingClientRect(caret);
-				line.destroy();
-				selection.extend(caret);
-				if (!args.select) { selection.collapse(); }
-				this._setSelection(selection, true, true, function() {
-					self._columnX = x;
-				}, rect.top + linePixel - caretRect.top);
-				return true;
-			}
-			if (caretLine > 0) {
-				var lineHeight = this._getLineHeight();
-				var lines = Math.floor(clientHeight / lineHeight);
-				var scrollLines = Math.max(1, Math.min(caretLine, lines));
-				x = this._columnX;
-				if (x === -1 || (args.select && util.isIE)) {
-					line = this._getLine(caretLine);
-					x = line.getBoundingClientRect(caret).left;
-					line.destroy();
-				}
-				line = this._getLine(caretLine - scrollLines);
-				selection.extend(line.getOffset(x, this._getLineHeight(caretLine - scrollLines) - 1));
-				line.destroy();
-				if (!args.select) { selection.collapse(); }
-				var scrollOffset = Math.max(0, scroll.y - scrollLines * lineHeight);
-				this._setSelection(selection, true, true, function() {
-					self._columnX = x;
-				}, scrollOffset - scroll.y);
-			}
-			return true;
-		},
-		_doPaste: function(e) {
-			var self = this;
-			var result = this._getClipboardText(e, function(text) {
-				if (text) {
-					if (util.isLinux && self._lastMouseButton === 2) {
-						var timeDiff = new Date().getTime() - self._lastMouseTime;
-						if (timeDiff <= self._clickTime) {
-							self._setSelectionTo(self._lastMouseX, self._lastMouseY);
-						}
-					}
-					self._doContent(text);
-				}
-			});
-			return result !== null;
-		},
-		_doScroll: function (args) {
-			var type = args.type;
-			var model = this._model;
-			var lineCount = model.getLineCount();
-			var clientHeight = this._getClientHeight();
-			var lineHeight = this._getLineHeight();
-			var verticalMaximum = lineCount * lineHeight;
-			var verticalScrollOffset = this._getScroll().y;
-			var pixel;
-			switch (type) {
-				case "textStart": pixel = 0; break; //$NON-NLS-0$
-				case "textEnd": pixel = verticalMaximum - clientHeight; break; //$NON-NLS-0$
-				case "pageDown": pixel = verticalScrollOffset + clientHeight; break; //$NON-NLS-0$
-				case "pageUp": pixel = verticalScrollOffset - clientHeight; break; //$NON-NLS-0$
-				case "lineDown": pixel = verticalScrollOffset + lineHeight; break; //$NON-NLS-0$
-				case "lineUp": pixel = verticalScrollOffset - lineHeight; break; //$NON-NLS-0$
-				case "centerLine": //$NON-NLS-0$
-					var selection = this._getSelection();
-					var lineStart = model.getLineAtOffset(selection.start);
-					var lineEnd = model.getLineAtOffset(selection.end);
-					var selectionHeight = (lineEnd - lineStart + 1) * lineHeight;
-					pixel = (lineStart * lineHeight) - (clientHeight / 2) + (selectionHeight / 2);
-					break;
-			}
-			if (pixel !== undefined) {
-				pixel = Math.min(Math.max(0, pixel), verticalMaximum - clientHeight);
-				this._scrollViewAnimated(0, pixel - verticalScrollOffset, function() {});
-			}
-			return true;
-		},
-		_doSelectAll: function (args) {
-			var model = this._model;
-			var selection = this._getSelection();
-			selection.setCaret(0);
-			selection.extend(model.getCharCount());
-			this._setSelection(selection, false);
-			return true;
-		},
-		_doTab: function (args) {
-			if(!this._tabMode || this._readonly) { return; }
-			var text = "\t"; //$NON-NLS-0$
-			if (this._expandTab) {
-				var model = this._model;
-				var caret = this._getSelection().getCaret();
-				var lineIndex = model.getLineAtOffset(caret);
-				var lineStart = model.getLineStart(lineIndex);
-				var spaces = this._tabSize - ((caret - lineStart) % this._tabSize);
-				text = (new Array(spaces + 1)).join(" "); //$NON-NLS-0$
-			}
-			this._doContent(text);
-			return true;
-		},
-		_doShiftTab: function (args) {
-			if(!this._tabMode || this._readonly) { return; }
-			return true;
-		},
-		_doTabMode: function (args) {
-			this._tabMode = !this._tabMode;
-			return true;
-		},
-		_doWrapMode: function (args) {
-			this.setOptions({wrapMode: !this.getOptions("wrapMode")}); //$NON-NLS-0$
-			return true;
-		},
-		
-		/************************************ Internals ******************************************/
-		_autoScroll: function () {
-			var selection = this._getSelection();
-			var pt = this.convert({x: this._autoScrollX, y: this._autoScrollY}, "page", "document"); //$NON-NLS-1$ //$NON-NLS-0$
-			var caret = selection.getCaret();
-			var caretLine = this._model.getLineAtOffset(caret), lineIndex, line;
-			if (this._autoScrollDir === "up" || this._autoScrollDir === "down") { //$NON-NLS-1$ //$NON-NLS-0$
-				var scroll = this._autoScrollY / this._getLineHeight();
-				scroll = scroll < 0 ? Math.floor(scroll) : Math.ceil(scroll);
-				lineIndex = caretLine;
-				lineIndex = Math.max(0, Math.min(this._model.getLineCount() - 1, lineIndex + scroll));
-			} else if (this._autoScrollDir === "left" || this._autoScrollDir === "right") { //$NON-NLS-1$ //$NON-NLS-0$
-				lineIndex = this._getLineIndex(pt.y);
-				line = this._getLine(caretLine); 
-				pt.x += line.getBoundingClientRect(caret, false).left;
-				line.destroy();
-			}
-			line = this._getLine(lineIndex); 
-			selection.extend(line.getOffset(pt.x, pt.y - this._getLinePixel(lineIndex)));
-			line.destroy();
-			this._setSelection(selection, true);
-		},
-		_autoScrollTimer: function () {
-			this._autoScroll();
-			var self = this;
-			var window = this._getWindow();
-			this._autoScrollTimerID = window.setTimeout(function () {self._autoScrollTimer();}, this._AUTO_SCROLL_RATE);
-		},
-		_calculateLineHeightTimer: function(calculate) {
-			if (!this._lineHeight) { return; }
-			if (this._calculateLHTimer) { return; }
-			var lineCount = this._model.getLineCount(), i = 0;
-			if (calculate) {
-				var c = 0;
-				var MAX_TIME = 100;
-				var start = new Date().getTime(), firstLine = 0;
-				while (i < lineCount) {
-					if (!this._lineHeight[i]) {
-						c++;
-						if (!firstLine) { firstLine = i; }
-						this._lineHeight[i] = this._calculateLineHeight(i);
-					}
-					i++;
-					if ((new Date().getTime() - start) > MAX_TIME) {
-						break;
-					}
-				}
-				this.redrawRulers(0, lineCount);
-				this._queueUpdate();
-			}
-			var window = this._getWindow();
-			if (i !== lineCount) {
-				var self = this;
-				this._calculateLHTimer = window.setTimeout(function() {
-					self._calculateLHTimer = null;
-					self._calculateLineHeightTimer(true);
-				}, 0);
-				return;
-			}
-			if (this._calculateLHTimer) {
-				window.clearTimeout(this._calculateLHTimer);
-				this._calculateLHTimer = undefined;
-			}
-		},
-		_calculateLineHeight: function(lineIndex) {
-			var line = this._getLine(lineIndex);
-			var rect = line.getBoundingClientRect();
-			line.destroy();
-			return Math.max(1, Math.ceil(rect.bottom - rect.top));
-		},
-		_calculateMetrics: function() {
-			var parent = this._clientDiv;
-			var document = parent.ownerDocument;
-			var c = " "; //$NON-NLS-0$
-			var line = util.createElement(document, "div"); //$NON-NLS-0$
-			line.style.lineHeight = "normal"; //$NON-NLS-0$
-			var model = this._model;
-			var lineText = model.getLine(0);
-			var e = {type:"LineStyle", textView: this, 0: 0, lineText: lineText, lineStart: 0}; //$NON-NLS-0$
-			this.onLineStyle(e);
-			applyStyle(e.style, line);
-			line.style.position = "fixed"; //$NON-NLS-0$
-			line.style.left = "-1000px"; //$NON-NLS-0$
-			var span1 = util.createElement(document, "span"); //$NON-NLS-0$
-			span1.appendChild(document.createTextNode(c));
-			line.appendChild(span1);
-			var span2 = util.createElement(document, "span"); //$NON-NLS-0$
-			span2.style.fontStyle = "italic"; //$NON-NLS-0$
-			span2.appendChild(document.createTextNode(c));
-			line.appendChild(span2);
-			var span3 = util.createElement(document, "span"); //$NON-NLS-0$
-			span3.style.fontWeight = "bold"; //$NON-NLS-0$
-			span3.appendChild(document.createTextNode(c));
-			line.appendChild(span3);
-			var span4 = util.createElement(document, "span"); //$NON-NLS-0$
-			span4.style.fontWeight = "bold"; //$NON-NLS-0$
-			span4.style.fontStyle = "italic"; //$NON-NLS-0$
-			span4.appendChild(document.createTextNode(c));
-			line.appendChild(span4);
-			parent.appendChild(line);
-			var lineRect = line.getBoundingClientRect();
-			var spanRect1 = span1.getBoundingClientRect();
-			var spanRect2 = span2.getBoundingClientRect();
-			var spanRect3 = span3.getBoundingClientRect();
-			var spanRect4 = span4.getBoundingClientRect();
-			var h1 = spanRect1.bottom - spanRect1.top;
-			var h2 = spanRect2.bottom - spanRect2.top;
-			var h3 = spanRect3.bottom - spanRect3.top;
-			var h4 = spanRect4.bottom - spanRect4.top;
-			var fontStyle = 0;
-			var invalid = (lineRect.bottom - lineRect.top) <= 0;
-			var lineHeight = Math.max(1, lineRect.bottom - lineRect.top);
-			if (h2 > h1) {
-				fontStyle = 1;
-			}
-			if (h3 > h2) {
-				fontStyle = 2;
-			}
-			if (h4 > h3) {
-				fontStyle = 3;
-			}
-			var style;
-			if (fontStyle !== 0) {
-				style = {style: {}};
-				if ((fontStyle & 1) !== 0) {
-					style.style.fontStyle = "italic"; //$NON-NLS-0$
-				}
-				if ((fontStyle & 2) !== 0) {
-					style.style.fontWeight = "bold"; //$NON-NLS-0$
-				}
-			}
-			var trim = getLineTrim(line);
-			parent.removeChild(line);
-			
-			// calculate pad and scroll width
-			var pad = getPadding(this._viewDiv);
-			var div1 = util.createElement(document, "div"); //$NON-NLS-0$
-			div1.style.position = "fixed"; //$NON-NLS-0$
-			div1.style.left = "-1000px"; //$NON-NLS-0$
-			div1.style.paddingLeft = pad.left + "px"; //$NON-NLS-0$
-			div1.style.paddingTop = pad.top + "px"; //$NON-NLS-0$
-			div1.style.paddingRight = pad.right + "px"; //$NON-NLS-0$
-			div1.style.paddingBottom = pad.bottom + "px"; //$NON-NLS-0$
-			div1.style.width = "100px"; //$NON-NLS-0$
-			div1.style.height = "100px"; //$NON-NLS-0$
-			var div2 = util.createElement(document, "div"); //$NON-NLS-0$
-			div2.style.width = "100%"; //$NON-NLS-0$
-			div2.style.height = "100%"; //$NON-NLS-0$
-			div1.appendChild(div2);
-			parent.appendChild(div1);
-			var rect1 = div1.getBoundingClientRect();
-			var rect2 = div2.getBoundingClientRect();
-			div1.style.overflow = 'hidden'; //$NON-NLS-0$
-			div2.style.height = "200px"; //$NON-NLS-0$
-			var w1 = div1.clientWidth;
-			div1.style.overflow = 'scroll'; //$NON-NLS-0$
-			var w2 = div1.clientWidth;
-			parent.removeChild(div1);
-			var scrollWidth = w1 - w2;
-			pad = {
-				left: rect2.left - rect1.left,
-				top: rect2.top - rect1.top,
-				right: rect1.right - rect2.right,
-				bottom: rect1.bottom - rect2.bottom
-			};
-			return {lineHeight: lineHeight, largestFontStyle: style, lineTrim: trim, viewPadding: pad, scrollWidth: scrollWidth, invalid: invalid};
-		},
-		_cancelAnimation: function() {
-			if (this._animation) {
-				this._animation.stop();
-				this._animation = null;
-			}
-		},
-		_clearSelection: function (direction) {
-			var selection = this._getSelection();
-			if (selection.isEmpty()) { return false; }
-			if (direction === "next") { //$NON-NLS-0$
-				selection.start = selection.end;
-			} else {
-				selection.end = selection.start;
-			}
-			this._setSelection(selection, true);
-			return true;
-		},
-		_commitIME: function () {
-			if (this._imeOffset === -1) { return; }
-			// make the state of the IME match the state the view expects it be in
-			// when the view commits the text and IME also need to be committed
-			// this can be accomplished by changing the focus around
-			this._scrollDiv.focus();
-			this._clientDiv.focus();
-			
-			var model = this._model;
-			var lineIndex = model.getLineAtOffset(this._imeOffset);
-			var lineStart = model.getLineStart(lineIndex);
-			var newText = this._getDOMText(this._getLineNode(lineIndex)).text;
-			var oldText = model.getLine(lineIndex);
-			var start = this._imeOffset - lineStart;
-			var end = start + newText.length - oldText.length;
-			if (start !== end) {
-				var insertText = newText.substring(start, end);
-				this._doContent(insertText);
-			}
-			this._imeOffset = -1;
-		},
-		_createActions: function () {
-			var KeyBinding = mKeyBinding.KeyBinding;
-			//no duplicate keybindings
-			var bindings = this._keyBindings = [];
-
-			// Cursor Navigation
-			bindings.push({actionID: "lineUp",		keyBinding: new KeyBinding(38), predefined: true}); //$NON-NLS-0$
-			bindings.push({actionID: "lineDown",	keyBinding: new KeyBinding(40), predefined: true}); //$NON-NLS-0$
-			bindings.push({actionID: "charPrevious",	keyBinding: new KeyBinding(37), predefined: true}); //$NON-NLS-0$
-			bindings.push({actionID: "charNext",	keyBinding: new KeyBinding(39), predefined: true}); //$NON-NLS-0$
-			if (util.isMac) {
-				bindings.push({actionID: "scrollPageUp",		keyBinding: new KeyBinding(33), predefined: true}); //$NON-NLS-0$
-				bindings.push({actionID: "scrollPageDown",	keyBinding: new KeyBinding(34), predefined: true}); //$NON-NLS-0$
-				bindings.push({actionID: "pageUp",		keyBinding: new KeyBinding(33, null, null, true), predefined: true}); //$NON-NLS-0$
-				bindings.push({actionID: "pageDown",	keyBinding: new KeyBinding(34, null, null, true), predefined: true}); //$NON-NLS-0$
-				bindings.push({actionID: "lineStart",	keyBinding: new KeyBinding(37, true), predefined: true}); //$NON-NLS-0$
-				bindings.push({actionID: "lineEnd",		keyBinding: new KeyBinding(39, true), predefined: true}); //$NON-NLS-0$
-				bindings.push({actionID: "wordPrevious",	keyBinding: new KeyBinding(37, null, null, true), predefined: true}); //$NON-NLS-0$
-				bindings.push({actionID: "wordNext",	keyBinding: new KeyBinding(39, null, null, true), predefined: true}); //$NON-NLS-0$
-				bindings.push({actionID: "scrollTextStart",	keyBinding: new KeyBinding(36), predefined: true}); //$NON-NLS-0$
-				bindings.push({actionID: "scrollTextEnd",		keyBinding: new KeyBinding(35), predefined: true}); //$NON-NLS-0$
-				bindings.push({actionID: "textStart",	keyBinding: new KeyBinding(38, true), predefined: true}); //$NON-NLS-0$
-				bindings.push({actionID: "textEnd",		keyBinding: new KeyBinding(40, true), predefined: true}); //$NON-NLS-0$
-				bindings.push({actionID: "scrollPageUp",	keyBinding: new KeyBinding(38, null, null, null, true), predefined: true}); //$NON-NLS-0$
-				bindings.push({actionID: "scrollPageDown",		keyBinding: new KeyBinding(40, null, null, null, true), predefined: true}); //$NON-NLS-0$
-				bindings.push({actionID: "lineStart",	keyBinding: new KeyBinding(37, null, null, null, true), predefined: true}); //$NON-NLS-0$
-				bindings.push({actionID: "lineEnd",		keyBinding: new KeyBinding(39, null, null, null, true), predefined: true}); //$NON-NLS-0$
-				//TODO These two actions should be changed to paragraph start and paragraph end  when word wrap is implemented
-				bindings.push({actionID: "lineStart",	keyBinding: new KeyBinding(38, null, null, true), predefined: true}); //$NON-NLS-0$
-				bindings.push({actionID: "lineEnd",		keyBinding: new KeyBinding(40, null, null, true), predefined: true}); //$NON-NLS-0$
-			} else {
-				bindings.push({actionID: "pageUp",		keyBinding: new KeyBinding(33), predefined: true}); //$NON-NLS-0$
-				bindings.push({actionID: "pageDown",	keyBinding: new KeyBinding(34), predefined: true}); //$NON-NLS-0$
-				bindings.push({actionID: "lineStart",	keyBinding: new KeyBinding(36), predefined: true}); //$NON-NLS-0$
-				bindings.push({actionID: "lineEnd",		keyBinding: new KeyBinding(35), predefined: true}); //$NON-NLS-0$
-				bindings.push({actionID: "wordPrevious",	keyBinding: new KeyBinding(37, true), predefined: true}); //$NON-NLS-0$
-				bindings.push({actionID: "wordNext",	keyBinding: new KeyBinding(39, true), predefined: true}); //$NON-NLS-0$
-				bindings.push({actionID: "textStart",	keyBinding: new KeyBinding(36, true), predefined: true}); //$NON-NLS-0$
-				bindings.push({actionID: "textEnd",		keyBinding: new KeyBinding(35, true), predefined: true}); //$NON-NLS-0$
-			}
-			if (util.isFirefox && util.isLinux) {
-				bindings.push({actionID: "lineUp",		keyBinding: new KeyBinding(38, true), predefined: true}); //$NON-NLS-0$
-				bindings.push({actionID: "lineDown",	keyBinding: new KeyBinding(40, true), predefined: true}); //$NON-NLS-0$
-			}
-			if (util.isWindows) {
-				bindings.push({actionID: "scrollLineUp",	keyBinding: new KeyBinding(38, true), predefined: true}); //$NON-NLS-0$
-				bindings.push({actionID: "scrollLineDown",	keyBinding: new KeyBinding(40, true), predefined: true}); //$NON-NLS-0$
-			}
-
-			// Select Cursor Navigation
-			bindings.push({actionID: "selectLineUp",		keyBinding: new KeyBinding(38, null, true), predefined: true}); //$NON-NLS-0$
-			bindings.push({actionID: "selectLineDown",		keyBinding: new KeyBinding(40, null, true), predefined: true}); //$NON-NLS-0$
-			bindings.push({actionID: "selectCharPrevious",	keyBinding: new KeyBinding(37, null, true), predefined: true}); //$NON-NLS-0$
-			bindings.push({actionID: "selectCharNext",		keyBinding: new KeyBinding(39, null, true), predefined: true}); //$NON-NLS-0$
-			bindings.push({actionID: "selectPageUp",		keyBinding: new KeyBinding(33, null, true), predefined: true}); //$NON-NLS-0$
-			bindings.push({actionID: "selectPageDown",		keyBinding: new KeyBinding(34, null, true), predefined: true}); //$NON-NLS-0$
-			if (util.isMac) {
-				bindings.push({actionID: "selectLineStart",	keyBinding: new KeyBinding(37, true, true), predefined: true}); //$NON-NLS-0$
-				bindings.push({actionID: "selectLineEnd",		keyBinding: new KeyBinding(39, true, true), predefined: true}); //$NON-NLS-0$
-				bindings.push({actionID: "selectWordPrevious",	keyBinding: new KeyBinding(37, null, true, true), predefined: true}); //$NON-NLS-0$
-				bindings.push({actionID: "selectWordNext",	keyBinding: new KeyBinding(39, null, true, true), predefined: true}); //$NON-NLS-0$
-				bindings.push({actionID: "selectTextStart",	keyBinding: new KeyBinding(36, null, true), predefined: true}); //$NON-NLS-0$
-				bindings.push({actionID: "selectTextEnd",		keyBinding: new KeyBinding(35, null, true), predefined: true}); //$NON-NLS-0$
-				bindings.push({actionID: "selectTextStart",	keyBinding: new KeyBinding(38, true, true), predefined: true}); //$NON-NLS-0$
-				bindings.push({actionID: "selectTextEnd",		keyBinding: new KeyBinding(40, true, true), predefined: true}); //$NON-NLS-0$
-				bindings.push({actionID: "selectLineStart",	keyBinding: new KeyBinding(37, null, true, null, true), predefined: true}); //$NON-NLS-0$
-				bindings.push({actionID: "selectLineEnd",		keyBinding: new KeyBinding(39, null, true, null, true), predefined: true}); //$NON-NLS-0$
-				//TODO These two actions should be changed to select paragraph start and select paragraph end  when word wrap is implemented
-				bindings.push({actionID: "selectLineStart",	keyBinding: new KeyBinding(38, null, true, true), predefined: true}); //$NON-NLS-0$
-				bindings.push({actionID: "selectLineEnd",		keyBinding: new KeyBinding(40, null, true, true), predefined: true}); //$NON-NLS-0$
-			} else {
-				if (util.isLinux) {
-					bindings.push({actionID: "selectWholeLineUp",		keyBinding: new KeyBinding(38, true, true), predefined: true}); //$NON-NLS-0$
-					bindings.push({actionID: "selectWholeLineDown",		keyBinding: new KeyBinding(40, true, true), predefined: true}); //$NON-NLS-0$
-				}
-				bindings.push({actionID: "selectLineStart",		keyBinding: new KeyBinding(36, null, true), predefined: true}); //$NON-NLS-0$
-				bindings.push({actionID: "selectLineEnd",		keyBinding: new KeyBinding(35, null, true), predefined: true}); //$NON-NLS-0$
-				bindings.push({actionID: "selectWordPrevious",	keyBinding: new KeyBinding(37, true, true), predefined: true}); //$NON-NLS-0$
-				bindings.push({actionID: "selectWordNext",		keyBinding: new KeyBinding(39, true, true), predefined: true}); //$NON-NLS-0$
-				bindings.push({actionID: "selectTextStart",		keyBinding: new KeyBinding(36, true, true), predefined: true}); //$NON-NLS-0$
-				bindings.push({actionID: "selectTextEnd",		keyBinding: new KeyBinding(35, true, true), predefined: true}); //$NON-NLS-0$
-			}
-			
-			//Undo stack
-			bindings.push({actionID: "undo", keyBinding: new mKeyBinding.KeyBinding('z', true), predefined: true}); //$NON-NLS-1$ //$NON-NLS-0$
-			if (util.isMac) {
-				bindings.push({actionID: "redo", keyBinding: new mKeyBinding.KeyBinding('z', true, true), predefined: true}); //$NON-NLS-1$ //$NON-NLS-0$
-			} else {
-				bindings.push({actionID: "redo", keyBinding: new mKeyBinding.KeyBinding('y', true), predefined: true}); //$NON-NLS-1$ //$NON-NLS-0$
-			}
-
-			//Misc
-			bindings.push({actionID: "deletePrevious",		keyBinding: new KeyBinding(8), predefined: true}); //$NON-NLS-0$
-			bindings.push({actionID: "deletePrevious",		keyBinding: new KeyBinding(8, null, true), predefined: true}); //$NON-NLS-0$
-			bindings.push({actionID: "deleteNext",		keyBinding: new KeyBinding(46), predefined: true}); //$NON-NLS-0$
-			bindings.push({actionID: "deleteWordPrevious",	keyBinding: new KeyBinding(8, true), predefined: true}); //$NON-NLS-0$
-			bindings.push({actionID: "deleteWordPrevious",	keyBinding: new KeyBinding(8, true, true), predefined: true}); //$NON-NLS-0$
-			bindings.push({actionID: "deleteWordNext",		keyBinding: new KeyBinding(46, true), predefined: true}); //$NON-NLS-0$
-			bindings.push({actionID: "tab",			keyBinding: new KeyBinding(9), predefined: true}); //$NON-NLS-0$
-			bindings.push({actionID: "shiftTab",			keyBinding: new KeyBinding(9, null, true), predefined: true}); //$NON-NLS-0$
-			bindings.push({actionID: "enter",			keyBinding: new KeyBinding(13), predefined: true}); //$NON-NLS-0$
-			bindings.push({actionID: "enter",			keyBinding: new KeyBinding(13, null, true), predefined: true}); //$NON-NLS-0$
-			bindings.push({actionID: "selectAll",		keyBinding: new KeyBinding('a', true), predefined: true}); //$NON-NLS-1$ //$NON-NLS-0$
-			bindings.push({actionID: "toggleTabMode",	keyBinding: new KeyBinding('m', true), predefined: true}); //$NON-NLS-1$ //$NON-NLS-0$
-			if (util.isMac) {
-				bindings.push({actionID: "deleteNext",		keyBinding: new KeyBinding(46, null, true), predefined: true}); //$NON-NLS-0$
-				bindings.push({actionID: "deleteWordPrevious",	keyBinding: new KeyBinding(8, null, null, true), predefined: true}); //$NON-NLS-0$
-				bindings.push({actionID: "deleteWordNext",		keyBinding: new KeyBinding(46, null, null, true), predefined: true}); //$NON-NLS-0$
-			}
-				
-			/*
-			* Feature in IE/Chrome: prevent ctrl+'u', ctrl+'i', and ctrl+'b' from applying styles to the text.
-			*
-			* Note that Chrome applies the styles on the Mac with Ctrl instead of Cmd.
-			*/
-			if (!util.isFirefox) {
-				var isMacChrome = util.isMac && util.isChrome;
-				bindings.push({actionID: null, keyBinding: new KeyBinding('u', !isMacChrome, false, false, isMacChrome), predefined: true}); //$NON-NLS-0$
-				bindings.push({actionID: null, keyBinding: new KeyBinding('i', !isMacChrome, false, false, isMacChrome), predefined: true}); //$NON-NLS-0$
-				bindings.push({actionID: null, keyBinding: new KeyBinding('b', !isMacChrome, false, false, isMacChrome), predefined: true}); //$NON-NLS-0$
-			}
-
-			if (util.isFirefox) {
-				bindings.push({actionID: "copy", keyBinding: new KeyBinding(45, true), predefined: true}); //$NON-NLS-0$
-				bindings.push({actionID: "paste", keyBinding: new KeyBinding(45, null, true), predefined: true}); //$NON-NLS-0$
-				bindings.push({actionID: "cut", keyBinding: new KeyBinding(46, null, true), predefined: true}); //$NON-NLS-0$
-			}
-
-			// Add the emacs Control+ ... key bindings.
-			if (util.isMac) {
-				bindings.push({actionID: "lineStart", keyBinding: new KeyBinding("a", false, false, false, true), predefined: true}); //$NON-NLS-1$ //$NON-NLS-0$
-				bindings.push({actionID: "lineEnd", keyBinding: new KeyBinding("e", false, false, false, true), predefined: true}); //$NON-NLS-1$ //$NON-NLS-0$
-				bindings.push({actionID: "lineUp", keyBinding: new KeyBinding("p", false, false, false, true), predefined: true}); //$NON-NLS-1$ //$NON-NLS-0$
-				bindings.push({actionID: "lineDown", keyBinding: new KeyBinding("n", false, false, false, true), predefined: true}); //$NON-NLS-1$ //$NON-NLS-0$
-				bindings.push({actionID: "charPrevious", keyBinding: new KeyBinding("b", false, false, false, true), predefined: true}); //$NON-NLS-1$ //$NON-NLS-0$
-				bindings.push({actionID: "charNext", keyBinding: new KeyBinding("f", false, false, false, true), predefined: true}); //$NON-NLS-1$ //$NON-NLS-0$
-				bindings.push({actionID: "deletePrevious", keyBinding: new KeyBinding("h", false, false, false, true), predefined: true}); //$NON-NLS-1$ //$NON-NLS-0$
-				bindings.push({actionID: "deleteNext", keyBinding: new KeyBinding("d", false, false, false, true), predefined: true}); //$NON-NLS-1$ //$NON-NLS-0$
-				bindings.push({actionID: "deleteLineEnd", keyBinding: new KeyBinding("k", false, false, false, true), predefined: true}); //$NON-NLS-1$ //$NON-NLS-0$
-				if (util.isFirefox) {
-					bindings.push({actionID: "scrollPageDown", keyBinding: new KeyBinding("v", false, false, false, true), predefined: true}); //$NON-NLS-1$ //$NON-NLS-0$
-					bindings.push({actionID: "deleteLineStart", keyBinding: new KeyBinding("u", false, false, false, true), predefined: true}); //$NON-NLS-1$ //$NON-NLS-0$
-					bindings.push({actionID: "deleteWordPrevious", keyBinding: new KeyBinding("w", false, false, false, true), predefined: true}); //$NON-NLS-1$ //$NON-NLS-0$
-				} else {
-					bindings.push({actionID: "pageDown", keyBinding: new KeyBinding("v", false, false, false, true), predefined: true}); //$NON-NLS-1$ //$NON-NLS-0$
-					bindings.push({actionID: "centerLine", keyBinding: new KeyBinding("l", false, false, false, true), predefined: true}); //$NON-NLS-1$ //$NON-NLS-0$
-					bindings.push({actionID: "enterNoCursor", keyBinding: new KeyBinding("o", false, false, false, true), predefined: true}); //$NON-NLS-1$ //$NON-NLS-0$
-					//TODO implement: y (yank), t (transpose)
-				}
-			}
-
-			//1 to 1, no duplicates
-			var self = this;
-			this._actions = {
-				"lineUp": {defaultHandler: function() {return self._doLineUp({select: false});}}, //$NON-NLS-0$
-				"lineDown": {defaultHandler: function() {return self._doLineDown({select: false});}}, //$NON-NLS-0$
-				"lineStart": {defaultHandler: function() {return self._doHome({select: false, ctrl:false});}}, //$NON-NLS-0$
-				"lineEnd": {defaultHandler: function() {return self._doEnd({select: false, ctrl:false});}}, //$NON-NLS-0$
-				"charPrevious": {defaultHandler: function() {return self._doCursorPrevious({select: false, unit:"character"});}}, //$NON-NLS-1$ //$NON-NLS-0$
-				"charNext": {defaultHandler: function() {return self._doCursorNext({select: false, unit:"character"});}}, //$NON-NLS-1$ //$NON-NLS-0$
-				"pageUp": {defaultHandler: function() {return self._doPageUp({select: false});}}, //$NON-NLS-0$
-				"pageDown": {defaultHandler: function() {return self._doPageDown({select: false});}}, //$NON-NLS-0$
-				"scrollPageUp": {defaultHandler: function() {return self._doScroll({type: "pageUp"});}}, //$NON-NLS-1$ //$NON-NLS-0$
-				"scrollPageDown": {defaultHandler: function() {return self._doScroll({type: "pageDown"});}}, //$NON-NLS-1$ //$NON-NLS-0$
-				"scrollLineUp": {defaultHandler: function() {return self._doScroll({type: "lineUp"});}}, //$NON-NLS-1$ //$NON-NLS-0$
-				"scrollLineDown": {defaultHandler: function() {return self._doScroll({type: "lineDown"});}}, //$NON-NLS-1$ //$NON-NLS-0$
-				"wordPrevious": {defaultHandler: function() {return self._doCursorPrevious({select: false, unit:"word"});}}, //$NON-NLS-1$ //$NON-NLS-0$
-				"wordNext": {defaultHandler: function() {return self._doCursorNext({select: false, unit:"word"});}}, //$NON-NLS-1$ //$NON-NLS-0$
-				"textStart": {defaultHandler: function() {return self._doHome({select: false, ctrl:true});}}, //$NON-NLS-0$
-				"textEnd": {defaultHandler: function() {return self._doEnd({select: false, ctrl:true});}}, //$NON-NLS-0$
-				"scrollTextStart": {defaultHandler: function() {return self._doScroll({type: "textStart"});}}, //$NON-NLS-1$ //$NON-NLS-0$
-				"scrollTextEnd": {defaultHandler: function() {return self._doScroll({type: "textEnd"});}}, //$NON-NLS-1$ //$NON-NLS-0$
-				"centerLine": {defaultHandler: function() {return self._doScroll({type: "centerLine"});}}, //$NON-NLS-1$ //$NON-NLS-0$
-				
-				"selectLineUp": {defaultHandler: function() {return self._doLineUp({select: true});}}, //$NON-NLS-0$
-				"selectLineDown": {defaultHandler: function() {return self._doLineDown({select: true});}}, //$NON-NLS-0$
-				"selectWholeLineUp": {defaultHandler: function() {return self._doLineUp({select: true, wholeLine: true});}}, //$NON-NLS-0$
-				"selectWholeLineDown": {defaultHandler: function() {return self._doLineDown({select: true, wholeLine: true});}}, //$NON-NLS-0$
-				"selectLineStart": {defaultHandler: function() {return self._doHome({select: true, ctrl:false});}}, //$NON-NLS-0$
-				"selectLineEnd": {defaultHandler: function() {return self._doEnd({select: true, ctrl:false});}}, //$NON-NLS-0$
-				"selectCharPrevious": {defaultHandler: function() {return self._doCursorPrevious({select: true, unit:"character"});}}, //$NON-NLS-1$ //$NON-NLS-0$
-				"selectCharNext": {defaultHandler: function() {return self._doCursorNext({select: true, unit:"character"});}}, //$NON-NLS-1$ //$NON-NLS-0$
-				"selectPageUp": {defaultHandler: function() {return self._doPageUp({select: true});}}, //$NON-NLS-0$
-				"selectPageDown": {defaultHandler: function() {return self._doPageDown({select: true});}}, //$NON-NLS-0$
-				"selectWordPrevious": {defaultHandler: function() {return self._doCursorPrevious({select: true, unit:"word"});}}, //$NON-NLS-1$ //$NON-NLS-0$
-				"selectWordNext": {defaultHandler: function() {return self._doCursorNext({select: true, unit:"word"});}}, //$NON-NLS-1$ //$NON-NLS-0$
-				"selectTextStart": {defaultHandler: function() {return self._doHome({select: true, ctrl:true});}}, //$NON-NLS-0$
-				"selectTextEnd": {defaultHandler: function() {return self._doEnd({select: true, ctrl:true});}}, //$NON-NLS-0$
-
-				"deletePrevious": {defaultHandler: function() {return self._doBackspace({unit:"character"});}}, //$NON-NLS-1$ //$NON-NLS-0$
-				"deleteNext": {defaultHandler: function() {return self._doDelete({unit:"character"});}}, //$NON-NLS-1$ //$NON-NLS-0$
-				"deleteWordPrevious": {defaultHandler: function() {return self._doBackspace({unit:"word"});}}, //$NON-NLS-1$ //$NON-NLS-0$
-				"deleteWordNext": {defaultHandler: function() {return self._doDelete({unit:"word"});}}, //$NON-NLS-1$ //$NON-NLS-0$
-				"deleteLineStart": {defaultHandler: function() {return self._doBackspace({unit: "line"});}}, //$NON-NLS-1$ //$NON-NLS-0$
-				"deleteLineEnd": {defaultHandler: function() {return self._doDelete({unit: "line"});}}, //$NON-NLS-1$ //$NON-NLS-0$
-				"tab": {defaultHandler: function() {return self._doTab();}}, //$NON-NLS-0$
-				"shiftTab": {defaultHandler: function() {return self._doShiftTab();}}, //$NON-NLS-0$
-				"enter": {defaultHandler: function() {return self._doEnter();}}, //$NON-NLS-0$
-				"enterNoCursor": {defaultHandler: function() {return self._doEnter({noCursor:true});}}, //$NON-NLS-0$
-				"selectAll": {defaultHandler: function() {return self._doSelectAll();}}, //$NON-NLS-0$
-				"copy": {defaultHandler: function() {return self._doCopy();}}, //$NON-NLS-0$
-				"cut": {defaultHandler: function() {return self._doCut();}}, //$NON-NLS-0$
-				"paste": {defaultHandler: function() {return self._doPaste();}}, //$NON-NLS-0$
-				
-				"toggleWrapMode": {defaultHandler: function() {return self._doWrapMode();}}, //$NON-NLS-0$
-				"toggleTabMode": {defaultHandler: function() {return self._doTabMode();}} //$NON-NLS-0$
-			};
-		},
-		_createRuler: function(ruler, index) {
-			if (!this._clientDiv) { return; }
-			var side = ruler.getLocation();
-			var rulerParent = side === "left" ? this._leftDiv : this._rightDiv; //$NON-NLS-0$
-			rulerParent.style.display = "block"; //$NON-NLS-0$
-			var div = util.createElement(rulerParent.ownerDocument, "div"); //$NON-NLS-0$
-			div._ruler = ruler;
-			div.rulerChanged = true;
-			div.style.position = "relative"; //$NON-NLS-0$
-			div.style.cssFloat = "left"; //$NON-NLS-0$
-			div.style.styleFloat = "left"; //$NON-NLS-0$
-			div.style.borderWidth = "0px"; //$NON-NLS-0$
-			div.style.margin = "0px"; //$NON-NLS-0$
-			div.style.padding = "0px"; //$NON-NLS-0$
-			div.style.outline = "none"; //$NON-NLS-0$
-			if (index === undefined || index < 0 || index >= rulerParent.children.length) {
-				rulerParent.appendChild(div);
-			} else {
-				var sibling = rulerParent.firstChild;
-				while (sibling && --index > 0) {
-					sibling = sibling.nextSibling;
-				}
-				rulerParent.insertBefore(div, sibling);
-			}
-		},
-		_createView: function() {
-			if (this._clientDiv) { return; }
-			var parent = this._parent;
-			while (parent.hasChildNodes()) { parent.removeChild(parent.lastChild); }
-
-			var document = parent.ownerDocument;
-			var rootDiv = util.createElement(document, "div"); //$NON-NLS-0$
-			this._rootDiv = rootDiv;
-			rootDiv.tabIndex = -1;
-			rootDiv.style.position = "relative"; //$NON-NLS-0$
-			rootDiv.style.overflow = "hidden"; //$NON-NLS-0$
-			rootDiv.style.width = "100%"; //$NON-NLS-0$
-			rootDiv.style.height = "100%"; //$NON-NLS-0$
-			rootDiv.style.overflow = "hidden"; //$NON-NLS-0$
-			rootDiv.style.WebkitTextSizeAdjust = "100%"; //$NON-NLS-0$
-			rootDiv.setAttribute("role", "application"); //$NON-NLS-1$ //$NON-NLS-0$
-			parent.appendChild(rootDiv);
-			
-			var leftDiv = util.createElement(document, "div"); //$NON-NLS-0$
-			leftDiv.className = "textviewLeftRuler"; //$NON-NLS-0$
-			this._leftDiv = leftDiv;
-			leftDiv.tabIndex = -1;
-			leftDiv.style.overflow = "hidden"; //$NON-NLS-0$
-			leftDiv.style.MozUserSelect = "none"; //$NON-NLS-0$
-			leftDiv.style.WebkitUserSelect = "none"; //$NON-NLS-0$
-			leftDiv.style.position = "absolute"; //$NON-NLS-0$
-			leftDiv.style.top = "0px"; //$NON-NLS-0$
-			leftDiv.style.bottom = "0px"; //$NON-NLS-0$
-			leftDiv.style.cursor = "default"; //$NON-NLS-0$
-			leftDiv.style.display = "none"; //$NON-NLS-0$
-			leftDiv.setAttribute("aria-hidden", "true"); //$NON-NLS-1$ //$NON-NLS-0$
-			rootDiv.appendChild(leftDiv);
-
-			var viewDiv = util.createElement(document, "div"); //$NON-NLS-0$
-			viewDiv.className = "textviewScroll"; //$NON-NLS-0$
-			this._viewDiv = viewDiv;
-			viewDiv.tabIndex = -1;
-			viewDiv.style.overflow = "auto"; //$NON-NLS-0$
-			viewDiv.style.position = "absolute"; //$NON-NLS-0$
-			viewDiv.style.top = "0px"; //$NON-NLS-0$
-			viewDiv.style.bottom = "0px"; //$NON-NLS-0$
-			viewDiv.style.borderWidth = "0px"; //$NON-NLS-0$
-			viewDiv.style.margin = "0px"; //$NON-NLS-0$
-			viewDiv.style.outline = "none"; //$NON-NLS-0$
-			viewDiv.style.background = "transparent"; //$NON-NLS-0$
-			if (util.isMac && util.isWebkit) {
-				viewDiv.style.pointerEvents = "none"; //$NON-NLS-0$
-				viewDiv.style.zIndex = "2"; //$NON-NLS-0$
-			}
-			rootDiv.appendChild(viewDiv);
-			
-			var rightDiv = util.createElement(document, "div"); //$NON-NLS-0$
-			rightDiv.className = "textviewRightRuler"; //$NON-NLS-0$
-			this._rightDiv = rightDiv;
-			rightDiv.tabIndex = -1;
-			rightDiv.style.display = "none"; //$NON-NLS-0$
-			rightDiv.style.overflow = "hidden"; //$NON-NLS-0$
-			rightDiv.style.MozUserSelect = "none"; //$NON-NLS-0$
-			rightDiv.style.WebkitUserSelect = "none"; //$NON-NLS-0$
-			rightDiv.style.position = "absolute"; //$NON-NLS-0$
-			rightDiv.style.top = "0px"; //$NON-NLS-0$
-			rightDiv.style.bottom = "0px"; //$NON-NLS-0$
-			rightDiv.style.cursor = "default"; //$NON-NLS-0$
-			rightDiv.style.right = "0px"; //$NON-NLS-0$
-			rightDiv.setAttribute("aria-hidden", "true"); //$NON-NLS-1$ //$NON-NLS-0$
-			rootDiv.appendChild(rightDiv);
-				
-			var scrollDiv = util.createElement(document, "div"); //$NON-NLS-0$
-			this._scrollDiv = scrollDiv;
-			scrollDiv.style.margin = "0px"; //$NON-NLS-0$
-			scrollDiv.style.borderWidth = "0px"; //$NON-NLS-0$
-			scrollDiv.style.padding = "0px"; //$NON-NLS-0$
-			viewDiv.appendChild(scrollDiv);
-			
-			if (util.isFirefox) {
-				var clipboardDiv = util.createElement(document, "div"); //$NON-NLS-0$
-				this._clipboardDiv = clipboardDiv;
-				clipboardDiv.style.position = "fixed"; //$NON-NLS-0$
-				clipboardDiv.style.whiteSpace = "pre"; //$NON-NLS-0$
-				clipboardDiv.style.left = "-1000px"; //$NON-NLS-0$
-				rootDiv.appendChild(clipboardDiv);
-			}
-
-			if (!util.isIE && !util.isIOS) {
-				var clipDiv = util.createElement(document, "div"); //$NON-NLS-0$
-				this._clipDiv = clipDiv;
-				clipDiv.style.position = "absolute"; //$NON-NLS-0$
-				clipDiv.style.overflow = "hidden"; //$NON-NLS-0$
-				clipDiv.style.margin = "0px"; //$NON-NLS-0$
-				clipDiv.style.borderWidth = "0px"; //$NON-NLS-0$
-				clipDiv.style.padding = "0px"; //$NON-NLS-0$
-				clipDiv.style.background = "transparent"; //$NON-NLS-0$
-				rootDiv.appendChild(clipDiv);
-				
-				var clipScrollDiv = util.createElement(document, "div"); //$NON-NLS-0$
-				this._clipScrollDiv = clipScrollDiv;
-				clipScrollDiv.style.position = "absolute"; //$NON-NLS-0$
-				clipScrollDiv.style.height = "1px"; //$NON-NLS-0$
-				clipScrollDiv.style.top = "-1000px"; //$NON-NLS-0$
-				clipScrollDiv.style.background = "transparent"; //$NON-NLS-0$
-				clipDiv.appendChild(clipScrollDiv);
-			}
-			
-			this._setFullSelection(this._fullSelection, true);
-
-			var clientDiv = util.createElement(document, "div"); //$NON-NLS-0$
-			clientDiv.className = "textviewContent"; //$NON-NLS-0$
-			this._clientDiv = clientDiv;
-			clientDiv.style.position = "absolute"; //$NON-NLS-0$
-			clientDiv.style.borderWidth = "0px"; //$NON-NLS-0$
-			clientDiv.style.margin = "0px"; //$NON-NLS-0$
-			clientDiv.style.padding = "0px"; //$NON-NLS-0$
-			clientDiv.style.outline = "none"; //$NON-NLS-0$
-			clientDiv.style.zIndex = "1"; //$NON-NLS-0$
-			clientDiv.style.WebkitUserSelect = "text"; //$NON-NLS-0$
-			clientDiv.setAttribute("spellcheck", "false"); //$NON-NLS-1$ //$NON-NLS-0$
-			if (util.isIOS || util.isAndroid) {
-				clientDiv.style.WebkitTapHighlightColor = "transparent"; //$NON-NLS-0$
-			}
-			(this._clipDiv || rootDiv).appendChild(clientDiv);
-			
-			if (util.isIOS || util.isAndroid) {
-				var vScrollDiv = util.createElement(document, "div"); //$NON-NLS-0$
-				this._vScrollDiv = vScrollDiv;
-				vScrollDiv.style.position = "absolute"; //$NON-NLS-0$
-				vScrollDiv.style.borderWidth = "1px"; //$NON-NLS-0$
-				vScrollDiv.style.borderColor = "white"; //$NON-NLS-0$
-				vScrollDiv.style.borderStyle = "solid"; //$NON-NLS-0$
-				vScrollDiv.style.borderRadius = "4px"; //$NON-NLS-0$
-				vScrollDiv.style.backgroundColor = "black"; //$NON-NLS-0$
-				vScrollDiv.style.opacity = "0.5"; //$NON-NLS-0$
-				vScrollDiv.style.margin = "0px"; //$NON-NLS-0$
-				vScrollDiv.style.padding = "0px"; //$NON-NLS-0$
-				vScrollDiv.style.outline = "none"; //$NON-NLS-0$
-				vScrollDiv.style.zIndex = "3"; //$NON-NLS-0$
-				vScrollDiv.style.width = "8px"; //$NON-NLS-0$
-				vScrollDiv.style.display = "none"; //$NON-NLS-0$
-				rootDiv.appendChild(vScrollDiv);
-				var hScrollDiv = util.createElement(document, "div"); //$NON-NLS-0$
-				this._hScrollDiv = hScrollDiv;
-				hScrollDiv.style.position = "absolute"; //$NON-NLS-0$
-				hScrollDiv.style.borderWidth = "1px"; //$NON-NLS-0$
-				hScrollDiv.style.borderColor = "white"; //$NON-NLS-0$
-				hScrollDiv.style.borderStyle = "solid"; //$NON-NLS-0$
-				hScrollDiv.style.borderRadius = "4px"; //$NON-NLS-0$
-				hScrollDiv.style.backgroundColor = "black"; //$NON-NLS-0$
-				hScrollDiv.style.opacity = "0.5"; //$NON-NLS-0$
-				hScrollDiv.style.margin = "0px"; //$NON-NLS-0$
-				hScrollDiv.style.padding = "0px"; //$NON-NLS-0$
-				hScrollDiv.style.outline = "none"; //$NON-NLS-0$
-				hScrollDiv.style.zIndex = "3"; //$NON-NLS-0$
-				hScrollDiv.style.height = "8px"; //$NON-NLS-0$
-				hScrollDiv.style.display = "none"; //$NON-NLS-0$
-				rootDiv.appendChild(hScrollDiv);
-			}
-
-			if (util.isFirefox && !clientDiv.setCapture) {
-				var overlayDiv = util.createElement(document, "div"); //$NON-NLS-0$
-				this._overlayDiv = overlayDiv;
-				overlayDiv.style.position = clientDiv.style.position;
-				overlayDiv.style.borderWidth = clientDiv.style.borderWidth;
-				overlayDiv.style.margin = clientDiv.style.margin;
-				overlayDiv.style.padding = clientDiv.style.padding;
-				overlayDiv.style.cursor = "text"; //$NON-NLS-0$
-				overlayDiv.style.zIndex = "2"; //$NON-NLS-0$
-				(this._clipDiv || rootDiv).appendChild(overlayDiv);
-			}
-			clientDiv.contentEditable = "true"; //$NON-NLS-0$
-			clientDiv.setAttribute("role", "textbox"); //$NON-NLS-1$ //$NON-NLS-0$
-			clientDiv.setAttribute("aria-multiline", "true"); //$NON-NLS-1$ //$NON-NLS-0$
-			this._setWrapMode(this._wrapMode, true);
-			this._setReadOnly(this._readonly);
-			this._setThemeClass(this._themeClass, true);
-			this._setTabSize(this._tabSize, true);
-			this._hookEvents();
-			var rulers = this._rulers;
-			for (var i=0; i<rulers.length; i++) {
-				this._createRuler(rulers[i]);
-			}
-			this._update();
-		},
-		_defaultOptions: function() {
-			return {
-				parent: {value: undefined, update: null},
-				model: {value: undefined, update: this.setModel},
-				scrollAnimation: {value: 0, update: null},
-				readonly: {value: false, update: this._setReadOnly},
-				fullSelection: {value: true, update: this._setFullSelection},
-				tabMode: { value: true, update: null },
-				tabSize: {value: 8, update: this._setTabSize},
-				expandTab: {value: false, update: null},
-				wrapMode: {value: false, update: this._setWrapMode},
-				theme: {value: mTextTheme.TextTheme.getTheme(), update: this._setTheme},
-				themeClass: {value: undefined, update: this._setThemeClass}
-			};
-		},
-		_destroyRuler: function(ruler) {
-			var side = ruler.getLocation();
-			var rulerParent = side === "left" ? this._leftDiv : this._rightDiv; //$NON-NLS-0$
-			if (rulerParent) {
-				var div = rulerParent.firstChild;
-				while (div) {
-					if (div._ruler === ruler) {
-						div._ruler = undefined;
-						rulerParent.removeChild(div);
-						if (rulerParent.children.length === 0) {
-							rulerParent.style.display = "none"; //$NON-NLS-0$
-						}
-						break;
-					}
-					div = div.nextSibling;
-				}
-			}
-		},
-		_destroyView: function() {
-			var clientDiv = this._clientDiv;
-			if (!clientDiv) { return; }
-			this._setGrab(null);
-			this._unhookEvents();
-
-			/* Destroy timers */
-			var window = this._getWindow();
-			if (this._autoScrollTimerID) {
-				window.clearTimeout(this._autoScrollTimerID);
-				this._autoScrollTimerID = null;
-			}
-			if (this._updateTimer) {
-				window.clearTimeout(this._updateTimer);
-				this._updateTimer = null;
-			}
-			
-			var rootDiv = this._rootDiv;
-			rootDiv.parentNode.removeChild(rootDiv);
-
-			/* Destroy DOM */
-			this._selDiv1 = null;
-			this._selDiv2 = null;
-			this._selDiv3 = null;
-			this._clipboardDiv = null;
-			this._rootDiv = null;
-			this._scrollDiv = null;
-			this._viewDiv = null;
-			this._clipDiv = null;
-			this._clipScrollDiv = null;
-			this._clientDiv = null;
-			this._overlayDiv = null;
-			this._leftDiv = null;
-			this._rightDiv = null;
-			this._vScrollDiv = null;
-			this._hScrollDiv = null;
-		},
-		_doAutoScroll: function (direction, x, y) {
-			this._autoScrollDir = direction;
-			this._autoScrollX = x;
-			this._autoScrollY = y;
-			if (!this._autoScrollTimerID) {
-				this._autoScrollTimer();
-			}
-		},
-		_endAutoScroll: function () {
-			if (this._autoScrollTimerID) {
-				var window = this._getWindow();
-				window.clearTimeout(this._autoScrollTimerID);
-			}
-			this._autoScrollDir = undefined;
-			this._autoScrollTimerID = undefined;
-		},
-		_fixCaret: function() {
-			var clientDiv = this._clientDiv;
-			if (clientDiv) {
-				var hasFocus = this._hasFocus;
-				this._ignoreFocus = true;
-				if (hasFocus) { clientDiv.blur(); }
-				clientDiv.contentEditable = false;
-				clientDiv.contentEditable = true;
-				if (hasFocus) { clientDiv.focus(); }
-				this._ignoreFocus = false;
-			}
-		},
-		_getBaseText: function(start, end) {
-			var model = this._model;
-			/* This is the only case the view access the base model, alternatively the view could use a event to application to customize the text */
-			if (model.getBaseModel) {
-				start = model.mapOffset(start);
-				end = model.mapOffset(end);
-				model = model.getBaseModel();
-			}
-			return model.getText(start, end);
-		},
-		_getBottomIndex: function (fullyVisible) {
-			var child = this._bottomChild;
-			if (fullyVisible && this._getClientHeight() > this._getLineHeight()) {
-				var rect = child.getBoundingClientRect();
-				var clientRect = this._clientDiv.getBoundingClientRect();
-				if (rect.bottom > clientRect.bottom) {
-					child = this._getLinePrevious(child) || child;
-				}
-			}
-			return child.lineIndex;
-		},
-		_getBoundsAtOffset: function(offset) {
-			var model = this._model;
-			var line = this._getLine(model.getLineAtOffset(offset));
-			var result = line.getBoundingClientRect(offset);
-			var linePixel = this._getLinePixel(line.lineIndex);
-			result.top += linePixel;
-			result.bottom += linePixel;
-			line.destroy();
-			return result;
-		},
-		_getClientHeight: function() {
-			var viewPad = this._getViewPadding();
-			return Math.max(0, this._viewDiv.clientHeight - viewPad.top - viewPad.bottom);
-		},
-		_getClientWidth: function() {
-			var viewPad = this._getViewPadding();
-			return Math.max(0, this._viewDiv.clientWidth - viewPad.left - viewPad.right);
-		},
-		_getClipboardText: function (event, handler) {
-			var delimiter = this._model.getLineDelimiter();
-			var clipboadText, text;
-			var window = this._getWindow();
-			if (window.clipboardData) {
-				//IE
-				clipboadText = [];
-				text = window.clipboardData.getData("Text"); //$NON-NLS-0$
-				convertDelimiter(text, function(t) {clipboadText.push(t);}, function() {clipboadText.push(delimiter);});
-				text = clipboadText.join("");
-				if (handler) { handler(text); }
-				return text;
-			}
-			if (util.isFirefox) {
-				this._ignoreFocus = true;
-				var clipboardDiv = this._clipboardDiv;
-				clipboardDiv.innerHTML = "<pre contenteditable=''></pre>"; //$NON-NLS-0$
-				clipboardDiv.firstChild.focus();
-				var self = this;
-				var _getText = function() {
-					var noteText = self._getTextFromElement(clipboardDiv);
-					clipboardDiv.innerHTML = "";
-					clipboadText = [];
-					convertDelimiter(noteText, function(t) {clipboadText.push(t);}, function() {clipboadText.push(delimiter);});
-					return clipboadText.join("");
-				};
-				
-				/* Try execCommand first. Works on firefox with clipboard permission. */
-				var result = false;
-				this._ignorePaste = true;
-
-				/* Do not try execCommand if middle-click is used, because if we do, we get the clipboard text, not the primary selection text. */
-				if (!util.isLinux || this._lastMouseButton !== 2) {
-					try {
-						var document = clipboardDiv.ownerDocument;
-						result = document.execCommand("paste", false, null); //$NON-NLS-0$
-					} catch (ex) {
-						/* Firefox can throw even when execCommand() works, see bug 362835. */
-						result = clipboardDiv.childNodes.length > 1 || clipboardDiv.firstChild && clipboardDiv.firstChild.childNodes.length > 0;
-					}
-				}
-				this._ignorePaste = false;
-				if (!result) {
-					/* Try native paste in DOM, works for firefox during the paste event. */
-					if (event) {
-						window.setTimeout(function() {
-							self.focus();
-							text = _getText();
-							if (text && handler) {
-								handler(text);
-							}
-							self._ignoreFocus = false;
-						}, 0);
-						return null;
-					} else {
-						/* no event and no clipboard permission, paste can't be performed */
-						this.focus();
-						this._ignoreFocus = false;
-						return "";
-					}
-				}
-				this.focus();
-				this._ignoreFocus = false;
-				text = _getText();
-				if (text && handler) {
-					handler(text);
-				}
-				return text;
-			}
-			//webkit
-			if (event && event.clipboardData) {
-				/*
-				* Webkit (Chrome/Safari) allows getData during the paste event
-				* Note: setData is not allowed, not even during copy/cut event
-				*/
-				clipboadText = [];
-				text = event.clipboardData.getData("text/plain"); //$NON-NLS-0$
-				convertDelimiter(text, function(t) {clipboadText.push(t);}, function() {clipboadText.push(delimiter);});
-				text = clipboadText.join("");
-				if (text && handler) {
-					handler(text);
-				}
-				return text;
-			} else {
-				//TODO try paste using extension (Chrome only)
-			}
-			return "";
-		},
-		_getDOMText: function(child, offsetNode) {
-			var lineChild = child.firstChild;
-			var text = "", offset = 0;
-			while (lineChild) {
-				var textNode;
-				if (lineChild.ignoreChars) {
-					textNode = lineChild.lastChild;
-					var ignored = 0, childText = [], childOffset = -1;
-					while (textNode) {
-						var data = textNode.data;
-						for (var i = data.length - 1; i >= 0; i--) {
-							var ch = data.substring(i, i + 1);
-							if (ignored < lineChild.ignoreChars && (ch === " " || ch === "\u200C" || ch === "\uFEFF")) { //$NON-NLS-2$ //$NON-NLS-1$ //$NON-NLS-0$
-								ignored++;
-							} else {
-								childText.push(ch === "\u00A0" ? "\t" : ch); //$NON-NLS-1$ //$NON-NLS-0$
-							}
-						}
-						if (offsetNode === textNode) {
-							childOffset = childText.length;
-						}
-						textNode = textNode.previousSibling;
-					}
-					childText = childText.reverse().join("");
-					if (childOffset !== -1) {
-						offset = text.length + childText.length - childOffset;
-					}
-					text += childText;
-				} else {
-					textNode = lineChild.firstChild;
-					while (textNode) {
-						if (offsetNode === textNode) {
-							offset = text.length;
-						}
-						text += textNode.data;
-						textNode = textNode.nextSibling;
-					}
-				}
-				lineChild = lineChild.nextSibling;
-			}
-			return {text: text, offset: offset};
-		},
-		_getTextFromElement: function(element) {
-			var document = element.ownerDocument;
-			var window = document.defaultView;
-			if (!window.getSelection) {
-				return element.innerText || element.textContent;
-			}
-
-			var newRange = document.createRange();
-			newRange.selectNode(element);
-
-			var selection = window.getSelection();
-			var oldRanges = [], i;
-			for (i = 0; i < selection.rangeCount; i++) {
-				oldRanges.push(selection.getRangeAt(i));
-			}
-
-			this._ignoreSelect = true;
-			selection.removeAllRanges();
-			selection.addRange(newRange);
-
-			var text = selection.toString();
-
-			selection.removeAllRanges();
-			for (i = 0; i < oldRanges.length; i++) {
-				selection.addRange(oldRanges[i]);
-			}
-
-			this._ignoreSelect = false;
-			return text;
-		},
-		_getViewPadding: function() {
-			return this._metrics.viewPadding;
-		},
-		_getLine: function(lineIndex) {
-			var child = this._getLineNode(lineIndex);
-			if (child && !child.lineChanged && !child.lineRemoved) {
-				return child._line;
-			}
-			return new TextLine(this, lineIndex);
-		},
-		_getLineHeight: function(lineIndex, calculate) {
-			if (lineIndex !== undefined && this._lineHeight) {
-				var lineHeight = this._lineHeight[lineIndex];
-				if (lineHeight) { return lineHeight; }
-				if (calculate || calculate === undefined) {
-					var height = this._lineHeight[lineIndex] = this._calculateLineHeight(lineIndex);
-					return height;
-				}
-			}
-			return this._metrics.lineHeight;
-		},
-		_getLineNode: function (lineIndex) {
-			var clientDiv = this._clientDiv;
-			var child = clientDiv.firstChild;
-			while (child) {
-				if (lineIndex === child.lineIndex) {
-					return child;
-				}
-				child = child.nextSibling;
-			}
-			return undefined;
-		},
-		_getLineNext: function (lineNode) {
-			var node = lineNode ? lineNode.nextSibling : this._clientDiv.firstChild;
-			while (node && node.lineIndex === -1) {
-				node = node.nextSibling;
-			}
-			return node;
-		},
-		_getLinePrevious: function (lineNode) {
-			var node = lineNode ? lineNode.previousSibling : this._clientDiv.lastChild;
-			while (node && node.lineIndex === -1) {
-				node = node.previousSibling;
-			}
-			return node;
-		},
-		_getLinePixel: function(lineIndex) {
-			lineIndex = Math.min(Math.max(0, lineIndex), this._model.getLineCount());
-			if (this._lineHeight) {
-				var topIndex = this._getTopIndex();
-				var pixel = -this._topIndexY + this._getScroll().y, i;
-				if (lineIndex > topIndex) {
-					for (i = topIndex; i < lineIndex; i++) {
-						pixel += this._getLineHeight(i);
-					}
-				} else {
-					for (i = topIndex - 1; i >= lineIndex; i--) {
-						pixel -= this._getLineHeight(i);
-					}
-				}
-				return pixel;
-			}
-			var lineHeight = this._getLineHeight();
-			return lineHeight * lineIndex;
-		},
-		_getLineIndex: function(y) {
-			var lineHeight, lineIndex = 0;
-			var lineCount = this._model.getLineCount();
-			if (this._lineHeight) {
-				lineIndex = this._getTopIndex();
-				var pixel = -this._topIndexY + this._getScroll().y;
-				if (y !== pixel) {
-					if (y < pixel) {
-						while (y < pixel && lineIndex > 0) {
-							y += this._getLineHeight(--lineIndex);
-						}
-					} else {
-						lineHeight = this._getLineHeight(lineIndex);
-						while (y - lineHeight >= pixel && lineIndex < lineCount - 1) {
-							y -= lineHeight;
-							lineHeight = this._getLineHeight(++lineIndex);
-						}
-					}
-				}
-			} else {
-				lineHeight = this._getLineHeight();
-				lineIndex = Math.floor(y / lineHeight);
-			}
-			return Math.max(0, Math.min(lineCount - 1, lineIndex));
-		},
-		_getScroll: function(cancelAnimation) {
-			if (cancelAnimation === undefined || cancelAnimation) {
-				this._cancelAnimation();
-			}
-			var viewDiv = this._viewDiv;
-			return {x: viewDiv.scrollLeft, y: viewDiv.scrollTop};
-		},
-		_getSelection: function () {
-			return this._selection.clone();
-		},
-		_getTopIndex: function (fullyVisible) {
-			var child = this._topChild;
-			if (fullyVisible && this._getClientHeight() > this._getLineHeight()) {
-				var rect = child.getBoundingClientRect();
-				var viewPad = this._getViewPadding();
-				var viewRect = this._viewDiv.getBoundingClientRect();
-				if (rect.top < viewRect.top + viewPad.top) {
-					child = this._getLineNext(child) || child;
-				}
-			}
-			return child.lineIndex;
-		},
-		_hookEvents: function() {
-			var self = this;
-			this._modelListener = {
-				/** @private */
-				onChanging: function(modelChangingEvent) {
-					self._onModelChanging(modelChangingEvent);
-				},
-				/** @private */
-				onChanged: function(modelChangedEvent) {
-					self._onModelChanged(modelChangedEvent);
-				}
-			};
-			this._model.addEventListener("preChanging", this._modelListener.onChanging); //$NON-NLS-0$
-			this._model.addEventListener("postChanged", this._modelListener.onChanged); //$NON-NLS-0$
-			
-			this._themeListener = {
-				onChanged: function(themeChangedEvent) {
-					self._setThemeClass(self._themeClass);
-				}
-			};
-			this._theme.addEventListener("ThemeChanged", this._themeListener.onChanged); //$NON-NLS-0$
-			
-			var handlers = this._handlers = [];
-			var clientDiv = this._clientDiv, viewDiv = this._viewDiv, rootDiv = this._rootDiv;
-			var topNode = this._overlayDiv || clientDiv;
-			var document = clientDiv.ownerDocument;
-			var window = this._getWindow();
-			var grabNode = util.isIE ? document : window;
-			handlers.push({target: window, type: "resize", handler: function(e) { return self._handleResize(e ? e : window.event);}}); //$NON-NLS-0$
-			handlers.push({target: clientDiv, type: "blur", handler: function(e) { return self._handleBlur(e ? e : window.event);}}); //$NON-NLS-0$
-			handlers.push({target: clientDiv, type: "focus", handler: function(e) { return self._handleFocus(e ? e : window.event);}}); //$NON-NLS-0$
-			handlers.push({target: viewDiv, type: "focus", handler: function(e) { clientDiv.focus(); }}); //$NON-NLS-0$
-			handlers.push({target: viewDiv, type: "scroll", handler: function(e) { return self._handleScroll(e ? e : window.event);}}); //$NON-NLS-0$
-			handlers.push({target: clientDiv, type: "textInput", handler: function(e) { return self._handleTextInput(e ? e : window.event); }}); //$NON-NLS-0$
-			handlers.push({target: clientDiv, type: "keydown", handler: function(e) { return self._handleKeyDown(e ? e : window.event);}}); //$NON-NLS-0$
-			handlers.push({target: clientDiv, type: "keypress", handler: function(e) { return self._handleKeyPress(e ? e : window.event);}}); //$NON-NLS-0$
-			handlers.push({target: clientDiv, type: "keyup", handler: function(e) { return self._handleKeyUp(e ? e : window.event);}}); //$NON-NLS-0$
-			handlers.push({target: clientDiv, type: "contextmenu", handler: function(e) { return self._handleContextMenu(e ? e : window.event);}}); //$NON-NLS-0$
-			handlers.push({target: clientDiv, type: "copy", handler: function(e) { return self._handleCopy(e ? e : window.event);}}); //$NON-NLS-0$
-			handlers.push({target: clientDiv, type: "cut", handler: function(e) { return self._handleCut(e ? e : window.event);}}); //$NON-NLS-0$
-			handlers.push({target: clientDiv, type: "paste", handler: function(e) { return self._handlePaste(e ? e : window.event);}}); //$NON-NLS-0$
-			if (util.isIOS || util.isAndroid) {
-				handlers.push({target: document, type: "selectionchange", handler: function(e) { return self._handleSelectionChange(e ? e : window.event); }}); //$NON-NLS-0$
-				handlers.push({target: clientDiv, type: "touchstart", handler: function(e) { return self._handleTouchStart(e ? e : window.event); }}); //$NON-NLS-0$
-				handlers.push({target: clientDiv, type: "touchmove", handler: function(e) { return self._handleTouchMove(e ? e : window.event); }}); //$NON-NLS-0$
-				handlers.push({target: clientDiv, type: "touchend", handler: function(e) { return self._handleTouchEnd(e ? e : window.event); }}); //$NON-NLS-0$
-			} else {
-				handlers.push({target: clientDiv, type: "selectstart", handler: function(e) { return self._handleSelectStart(e ? e : window.event);}}); //$NON-NLS-0$
-				handlers.push({target: clientDiv, type: "mousedown", handler: function(e) { return self._handleMouseDown(e ? e : window.event);}}); //$NON-NLS-0$
-				handlers.push({target: clientDiv, type: "mouseover", handler: function(e) { return self._handleMouseOver(e ? e : window.event);}}); //$NON-NLS-0$
-				handlers.push({target: clientDiv, type: "mouseout", handler: function(e) { return self._handleMouseOut(e ? e : window.event);}}); //$NON-NLS-0$
-				handlers.push({target: grabNode, type: "mouseup", handler: function(e) { return self._handleMouseUp(e ? e : window.event);}}); //$NON-NLS-0$
-				handlers.push({target: grabNode, type: "mousemove", handler: function(e) { return self._handleMouseMove(e ? e : window.event);}}); //$NON-NLS-0$
-				handlers.push({target: rootDiv, type: "mousedown", handler: function(e) { return self._handleRootMouseDown(e ? e : window.event);}}); //$NON-NLS-0$
-				handlers.push({target: rootDiv, type: "mouseup", handler: function(e) { return self._handleRootMouseUp(e ? e : window.event);}}); //$NON-NLS-0$
-				handlers.push({target: topNode, type: "dragstart", handler: function(e) { return self._handleDragStart(e ? e : window.event);}}); //$NON-NLS-0$
-				handlers.push({target: topNode, type: "drag", handler: function(e) { return self._handleDrag(e ? e : window.event);}}); //$NON-NLS-0$
-				handlers.push({target: topNode, type: "dragend", handler: function(e) { return self._handleDragEnd(e ? e : window.event);}}); //$NON-NLS-0$
-				handlers.push({target: topNode, type: "dragenter", handler: function(e) { return self._handleDragEnter(e ? e : window.event);}}); //$NON-NLS-0$
-				handlers.push({target: topNode, type: "dragover", handler: function(e) { return self._handleDragOver(e ? e : window.event);}}); //$NON-NLS-0$
-				handlers.push({target: topNode, type: "dragleave", handler: function(e) { return self._handleDragLeave(e ? e : window.event);}}); //$NON-NLS-0$
-				handlers.push({target: topNode, type: "drop", handler: function(e) { return self._handleDrop(e ? e : window.event);}}); //$NON-NLS-0$
-				handlers.push({target: this._clientDiv, type: util.isFirefox ? "DOMMouseScroll" : "mousewheel", handler: function(e) { return self._handleMouseWheel(e ? e : window.event); }}); //$NON-NLS-1$ //$NON-NLS-0$
-				if (util.isFirefox && (!util.isWindows || util.isFirefox >= 15)) {
-					var MutationObserver = window.MutationObserver || window.MozMutationObserver;
-					if (MutationObserver) {
-						this._mutationObserver = new MutationObserver(function(mutations) { self._handleDataModified(mutations); });
-						this._mutationObserver.observe(clientDiv, {subtree: true, characterData: true});
-					} else {
-						handlers.push({target: this._clientDiv, type: "DOMCharacterDataModified", handler: function (e) { return self._handleDataModified(e ? e : window.event); }}); //$NON-NLS-0$
-					}
-				}
-				if (this._overlayDiv) {
-					handlers.push({target: this._overlayDiv, type: "mousedown", handler: function(e) { return self._handleMouseDown(e ? e : window.event);}}); //$NON-NLS-0$
-					handlers.push({target: this._overlayDiv, type: "mouseover", handler: function(e) { return self._handleMouseOver(e ? e : window.event);}}); //$NON-NLS-0$
-					handlers.push({target: this._overlayDiv, type: "mouseout", handler: function(e) { return self._handleMouseOut(e ? e : window.event);}}); //$NON-NLS-0$
-					handlers.push({target: this._overlayDiv, type: "contextmenu", handler: function(e) { return self._handleContextMenu(e ? e : window.event); }}); //$NON-NLS-0$
-				}
-				if (!this._isW3CEvents) {
-					handlers.push({target: this._clientDiv, type: "dblclick", handler: function(e) { return self._handleDblclick(e ? e : window.event); }}); //$NON-NLS-0$
-				}
-			}
-
-			var leftDiv = this._leftDiv, rightDiv = this._rightDiv;
-			if (util.isIE) {
-				handlers.push({target: leftDiv, type: "selectstart", handler: function() {return false;}}); //$NON-NLS-0$
-			}
-			handlers.push({target: leftDiv, type: util.isFirefox ? "DOMMouseScroll" : "mousewheel", handler: function(e) { return self._handleMouseWheel(e ? e : window.event); }}); //$NON-NLS-1$ //$NON-NLS-0$
-			handlers.push({target: leftDiv, type: "click", handler: function(e) { self._handleRulerEvent(e ? e : window.event); }}); //$NON-NLS-0$
-			handlers.push({target: leftDiv, type: "dblclick", handler: function(e) { self._handleRulerEvent(e ? e : window.event); }}); //$NON-NLS-0$
-			handlers.push({target: leftDiv, type: "mousemove", handler: function(e) { self._handleRulerEvent(e ? e : window.event); }}); //$NON-NLS-0$
-			handlers.push({target: leftDiv, type: "mouseover", handler: function(e) { self._handleRulerEvent(e ? e : window.event); }}); //$NON-NLS-0$
-			handlers.push({target: leftDiv, type: "mouseout", handler: function(e) { self._handleRulerEvent(e ? e : window.event); }}); //$NON-NLS-0$
-			if (util.isIE) {
-				handlers.push({target: rightDiv, type: "selectstart", handler: function() {return false;}}); //$NON-NLS-0$
-			}
-			handlers.push({target: rightDiv, type: util.isFirefox ? "DOMMouseScroll" : "mousewheel", handler: function(e) { return self._handleMouseWheel(e ? e : window.event); }}); //$NON-NLS-1$ //$NON-NLS-0$
-			handlers.push({target: rightDiv, type: "click", handler: function(e) { self._handleRulerEvent(e ? e : window.event); }}); //$NON-NLS-0$
-			handlers.push({target: rightDiv, type: "dblclick", handler: function(e) { self._handleRulerEvent(e ? e : window.event); }}); //$NON-NLS-0$
-			handlers.push({target: rightDiv, type: "mousemove", handler: function(e) { self._handleRulerEvent(e ? e : window.event); }}); //$NON-NLS-0$
-			handlers.push({target: rightDiv, type: "mouseover", handler: function(e) { self._handleRulerEvent(e ? e : window.event); }}); //$NON-NLS-0$
-			handlers.push({target: rightDiv, type: "mouseout", handler: function(e) { self._handleRulerEvent(e ? e : window.event); }}); //$NON-NLS-0$
-			
-			for (var i=0; i<handlers.length; i++) {
-				var h = handlers[i];
-				addHandler(h.target, h.type, h.handler, h.capture);
-			}
-		},
-		_getWindow: function() {
-			return getWindow(this._parent.ownerDocument);
-		},
-		_init: function(options) {
-			var parent = options.parent;
-			if (typeof(parent) === "string") { //$NON-NLS-0$
-				parent = (options.document || document).getElementById(parent);
-			}
-			if (!parent) { throw "no parent"; } //$NON-NLS-0$
-			options.parent = parent;
-			options.model = options.model || new mTextModel.TextModel();
-			var defaultOptions = this._defaultOptions();
-			for (var option in defaultOptions) {
-				if (defaultOptions.hasOwnProperty(option)) {
-					var value;
-					if (options[option] !== undefined) {
-						value = options[option];
-					} else {
-						value = defaultOptions[option].value;
-					}
-					this["_" + option] = value; //$NON-NLS-0$
-				}
-			}
-			this._rulers = [];
-			this._selection = new Selection (0, 0, false);
-			this._linksVisible = false;
-			this._redrawCount = 0;
-			this._maxLineWidth = 0;
-			this._maxLineIndex = -1;
-			this._ignoreSelect = true;
-			this._ignoreFocus = false;
-			this._hasFocus = false;
-			this._columnX = -1;
-			this._dragOffset = -1;
-			this._isRangeRects = (!util.isIE || util.isIE >= 9) && typeof parent.ownerDocument.createRange().getBoundingClientRect === "function"; //$NON-NLS-0$
-			this._isW3CEvents = parent.addEventListener;
-
-			/* Auto scroll */
-			this._autoScrollX = null;
-			this._autoScrollY = null;
-			this._autoScrollTimerID = null;
-			this._AUTO_SCROLL_RATE = 50;
-			this._grabControl = null;
-			this._moseMoveClosure  = null;
-			this._mouseUpClosure = null;
-			
-			/* Double click */
-			this._lastMouseX = 0;
-			this._lastMouseY = 0;
-			this._lastMouseTime = 0;
-			this._clickCount = 0;
-			this._clickTime = 250;
-			this._clickDist = 5;
-			this._isMouseDown = false;
-			this._doubleClickSelection = null;
-			
-			/* Scroll */
-			this._hScroll = 0;
-			this._vScroll = 0;
-
-			/* IME */
-			this._imeOffset = -1;
-			
-			/* Create elements */
-			this._createActions();
-			this._createView();
-		},
-		_modifyContent: function(e, updateCaret) {
-			if (this._readonly && !e._code) {
-				return;
-			}
-			e.type = "Verify"; //$NON-NLS-0$
-			this.onVerify(e);
-
-			if (e.text === null || e.text === undefined) { return; }
-			
-			var model = this._model;
-			try {
-				if (e._ignoreDOMSelection) { this._ignoreDOMSelection = true; }
-				model.setText (e.text, e.start, e.end);
-			} finally {
-				if (e._ignoreDOMSelection) { this._ignoreDOMSelection = false; }
-			}
-			
-			if (updateCaret) {
-				var selection = this._getSelection ();
-				selection.setCaret(e.start + e.text.length);
-				this._setSelection(selection, true);
-			}
-			this.onModify({type: "Modify"}); //$NON-NLS-0$
-		},
-		_onModelChanged: function(modelChangedEvent) {
-			modelChangedEvent.type = "ModelChanged"; //$NON-NLS-0$
-			this.onModelChanged(modelChangedEvent);
-			modelChangedEvent.type = "Changed"; //$NON-NLS-0$
-			var start = modelChangedEvent.start;
-			var addedCharCount = modelChangedEvent.addedCharCount;
-			var removedCharCount = modelChangedEvent.removedCharCount;
-			var addedLineCount = modelChangedEvent.addedLineCount;
-			var removedLineCount = modelChangedEvent.removedLineCount;
-			var selection = this._getSelection();
-			if (selection.end > start) {
-				if (selection.end > start && selection.start < start + removedCharCount) {
-					// selection intersects replaced text. set caret behind text change
-					selection.setCaret(start + addedCharCount);
-				} else {
-					// move selection to keep same text selected
-					selection.start +=  addedCharCount - removedCharCount;
-					selection.end +=  addedCharCount - removedCharCount;
-				}
-				this._setSelection(selection, false, false);
-			}
-			
-			var model = this._model;
-			var startLine = model.getLineAtOffset(start);
-			var child = this._getLineNext();
-			while (child) {
-				var lineIndex = child.lineIndex;
-				if (startLine <= lineIndex && lineIndex <= startLine + removedLineCount) {
-					if (startLine === lineIndex && !child.modelChangedEvent && !child.lineRemoved) {
-						child.modelChangedEvent = modelChangedEvent;
-						child.lineChanged = true;
-					} else {
-						child.lineRemoved = true;
-						child.lineChanged = false;
-						child.modelChangedEvent = null;
-					}
-				}
-				if (lineIndex > startLine + removedLineCount) {
-					child.lineIndex = lineIndex + addedLineCount - removedLineCount;
-					child._line.lineIndex = child.lineIndex;
-				}
-				child = this._getLineNext(child);
-			}
-			if (!this._wrapMode) {
-				if (startLine <= this._maxLineIndex && this._maxLineIndex <= startLine + removedLineCount) {
-					this._checkMaxLineIndex = this._maxLineIndex;
-					this._maxLineIndex = -1;
-					this._maxLineWidth = 0;
-				}
-			}
-			this._update();
-		},
-		_onModelChanging: function(modelChangingEvent) {
-			modelChangingEvent.type = "ModelChanging"; //$NON-NLS-0$
-			this.onModelChanging(modelChangingEvent);
-			modelChangingEvent.type = "Changing"; //$NON-NLS-0$
-		},
-		_queueUpdate: function() {
-			if (this._updateTimer || this._ignoreQueueUpdate) { return; }
-			var self = this;
-			var window = this._getWindow();
-			this._updateTimer = window.setTimeout(function() { 
-				self._updateTimer = null;
-				self._update();
-			}, 0);
-		},
-		_resetLineHeight: function(startLine, endLine) {
-			if (this._wrapMode) {
-				if (startLine !== undefined && endLine !== undefined) {
-					for (var i = startLine; i < endLine; i++) {
-						this._lineHeight[i] = undefined;
-					}
-				} else {
-					this._lineHeight = new Array(this._model.getLineCount());
-				}
-				this._calculateLineHeightTimer();
-			} else {
-				this._lineHeight = null;
-			}
-		},
-		_resetLineWidth: function() {
-			var clientDiv = this._clientDiv;
-			if (clientDiv) {
-				var child = clientDiv.firstChild;
-				while (child) {
-					child.lineWidth = undefined;
-					child = child.nextSibling;
-				}
-			}
-		},
-		_reset: function() {
-			this._maxLineIndex = -1;
-			this._maxLineWidth = 0;
-			this._columnX = -1;
-			this._topChild = null;
-			this._bottomChild = null;
-			this._topIndexY = 0;
-			this._resetLineHeight();
-			this._setSelection(new Selection (0, 0, false), false, false);
-			if (this._viewDiv) {
-				this._viewDiv.scrollLeft = 0;
-				this._viewDiv.scrollTop = 0;
-			}
-			var clientDiv = this._clientDiv;
-			if (clientDiv) {
-				var child = clientDiv.firstChild;
-				while (child) {
-					child.lineRemoved = true;
-					child = child.nextSibling;
-				}
-				/*
-				* Bug in Firefox.  For some reason, the caret does not show after the
-				* view is refreshed.  The fix is to toggle the contentEditable state and
-				* force the clientDiv to loose and receive focus if it is focused.
-				*/
-				if (util.isFirefox) {
-					this._ignoreFocus = false;
-					var hasFocus = this._hasFocus;
-					if (hasFocus) { clientDiv.blur(); }
-					clientDiv.contentEditable = false;
-					clientDiv.contentEditable = true;
-					if (hasFocus) { clientDiv.focus(); }
-					this._ignoreFocus = false;
-				}
-			}
-		},
-		_scrollViewAnimated: function (pixelX, pixelY, callback) {
-			if (callback && this._scrollAnimation) {
-				var self = this;
-				this._animation = new Animation({
-					window: this._getWindow(),
-					duration: this._scrollAnimation,
-					curve: [pixelY, 0],
-					onAnimate: function(x) {
-						var deltaY = pixelY - Math.floor(x);
-						self._scrollView (0, deltaY);
-						pixelY -= deltaY;
-					},
-					onEnd: function() {
-						self._animation = null;
-						self._scrollView (pixelX, pixelY);
-						if (callback) {
-							callback();
-						}
-					}
-				});
-				this._animation.play();
-			} else {
-				this._scrollView (pixelX, pixelY);
-				if (callback) {
-					callback();
-				}
-			}
-		}, 
-		_scrollView: function (pixelX, pixelY) {
-			/*
-			* Always set _ensureCaretVisible to false so that the view does not scroll
-			* to show the caret when scrollView is not called from showCaret().
-			*/
-			this._ensureCaretVisible = false;
-			
-			/*
-			* Scrolling is done only by setting the scrollLeft and scrollTop fields in the
-			* view div. This causes an update from the scroll event. In some browsers 
-			* this event is asynchronous and forcing update page to run synchronously
-			* leads to redraw problems. 
-			* On Chrome 11, the view redrawing at times when holding PageDown/PageUp key.
-			* On Firefox 4 for Linux, the view redraws the first page when holding 
-			* PageDown/PageUp key, but it will not redraw again until the key is released.
-			*/
-			var viewDiv = this._viewDiv;
-			if (pixelX) { viewDiv.scrollLeft += pixelX; }
-			if (pixelY) { viewDiv.scrollTop += pixelY; }
-		},
-		_setClipboardText: function (text, event) {
-			var clipboardText;
-			var document = this._parent.ownerDocument;
-			var window = this._getWindow();
-			if (window.clipboardData) {
-				//IE
-				clipboardText = [];
-				convertDelimiter(text, function(t) {clipboardText.push(t);}, function() {clipboardText.push(util.platformDelimiter);});
-				return window.clipboardData.setData("Text", clipboardText.join("")); //$NON-NLS-0$
-			}
-			if (event && event.clipboardData) {
-				//webkit
-				clipboardText = [];
-				convertDelimiter(text, function(t) {clipboardText.push(t);}, function() {clipboardText.push(util.platformDelimiter);});
-				if (event.clipboardData.setData("text/plain", clipboardText.join(""))) { //$NON-NLS-0$
-					return true;
-				}
-			}
-			var child = util.createElement(document, "pre"); //$NON-NLS-0$
-			child.style.position = "fixed"; //$NON-NLS-0$
-			child.style.left = "-1000px"; //$NON-NLS-0$
-			convertDelimiter(text, 
-				function(t) {
-					child.appendChild(document.createTextNode(t));
-				}, 
-				function() {
-					child.appendChild(util.createElement(document, "br")); //$NON-NLS-0$
-				}
-			);
-			child.appendChild(document.createTextNode(" ")); //$NON-NLS-0$
-			this._clientDiv.appendChild(child);
-			var range = document.createRange();
-			range.setStart(child.firstChild, 0);
-			range.setEndBefore(child.lastChild);
-			var sel = window.getSelection();
-			if (sel.rangeCount > 0) { sel.removeAllRanges(); }
-			sel.addRange(range);
-			var self = this;
-			/** @ignore */
-			var cleanup = function() {
-				if (child && child.parentNode === self._clientDiv) {
-					self._clientDiv.removeChild(child);
-				}
-				self._updateDOMSelection();
-			};
-			var result = false;
-			/* 
-			* Try execCommand first, it works on firefox with clipboard permission,
-			* chrome 5, safari 4.
-			*/
-			this._ignoreCopy = true;
-			try {
-				result = document.execCommand("copy", false, null); //$NON-NLS-0$
-			} catch (e) {}
-			this._ignoreCopy = false;
-			if (!result) {
-				if (event) {
-					window.setTimeout(cleanup, 0);
-					return false;
-				}
-			}
-			/* no event and no permission, copy can not be done */
-			cleanup();
-			return true;
-		},
-		_setDOMSelection: function (startNode, startOffset, endNode, endOffset) {
-			var startLineNode, startLineOffset, endLineNode, endLineOffset;
-			var offset = 0;
-			var lineChild = startNode.firstChild;
-			var node, nodeLength, model = this._model;
-			var startLineEnd = model.getLine(startNode.lineIndex).length;
-			while (lineChild) {
-				node = lineChild.firstChild;
-				nodeLength = node.length;
-				if (lineChild.ignoreChars) {
-					nodeLength -= lineChild.ignoreChars;
-				}
-				if (offset + nodeLength > startOffset || offset + nodeLength >= startLineEnd) {
-					startLineNode = node;
-					startLineOffset = startOffset - offset;
-					if (lineChild.ignoreChars && nodeLength > 0 && startLineOffset === nodeLength) {
-						startLineOffset += lineChild.ignoreChars; 
-					}
-					break;
-				}
-				offset += nodeLength;
-				lineChild = lineChild.nextSibling;
-			}
-			offset = 0;
-			lineChild = endNode.firstChild;
-			var endLineEnd = this._model.getLine(endNode.lineIndex).length;
-			while (lineChild) {
-				node = lineChild.firstChild;
-				nodeLength = node.length;
-				if (lineChild.ignoreChars) {
-					nodeLength -= lineChild.ignoreChars;
-				}
-				if (nodeLength + offset > endOffset || offset + nodeLength >= endLineEnd) {
-					endLineNode = node;
-					endLineOffset = endOffset - offset;
-					if (lineChild.ignoreChars && nodeLength > 0 && endLineOffset === nodeLength) {
-						endLineOffset += lineChild.ignoreChars; 
-					}
-					break;
-				}
-				offset += nodeLength;
-				lineChild = lineChild.nextSibling;
-			}
-			
-			this._setDOMFullSelection(startNode, startOffset, startLineEnd, endNode, endOffset, endLineEnd);
-
-			if (!this._hasFocus) { return; }
-			var range;
-			var window = this._getWindow();
-			var document = this._parent.ownerDocument;
-			if (window.getSelection) {
-				//W3C
-				var sel = window.getSelection();
-				if ((sel.anchorNode === startLineNode && sel.anchorOffset === startLineOffset &&
-					sel.focusNode === endLineNode && sel.focusOffset === endLineOffset) ||
-					(sel.anchorNode === endLineNode && sel.anchorOffset === endLineOffset &&
-					sel.focusNode === startLineNode && sel.focusOffset === startLineOffset)) { return; }
-				
-				range = document.createRange();
-				range.setStart(startLineNode, startLineOffset);
-				range.setEnd(endLineNode, endLineOffset);
-				this._ignoreSelect = false;
-				if (sel.rangeCount > 0) { sel.removeAllRanges(); }
-				sel.addRange(range);
-				this._ignoreSelect = true;
-			} else if (document.selection) {
-				//IE < 9
-				var body = document.body;
-
-				/*
-				* Bug in IE. For some reason when text is deselected the overflow
-				* selection at the end of some lines does not get redrawn.  The
-				* fix is to create a DOM element in the body to force a redraw.
-				*/
-				var child = util.createElement(document, "div"); //$NON-NLS-0$
-				body.appendChild(child);
-				body.removeChild(child);
-				
-				range = body.createTextRange();
-				range.moveToElementText(startLineNode.parentNode);
-				range.moveStart("character", startLineOffset); //$NON-NLS-0$
-				var endRange = body.createTextRange();
-				endRange.moveToElementText(endLineNode.parentNode);
-				endRange.moveStart("character", endLineOffset); //$NON-NLS-0$
-				range.setEndPoint("EndToStart", endRange); //$NON-NLS-0$
-				this._ignoreSelect = false;
-				range.select();
-				this._ignoreSelect = true;
-			}
-		},
-		_setDOMFullSelection: function(startNode, startOffset, startLineEnd, endNode, endOffset, endLineEnd) {
-			if (!this._selDiv1) { return; }
-			var selDiv = this._selDiv1;
-			selDiv.style.width = "0px"; //$NON-NLS-0$
-			selDiv.style.height = "0px"; //$NON-NLS-0$
-			selDiv = this._selDiv2;
-			selDiv.style.width = "0px"; //$NON-NLS-0$
-			selDiv.style.height = "0px"; //$NON-NLS-0$
-			selDiv = this._selDiv3;
-			selDiv.style.width = "0px"; //$NON-NLS-0$
-			selDiv.style.height = "0px"; //$NON-NLS-0$
-			if (startNode === endNode && startOffset === endOffset) { return; }
-			var model = this._model;
-			var viewPad = this._getViewPadding();
-			var clientRect = this._clientDiv.getBoundingClientRect();
-			var viewRect = this._viewDiv.getBoundingClientRect();
-			var left = viewRect.left + viewPad.left;
-			var right = clientRect.right;
-			var top = viewRect.top + viewPad.top;
-			var bottom = clientRect.bottom;
-			var hd = 0, vd = 0;
-			if (this._clipDiv) {
-				var clipRect = this._clipDiv.getBoundingClientRect();
-				hd = clipRect.left - this._clipDiv.scrollLeft;
-				vd = clipRect.top;
-			} else {
-				var rootpRect = this._rootDiv.getBoundingClientRect();
-				hd = rootpRect.left;
-				vd = rootpRect.top;
-			}
-			this._ignoreDOMSelection = true;
-			var startLine = new TextLine(this, startNode.lineIndex, startNode);
-			var startRect = startLine.getBoundingClientRect(model.getLineStart(startNode.lineIndex) + startOffset, false);
-			var l = startRect.left;
-			var endLine = new TextLine(this, endNode.lineIndex, endNode);
-			var endRect = endLine.getBoundingClientRect(model.getLineStart(endNode.lineIndex) + endOffset, false);
-			var r = endRect.left;
-			this._ignoreDOMSelection = false;
-			var sel1Div = this._selDiv1;
-			var sel1Left = Math.min(right, Math.max(left, l));
-			var sel1Top = Math.min(bottom, Math.max(top, startRect.top));
-			var sel1Right = right;
-			var sel1Bottom = Math.min(bottom, Math.max(top, startRect.bottom));
-			sel1Div.style.left = (sel1Left - hd) + "px"; //$NON-NLS-0$
-			sel1Div.style.top = (sel1Top - vd) + "px"; //$NON-NLS-0$
-			sel1Div.style.width = Math.max(0, sel1Right - sel1Left) + "px"; //$NON-NLS-0$
-			sel1Div.style.height = Math.max(0, sel1Bottom - sel1Top) + "px"; //$NON-NLS-0$
-			if (startRect.top === endRect.top) {
-				sel1Right = Math.min(r, right);
-				sel1Div.style.width = Math.max(0, sel1Right - sel1Left) + "px"; //$NON-NLS-0$
-			} else {
-				var sel3Left = left;
-				var sel3Top = Math.min(bottom, Math.max(top, endRect.top));
-				var sel3Right = Math.min(right, Math.max(left, r));
-				var sel3Bottom = Math.min(bottom, Math.max(top, endRect.bottom));
-				var sel3Div = this._selDiv3;
-				sel3Div.style.left = (sel3Left - hd) + "px"; //$NON-NLS-0$
-				sel3Div.style.top = (sel3Top - vd) + "px"; //$NON-NLS-0$
-				sel3Div.style.width = Math.max(0, sel3Right - sel3Left) + "px"; //$NON-NLS-0$
-				sel3Div.style.height = Math.max(0, sel3Bottom - sel3Top) + "px"; //$NON-NLS-0$
-				if (sel3Top - sel1Bottom > 0) {
-					var sel2Div = this._selDiv2;
-					sel2Div.style.left = (left - hd)  + "px"; //$NON-NLS-0$
-					sel2Div.style.top = (sel1Bottom - vd) + "px"; //$NON-NLS-0$
-					sel2Div.style.width = Math.max(0, right - left) + "px"; //$NON-NLS-0$
-					sel2Div.style.height = Math.max(0, sel3Top - sel1Bottom) + "px"; //$NON-NLS-0$
-				}
-			}
-		},
-		_setGrab: function (target) {
-			if (target === this._grabControl) { return; }
-			if (target) {
-				if (target.setCapture) { target.setCapture(); }
-				this._grabControl = target;
-			} else {
-				if (this._grabControl.releaseCapture) { this._grabControl.releaseCapture(); }
-				this._grabControl = null;
-			}
-		},
-		_setLinksVisible: function(visible) {
-			if (this._linksVisible === visible) { return; }
-			this._linksVisible = visible;
-			/*
-			* Feature in IE.  The client div looses focus and does not regain it back
-			* when the content editable flag is reset. The fix is to remember that it
-			* had focus when the flag is cleared and give focus back to the div when
-			* the flag is set.
-			*/
-			if (util.isIE && visible) {
-				this._hadFocus = this._hasFocus;
-			}
-			var clientDiv = this._clientDiv;
-			clientDiv.contentEditable = !visible;
-			if (this._hadFocus && !visible) {
-				clientDiv.focus();
-			}
-			if (this._overlayDiv) {
-				this._overlayDiv.style.zIndex = visible ? "-1" : "1"; //$NON-NLS-1$ //$NON-NLS-0$
-			}
-			var line = this._getLineNext();
-			while (line) {
-				if (line.hasLink) {
-					var lineChild = line.firstChild;
-					while (lineChild) {
-						var next = lineChild.nextSibling;
-						var style = lineChild.viewStyle;
-						if (style && style.tagName === "A") { //$NON-NLS-0$
-							line.replaceChild(line._line._createSpan(line, lineChild.firstChild.data, style), lineChild);
-						}
-						lineChild = next;
-					}
-				}
-				line = this._getLineNext(line);
-			}
-		},
-		_setSelection: function (selection, scroll, update, callback, pageScroll) {
-			if (selection) {
-				this._columnX = -1;
-				if (update === undefined) { update = true; }
-				var oldSelection = this._selection; 
-				this._selection = selection;
-
-				/* 
-				* Always showCaret(), even when the selection is not changing, to ensure the
-				* caret is visible. Note that some views do not scroll to show the caret during
-				* keyboard navigation when the selection does not chanage. For example, line down
-				* when the caret is already at the last line.
-				*/
-				if (scroll !== false) { /*update = !*/this._showCaret(false, callback, scroll, pageScroll); }
-				
-				/* 
-				* Sometimes the browser changes the selection 
-				* as result of method calls or "leaked" events. 
-				* The fix is to set the visual selection even
-				* when the logical selection is not changed.
-				*/
-				if (update) { this._updateDOMSelection(); }
-				
-				if (!oldSelection.equals(selection)) {
-					var e = {
-						type: "Selection", //$NON-NLS-0$
-						oldValue: {start:oldSelection.start, end:oldSelection.end},
-						newValue: {start:selection.start, end:selection.end}
-					};
-					this.onSelection(e);
-				}
-			}
-		},
-		_setSelectionTo: function (x, y, extent, drag) {
-			var model = this._model, offset;
-			var selection = this._getSelection();
-			var pt = this.convert({x: x, y: y}, "page", "document"); //$NON-NLS-1$ //$NON-NLS-0$
-			var lineIndex = this._getLineIndex(pt.y), line;
-			if (this._clickCount === 1) {
-				line = this._getLine(lineIndex);
-				offset = line.getOffset(pt.x, pt.y - this._getLinePixel(lineIndex));
-				line.destroy();
-				if (drag && !extent) {
-					if (selection.start <= offset && offset < selection.end) {
-						this._dragOffset = offset;
-						return false;
-					}
-				}
-				selection.extend(offset);
-				if (!extent) { selection.collapse(); }
-			} else {
-				var word = (this._clickCount & 1) === 0;
-				var start, end;
-				if (word) {
-					line = this._getLine(lineIndex);
-					offset = line.getOffset(pt.x, pt.y - this._getLinePixel(lineIndex));
-					if (this._doubleClickSelection) {
-						if (offset >= this._doubleClickSelection.start) {
-							start = this._doubleClickSelection.start;
-							end = line.getNextOffset(offset, "wordend", +1); //$NON-NLS-0$
-						} else {
-							start = line.getNextOffset(offset, "word", -1); //$NON-NLS-0$
-							end = this._doubleClickSelection.end;
-						}
-					} else {
-						start = line.getNextOffset(offset, "word", -1); //$NON-NLS-0$
-						end = line.getNextOffset(start, "wordend", +1); //$NON-NLS-0$
-					}
-					line.destroy();
-				} else {
-					if (this._doubleClickSelection) {
-						var doubleClickLine = model.getLineAtOffset(this._doubleClickSelection.start);
-						if (lineIndex >= doubleClickLine) {
-							start = model.getLineStart(doubleClickLine);
-							end = model.getLineEnd(lineIndex);
-						} else {
-							start = model.getLineStart(lineIndex);
-							end = model.getLineEnd(doubleClickLine);
-						}
-					} else {
-						start = model.getLineStart(lineIndex);
-						end = model.getLineEnd(lineIndex);
-					}
-				}
-				selection.setCaret(start);
-				selection.extend(end);
-			} 
-			this._setSelection(selection, true, true);
-			return true;
-		},
-		_setFullSelection: function(fullSelection, init) {
-			this._fullSelection = fullSelection;
-			if (util.isWebkit) {
-				this._fullSelection = true;
-			}
-			var parent = this._clipDiv || this._rootDiv;
-			if (!parent) {
-				return;
-			}
-			if (!this._fullSelection) {
-				if (this._selDiv1) {
-					parent.removeChild(this._selDiv1);
-					this._selDiv1 = null;
-				}
-				if (this._selDiv2) {
-					parent.removeChild(this._selDiv2);
-					this._selDiv2 = null;
-				}
-				if (this._selDiv3) {
-					parent.removeChild(this._selDiv3);
-					this._selDiv3 = null;
-				}
-				return;
-			}
-			
-			if (!this._selDiv1 && (this._fullSelection && !util.isIOS)) {
-				var document = parent.ownerDocument;
-				this._highlightRGB = util.isWebkit ? "transparent" : "Highlight"; //$NON-NLS-1$ //$NON-NLS-0$
-				var selDiv1 = util.createElement(document, "div"); //$NON-NLS-0$
-				this._selDiv1 = selDiv1;
-				selDiv1.style.position = "absolute"; //$NON-NLS-0$
-				selDiv1.style.borderWidth = "0px"; //$NON-NLS-0$
-				selDiv1.style.margin = "0px"; //$NON-NLS-0$
-				selDiv1.style.padding = "0px"; //$NON-NLS-0$
-				selDiv1.style.outline = "none"; //$NON-NLS-0$
-				selDiv1.style.background = this._highlightRGB;
-				selDiv1.style.width = "0px"; //$NON-NLS-0$
-				selDiv1.style.height = "0px"; //$NON-NLS-0$
-				selDiv1.style.zIndex = "0"; //$NON-NLS-0$
-				parent.appendChild(selDiv1);
-				var selDiv2 = util.createElement(document, "div"); //$NON-NLS-0$
-				this._selDiv2 = selDiv2;
-				selDiv2.style.position = "absolute"; //$NON-NLS-0$
-				selDiv2.style.borderWidth = "0px"; //$NON-NLS-0$
-				selDiv2.style.margin = "0px"; //$NON-NLS-0$
-				selDiv2.style.padding = "0px"; //$NON-NLS-0$
-				selDiv2.style.outline = "none"; //$NON-NLS-0$
-				selDiv2.style.background = this._highlightRGB;
-				selDiv2.style.width = "0px"; //$NON-NLS-0$
-				selDiv2.style.height = "0px"; //$NON-NLS-0$
-				selDiv2.style.zIndex = "0"; //$NON-NLS-0$
-				parent.appendChild(selDiv2);
-				var selDiv3 = util.createElement(document, "div"); //$NON-NLS-0$
-				this._selDiv3 = selDiv3;
-				selDiv3.style.position = "absolute"; //$NON-NLS-0$
-				selDiv3.style.borderWidth = "0px"; //$NON-NLS-0$
-				selDiv3.style.margin = "0px"; //$NON-NLS-0$
-				selDiv3.style.padding = "0px"; //$NON-NLS-0$
-				selDiv3.style.outline = "none"; //$NON-NLS-0$
-				selDiv3.style.background = this._highlightRGB;
-				selDiv3.style.width = "0px"; //$NON-NLS-0$
-				selDiv3.style.height = "0px"; //$NON-NLS-0$
-				selDiv3.style.zIndex = "0"; //$NON-NLS-0$
-				parent.appendChild(selDiv3);
-				
-				/*
-				* Bug in Firefox. The Highlight color is mapped to list selection
-				* background instead of the text selection background.  The fix
-				* is to map known colors using a table or fallback to light blue.
-				*/
-				if (util.isFirefox && util.isMac) {
-					var window = this._getWindow();
-					var style = window.getComputedStyle(selDiv3, null);
-					var rgb = style.getPropertyValue("background-color"); //$NON-NLS-0$
-					switch (rgb) {
-						case "rgb(119, 141, 168)": rgb = "rgb(199, 208, 218)"; break; //$NON-NLS-1$ //$NON-NLS-0$
-						case "rgb(127, 127, 127)": rgb = "rgb(198, 198, 198)"; break; //$NON-NLS-1$ //$NON-NLS-0$
-						case "rgb(255, 193, 31)": rgb = "rgb(250, 236, 115)"; break; //$NON-NLS-1$ //$NON-NLS-0$
-						case "rgb(243, 70, 72)": rgb = "rgb(255, 176, 139)"; break; //$NON-NLS-1$ //$NON-NLS-0$
-						case "rgb(255, 138, 34)": rgb = "rgb(255, 209, 129)"; break; //$NON-NLS-1$ //$NON-NLS-0$
-						case "rgb(102, 197, 71)": rgb = "rgb(194, 249, 144)"; break; //$NON-NLS-1$ //$NON-NLS-0$
-						case "rgb(140, 78, 184)": rgb = "rgb(232, 184, 255)"; break; //$NON-NLS-1$ //$NON-NLS-0$
-						default: rgb = "rgb(180, 213, 255)"; break; //$NON-NLS-0$
-					}
-					this._highlightRGB = rgb;
-					selDiv1.style.background = rgb;
-					selDiv2.style.background = rgb;
-					selDiv3.style.background = rgb;
-				}
-				if (!init) {
-					this._updateDOMSelection();
-				}
-			}
-		},
-		_setReadOnly: function (readOnly) {
-			this._readonly = readOnly;
-			this._clientDiv.setAttribute("aria-readonly", readOnly ? "true" : "false"); //$NON-NLS-2$ //$NON-NLS-1$ //$NON-NLS-0$
-		},
-		_setTabSize: function (tabSize, init) {
-			this._tabSize = tabSize;
-			this._customTabSize = undefined;
-			var clientDiv = this._clientDiv;
-			if (util.isOpera) {
-				if (clientDiv) { clientDiv.style.OTabSize = this._tabSize+""; }
-			} else if (util.isWebkit >= 537.1) {
-				if (clientDiv) { clientDiv.style.tabSize = this._tabSize+""; }
-			} else if (util.isFirefox >= 4) {
-				if (clientDiv) {  clientDiv.style.MozTabSize = this._tabSize+""; }
-			} else if (this._tabSize !== 8) {
-				this._customTabSize = this._tabSize;
-			}
-			if (!init) {
-				this.redrawLines();
-				this._resetLineWidth();
-			}
-		},
-		_setTheme: function(theme) {
-			if (this._theme) {
-				this._theme.removeEventListener("ThemeChanged", this._themeListener.onChanged); //$NON-NLS-0$
-			}
-			this._theme = theme;
-			if (this._theme) {
-				this._theme.addEventListener("ThemeChanged", this._themeListener.onChanged); //$NON-NLS-0$
-			}
-			this._setThemeClass(this._themeClass);
-		},
-		_setThemeClass: function (themeClass, init) {
-			this._themeClass = themeClass;
-			var viewContainerClass = "textview"; //$NON-NLS-0$
-			var globalThemeClass = this._theme.getThemeClass();
-			if (globalThemeClass) { viewContainerClass += " " + globalThemeClass; } //$NON-NLS-0$
-			if (this._themeClass && globalThemeClass !== this._themeClass) { viewContainerClass += " " + this._themeClass; } //$NON-NLS-0$
-			this._rootDiv.className = viewContainerClass;
-			this._updateStyle(init);
-		},
-		_setWrapMode: function (wrapMode, init) {
-			this._wrapMode = wrapMode;
-			var clientDiv = this._clientDiv, viewDiv = this._viewDiv;
-			if (wrapMode) {
-				clientDiv.style.whiteSpace = "pre-wrap"; //$NON-NLS-0$
-				clientDiv.style.wordWrap = "break-word"; //$NON-NLS-0$
-				viewDiv.style.overflowX = "hidden"; //$NON-NLS-0$
-				viewDiv.style.overflowY = "scroll"; //$NON-NLS-0$
-			} else {
-				clientDiv.style.whiteSpace = "pre"; //$NON-NLS-0$
-				clientDiv.style.wordWrap = "normal"; //$NON-NLS-0$
-				viewDiv.style.overflowX = "auto"; //$NON-NLS-0$
-				viewDiv.style.overflowY = "auto"; //$NON-NLS-0$
-			}
-			if (!init) {
-				this.redraw();
-				this._resetLineWidth();
-			}
-			this._resetLineHeight();
-		},
-		_showCaret: function (allSelection, callback, scrollAlign, pageScroll) {
-			if (!this._clientDiv) { return; }
-			var model = this._model;
-			var selection = this._getSelection();
-			var scroll = this._getScroll();
-			var caret = selection.getCaret();
-			var start = selection.start;
-			var end = selection.end;
-			var endLine = model.getLineAtOffset(end);
-			var endInclusive = Math.max(Math.max(start, model.getLineStart(endLine)), end - 1);
-			var clientWidth = this._getClientWidth();
-			var clientHeight = this._getClientHeight();
-			var minScroll = clientWidth / 4;
-			var bounds = this._getBoundsAtOffset(caret === start ? start : endInclusive);
-			var left = bounds.left;
-			var right = bounds.right;
-			var top = bounds.top;
-			var bottom = bounds.bottom;
-			if (allSelection && !selection.isEmpty()) {
-				bounds = this._getBoundsAtOffset(caret === end ? start : endInclusive);
-				if (bounds.top === top) {
-					if (caret === start) {
-						right = left + Math.min(bounds.right - left, clientWidth);
-					} else {
-						left = right - Math.min(right - bounds.left, clientWidth);
-					}
-				} else {
-					if (caret === start) {
-						bottom = top + Math.min(bounds.bottom - top, clientHeight);
-					} else {
-						top = bottom - Math.min(bottom - bounds.top, clientHeight);
-					}
-				}
-			}
-			var pixelX = 0;
-			if (left < scroll.x) {
-				pixelX = Math.min(left - scroll.x, -minScroll);
-			}
-			if (right > scroll.x + clientWidth) {
-				pixelX = Math.max(right - scroll.x - clientWidth, minScroll);
-			}
-			var pixelY = 0;
-			if (top < scroll.y) {
-				pixelY = top - scroll.y;
-			} else if (bottom > scroll.y + clientHeight) {
-				pixelY = bottom - scroll.y - clientHeight;
-			}
-			if (pageScroll) {
-				if (pageScroll > 0) {
-					if (pixelY > 0) {
-						pixelY = Math.max(pixelY, pageScroll);
-					}
-				} else {
-					if (pixelY < 0) {
-						pixelY = Math.min(pixelY, pageScroll);
-					}
-				}
-			}
-			if (pixelX !== 0 || pixelY !== 0) {
-				if (pixelY !== 0 && typeof scrollAlign === "number") { //$NON-NLS-0$
-					if (scrollAlign < 0) { scrollAlign = 0; }
-					if (scrollAlign > 1) { scrollAlign = 1; }
-					pixelY += Math.floor(pixelY > 0 ? scrollAlign * clientHeight : -scrollAlign * clientHeight);
-				}
-				this._scrollViewAnimated(pixelX, pixelY, callback);
-				/*
-				* When the view scrolls it is possible that one of the scrollbars can show over the caret.
-				* Depending on the browser scrolling can be synchronous (Safari), in which case the change 
-				* can be detected before showCaret() returns. When scrolling is asynchronous (most browsers), 
-				* the detection is done during the next update page.
-				*/
-				if (clientHeight !== this._getClientHeight() || clientWidth !== this._getClientWidth()) {
-					this._showCaret();
-				} else {
-					this._ensureCaretVisible = true;
-				}
-				return true;
-			}
-			return false;
-		},
-		_startIME: function () {
-			if (this._imeOffset !== -1) { return; }
-			var selection = this._getSelection();
-			if (!selection.isEmpty()) {
-				this._modifyContent({text: "", start: selection.start, end: selection.end}, true);
-			}
-			this._imeOffset = selection.start;
-		},
-		_unhookEvents: function() {
-			this._model.removeEventListener("preChanging", this._modelListener.onChanging); //$NON-NLS-0$
-			this._model.removeEventListener("postChanged", this._modelListener.onChanged); //$NON-NLS-0$
-			this._theme.removeEventListener("ThemeChanged", this._themeListener.onChanged); //$NON-NLS-0$
-			this._modelListener = null;
-			for (var i=0; i<this._handlers.length; i++) {
-				var h = this._handlers[i];
-				removeHandler(h.target, h.type, h.handler);
-			}
-			this._handlers = null;
-			if (this._mutationObserver) {
-				this._mutationObserver.disconnect();
-				this._mutationObserver = null;
-			}
-		},
-		_updateDOMSelection: function () {
-			if (this._ignoreDOMSelection) { return; }
-			if (!this._clientDiv) { return; }
-			var selection = this._getSelection();
-			var model = this._model;
-			var startLine = model.getLineAtOffset(selection.start);
-			var endLine = model.getLineAtOffset(selection.end);
-			var firstNode = this._getLineNext();
-			/*
-			* Bug in Firefox. For some reason, after a update page sometimes the 
-			* firstChild returns null incorrectly. The fix is to ignore show selection.
-			*/
-			if (!firstNode) { return; }
-			var lastNode = this._getLinePrevious();
-			
-			var topNode, bottomNode, topOffset, bottomOffset;
-			if (startLine < firstNode.lineIndex) {
-				topNode = firstNode;
-				topOffset = 0;
-			} else if (startLine > lastNode.lineIndex) {
-				topNode = lastNode;
-				topOffset = 0;
-			} else {
-				topNode = this._getLineNode(startLine);
-				topOffset = selection.start - model.getLineStart(startLine);
-			}
-
-			if (endLine < firstNode.lineIndex) {
-				bottomNode = firstNode;
-				bottomOffset = 0;
-			} else if (endLine > lastNode.lineIndex) {
-				bottomNode = lastNode;
-				bottomOffset = 0;
-			} else {
-				bottomNode = this._getLineNode(endLine);
-				bottomOffset = selection.end - model.getLineStart(endLine);
-			}
-			this._setDOMSelection(topNode, topOffset, bottomNode, bottomOffset);
-		},
-		_update: function(hScrollOnly) {
-			if (this._redrawCount > 0) { return; }
-			if (this._updateTimer) {
-				var window = this._getWindow();
-				window.clearTimeout(this._updateTimer);
-				this._updateTimer = null;
-				hScrollOnly = false;
-			}
-			var clientDiv = this._clientDiv;
-			if (!clientDiv) { return; }
-			if (this._metrics.invalid) {
-				this._ignoreQueueUpdate = true;
-				this._updateStyle();
-				this._ignoreQueueUpdate = false;
-			}
-			var model = this._model;
-			var scroll = this._getScroll(false);
-			var viewPad = this._getViewPadding();
-			var lineCount = model.getLineCount();
-			var lineHeight = this._getLineHeight();
-			var clientWidth = this._getClientWidth();
-			if (this._wrapMode) {
-				clientDiv.style.width = clientWidth + "px"; //$NON-NLS-0$
-			}
-			
-			/*
-			* topIndex - top line index of the view (maybe be particialy visible)
-			* lineStart - top line minus one line (if any)
-			* topIndexY - portion of the top line that is NOT visible.
-			* top - topIndexY plus height of the line before top line (if any)
-			*/
-			var topIndex, lineStart, top, topIndexY,
-				leftWidth, leftRect,
-				clientHeight, scrollWidth, scrollHeight,
-				totalHeight = 0, totalLineIndex = 0, tempLineHeight;
-			if (this._lineHeight) {
-				while (totalLineIndex < lineCount) {
-					tempLineHeight = this._getLineHeight(totalLineIndex);
-					if (totalHeight + tempLineHeight > scroll.y) {
-						break;
-					}
-					totalHeight += tempLineHeight;
-					totalLineIndex++;
-				}
-				topIndex = totalLineIndex;
-				lineStart = Math.max(0, topIndex - 1);
-				topIndexY = top = scroll.y - totalHeight;
-				if (topIndex > 0) {
-					top += this._getLineHeight(topIndex - 1);
-				}
-			} else {
-				var firstLine = Math.max(0, scroll.y) / lineHeight;
-				topIndex = Math.floor(firstLine);
-				lineStart = Math.max(0, topIndex - 1);
-				top = Math.round((firstLine - lineStart) * lineHeight);
-				topIndexY = Math.round((firstLine - topIndex) * lineHeight);
-				scrollHeight = lineCount * lineHeight;
-			}
-			this._topIndexY = topIndexY;
-			var parent = this._parent;
-			var parentWidth = parent.clientWidth;
-			var parentHeight = parent.clientHeight;
-			clientHeight = this._getClientHeight();
-			if (hScrollOnly) {
-				leftWidth = 0;
-				if (this._leftDiv) {
-					leftRect = this._leftDiv.getBoundingClientRect();
-					leftWidth = leftRect.right - leftRect.left;
-				}
-				scrollWidth = clientWidth;
-				if (!this._wrapMode) {
-					scrollWidth = Math.max(this._maxLineWidth, scrollWidth);
-				}
-				while (totalLineIndex < lineCount) {
-					tempLineHeight = this._getLineHeight(totalLineIndex, false);
-					totalHeight += tempLineHeight;
-					totalLineIndex++;
-				}
-				scrollHeight = totalHeight;
-			} else {
-
-				var viewDiv = this._viewDiv;
-				var linesPerPage = Math.floor((clientHeight + topIndexY) / lineHeight);
-				var bottomIndex = Math.min(topIndex + linesPerPage, lineCount - 1);
-				var lineEnd = Math.min(bottomIndex + 1, lineCount - 1);
-				
-				var lineIndex, lineWidth;
-				var child = clientDiv.firstChild;
-				while (child) {
-					lineIndex = child.lineIndex;
-					var nextChild = child.nextSibling;
-					if (!(lineStart <= lineIndex && lineIndex <= lineEnd) || child.lineRemoved || child.lineIndex === -1) {
-						if (this._mouseWheelLine === child) {
-							child.style.display = "none"; //$NON-NLS-0$
-							child.lineIndex = -1;
-						} else {
-							clientDiv.removeChild(child);
-						}
-					}
-					child = nextChild;
-				}
-	
-				child = this._getLineNext();
-				var document = viewDiv.ownerDocument;
-				var frag = document.createDocumentFragment();
-				for (lineIndex=lineStart; lineIndex<=lineEnd; lineIndex++) {
-					if (!child || child.lineIndex > lineIndex) {
-						new TextLine(this, lineIndex).create(frag, null);
-					} else {
-						if (frag.firstChild) {
-							clientDiv.insertBefore(frag, child);
-							frag = document.createDocumentFragment();
-						}
-						if (child && child.lineChanged) {
-							child = new TextLine(this, lineIndex).create(frag, child);
-							child.lineChanged = false;
-						}
-						child = this._getLineNext(child);
-					}
-				}
-				if (frag.firstChild) { clientDiv.insertBefore(frag, child); }
-	
-				/*
-				* Feature in WekKit. Webkit limits the width of the lines
-				* computed below to the width of the client div.  This causes
-				* the lines to be wrapped even though "pre" is set.  The fix
-				* is to set the width of the client div to "0x7fffffffpx"
-				* before computing the lines width.  Note that this value is
-				* reset to the appropriate value further down.
-				*/ 
-				if (util.isWebkit && !this._wrapMode) {
-					clientDiv.style.width = "0x7fffffffpx"; //$NON-NLS-0$
-				}
-	
-				var rect;
-				child = this._getLineNext();
-				var bottomHeight = clientHeight + top;
-				var foundBottomIndex = false;
-				while (child) {
-					lineWidth = child.lineWidth;
-					if (lineWidth === undefined) {
-						rect = child._line.getBoundingClientRect();
-						lineWidth = child.lineWidth = Math.ceil(rect.right - rect.left);
-						if (this._lineHeight) {
-							this._lineHeight[child.lineIndex] = Math.ceil(rect.bottom - rect.top);
-						}
-					}
-					if (this._lineHeight && !foundBottomIndex) {
-						bottomHeight -= this._lineHeight[child.lineIndex];
-						if (bottomHeight < 0) {
-							bottomIndex = child.lineIndex;
-							foundBottomIndex = true;
-						}
-					}
-					if (!this._wrapMode) {
-						if (lineWidth >= this._maxLineWidth) {
-							this._maxLineWidth = lineWidth;
-							this._maxLineIndex = child.lineIndex;
-						}
-						if (this._checkMaxLineIndex === child.lineIndex) { this._checkMaxLineIndex = -1; }
-					}
-					if (child.lineIndex === topIndex) { this._topChild = child; }
-					if (child.lineIndex === bottomIndex) { this._bottomChild = child; }
-					child = this._getLineNext(child);
-				}
-				if (this._checkMaxLineIndex !== -1) {
-					lineIndex = this._checkMaxLineIndex;
-					this._checkMaxLineIndex = -1;
-					if (0 <= lineIndex && lineIndex < lineCount) {
-						var line = new TextLine(this, lineIndex);
-						rect = line.getBoundingClientRect();
-						lineWidth = rect.right - rect.left;
-						if (lineWidth >= this._maxLineWidth) {
-							this._maxLineWidth = lineWidth;
-							this._maxLineIndex = lineIndex;
-						}
-						line.destroy();
-					}
-				}
-				
-				while (totalLineIndex < lineCount) {
-					tempLineHeight = this._getLineHeight(totalLineIndex, totalLineIndex <= bottomIndex);
-					totalHeight += tempLineHeight;
-					totalLineIndex++;
-				}
-				scrollHeight = totalHeight;
-	
-				// Update rulers
-				this._updateRuler(this._leftDiv, topIndex, lineEnd, parentHeight);
-				this._updateRuler(this._rightDiv, topIndex, lineEnd, parentHeight);
-				
-				leftWidth = 0;
-				if (this._leftDiv) {
-					leftRect = this._leftDiv.getBoundingClientRect();
-					leftWidth = leftRect.right - leftRect.left;
-				}
-				var rightWidth = 0;
-				if (this._rightDiv) {
-					var rightRect = this._rightDiv.getBoundingClientRect();
-					rightWidth = rightRect.right - rightRect.left;
-				}
-				viewDiv.style.left = leftWidth + "px"; //$NON-NLS-0$
-				viewDiv.style.right = rightWidth + "px"; //$NON-NLS-0$
-
-				/* Need to set the height first in order for the width to consider the vertical scrollbar */
-				var scrollDiv = this._scrollDiv;
-				scrollDiv.style.height = scrollHeight + "px"; //$NON-NLS-0$
-				/*
-				* TODO if frameHeightWithoutHScrollbar < scrollHeight  < frameHeightWithHScrollbar and the horizontal bar is visible, 
-				* then the clientWidth is wrong because the vertical scrollbar is showing. To correct code should hide both scrollbars 
-				* at this point.
-				*/
-				clientWidth = this._getClientWidth();
-				var width = clientWidth;
-				if (!this._wrapMode) {
-					width = Math.max(this._maxLineWidth, width);
-				}
-				/*
-				* Except by IE 8 and earlier, all other browsers are not allocating enough space for the right padding 
-				* in the scrollbar. It is possible this a bug since all other paddings are considered.
-				*/
-				scrollWidth = width;
-				if ((!util.isIE || util.isIE >= 9) && this._maxLineWidth > clientWidth) { width += viewPad.right + viewPad.left; }
-				scrollDiv.style.width = width + "px"; //$NON-NLS-0$
-				if (this._clipScrollDiv) {
-					this._clipScrollDiv.style.width = width + "px"; //$NON-NLS-0$
-				}
-				/* Get the left scroll after setting the width of the scrollDiv as this can change the horizontal scroll offset. */
-				scroll = this._getScroll(false);
-			}
-			if (this._vScrollDiv) {
-				var trackHeight = clientHeight - 8;
-				var thumbHeight = Math.max(15, Math.ceil(Math.min(1, trackHeight / (scrollHeight + viewPad.top + viewPad.bottom)) * trackHeight));
-				this._vScrollDiv.style.left = (leftWidth + clientWidth - 8) + "px"; //$NON-NLS-0$
-				this._vScrollDiv.style.top = Math.floor(Math.max(0, (scroll.y * trackHeight / scrollHeight))) + "px"; //$NON-NLS-0$
-				this._vScrollDiv.style.height = thumbHeight + "px"; //$NON-NLS-0$
-			}
-			if (!this._wrapMode && this._hScrollDiv) {
-				var trackWidth = clientWidth - 8;
-				var thumbWidth = Math.max(15, Math.ceil(Math.min(1, trackWidth / (this._maxLineWidth + viewPad.left + viewPad.right)) * trackWidth));
-				this._hScrollDiv.style.left = leftWidth + Math.floor(Math.max(0, Math.floor(scroll.x * trackWidth / this._maxLineWidth))) + "px"; //$NON-NLS-0$
-				this._hScrollDiv.style.top = (clientHeight - 9) + "px"; //$NON-NLS-0$
-				this._hScrollDiv.style.width = thumbWidth + "px"; //$NON-NLS-0$
-			}
-			var left = scroll.x;	
-			var clipDiv = this._clipDiv;
-			var overlayDiv = this._overlayDiv;
-			var clipLeft, clipTop;
-			if (clipDiv) {
-				clipDiv.scrollLeft = left;			
-				clipLeft = leftWidth + viewPad.left;
-				clipTop = viewPad.top;
-				var clipWidth = clientWidth;
-				var clipHeight = clientHeight;
-				var clientLeft = 0, clientTop = -top;
-				if (scroll.x === 0) {
-					clipLeft -= viewPad.left;
-					clipWidth += viewPad.left;
-					clientLeft = viewPad.left;
-				} 
-				if (scroll.x + clientWidth === scrollWidth) {
-					clipWidth += viewPad.right;
-				}
-				if (scroll.y === 0) {
-					clipTop -= viewPad.top;
-					clipHeight += viewPad.top;
-					clientTop += viewPad.top;
-				}
-				if (scroll.y + clientHeight === scrollHeight) { 
-					clipHeight += viewPad.bottom; 
-				}
-				clipDiv.style.left = clipLeft + "px"; //$NON-NLS-0$
-				clipDiv.style.top = clipTop + "px"; //$NON-NLS-0$
-				clipDiv.style.right = (parentWidth - clipWidth - clipLeft) + "px"; //$NON-NLS-0$
-				clipDiv.style.bottom = (parentHeight - clipHeight - clipTop) + "px"; //$NON-NLS-0$
-				clientDiv.style.left = clientLeft + "px"; //$NON-NLS-0$
-				clientDiv.style.top = clientTop + "px"; //$NON-NLS-0$
-				clientDiv.style.width = scrollWidth + "px"; //$NON-NLS-0$
-				clientDiv.style.height = (clientHeight + top) + "px"; //$NON-NLS-0$
-				if (overlayDiv) {
-					overlayDiv.style.left = clientDiv.style.left;
-					overlayDiv.style.top = clientDiv.style.top;
-					overlayDiv.style.width = clientDiv.style.width;
-					overlayDiv.style.height = clientDiv.style.height;
-				}
-			} else {
-				clipLeft = left;
-				clipTop = top;
-				var clipRight = left + clientWidth;
-				var clipBottom = top + clientHeight;
-				if (clipLeft === 0) { clipLeft -= viewPad.left; }
-				if (clipTop === 0) { clipTop -= viewPad.top; }
-				if (clipRight === scrollWidth) { clipRight += viewPad.right; }
-				if (scroll.y + clientHeight === scrollHeight) { clipBottom += viewPad.bottom; }
-				clientDiv.style.clip = "rect(" + clipTop + "px," + clipRight + "px," + clipBottom + "px," + clipLeft + "px)"; //$NON-NLS-4$ //$NON-NLS-3$ //$NON-NLS-2$ //$NON-NLS-1$ //$NON-NLS-0$
-				clientDiv.style.left = (-left + leftWidth + viewPad.left) + "px"; //$NON-NLS-0$
-				clientDiv.style.width = (util.isWebkit ? scrollWidth : clientWidth + left) + "px"; //$NON-NLS-0$
-				if (!hScrollOnly) {
-					clientDiv.style.top = (-top + viewPad.top) + "px"; //$NON-NLS-0$
-					clientDiv.style.height = (clientHeight + top) + "px"; //$NON-NLS-0$
-				}
-				if (overlayDiv) {
-					overlayDiv.style.clip = clientDiv.style.clip;
-					overlayDiv.style.left = clientDiv.style.left;
-					overlayDiv.style.width = clientDiv.style.width;
-					if (!hScrollOnly) {
-						overlayDiv.style.top = clientDiv.style.top;
-						overlayDiv.style.height = clientDiv.style.height;
-					}
-				}
-			}
-			this._updateDOMSelection();
-
-			/*
-			* If the client height changed during the update page it means that scrollbar has either been shown or hidden.
-			* When this happens update page has to run again to ensure that the top and bottom lines div are correct.
-			* 
-			* Note: On IE, updateDOMSelection() has to be called before getting the new client height because it
-			* forces the client area to be recomputed.
-			*/
-			var ensureCaretVisible = this._ensureCaretVisible;
-			this._ensureCaretVisible = false;
-			if (clientHeight !== this._getClientHeight()) {
-				this._update();
-				if (ensureCaretVisible) {
-					this._showCaret();
-				}
-			}
-		},
-		_updateRuler: function (divRuler, topIndex, bottomIndex, parentHeight) {
-			if (!divRuler) { return; }
-			var document = this._parent.ownerDocument;
-			var lineHeight = this._getLineHeight();
-			var viewPad = this._getViewPadding();
-			var div = divRuler.firstChild;
-			while (div) {
-				var ruler = div._ruler;
-				var offset = lineHeight;
-				var overview = ruler.getOverview();
-				if (overview === "page") { offset += this._topIndexY; } //$NON-NLS-0$
-				div.style.top = -offset + "px"; //$NON-NLS-0$
-				div.style.height = (parentHeight + offset) + "px"; //$NON-NLS-0$
-				
-				if (div.rulerChanged) {
-					applyStyle(ruler.getRulerStyle(), div);
-				}
-				
-				var widthDiv;
-				var child = div.firstChild;
-				if (child) {
-					widthDiv = child;
-					child = child.nextSibling;
-				} else {
-					widthDiv = util.createElement(document, "div"); //$NON-NLS-0$
-					widthDiv.style.visibility = "hidden"; //$NON-NLS-0$
-					div.appendChild(widthDiv);
-				}
-				var lineIndex, annotation;
-				if (div.rulerChanged) {
-					if (widthDiv) {
-						lineIndex = -1;
-						annotation = ruler.getWidestAnnotation();
-						if (annotation) {
-							applyStyle(annotation.style, widthDiv);
-							if (annotation.html) {
-								widthDiv.innerHTML = annotation.html;
-							}
-						}
-						widthDiv.lineIndex = lineIndex;
-						widthDiv.style.height = (lineHeight + viewPad.top) + "px"; //$NON-NLS-0$
-					}
-				}
-
-				var lineDiv, frag, annotations;
-				if (overview === "page") { //$NON-NLS-0$
-					annotations = ruler.getAnnotations(topIndex, bottomIndex + 1);
-					while (child) {
-						lineIndex = child.lineIndex;
-						var nextChild = child.nextSibling;
-						if (!(topIndex <= lineIndex && lineIndex <= bottomIndex) || child.lineChanged) {
-							div.removeChild(child);
-						}
-						child = nextChild;
-					}
-					child = div.firstChild.nextSibling;
-					frag = document.createDocumentFragment();
-					for (lineIndex=topIndex; lineIndex<=bottomIndex; lineIndex++) {
-						if (!child || child.lineIndex > lineIndex) {
-							lineDiv = util.createElement(document, "div"); //$NON-NLS-0$
-							annotation = annotations[lineIndex];
-							if (annotation) {
-								applyStyle(annotation.style, lineDiv);
-								if (annotation.html) {
-									lineDiv.innerHTML = annotation.html;
-								}
-								lineDiv.annotation = annotation;
-							}
-							lineDiv.lineIndex = lineIndex;
-							lineDiv.style.height = this._getLineHeight(lineIndex) + "px"; //$NON-NLS-0$
-							frag.appendChild(lineDiv);
-						} else {
-							if (frag.firstChild) {
-								div.insertBefore(frag, child);
-								frag = document.createDocumentFragment();
-							}
-							if (child) {
-								child = child.nextSibling;
-							}
-						}
-					}
-					if (frag.firstChild) { div.insertBefore(frag, child); }
-				} else {
-					var clientHeight = this._getClientHeight ();
-					var lineCount = this._model.getLineCount ();
-					var contentHeight = lineHeight * lineCount;
-					var trackHeight = clientHeight + viewPad.top + viewPad.bottom - 2 * this._metrics.scrollWidth;
-					var divHeight;
-					if (contentHeight < trackHeight) {
-						divHeight = lineHeight;
-					} else {
-						divHeight = trackHeight / lineCount;
-					}
-					if (div.rulerChanged) {
-						var count = div.childNodes.length;
-						while (count > 1) {
-							div.removeChild(div.lastChild);
-							count--;
-						}
-						annotations = ruler.getAnnotations(0, lineCount);
-						frag = document.createDocumentFragment();
-						for (var prop in annotations) {
-							lineIndex = prop >>> 0;
-							if (lineIndex < 0) { continue; }
-							lineDiv = util.createElement(document, "div"); //$NON-NLS-0$
-							annotation = annotations[prop];
-							applyStyle(annotation.style, lineDiv);
-							lineDiv.style.position = "absolute"; //$NON-NLS-0$
-							lineDiv.style.top = this._metrics.scrollWidth + lineHeight + Math.floor(lineIndex * divHeight) + "px"; //$NON-NLS-0$
-							if (annotation.html) {
-								lineDiv.innerHTML = annotation.html;
-							}
-							lineDiv.annotation = annotation;
-							lineDiv.lineIndex = lineIndex;
-							frag.appendChild(lineDiv);
-						}
-						div.appendChild(frag);
-					} else if (div._oldTrackHeight !== trackHeight) {
-						lineDiv = div.firstChild ? div.firstChild.nextSibling : null;
-						while (lineDiv) {
-							lineDiv.style.top = this._metrics.scrollWidth + lineHeight + Math.floor(lineDiv.lineIndex * divHeight) + "px"; //$NON-NLS-0$
-							lineDiv = lineDiv.nextSibling;
-						}
-					}
-					div._oldTrackHeight = trackHeight;
-				}
-				div.rulerChanged = false;
-				div = div.nextSibling;
-			}
-		},
-		_updateStyleSheet: function() {
-			var styleText = "";
-			if (util.isWebkit && this._metrics.scrollWidth > 0) {
-				styleText += "\n.textview ::-webkit-scrollbar-corner {background: #eeeeee;}"; //$NON-NLS-0$
-			}
-			if (util.isFirefox && util.isMac && this._highlightRGB && this._highlightRGB !== "Highlight") { //$NON-NLS-0$
-				styleText += "\n.textview ::-moz-selection {background: " + this._highlightRGB + ";}"; //$NON-NLS-1$ //$NON-NLS-0$
-			}
-			if (styleText) {
-				var node = document.getElementById("_textviewStyle"); //$NON-NLS-0$
-				if (!node) {
-					node = util.createElement(document, "style"); //$NON-NLS-0$
-					node.id = "_textviewStyle"; //$NON-NLS-0$
-					var head = document.getElementsByTagName("head")[0] || document.documentElement; //$NON-NLS-0$
-					node.appendChild(document.createTextNode(styleText));
-					head.insertBefore(node, head.firstChild);
-				} else {
-					node.removeChild(node.firstChild);
-					node.appendChild(document.createTextNode(styleText));
-				}
-			}
-		},
-		_updateStyle: function (init) {
-			if (!init && util.isIE) {
-				this._rootDiv.style.lineHeight = "normal"; //$NON-NLS-0$
-			}
-			var metrics = this._metrics = this._calculateMetrics();
-			if (util.isIE) {
-				this._rootDiv.style.lineHeight = (metrics.lineHeight - (metrics.lineTrim.top + metrics.lineTrim.bottom)) + "px"; //$NON-NLS-0$
-			} else {
-				this._rootDiv.style.lineHeight = "normal"; //$NON-NLS-0$
-			}
-			this._updateStyleSheet();
-			if (!init) {
-				this.redraw();
-				this._resetLineWidth();
-			}
-		}
-	};//end prototype
-	mEventTarget.EventTarget.addMixin(TextView.prototype);
-	
-	return {TextView: TextView};
-});
-
-
-/**
- * @license RequireJS i18n 1.0.0 Copyright (c) 2010-2011, The Dojo Foundation All Rights Reserved.
- * Available via the MIT or new BSD license.
- * see: http://github.com/jrburke/requirejs for details
- */
-/*jslint regexp: false, nomen: false, plusplus: false, strict: false */
-/*global require: false, navigator: false, define: false */
-
-/**
- * This plugin handles i18n! prefixed modules. It does the following:
- *
- * 1) A regular module can have a dependency on an i18n bundle, but the regular
- * module does not want to specify what locale to load. So it just specifies
- * the top-level bundle, like "i18n!nls/colors".
- *
- * This plugin will load the i18n bundle at nls/colors, see that it is a root/master
- * bundle since it does not have a locale in its name. It will then try to find
- * the best match locale available in that master bundle, then request all the
- * locale pieces for that best match locale. For instance, if the locale is "en-us",
- * then the plugin will ask for the "en-us", "en" and "root" bundles to be loaded
- * (but only if they are specified on the master bundle).
- *
- * Once all the bundles for the locale pieces load, then it mixes in all those
- * locale pieces into each other, then finally sets the context.defined value
- * for the nls/colors bundle to be that mixed in locale.
- *
- * 2) A regular module specifies a specific locale to load. For instance,
- * i18n!nls/fr-fr/colors. In this case, the plugin needs to load the master bundle
- * first, at nls/colors, then figure out what the best match locale is for fr-fr,
- * since maybe only fr or just root is defined for that locale. Once that best
- * fit is found, all of its locale pieces need to have their bundles loaded.
- *
- * Once all the bundles for the locale pieces load, then it mixes in all those
- * locale pieces into each other, then finally sets the context.defined value
- * for the nls/fr-fr/colors bundle to be that mixed in locale.
- */
-(function () {
-    //regexp for reconstructing the master bundle name from parts of the regexp match
-    //nlsRegExp.exec("foo/bar/baz/nls/en-ca/foo") gives:
-    //["foo/bar/baz/nls/en-ca/foo", "foo/bar/baz/nls/", "/", "/", "en-ca", "foo"]
-    //nlsRegExp.exec("foo/bar/baz/nls/foo") gives:
-    //["foo/bar/baz/nls/foo", "foo/bar/baz/nls/", "/", "/", "foo", ""]
-    //so, if match[5] is blank, it means this is the top bundle definition.
-    var nlsRegExp = /(^.*(^|\/)nls(\/|$))([^\/]*)\/?([^\/]*)/,
-        empty = {};
-
-    //Helper function to avoid repeating code. Lots of arguments in the
-    //desire to stay functional and support RequireJS contexts without having
-    //to know about the RequireJS contexts.
-    function addPart(locale, master, needed, toLoad, prefix, suffix) {
-        if (master[locale]) {
-            needed.push(locale);
-            if (master[locale] === true || master[locale] === 1) {
-                toLoad.push(prefix + locale + '/' + suffix);
-            }
-        }
-    }
-
-    function addIfExists(req, locale, toLoad, prefix, suffix) {
-        var fullName = prefix + locale + '/' + suffix;
-        if (require._fileExists(req.toUrl(fullName))) {
-            toLoad.push(fullName);
-        }
-    }
-
-    /**
-     * Simple function to mix in properties from source into target,
-     * but only if target does not already have a property of the same name.
-     * This is not robust in IE for transferring methods that match
-     * Object.prototype names, but the uses of mixin here seem unlikely to
-     * trigger a problem related to that.
-     */
-    function mixin(target, source, force) {
-        for (var prop in source) {
-            if (!(prop in empty) && (!(prop in target) || force)) {
-                target[prop] = source[prop];
-            }
-        }
-    }
-
-    define('i18n',{
-        version: '1.0.0',
-        /**
-         * Called when a dependency needs to be loaded.
-         */
-        load: function (name, req, onLoad, config) {
-            config = config || {};
-
-            var masterName,
-                match = nlsRegExp.exec(name),
-                prefix = match[1],
-                locale = match[4],
-                suffix = match[5],
-                parts = locale.split("-"),
-                toLoad = [],
-                value = {},
-                i, part, current = "";
-
-            //If match[5] is blank, it means this is the top bundle definition,
-            //so it does not have to be handled. Locale-specific requests
-            //will have a match[4] value but no match[5]
-            if (match[5]) {
-                //locale-specific bundle
-                prefix = match[1];
-                masterName = prefix + suffix;
-            } else {
-                //Top-level bundle.
-                masterName = name;
-                suffix = match[4];
-                locale = config.locale || (config.locale =
-                        typeof navigator === "undefined" ? "root" :
-                        (navigator.language ||
-                         navigator.userLanguage || "root").toLowerCase());
-                parts = locale.split("-");
-            }
-
-            if (config.isBuild) {
-                //Check for existence of all locale possible files and
-                //require them if exist.
-                toLoad.push(masterName);
-                addIfExists(req, "root", toLoad, prefix, suffix);
-                for (i = 0; (part = parts[i]); i++) {
-                    current += (current ? "-" : "") + part;
-                    addIfExists(req, current, toLoad, prefix, suffix);
-                }
-
-                req(toLoad, function () {
-                    onLoad();
-                });
-            } else {
-                //First, fetch the master bundle, it knows what locales are available.
-                req([masterName], function (master) {
-                    //Figure out the best fit
-                    var needed = [];
-
-                    //Always allow for root, then do the rest of the locale parts.
-                    addPart("root", master, needed, toLoad, prefix, suffix);
-                    for (i = 0; (part = parts[i]); i++) {
-                        current += (current ? "-" : "") + part;
-                        addPart(current, master, needed, toLoad, prefix, suffix);
-                    }
-
-                    //Load all the parts missing.
-                    req(toLoad, function () {
-                        var i, partBundle;
-                        for (i = needed.length - 1; i > -1 && (part = needed[i]); i--) {
-                            partBundle = master[part];
-                            if (partBundle === true || partBundle === 1) {
-                                partBundle = req(prefix + part + '/' + suffix);
-                            }
-                            mixin(value, partBundle);
-                        }
-
-                        //All done, notify the loader.
-                        onLoad(value);
-                    });
-                });
-            }
-        }
-    });
-}());
-
-/*******************************************************************************
- * @license
- * Copyright (c) 2010, 2012 IBM Corporation and others.
- * All rights reserved. This program and the accompanying materials are made 
- * available under the terms of the Eclipse Public License v1.0 
- * (http://www.eclipse.org/legal/epl-v10.html), and the Eclipse Distribution 
- * License v1.0 (http://www.eclipse.org/org/documents/edl-v10.html). 
- * 
- * Contributors: IBM Corporation - initial API and implementation
- ******************************************************************************/
-
-/*global define */
-define('orion/editor/i18n',{
-	load: function(name, parentRequire, onLoad, config) {
-		if (parentRequire.specified && parentRequire.specified("orion/bootstrap")) { //$NON-NLS-0$
-			parentRequire(["orion/i18n!" + name], function(languages) { //$NON-NLS-0$
-				onLoad(languages);
-			});
-		} else {
-			onLoad({});
-		}
-	}
-});
-
-/*******************************************************************************
- * @license
- * Copyright (c) 2012 IBM Corporation and others.
- * All rights reserved. This program and the accompanying materials are made 
- * available under the terms of the Eclipse Public License v1.0 
- * (http://www.eclipse.org/legal/epl-v10.html), and the Eclipse Distribution 
- * License v1.0 (http://www.eclipse.org/org/documents/edl-v10.html). 
- * 
- * Contributors: 
- *		Felipe Heidrich (IBM Corporation) - initial API and implementation
- *		Silenio Quarti (IBM Corporation) - initial API and implementation
- ******************************************************************************/
-
-//NLS_CHARSET=UTF-8
-
-/*global define*/
-
-define('orion/editor/nls/root/messages',{
-	"multipleAnnotations": "Multiple annotations:", //$NON-NLS-1$ //$NON-NLS-0$
-	"line": "Line: ${0}", //$NON-NLS-1$ //$NON-NLS-0$
-	"breakpoint": "Breakpoint", //$NON-NLS-1$ //$NON-NLS-0$
-	"bookmark": "Bookmark", //$NON-NLS-1$ //$NON-NLS-0$
-	"task": "Task", //$NON-NLS-1$ //$NON-NLS-0$
-	"error": "Error", //$NON-NLS-1$ //$NON-NLS-0$
-	"warning": "Warning", //$NON-NLS-1$ //$NON-NLS-0$
-	"matchingSearch": "Matching Search", //$NON-NLS-1$ //$NON-NLS-0$
-	"currentSearch": "Current Search", //$NON-NLS-1$ //$NON-NLS-0$
-	"currentLine": "Current Line", //$NON-NLS-1$ //$NON-NLS-0$
-	"matchingBracket": "Matching Bracket", //$NON-NLS-1$ //$NON-NLS-0$
-	"currentBracket": "Current Bracket", //$NON-NLS-1$ //$NON-NLS-0$
-			
-	"Comment": "Comment",
-	"Flat outline": "Flat outline",
-	"incrementalFind": "Incremental find: ${0}",
-	"incrementalFindNotFound": "Incremental find: ${0} (not found)",
-	"find": "Find...",
-	"undo": "Undo",
-	"redo": "Redo",
-	"cancelMode": "Cancel Current Mode",
-	"findNext": "Find Next Occurrence",
-	"findPrevious": "Find Previous Occurrence",
-	"incrementalFindKey": "Incremental Find",
-	"indentLines": "Indent Lines",
-	"unindentLines": "Unindent Lines",
-	"moveLinesUp": "Move Lines Up",
-	"moveLinesDown": "Move Lines Down",
-	"copyLinesUp": "Copy Lines Up",
-	"copyLinesDown": "Copy Lines Down",
-	"deleteLines": "Delete Lines",
-	"gotoLine": "Goto Line...",
-	"gotoLinePrompty": "Goto Line:",
-	"nextAnnotation": "Next Annotation",
-	"prevAnnotation": "Previous Annotation",
-	"expand": "Expand",
-	"collapse": "Collapse",
-	"expandAll": "Expand All", 
-	"collapseAll": "Collapse All",
-	"lastEdit": "Last Edit Location",
-	"toggleLineComment": "Toggle Line Comment",
-	"addBlockComment": "Add Block Comment",
-	"removeBlockComment": "Remove Block Comment",
-	"linkedModeEntered": "Linked Mode entered",
-	"linkedModeExited": "Linked Mode exited",
-	"syntaxError": "Syntax Error",
-	"contentAssist": "Content Assist",
-	"lineColumn": "Line ${0} : Col ${1}"
-});
-
-/*******************************************************************************
- * @license
- * Copyright (c) 2010, 2012 IBM Corporation and others.
- * All rights reserved. This program and the accompanying materials are made 
- * available under the terms of the Eclipse Public License v1.0 
- * (http://www.eclipse.org/legal/epl-v10.html), and the Eclipse Distribution 
- * License v1.0 (http://www.eclipse.org/org/documents/edl-v10.html). 
- * 
- * Contributors: 
- *		Felipe Heidrich (IBM Corporation) - initial API and implementation
- *		Silenio Quarti (IBM Corporation) - initial API and implementation
- ******************************************************************************/
-
-/*global define*/
-
-define('orion/editor/nls/messages',['orion/editor/i18n!orion/editor/nls/messages', 'orion/editor/nls/root/messages'], function(bundle, root) {
-	var result = {
-		root: root
-	};
-	for (var key in bundle) {
-		if (bundle.hasOwnProperty(key)) {
-			if (typeof result[key] === 'undefined') {
-				result[key] = bundle[key];
-			}
-		}
-	}
-	return result;
-});
-
-/*******************************************************************************
- * @license
- * Copyright (c) 2010, 2012 IBM Corporation and others.
- * All rights reserved. This program and the accompanying materials are made 
- * available under the terms of the Eclipse Public License v1.0 
- * (http://www.eclipse.org/legal/epl-v10.html), and the Eclipse Distribution 
- * License v1.0 (http://www.eclipse.org/org/documents/edl-v10.html). 
- * 
- * Contributors: 
- *		Felipe Heidrich (IBM Corporation) - initial API and implementation
- *		Silenio Quarti (IBM Corporation) - initial API and implementation
- ******************************************************************************/
-
-/*global define */
-
 define("orion/editor/annotations", ['i18n!orion/editor/nls/messages', 'orion/editor/eventTarget'], function(messages, mEventTarget) { //$NON-NLS-2$ //$NON-NLS-1$ //$NON-NLS-0$
 	/**
 	 * @class This object represents a decoration attached to a range of text. Annotations are added to a
@@ -8704,6 +9952,32 @@ define("orion/editor/annotations", ['i18n!orion/editor/nls/messages', 'orion/edi
 	 * Write Occurrence annotation type.
 	 */
 	AnnotationType.ANNOTATION_WRITE_OCCURRENCE = "orion.annotation.writeOccurrence"; //$NON-NLS-0$
+
+	/**
+	 * Selected linked group annotation type.
+	 */
+	AnnotationType.ANNOTATION_SELECTED_LINKED_GROUP = "orion.annotation.selectedLinkedGroup"; //$NON-NLS-0$
+
+	/**
+	 * Current linked group annotation type.
+	 */
+	AnnotationType.ANNOTATION_CURRENT_LINKED_GROUP = "orion.annotation.currentLinkedGroup"; //$NON-NLS-0$
+
+	/**
+	 * Linked group annotation type.
+	 */
+	AnnotationType.ANNOTATION_LINKED_GROUP = "orion.annotation.linkedGroup"; //$NON-NLS-0$
+	
+	/**
+	* Blame annotation type.
+	*/
+	AnnotationType.ANNOTATION_BLAME = "orion.annotation.blame"; //$NON-NLS-0$
+	
+	/**
+	* Current Blame annotation type.
+	*/
+	AnnotationType.ANNOTATION_CURRENT_BLAME = "orion.annotation.currentBlame"; //$NON-NLS-0$
+	
 	
 	/** @private */
 	var annotationTypes = {};
@@ -8722,7 +9996,7 @@ define("orion/editor/annotations", ['i18n!orion/editor/nls/messages', 'orion/edi
 			constructor = function(start, end, title) {
 				this.start = start;
 				this.end = end;
-				if (title) { this.title = title; }
+				if (title !== undefined) { this.title = title; }
 			};
 			constructor.prototype = properties;
 		}
@@ -8785,7 +10059,12 @@ define("orion/editor/annotations", ['i18n!orion/editor/nls/messages', 'orion/edi
 	registerType(AnnotationType.ANNOTATION_MATCHING_SEARCH);
 	registerType(AnnotationType.ANNOTATION_READ_OCCURRENCE);
 	registerType(AnnotationType.ANNOTATION_WRITE_OCCURRENCE);
+	registerType(AnnotationType.ANNOTATION_SELECTED_LINKED_GROUP);
+	registerType(AnnotationType.ANNOTATION_CURRENT_LINKED_GROUP);
+	registerType(AnnotationType.ANNOTATION_LINKED_GROUP);
 	registerType(AnnotationType.ANNOTATION_CURRENT_LINE, true);
+	registerType(AnnotationType.ANNOTATION_BLAME, true);
+	registerType(AnnotationType.ANNOTATION_CURRENT_BLAME, true);
 	AnnotationType.registerType(AnnotationType.ANNOTATION_FOLDING, FoldingAnnotation);
 	
 	/** 
@@ -8819,8 +10098,8 @@ define("orion/editor/annotations", ['i18n!orion/editor/nls/messages', 'orion/edi
 		 *
 		 * @param {Object} type the annotation type to be shown
 		 * 
-		 * @see #removeAnnotationType
-		 * @see #isAnnotationTypeVisible
+		 * @see orion.editor.AnnotationTypeList#removeAnnotationType
+		 * @see orion.editor.AnnotationTypeList#isAnnotationTypeVisible
 		 */
 		addAnnotationType: function(type) {
 			if (!this._annotationTypes) { this._annotationTypes = []; }
@@ -8836,9 +10115,9 @@ define("orion/editor/annotations", ['i18n!orion/editor/nls/messages', 'orion/edi
 		 *
 		 * @param {Object} type the annotation type
 		 * 
-		 * @see #addAnnotationType
-		 * @see #removeAnnotationType
-		 * @see #isAnnotationTypeVisible
+		 * @see orion.editor.AnnotationTypeList#addAnnotationType
+		 * @see orion.editor.AnnotationTypeList#removeAnnotationType
+		 * @see orion.editor.AnnotationTypeList#isAnnotationTypeVisible
 		 */
 		getAnnotationTypePriority: function(type) {
 			if (this._annotationTypes) { 
@@ -8879,8 +10158,8 @@ define("orion/editor/annotations", ['i18n!orion/editor/nls/messages', 'orion/edi
 		 * @param {Object} type the annotation type 
 		 * @returns {Boolean} whether the specified annotation type is shown
 		 * 
-		 * @see #addAnnotationType
-		 * @see #removeAnnotationType
+		 * @see orion.editor.AnnotationTypeList#addAnnotationType
+		 * @see orion.editor.AnnotationTypeList#removeAnnotationType
 		 */
 		isAnnotationTypeVisible: function(type) {
 			return this.getAnnotationTypePriority(type) !== 0;
@@ -8890,8 +10169,8 @@ define("orion/editor/annotations", ['i18n!orion/editor/nls/messages', 'orion/edi
 		 *
 		 * @param {Object} type the annotation type to be removed
 		 * 
-		 * @see #addAnnotationType
-		 * @see #isAnnotationTypeVisible
+		 * @see orion.editor.AnnotationTypeList#addAnnotationType
+		 * @see orion.editor.AnnotationTypeList#isAnnotationTypeVisible
 		 */
 		removeAnnotationType: function(type) {
 			if (!this._annotationTypes) { return; }
@@ -8907,7 +10186,7 @@ define("orion/editor/annotations", ['i18n!orion/editor/nls/messages', 'orion/edi
 	/**
 	 * Constructs an annotation model.
 	 * 
-	 * @param {textModel} textModel The text model.
+	 * @param {orion.editor.TextModel} textModel The text model.
 	 * 
 	 * @class This object manages annotations for a <code>TextModel</code>.
 	 * <p>
@@ -8938,7 +10217,7 @@ define("orion/editor/annotations", ['i18n!orion/editor/nls/messages', 'orion/edi
 		 * 
 		 * @param {orion.editor.Annotation} annotation the annotation to be added.
 		 * 
-		 * @see #removeAnnotation
+		 * @see orion.editor.AnnotationModel#removeAnnotation
 		 */
 		addAnnotation: function(annotation) {
 			if (!annotation) { return; }
@@ -8958,7 +10237,7 @@ define("orion/editor/annotations", ['i18n!orion/editor/nls/messages', 'orion/edi
 		 * 
 		 * @return {orion.editor.TextModel} The text model.
 		 * 
-		 * @see #setTextModel
+		 * @see orion.editor.AnnotationModel#setTextModel
 		 */
 		getTextModel: function() {
 			return this._model;
@@ -9015,7 +10294,7 @@ define("orion/editor/annotations", ['i18n!orion/editor/nls/messages', 'orion/edi
 		 * 
 		 * @param {orion.editor.Annotation} annotation the modified annotation.
 		 * 
-		 * @see #addAnnotation
+		 * @see orion.editor.AnnotationModel#addAnnotation
 		 */
 		modifyAnnotation: function(annotation) {
 			if (!annotation) { return; }
@@ -9047,7 +10326,7 @@ define("orion/editor/annotations", ['i18n!orion/editor/nls/messages', 'orion/edi
 		 * 
 		 * @param {Object} type the type of annotations to be removed.
 		 * 
-		 * @see #removeAnnotation
+		 * @see orion.editor.AnnotationModel#removeAnnotation
 		 */
 		removeAnnotations: function(type) {
 			var annotations = this._annotations;
@@ -9058,8 +10337,8 @@ define("orion/editor/annotations", ['i18n!orion/editor/nls/messages', 'orion/edi
 					var annotation = annotations[i];
 					if (annotation.type === type) {
 						annotations.splice(i, 1);
+						removed.splice(0, 0, annotation);
 					}
-					removed.splice(0, 0, annotation);
 				}
 			} else {
 				removed = annotations;
@@ -9079,7 +10358,7 @@ define("orion/editor/annotations", ['i18n!orion/editor/nls/messages', 'orion/edi
 		 * 
 		 * @param {orion.editor.Annotation} annotation the annotation to be removed.
 		 * 
-		 * @see #addAnnotation
+		 * @see orion.editor.AnnotationModel#addAnnotation
 		 */
 		removeAnnotation: function(annotation) {
 			if (!annotation) { return; }
@@ -9100,8 +10379,8 @@ define("orion/editor/annotations", ['i18n!orion/editor/nls/messages', 'orion/edi
 		 * @param {orion.editor.Annotation} remove the annotations to be removed.
 		 * @param {orion.editor.Annotation} add the annotations to be added.
 		 * 
-		 * @see #addAnnotation
-		 * @see #removeAnnotation
+		 * @see orion.editor.AnnotationModel#addAnnotation
+		 * @see orion.editor.AnnotationModel#removeAnnotation
 		 */
 		replaceAnnotations: function(remove, add) {
 			var annotations = this._annotations, i, index, annotation, removed = [];
@@ -9135,7 +10414,7 @@ define("orion/editor/annotations", ['i18n!orion/editor/nls/messages', 'orion/edi
 		 * 
 		 * @param {orion.editor.TextModel} textModel the text model.
 		 * 
-		 * @see #getTextModel
+		 * @see orion.editor.AnnotationModel#getTextModel
 		 */
 		setTextModel: function(textModel) {
 			if (this._model) {
@@ -9274,6 +10553,11 @@ define("orion/editor/annotations", ['i18n!orion/editor/nls/messages', 'orion/edi
 					result.styleClass = style.styleClass;
 				}
 				var prop;
+				if (style.tagName) {
+					if (!result.tagName) {
+						result.tagName = style.tagName;
+					}
+				}
 				if (style.style) {
 					if (!result.style) { result.style  = {}; }
 					for (prop in style.style) {
@@ -9417,14 +10701,18 @@ define("orion/editor/tooltip", [ //$NON-NLS-0$
 	'orion/editor/textView', //$NON-NLS-0$
 	'orion/editor/textModel', //$NON-NLS-0$
 	'orion/editor/projectionTextModel', //$NON-NLS-0$
+	'orion/editor/util', //$NON-NLS-0$
 	'orion/util' //$NON-NLS-0$
-], function(messages, mTextView, mTextModel, mProjectionTextModel, util) {
+], function(messages, mTextView, mTextModel, mProjectionTextModel, textUtil, util) {
 
 	/** @private */
 	function Tooltip (view) {
 		this._view = view;
+		this._fadeDelay = 500;
+		this._hideDelay = 200;
+		this._showDelay = 500;
+		this._autoHideDelay = 5000;
 		this._create(view.getOptions("parent").ownerDocument); //$NON-NLS-0$
-		view.addEventListener("Destroy", this, this.destroy); //$NON-NLS-0$
 	}
 	Tooltip.getTooltip = function(view) {
 		if (!view._tooltip) {
@@ -9436,13 +10724,50 @@ define("orion/editor/tooltip", [ //$NON-NLS-0$
 		_create: function(document) {
 			if (this._tooltipDiv) { return; }
 			var tooltipDiv = this._tooltipDiv = util.createElement(document, "div"); //$NON-NLS-0$
+			tooltipDiv.tabIndex = 0;
 			tooltipDiv.className = "textviewTooltip"; //$NON-NLS-0$
 			tooltipDiv.setAttribute("aria-live", "assertive"); //$NON-NLS-1$ //$NON-NLS-0$
 			tooltipDiv.setAttribute("aria-atomic", "true"); //$NON-NLS-1$ //$NON-NLS-0$
 			var tooltipContents = this._tooltipContents = util.createElement(document, "div"); //$NON-NLS-0$
 			tooltipDiv.appendChild(tooltipContents);
 			document.body.appendChild(tooltipDiv);
-			this.hide();
+			var self = this;
+			textUtil.addEventListener(tooltipDiv, "mouseover", function(event) { //$NON-NLS-0$
+				if (!self._hideDelay) { return; }
+				var window = self._getWindow();
+				if (self._delayedHideTimeout) {
+					window.clearTimeout(self._delayedHideTimeout);
+					self._delayedHideTimeout = null;
+				}
+				
+				if (self._hideTimeout) {
+					window.clearTimeout(self._hideTimeout);
+					self._hideTimeout = null;
+				}
+				self._nextTarget = null;
+			}, false);
+			textUtil.addEventListener(tooltipDiv, "mouseout", function(event) { //$NON-NLS-0$
+				var relatedTarget = event.relatedTarget || event.toElement;
+				if (relatedTarget === tooltipDiv || self._hasFocus()) { return; }
+				if (relatedTarget) {
+					if (textUtil.contains(tooltipDiv, relatedTarget)) { return; }
+				}
+				self._hide();
+			}, false);
+			textUtil.addEventListener(tooltipDiv, "keydown", function(event) { //$NON-NLS-0$
+				if (event.keyCode === 27) {
+					self._hide();
+				}
+			}, false);
+			textUtil.addEventListener(document, "mousedown", this._mouseDownHandler = function(event) { //$NON-NLS-0$
+				if (!self.isVisible()) { return; }
+				if (textUtil.contains(tooltipDiv, event.target || event.srcElement)) { return; }
+				self._hide();
+			}, true);
+			this._view.addEventListener("Destroy", function() { //$NON-NLS-0$
+				self.destroy();
+			});
+			this._hide();
 		},
 		_getWindow: function() {
 			var document = this._tooltipDiv.ownerDocument;
@@ -9450,12 +10775,46 @@ define("orion/editor/tooltip", [ //$NON-NLS-0$
 		},
 		destroy: function() {
 			if (!this._tooltipDiv) { return; }
-			this.hide();
+			this._hide();
 			var parent = this._tooltipDiv.parentNode;
 			if (parent) { parent.removeChild(this._tooltipDiv); }
+			var document = this._tooltipDiv.ownerDocument;
+			textUtil.removeEventListener(document, "mousedown", this._mouseDownHandler, true); //$NON-NLS-0$
 			this._tooltipDiv = null;
 		},
-		hide: function() {
+		_hasFocus: function() {
+			var tooltipDiv = this._tooltipDiv;
+			if (!tooltipDiv) { return false; }
+			var document = tooltipDiv.ownerDocument;
+			return textUtil.contains(tooltipDiv, document.activeElement);
+		},
+		hide: function(hideDelay) {
+			if (hideDelay === undefined) {
+				hideDelay = this._hideDelay;
+			}
+			var window = this._getWindow();
+			if (this._delayedHideTimeout) {
+				window.clearTimeout(this._delayedHideTimeout);
+				this._delayedHideTimeout = null;
+			}
+			var self = this;
+			if (!hideDelay) {
+				self._hide();
+				self.setTarget(self._nextTarget, 0);
+			} else {
+				self._delayedHideTimeout = window.setTimeout(function() {
+					self._delayedHideTimeout = null;
+					self._hide();
+					self.setTarget(self._nextTarget, 0);
+				}, hideDelay);
+			}
+		},
+		_hide: function() {
+			var tooltipDiv = this._tooltipDiv;
+			if (!tooltipDiv) { return; }
+			if (this._hasFocus()) {
+				this._view.focus();
+			}
 			if (this._contentsView) {
 				this._contentsView.destroy();
 				this._contentsView = null;
@@ -9463,13 +10822,15 @@ define("orion/editor/tooltip", [ //$NON-NLS-0$
 			if (this._tooltipContents) {
 				this._tooltipContents.innerHTML = "";
 			}
-			if (this._tooltipDiv) {
-				this._tooltipDiv.style.visibility = "hidden"; //$NON-NLS-0$
-			}
+			tooltipDiv.style.visibility = "hidden"; //$NON-NLS-0$
 			var window = this._getWindow();
 			if (this._showTimeout) {
 				window.clearTimeout(this._showTimeout);
 				this._showTimeout = null;
+			}
+			if (this._delayedHideTimeout) {
+				window.clearTimeout(this._delayedHideTimeout);
+				this._delayedHideTimeout = null;
 			}
 			if (this._hideTimeout) {
 				window.clearTimeout(this._hideTimeout);
@@ -9483,20 +10844,29 @@ define("orion/editor/tooltip", [ //$NON-NLS-0$
 		isVisible: function() {
 			return this._tooltipDiv && this._tooltipDiv.style.visibility === "visible"; //$NON-NLS-0$
 		},
-		setTarget: function(target, delay) {
-			if (this.target === target) { return; }
-			this._target = target;
-			this.hide();
-			if (target) {
-				var self = this;
-				if(delay === 0) {
-					self.show(true);
-				}
-				else {
-				var window = this._getWindow();
-					self._showTimeout = window.setTimeout(function() {
+		setTarget: function(target, delay, hideDelay) {
+			var visible = this.isVisible();
+			if (visible) {
+				if (this._hasFocus()) { return; }
+				this._nextTarget = target;
+				this.hide(hideDelay);
+			} else {
+				this._target = target;
+				if (target) {
+					var self = this;
+					var window = self._getWindow();
+					if (self._showTimeout) {
+						window.clearTimeout(self._showTimeout);
+						self._showTimeout = null;
+					}
+					if (delay === 0) {
 						self.show(true);
-					}, delay ? delay : 500);
+					} else {
+						self._showTimeout = window.setTimeout(function() {
+							self._showTimeout = null;
+							self.show(true);
+						}, delay ? delay : self._showDelay);
+					}
 				}
 			}
 		},
@@ -9520,7 +10890,7 @@ define("orion/editor/tooltip", [ //$NON-NLS-0$
 				var options = view.getOptions();
 				options.wrapMode = false;
 				options.parent = tooltipContents;
-				var tooltipTheme = "tooltip"; //$NON-NLS-0$
+				var tooltipTheme = "tooltipTheme"; //$NON-NLS-0$
 				var theme = options.themeClass;
 				if (theme) {
 					theme = theme.replace(tooltipTheme, "");
@@ -9531,8 +10901,6 @@ define("orion/editor/tooltip", [ //$NON-NLS-0$
 				}
 				options.themeClass = theme;
 				var contentsView = this._contentsView = new mTextView.TextView(options);
-				//TODO this is need to avoid Firefox from getting focus
-				contentsView._clientDiv.contentEditable = false;
 				//TODO need to find a better way of sharing the styler for multiple views
 				var listener = {
 					onLineStyle: function(e) {
@@ -9571,6 +10939,7 @@ define("orion/editor/tooltip", [ //$NON-NLS-0$
 				var self = this;
 				var window = this._getWindow();
 				self._hideTimeout = window.setTimeout(function() {
+					self._hideTimeout = null;
 					var opacity = parseFloat(self._getNodeStyle(tooltipDiv, "opacity", "1")); //$NON-NLS-1$ //$NON-NLS-0$
 					self._fadeTimeout = window.setInterval(function() {
 						if (tooltipDiv.style.visibility === "visible" && opacity > 0) { //$NON-NLS-0$
@@ -9578,16 +10947,29 @@ define("orion/editor/tooltip", [ //$NON-NLS-0$
 							tooltipDiv.style.opacity = opacity;
 							return;
 						}
-						self.hide();
-					}, 50);
-				}, 5000);
+						self._hide();
+					}, self._fadeDelay / 10);
+				}, self._autoHideDelay);
 			}
 		},
 		_getAnnotationContents: function(annotations) {
+			var annotation;
+			var newAnnotations = [];
+			for (var j = 0; j < annotations.length; j++) {
+				annotation = annotations[j];
+				if (annotation.title !== "" && !annotation.groupAnnotation) { 
+					newAnnotations.push(annotation); 
+				}
+			}
+			annotations = newAnnotations;
 			if (annotations.length === 0) {
 				return null;
 			}
-			var model = this._view.getModel(), annotation;
+			var self = this;
+			var html;
+			var document = this._tooltipDiv.ownerDocument;
+			var view = this._view;
+			var model = view.getModel();
 			var baseModel = model.getBaseModel ? model.getBaseModel() : model;
 			function getText(start, end) {
 				var textStart = baseModel.getLineStart(baseModel.getLineAtOffset(start));
@@ -9596,22 +10978,48 @@ define("orion/editor/tooltip", [ //$NON-NLS-0$
 			}
 			function getAnnotationHTML(annotation) {
 				var title = annotation.title;
-				if (title === "") { return null; }
-				var result = "<div>"; //$NON-NLS-0$
+				var result = util.createElement(document, "div"); //$NON-NLS-0$
+				result.className = "tooltipRow"; //$NON-NLS-0$
 				if (annotation.html) {
-					result += annotation.html + "&nbsp;"; //$NON-NLS-0$
+					result.innerHTML = annotation.html;
+					if (result.lastChild) {
+						textUtil.addEventListener(result.lastChild, "click", function(event) { //$NON-NLS-0$
+							var start = annotation.start, end = annotation.end;
+							if (model.getBaseModel) {
+								start = model.mapOffset(start, true);
+								end = model.mapOffset(end, true);
+							}
+							view.setSelection(start, end, 1 / 3, function() { self._hide(); });
+						}, false);
+					}
+					result.appendChild(document.createTextNode("\u00A0")); //$NON-NLS-0$
 				}
 				if (!title) {
 					title = getText(annotation.start, annotation.end);
 				}
-				title = title.replace(/</g, "&lt;").replace(/>/g, "&gt;"); //$NON-NLS-1$ //$NON-NLS-0$
-				result += "<span style='vertical-align:middle;'>" + title + "</span><div>"; //$NON-NLS-1$ //$NON-NLS-0$
+				if (typeof title === "function") { //$NON-NLS-0$
+					title = annotation.title();
+				}
+				if (typeof title === "string") { //$NON-NLS-0$
+					var span = util.createElement(document, "span"); //$NON-NLS-0$
+//					span.className = "tooltipTitle"; //$NON-NLS-0$
+					span.appendChild(document.createTextNode(title));
+					title = span;
+				}
+				result.appendChild(title);
 				return result;
 			}
 			if (annotations.length === 1) {
 				annotation = annotations[0];
 				if (annotation.title !== undefined) {
-					return getAnnotationHTML(annotation);
+					html = getAnnotationHTML(annotation);
+					if (html.firstChild) {
+						var className = html.firstChild.className;
+						if (className) { className += " "; } //$NON-NLS-0$
+						className += "single"; //$NON-NLS-0$
+						html.firstChild.className = className;
+					}
+					return html;
 				} else {
 					var newModel = new mProjectionTextModel.ProjectionTextModel(baseModel);
 					var lineStart = baseModel.getLineStart(baseModel.getLineAtOffset(annotation.start));
@@ -9625,12 +11033,15 @@ define("orion/editor/tooltip", [ //$NON-NLS-0$
 					return newModel;
 				}
 			} else {
-				var tooltipHTML = "<div><em>" + messages.multipleAnnotations + "</em></div>"; //$NON-NLS-1$ //$NON-NLS-0$
+				var tooltipHTML = util.createElement(document, "div"); //$NON-NLS-0$
+				var em = util.createElement(document, "em"); //$NON-NLS-0$
+				em.appendChild(document.createTextNode(messages.multipleAnnotations));
+				tooltipHTML.appendChild(em);
 				for (var i = 0; i < annotations.length; i++) {
 					annotation = annotations[i];
-					var html = getAnnotationHTML(annotation);
+					html = getAnnotationHTML(annotation);
 					if (html) {
-						tooltipHTML += html;
+						tooltipHTML.appendChild(html);
 					}
 				}
 				return tooltipHTML;
@@ -9788,7 +11199,7 @@ define("orion/editor/rulers", ['i18n!orion/editor/nls/messages', 'orion/editor/a
 		 *
 		 * @returns {orion.editor.AnnotationModel} the ruler annotation model.
 		 *
-		 * @see #setAnnotationModel
+		 * @see orion.editor.Ruler#setAnnotationModel
 		 */
 		getAnnotationModel: function() {
 			return this._annotationModel;
@@ -9798,7 +11209,7 @@ define("orion/editor/rulers", ['i18n!orion/editor/nls/messages', 'orion/editor/a
 		 *
 		 * @returns {String} the ruler location, which is either "left" or "right".
 		 *
-		 * @see #getOverview
+		 * @see orion.editor.Ruler#getOverview
 		 */
 		getLocation: function() {
 			return this._location;
@@ -9808,7 +11219,7 @@ define("orion/editor/rulers", ['i18n!orion/editor/nls/messages', 'orion/editor/a
 		 *
 		 * @returns {String} the overview type, which is either "page" or "document".
 		 *
-		 * @see #getLocation
+		 * @see orion.editor.Ruler#getLocation
 		 */
 		getOverview: function() {
 			return this._overview;
@@ -9826,7 +11237,7 @@ define("orion/editor/rulers", ['i18n!orion/editor/nls/messages', 'orion/editor/a
 		 *
 		 * @returns {orion.editor.TextView} the text view.
 		 *
-		 * @see #setView
+		 * @see orion.editor.Ruler#setView
 		 */
 		getView: function() {
 			return this._view;
@@ -9843,7 +11254,7 @@ define("orion/editor/rulers", ['i18n!orion/editor/nls/messages', 'orion/editor/a
 		 *
 		 * @returns {orion.editor.Annotation} the widest annotation.
 		 *
-		 * @see #getAnnotations
+		 * @see orion.editor.Ruler#getAnnotations
 		 */
 		getWidestAnnotation: function() {
 			return null;
@@ -9853,7 +11264,7 @@ define("orion/editor/rulers", ['i18n!orion/editor/nls/messages', 'orion/editor/a
 		 *
 		 * @param {orion.editor.AnnotationModel} annotationModel the annotation model.
 		 *
-		 * @see #getAnnotationModel
+		 * @see orion.editor.Ruler#getAnnotationModel
 		 */
 		setAnnotationModel: function (annotationModel) {
 			if (this._annotationModel) {
@@ -9871,7 +11282,7 @@ define("orion/editor/rulers", ['i18n!orion/editor/nls/messages', 'orion/editor/a
 		 *
 		 * @param {orion.editor.Annotation} annotation the annotation for lines with multiple annotations.
 		 * 
-		 * @see #setMultiAnnotationOverlay
+		 * @see orion.editor.Ruler#setMultiAnnotationOverlay
 		 */
 		setMultiAnnotation: function(annotation) {
 			this._multiAnnotation = annotation;
@@ -9883,7 +11294,7 @@ define("orion/editor/rulers", ['i18n!orion/editor/nls/messages', 'orion/editor/a
 		 *
 		 * @param {orion.editor.Annotation} annotation the annotation overlay for lines with multiple annotations.
 		 * 
-		 * @see #setMultiAnnotation
+		 * @see orion.editor.Ruler#setMultiAnnotation
 		 */
 		setMultiAnnotationOverlay: function(annotation) {
 			this._multiAnnotationOverlay = annotation;
@@ -9918,15 +11329,14 @@ define("orion/editor/rulers", ['i18n!orion/editor/nls/messages', 'orion/editor/a
 			var view = this._view;
 			var model = view.getModel();
 			var baseModel = model;
-			var start = model.getLineStart(lineIndex);
+			var start = model.getLineStart(lineIndex), lineStart = start;
 			var end = start;
 			var annotationModel = this._annotationModel;
 			if (annotationModel) {
 				var selection = view.getSelection();
-				var offset = Math.max(selection.start, selection.end);
 				end = model.getLineEnd(lineIndex, true);
-				if (start <= offset && offset < model.getLineEnd(lineIndex)) {
-					start = offset + 1;
+				if (start <= selection.start && selection.start < end) {
+					start = selection.start;
 				}
 				if (model.getBaseModel) {
 					start = model.mapOffset(start);
@@ -9934,16 +11344,27 @@ define("orion/editor/rulers", ['i18n!orion/editor/nls/messages', 'orion/editor/a
 					baseModel = model.getBaseModel();
 				}
 				var annotation, iter = annotationModel.getAnnotations(start, end);
+				var clickedAnnotation = null;
 				while (!annotation && iter.hasNext()) {
 					var a = iter.next();
 					if (!this.isAnnotationTypeVisible(a.type)) { continue; }
-					annotation = a;
+					clickedAnnotation = a;
+					if (a.start <= start) { continue; }
+					annotation = a; 
 				}
+				if (clickedAnnotation && clickedAnnotation.groupId !== undefined) {
+					if (this._currentClickGroup === clickedAnnotation.groupId) {
+						this._currentClickGroup = null;
+					} else {
+						this._currentClickGroup = clickedAnnotation.groupId;
+					}
+					this._setCurrentGroup(lineIndex);
+				} 
 				if (annotation && baseModel.getLineAtOffset(annotation.start) === baseModel.getLineAtOffset(start)) {
 					start = annotation.start;
 					end = annotation.end;
 				} else {
-					end = start;
+					end = start = lineStart;
 				}
 				
 				if (model.getBaseModel) {
@@ -9995,6 +11416,9 @@ define("orion/editor/rulers", ['i18n!orion/editor/nls/messages', 'orion/editor/a
 		 */
 		onMouseOver: function(lineIndex, e) {
 			this.onMouseMove(lineIndex, e);
+			if (!this._currentClickGroup) {
+				this._setCurrentGroup(lineIndex);
+			}
 		},
 		/**
 		 * This event is sent when the mouse pointer exits a line annotation.
@@ -10004,6 +11428,9 @@ define("orion/editor/rulers", ['i18n!orion/editor/nls/messages', 'orion/editor/a
 		 * @param {DOMEvent} e the mouse out event.
 		 */
 		onMouseOut: function(lineIndex, e) {
+			if (!this._currentClickGroup) {
+				this._setCurrentGroup(-1);
+			}
 			var tooltip = mTooltip.Tooltip.getTooltip(this._view);
 			if (!tooltip) { return; }
 			tooltip.setTarget(null);
@@ -10110,7 +11537,7 @@ define("orion/editor/rulers", ['i18n!orion/editor/nls/messages', 'orion/editor/a
 				if (style.style) {
 					if (!result.style) { result.style  = {}; }
 					for (prop in style.style) {
-						if (!result.style[prop]) {
+						if (result.style[prop] === undefined) {
 							result.style[prop] = style.style[prop];
 						}
 					}
@@ -10118,13 +11545,64 @@ define("orion/editor/rulers", ['i18n!orion/editor/nls/messages', 'orion/editor/a
 				if (style.attributes) {
 					if (!result.attributes) { result.attributes  = {}; }
 					for (prop in style.attributes) {
-						if (!result.attributes[prop]) {
+						if (result.attributes[prop] === undefined) {
 							result.attributes[prop] = style.attributes[prop];
 						}
 					}
 				}
 			}
 			return result;
+		},
+		_setCurrentGroup: function(lineIndex) {
+			var annotationModel = this._annotationModel;
+			var groupAnnotation = null;
+			var model = annotationModel.getTextModel();
+			var annotation;
+			var annotations;
+			var currentGroupAnnotation = this._currentGroupAnnotation;
+			if (lineIndex !== -1) {
+				var start = model.getLineStart(lineIndex);
+				var end = model.getLineEnd(lineIndex);
+				if (model.getBaseModel) {
+					start = model.mapOffset(start);
+					end = model.mapOffset(end);
+				}
+				annotations = annotationModel.getAnnotations(start, end);
+				while(annotations.hasNext()){
+					annotation = annotations.next();
+					if (!this.isAnnotationTypeVisible(annotation.type)) { continue; }
+					if (annotation.start <= start && annotation.end >= end){
+						if (annotation.groupId !== undefined) {
+							groupAnnotation = annotation;
+							break;
+						}
+					}
+				}
+				if (currentGroupAnnotation && groupAnnotation) {
+					if (currentGroupAnnotation.groupId === groupAnnotation.groupId) {
+						return;
+					}
+				}
+			}
+			this._currentGroupAnnotation = null;
+			if (currentGroupAnnotation) {
+				annotationModel.removeAnnotations(currentGroupAnnotation.groupType);
+			}
+			if (!groupAnnotation) { return; }
+			
+			if (lineIndex === -1) { return; }
+			this._currentGroupAnnotation = groupAnnotation;
+			annotations = annotationModel.getAnnotations(0, model.getCharCount());
+			var add = [];
+			while (annotations.hasNext()) {
+				annotation = annotations.next();
+				delete annotation.groupAnnotation;
+				if (annotation.groupId === groupAnnotation.groupId) {
+					annotation = annotation.createGroupAnnotation();
+					add.push(annotation);
+				}
+			}
+			annotationModel.replaceAnnotations(null, add);
 		}
 	};
 	mAnnotations.AnnotationTypeList.addMixin(Ruler.prototype);
@@ -10151,6 +11629,7 @@ define("orion/editor/rulers", ['i18n!orion/editor/nls/messages', 'orion/editor/a
 		this._oddStyle = oddStyle || {style: {backgroundColor: "white"}}; //$NON-NLS-0$
 		this._evenStyle = evenStyle || {style: {backgroundColor: "white"}}; //$NON-NLS-0$
 		this._numOfDigits = 0;
+		this._firstLine = 1;
 	}
 	LineNumberRuler.prototype = new Ruler(); 
 	/** @ignore */
@@ -10165,7 +11644,7 @@ define("orion/editor/rulers", ['i18n!orion/editor/nls/messages', 'orion/editor/a
 				mapLine = model.getBaseModel().getLineAtOffset(model.mapOffset(lineStart));
 			}
 			if (!result[lineIndex]) { result[lineIndex] = {}; }
-			result[lineIndex].html = (mapLine + 1) + "";
+			result[lineIndex].html = (this._firstLine + mapLine) + "";
 			if (!result[lineIndex].style) { result[lineIndex].style = style; }
 		}
 		return result;
@@ -10175,12 +11654,21 @@ define("orion/editor/rulers", ['i18n!orion/editor/nls/messages', 'orion/editor/a
 		var lineCount = this._view.getModel().getLineCount();
 		return this.getAnnotations(lineCount - 1, lineCount)[lineCount - 1];
 	};
+	/**
+	 * Sets the line index displayed for the first line. The default value is
+	 * <code>1</code>.
+	 *
+	 * @param {Number} [lineIndex=1] the first line index displayed
+	 */
+	LineNumberRuler.prototype.setFirstLine = function(lineIndex) {
+		this._firstLine = lineIndex !== undefined ? lineIndex : 1;
+	};
 	/** @ignore */
 	LineNumberRuler.prototype._onTextModelChanged = function(e) {
 		var start = e.start;
 		var model = this._view.getModel();
 		var lineCount = model.getBaseModel ? model.getBaseModel().getLineCount() : model.getLineCount();
-		var numOfDigits = (lineCount+"").length;
+		var numOfDigits = ((this._firstLine + lineCount - 1)+"").length;
 		if (this._numOfDigits !== numOfDigits) {
 			this._numOfDigits = numOfDigits;
 			var startLine = model.getLineAtOffset(start);
@@ -10406,19 +11894,46 @@ define("orion/editor/undoStack", [], function() { //$NON-NLS-0$
 	 * @name orion.editor.Change
 	 * @private
 	 */
-	function Change(offset, text, previousText) {
+	function Change(offset, text, previousText, type) {
 		this.offset = offset;
 		this.text = text;
 		this.previousText = previousText;
+		this.type = type;
 	}
 	Change.prototype = {
 		/** @ignore */
+		getRedoChanges: function() {
+			return [{start: this.offset, end: this.offset + this.previousText.length, text: this.text}];
+		},
+		/** @ignore */
+		getUndoChanges: function() {
+			return [{start: this.offset, end: this.offset + this.text.length, text: this.previousText}];
+		},
+		/** @ignore */
 		undo: function (view, select) {
 			this._doUndoRedo(this.offset, this.previousText, this.text, view, select);
+			return true;
 		},
 		/** @ignore */
 		redo: function (view, select) {
 			this._doUndoRedo(this.offset, this.text, this.previousText, view, select);
+			return true;
+		},
+		merge: function(start, text, previousText, type, end) {
+			if (type === this.type) {
+				if (type === 1 && start === this.offset + this.text.length) {
+					this.text += text;
+					return true;
+				} else if (type === -1 && end === this.offset) {
+					this.offset = start;
+					this.previousText = previousText + this.previousText;
+					return true;
+				} else if (type === -1 && start === this.offset) {
+					this.previousText = this.previousText + previousText;
+					return true;
+				}
+			}
+			return false;
 		},
 		_doUndoRedo: function(offset, text, previousText, view, select) {
 			var model = view.getModel();
@@ -10444,7 +11959,7 @@ define("orion/editor/undoStack", [], function() { //$NON-NLS-0$
 				if (mapOffset < 0) { return; }
 				offset = mapOffset;
 			}
-			view.setText(text, offset, offset + previousText.length);
+			model.setText(text, offset, offset + previousText.length);
 			if (select) {
 				view.setSelection(offset, offset + text.length);
 			}
@@ -10454,14 +11969,33 @@ define("orion/editor/undoStack", [], function() { //$NON-NLS-0$
 	/** 
 	 * Constructs a new CompoundChange object.
 	 * 
+	 * @param owner the owner of the compound change
+	 *
 	 * @class 
 	 * @name orion.editor.CompoundChange
 	 * @private
 	 */
-	function CompoundChange () {
+	function CompoundChange (owner) {
+		this.owner = owner;
 		this.changes = [];
 	}
 	CompoundChange.prototype = {
+		/** @ignore */
+		getRedoChanges: function() {
+			var changes = [];
+			for (var i=0; i<this.changes.length; i++) {
+				changes = changes.concat(this.changes[i].getRedoChanges());
+			}
+			return changes;
+		},
+		/** @ignore */
+		getUndoChanges: function() {
+			var changes = [];
+			for (var i=this.changes.length - 1; i >= 0; i--) {
+				changes = changes.concat(this.changes[i].getUndoChanges());
+			}
+			return changes;
+		},
 		/** @ignore */
 		add: function (change) {
 			this.changes.push(change);
@@ -10470,33 +12004,70 @@ define("orion/editor/undoStack", [], function() { //$NON-NLS-0$
 		end: function (view) {
 			this.endSelection = view.getSelection();
 			this.endCaret = view.getCaretOffset();
+			var owner = this.owner;
+			if (owner && owner.end) {
+				owner.end();
+			}
 		},
 		/** @ignore */
 		undo: function (view, select) {
+			if (this.changes.length > 1) {
+				view.setRedraw(false);
+			}
 			for (var i=this.changes.length - 1; i >= 0; i--) {
 				this.changes[i].undo(view, false);
+			}
+			if (this.changes.length > 1) {
+				view.setRedraw(true);
 			}
 			if (select) {
 				var start = this.startSelection.start;
 				var end = this.startSelection.end;
 				view.setSelection(this.startCaret ? start : end, this.startCaret ? end : start);
 			}
+			var owner = this.owner;
+			if (owner && owner.undo) {
+				owner.undo();
+			}
+			return this.changes.length > 0;
 		},
 		/** @ignore */
 		redo: function (view, select) {
+			if (this.changes.length > 1) {
+				view.setRedraw(false);
+			}
 			for (var i = 0; i < this.changes.length; i++) {
 				this.changes[i].redo(view, false);
+			}
+			if (this.changes.length > 1) {
+				view.setRedraw(true);
 			}
 			if (select) {
 				var start = this.endSelection.start;
 				var end = this.endSelection.end;
 				view.setSelection(this.endCaret ? start : end, this.endCaret ? end : start);
 			}
+			var owner = this.owner;
+			if (owner && owner.redo) {
+				owner.redo();
+			}
+			return this.changes.length > 0;
+		},
+		merge: function(start, text, previousText, type, end) {
+			var length = this.changes.length;
+			if (length > 0) {
+				return this.changes[length - 1].merge(start, text, previousText, type, end);
+			}
+			return false;
 		},
 		/** @ignore */
 		start: function (view) {
 			this.startSelection = view.getSelection();
 			this.startCaret = view.getCaretOffset();
+			var owner = this.owner;
+			if (owner && owner.start) {
+				owner.start();
+			}
 		}
 	};
 
@@ -10541,9 +12112,6 @@ define("orion/editor/undoStack", [], function() { //$NON-NLS-0$
 		 * Adds a change to the stack.
 		 * 
 		 * @param change the change to add.
-		 * @param {Number} change.offset the offset of the change
-		 * @param {String} change.text the new text of the change
-		 * @param {String} change.previousText the previous text of the change
 		 */
 		add: function (change) {
 			if (this.compoundChange) {
@@ -10555,7 +12123,6 @@ define("orion/editor/undoStack", [], function() { //$NON-NLS-0$
 				if (this.stack.length > this.size) {
 					this.stack.shift();
 					this.index--;
-					this.cleanIndex--;
 				}
 			}
 		},
@@ -10566,12 +12133,14 @@ define("orion/editor/undoStack", [], function() { //$NON-NLS-0$
 		 * This function is typically called when the content of view associated with the stack is saved.
 		 * </p>
 		 *
-		 * @see #isClean
+		 * @see orion.editor.UndoStack#isClean
 		 */
 		markClean: function() {
-			this.endCompoundChange();
 			this._commitUndo();
-			this.cleanIndex = this.index;
+			this.cleanChange = this.stack[this.index - 1];
+			if (this.cleanChange) {
+				this.cleanChange.type = 2;
+			}
 		},
 		/**
 		 * Returns true if current state of stack is the same
@@ -10588,37 +12157,37 @@ define("orion/editor/undoStack", [], function() { //$NON-NLS-0$
 		 *
 		 * @return {Boolean} returns if the state is the same as the state when markClean() was called.
 		 *
-		 * @see #markClean
+		 * @see orion.editor.UndoStack#markClean
 		 */
 		isClean: function() {
-			return this.cleanIndex === this.getSize().undo;
+			return this.cleanChange === this.stack[this.index - 1];
 		},
 		/**
 		 * Returns true if there is at least one change to undo.
 		 *
 		 * @return {Boolean} returns true if there is at least one change to undo.
 		 *
-		 * @see #canRedo
-		 * @see #undo
+		 * @see orion.editor.UndoStack#canRedo
+		 * @see orion.editor.UndoStack#undo
 		 */
 		canUndo: function() {
-			return this.getSize().undo > 0;
+			return this.index > 0;
 		},
 		/**
 		 * Returns true if there is at least one change to redo.
 		 *
 		 * @return {Boolean} returns true if there is at least one change to redo.
 		 *
-		 * @see #canUndo
-		 * @see #redo
+		 * @see orion.editor.UndoStack#canUndo
+		 * @see orion.editor.UndoStack#redo
 		 */
 		canRedo: function() {
-			return this.getSize().redo > 0;
+			return (this.stack.length - this.index) > 0;
 		},
 		/**
 		 * Finishes a compound change.
 		 *
-		 * @see #startCompoundChange
+		 * @see orion.editor.UndoStack#startCompoundChange
 		 */
 		endCompoundChange: function() {
 			if (this.compoundChange) {
@@ -10632,52 +12201,100 @@ define("orion/editor/undoStack", [], function() { //$NON-NLS-0$
 		 * @return {object} a object where object.undo is the number of changes that can be un-done, 
 		 *  and object.redo is the number of changes that can be re-done.
 		 *
-		 * @see #canUndo
-		 * @see #canRedo
+		 * @see orion.editor.UndoStack#canUndo
+		 * @see orion.editor.UndoStack#canRedo
 		 */
 		getSize: function() {
-			var index = this.index;
-			var length = this.stack.length;
-			if (this._undoStart !== undefined) {
-				index++;
+			return {
+				undo: this.index,
+				redo: this.stack.length - this.index
+			};
+		},
+		/**
+		 * @class This object represents a text change.
+		 * <p>
+		 * <b>See:</b><br/>
+		 * {@link orion.editor.UndoStack}<br/>
+		 * {@link orion.editor.UndoStack#getUndoChanges}<br/>
+		 * {@link orion.editor.UndoStack#getRedoChanges}<br/>
+		 * </p>
+		 * @name orion.editor.TextChange
+		 * 
+		 * @property {Number} start The start offset in the model of the range to be replaced.
+		 * @property {Number} end The end offset in the model of the range to be replaced
+		 * @property {String} text the text to be inserted
+		 */
+		/**
+		 * Returns the redo changes.
+		 *
+		 * @return {orion.editor.TextChange[]} an array of TextChanges that are returned in the order
+		 * that they occurred (most recent change last).
+		 *
+		 * @see orion.editor.UndoStack#getUndoChanges
+		 */
+		getRedoChanges: function() {
+			this._commitUndo();
+			var changes = [];
+			for (var i=this.index; i<this.stack.length; i++) {
+				changes = changes.concat(this.stack[i].getRedoChanges());
 			}
-			return {undo: index, redo: (length - index)};
+			return changes;
+		},
+		/**
+		 * Returns the undo changes.
+		 *
+		 * @return {orion.editor.TextChange[]} an array of TextChanges that are returned in the reverse order
+		 * that they occurred (most recent change first).
+		 *
+		 * @see orion.editor.UndoStack#getRedoChanges
+		 */
+		getUndoChanges: function() {
+			this._commitUndo();
+			var changes = [];
+			for (var i=this.index; i >= 0; i--) {
+				changes = changes.concat(this.stack[i].getUndoChanges());
+			}
+			return changes;
 		},
 		/**
 		 * Undo the last change in the stack.
 		 *
 		 * @return {Boolean} returns true if a change was un-done.
 		 *
-		 * @see #redo
-		 * @see #canUndo
+		 * @see orion.editor.UndoStack#redo
+		 * @see orion.editor.UndoStack#canUndo
 		 */
 		undo: function() {
 			this._commitUndo();
-			if (this.index <= 0) {
-				return false;
-			}
-			var change = this.stack[--this.index];
+			var change, result = false;
 			this._ignoreUndo = true;
-			change.undo(this.view, true);
+			do {
+				if (this.index <= 0) {
+					break;
+				}
+				change = this.stack[--this.index];
+			} while (!(result = change.undo(this.view, true)));
 			this._ignoreUndo = false;
-			return true;
+			return result;
 		},
 		/**
 		 * Redo the last change in the stack.
 		 *
 		 * @return {Boolean} returns true if a change was re-done.
 		 *
-		 * @see #undo
-		 * @see #canRedo
+		 * @see orion.editor.UndoStack#undo
+		 * @see orion.editor.UndoStack#canRedo
 		 */
 		redo: function() {
 			this._commitUndo();
-			if (this.index >= this.stack.length) {
-				return false;
-			}
-			var change = this.stack[this.index++];
+			var change, result = false;
 			this._ignoreUndo = true;
-			change.redo(this.view, true);
+			do {
+				if (this.index >= this.stack.length) {
+					break;
+				}
+				change = this.stack[this.index++];
+			} while (!(result = change.redo(this.view, true)));
 			this._ignoreUndo = false;
 			return true;
 		},
@@ -10685,11 +12302,9 @@ define("orion/editor/undoStack", [], function() { //$NON-NLS-0$
 		 * Reset the stack to its original state. All changes in the stack are thrown away.
 		 */
 		reset: function() {
-			this.index = this.cleanIndex = 0;
+			this.index = 0;
+			this.cleanChange = undefined;
 			this.stack = [];
-			this._undoStart = undefined;
-			this._undoText = "";
-			this._undoType = 0;
 			this._ignoreUndo = false;
 			this._compoundChange = undefined;
 		},
@@ -10701,66 +12316,51 @@ define("orion/editor/undoStack", [], function() { //$NON-NLS-0$
 		 * with one single call to undo() or redo().
 		 * </p>
 		 *
-		 * @see #endCompoundChange
+		 * @param owner the owner of the compound change which is called for start, end, undo and redo.
+		 *		 
+		 * @return the compound change
+		 *
+		 * @see orion.editor.UndoStack#endCompoundChange
 		 */
-		startCompoundChange: function() {
+		startCompoundChange: function(owner) {
 			this._commitUndo();
-			var change = new CompoundChange();
+			var change = new CompoundChange(owner);
 			this.add(change);
 			this.compoundChange = change;
 			this.compoundChange.start(this.view);
+			return this.compoundChange;
 		},
 		_commitUndo: function () {
-			if (this._undoStart !== undefined) {
-				if (this._undoType === -1) {
-					this.add(new Change(this._undoStart, "", this._undoText));
-				} else {
-					this.add(new Change(this._undoStart, this._undoText, ""));
-				}
-				this._undoStart = undefined;
-				this._undoText = "";
-				this._undoType = 0;
-			}
+			this.endCompoundChange();
 		},
 		_onDestroy: function(evt) {
 			this.model.removeEventListener("Changing", this._listener.onChanging); //$NON-NLS-0$
 			this.view.removeEventListener("Destroy", this._listener.onDestroy); //$NON-NLS-0$
 		},
 		_onChanging: function(e) {
-			var newText = e.text;
-			var start = e.start;
-			var removedCharCount = e.removedCharCount;
-			var addedCharCount = e.addedCharCount;
 			if (this._ignoreUndo) {
 				return;
 			}
-			if (this._undoStart !== undefined && 
-				!((addedCharCount === 1 && removedCharCount === 0 && this._undoType === 1 && start === this._undoStart + this._undoText.length) ||
-					(addedCharCount === 0 && removedCharCount === 1 && this._undoType === -1 && (((start + 1) === this._undoStart) || (start === this._undoStart)))))
-			{
-				this._commitUndo();
+			var text = e.text;
+			var start = e.start;
+			var addedCharCount = e.addedCharCount;
+			var removedCharCount = e.removedCharCount;
+			var end = start + removedCharCount;
+			var type = 0;
+			if (addedCharCount === 0 && removedCharCount === 1) {
+				type = -1;
+			} else if (addedCharCount === 1 && removedCharCount === 0) {
+				type = 1;
 			}
-			if (!this.compoundChange) {
-				if (addedCharCount === 1 && removedCharCount === 0) {
-					if (this._undoStart === undefined) {
-						this._undoStart = start;
-					}
-					this._undoText = this._undoText + newText;
-					this._undoType = 1;
-					return;
-				} else if (addedCharCount === 0 && removedCharCount === 1) {
-					var deleting = this._undoText.length > 0 && this._undoStart === start;
-					this._undoStart = start;
-					this._undoType = -1;
-					if (deleting) {
-						this._undoText = this._undoText + this.model.getText(start, start + removedCharCount);
-					} else {
-						this._undoText = this.model.getText(start, start + removedCharCount) + this._undoText;
-					}
+			var length = this.stack.length;
+			var previousText = this.model.getText(start, end);
+			if (length > 0 && this.index === length) {
+				var change = this.stack[length - 1];
+				if (change.merge(start, text, previousText, type, end)) {
 					return;
 				}
 			}
-			this.add(new Change(start, newText, this.model.getText(start, start + removedCharCount)));
+			this.add(new Change(start, text, previousText, type));
 		}
 	};
 	
@@ -10784,7 +12384,7 @@ define("orion/editor/undoStack", [], function() { //$NON-NLS-0$
  
 /*global define */
 
-define("orion/editor/textDND", [], function() { //$NON-NLS-0$
+define("orion/editor/textDND", ['orion/util'], function(util) { //$NON-NLS-1$ //$NON-NLS-0$
 
 	function TextDND(view, undoStack) {
 		this._view = view;
@@ -10852,10 +12452,16 @@ define("orion/editor/textDND", [], function() { //$NON-NLS-0$
 			}
 		},
 		_onDragEnd: function(e) {
-			var view = this._view;
 			if (this._dragSelection) {
+				var view = this._view;
+				var dropEffect = e.event.dataTransfer.dropEffect;
+				if (!util.isFirefox) {
+					if (dropEffect !== "none" || this._dropText) { //$NON-NLS-0$
+						dropEffect = e.event.dataTransfer.dropEffect = this._dropEffect;
+					}
+				}
 				if (this._undoStack) { this._undoStack.startCompoundChange(); }
-				var move = e.event.dataTransfer.dropEffect === "move"; //$NON-NLS-0$
+				var move = dropEffect === "move"; //$NON-NLS-0$
 				if (move) {
 					view.setText("", this._dragSelection.start, this._dragSelection.end);
 				}
@@ -10883,13 +12489,20 @@ define("orion/editor/textDND", [], function() { //$NON-NLS-0$
 		},
 		_onDragOver: function(e) {
 			var types = e.event.dataTransfer.types;
-			if (types) {
-				var allowed = !this._view.getOptions("readonly"); //$NON-NLS-0$
-				if (allowed) {
-					allowed = types.contains ? types.contains("text/plain") : types.indexOf("text/plain") !== -1; //$NON-NLS-1$ //$NON-NLS-0$
-				}
-				if (!allowed) {
-					e.event.dataTransfer.dropEffect = "none"; //$NON-NLS-0$
+			var allowed = !this._view.getOptions("readonly"); //$NON-NLS-0$
+			if (allowed) {
+				if (types) {
+					allowed = types.contains ? 
+						types.contains("text/plain") || types.contains("Text") : //$NON-NLS-1$ //$NON-NLS-0$
+						types.indexOf("text/plain") !== -1 || types.indexOf("Text") !== -1; //$NON-NLS-1$ //$NON-NLS-0$
+					}
+			}
+			if (!allowed) {
+				e.event.dataTransfer.dropEffect = "none"; //$NON-NLS-0$
+			} else {
+				if (!util.isFirefox) {
+					var copy = util.isMac ? e.event.altKey : e.event.ctrlKey;
+					this._dropEffect = e.event.dataTransfer.dropEffect = copy ? "copy" : "move"; //$NON-NLS-1$ //$NON-NLS-0$
 				}
 			}
 		},
@@ -10897,6 +12510,9 @@ define("orion/editor/textDND", [], function() { //$NON-NLS-0$
 			var view = this._view;
 			var text = e.event.dataTransfer.getData("Text"); //$NON-NLS-0$
 			if (text) {
+				if (!util.isFirefox) {
+					e.event.dataTransfer.dropEffect = this._dropEffect; //$NON-NLS-1$ //$NON-NLS-0$
+				}
 				var offset = view.getOffsetAtLocation(e.x, e.y);
 				if (this._dragSelection) {
 					this._dropOffset = offset;
@@ -10914,6 +12530,77 @@ define("orion/editor/textDND", [], function() { //$NON-NLS-0$
 
 /*******************************************************************************
  * @license
+ * Copyright (c) 2013 IBM Corporation and others.
+ * All rights reserved. This program and the accompanying materials are made 
+ * available under the terms of the Eclipse Public License v1.0 
+ * (http://www.eclipse.org/legal/epl-v10.html), and the Eclipse Distribution 
+ * License v1.0 (http://www.eclipse.org/org/documents/edl-v10.html). 
+ * 
+ * Contributors: IBM Corporation - initial API and implementation
+ ******************************************************************************/
+/*global define*/
+define('orion/objects',[], function() {
+	function mixin(target/*, source..*/) {
+		for (var j = 1; j < arguments.length; j++) {
+			var source = arguments[j];
+			for (var key in source) {
+				if (Object.prototype.hasOwnProperty.call(source, key)) {
+					target[key] = source[key];
+				}
+			}
+		}
+		return target;
+	}
+
+	/**
+	 * @name orion.objects
+	 * @class Object-oriented helpers.
+	 */
+	return {
+		/**
+		 * Creates a shallow clone of the given <code>object</code>.
+		 * @name orion.objects.clone
+		 * @function
+		 * @static
+		 * @param {Object|Array} object The object to clone. Must be a "normal" Object or Array. Other built-ins,
+		 * host objects, primitives, etc, will not work.
+		 * @returns {Object|Array} A clone of <code>object</code>.
+		 */
+		clone: function(object) {
+			if (Array.isArray(object)) {
+				return Array.prototype.slice.call(object);
+			}
+			var clone = Object.create(Object.getPrototypeOf(object));
+			mixin(clone, object);
+			return clone;
+		},
+		/**
+		 * Mixes all <code>source</code>'s own enumerable properties into <code>target</code>. Multiple source objects
+		 * can be passed as varags.
+		 * @name orion.objects.mixin
+		 * @function
+		 * @static
+		 * @param {Object} target
+		 * @param {Object} source
+		 */
+		mixin: mixin,
+		/**
+		 * Wraps an object into an Array if necessary.
+		 * @name orion.objects.toArray
+		 * @function
+		 * @static
+		 * @param {Object} obj An object.
+		 * @returns {Array} Returns <code>obj</code> unchanged, if <code>obj</code> is an Array. Otherwise returns a 1-element Array
+		 * whose sole element is <code>obj</code>.
+		 */
+		toArray: function(o) {
+			return Array.isArray(o) ? o : [o];
+		}
+	};
+});
+
+/*******************************************************************************
+ * @license
  * Copyright (c) 2009, 2012 IBM Corporation and others.
  * All rights reserved. This program and the accompanying materials are made 
  * available under the terms of the Eclipse Public License v1.0 
@@ -10923,15 +12610,173 @@ define("orion/editor/textDND", [], function() { //$NON-NLS-0$
  * Contributors: IBM Corporation - initial API and implementation
  ******************************************************************************/
  
- /*global define*/
- /*jslint maxerr:150 browser:true devel:true laxbreak:true regexp:false*/
+/*global define*/
 
-define("orion/editor/editor", ['i18n!orion/editor/nls/messages', 'orion/keyBinding', 'orion/editor/eventTarget', 'orion/editor/tooltip', 'orion/editor/annotations', 'orion/util'], function(messages, mKeyBinding, mEventTarget, mTooltip, mAnnotations, util) { //$NON-NLS-6$ //$NON-NLS-5$ //$NON-NLS-4$ //$NON-NLS-3$ //$NON-NLS-2$ //$NON-NLS-1$ //$NON-NLS-0$
-	
+define("orion/editor/editor", [ //$NON-NLS-0$
+	'i18n!orion/editor/nls/messages', //$NON-NLS-0$
+	'orion/editor/eventTarget', //$NON-NLS-0$
+	'orion/editor/tooltip', //$NON-NLS-0$
+	'orion/editor/annotations', //$NON-NLS-0$
+	'orion/objects', //$NON-NLS-0$
+	'orion/util' //$NON-NLS-0$
+], function(messages, mEventTarget, mTooltip, mAnnotations, objects, util) {
+
+	var AT = mAnnotations.AnnotationType;
+
 	var HIGHLIGHT_ERROR_ANNOTATION = "orion.annotation.highlightError"; //$NON-NLS-0$
+	
+	/**
+	 * @name orion.editor.BaseEditor
+	 * @class This is the base interface for text and visual editors based on a text buffer.
+	 * 
+	 * @description Creates a new Base Editor with the given options.
+	 * @param {Object} options Creation options for this editor.
+	 * @param {Object} options.domNode
+	 * @param {Object} options.statusReporter
+	 *
+	 * @borrows orion.editor.EventTarget#addEventListener as #addEventListener
+	 * @borrows orion.editor.EventTarget#removeEventListener as #removeEventListener
+	 * @borrows orion.editor.EventTarget#dispatchEvent as #dispatchEvent
+	 */
+	function BaseEditor(options) {
+		options = options || {};
+		this._domNode = options.domNode;
+		this._statusReporter = options.statusReporter;
+		this._dirty = false;
+		this._title = null;
+	}
+	BaseEditor.prototype = /** @lends orion.editor.BaseEditor.prototype */ {
+		/**
+		 * Destroys the editor. Uninstall the editor view.
+		 */
+		destroy: function() {
+			this.uninstall();
+			this._statusReporter = this._domNode = null;
+		},
+		/**
+		 * Focus the the editor view. The default implementation does nothing.
+		 */
+		focus: function() {
+		},
+		/**
+		 * Returns the text model of the editor.
+		 *
+		 * @returns {orion.editor.TextModel} the text model of the view.
+		 */
+		getModel: function() {
+			return this._model;	
+		},
+		/**
+		 * Returns the text for the given range.
+		 * <p>
+		 * The text does not include the character at the end offset.
+		 * </p>
+		 *
+		 * @param {Number} [start=0] the start offset of text range.
+		 * @param {Number} [end=char count] the end offset of text range.
+		 *
+		 * @see orion.editor.TextView#setText
+		 */
+		getText: function(start, end) {
+			return this.getModel().getText(start, end);
+		},
+		/**
+		 * Returns the editor title. 
+		 *
+		 * @returns {String} the editor title.
+		 */
+		getTitle: function() {
+			return this._title;
+		},
+		/**
+		 * Creates the DOM hierarchy of the editor and add it to the document.
+		 */
+		install: function() {
+		},
+		/**
+		 * Returns <code>true</code> if the editor is dirty; <code>false</code> otherwise.
+		 * @returns {Boolean} whether the editor is dirty
+		 */
+		isDirty: function() {
+			return this._dirty;
+		},
+		/** 
+		 * Marks the current state of the editor as clean. Meaning there are no unsaved modifications.
+		 */
+		markClean: function() {
+			this.setDirty(false);	
+		},
+		/**
+		 * Called when the dirty state of the editor changes.
+		 * @param {Event} dirtyChangedEvent
+		 */
+		onDirtyChanged: function(dirtyChangedEvent) {
+			return this.dispatchEvent(dirtyChangedEvent);
+		},
+		/**
+		 * Called when the editor's contents have been changed or saved.
+		 * @param {Event} inputChangedEvent
+		 */
+		onInputChanged: function (inputChangedEvent) {
+			return this.dispatchEvent(inputChangedEvent);
+		},
+		/**
+		 * Report the message to the user.
+		 * 
+		 * @param {String} message the message to show
+		 * @param {String} [type] the message type. Either normal or "progress" or "error";
+		 * @param {Boolean} [isAccessible] If <code>true</code>, a screen reader will read this message.
+		 * Otherwise defaults to the domNode default.
+		 */
+		reportStatus: function(message, type, isAccessible) {
+			if (this._statusReporter) {
+				this._statusReporter(message, type, isAccessible);
+			}
+		},
+		/**
+		 * Resizes the editor view. The default implementation does nothing.
+		 */
+		resize: function() {
+		},
+		/**
+		 * Sets whether the editor is dirty.
+		 *
+		 * @param {Boolean} dirty
+		 */
+		setDirty: function(dirty) {
+			if (this._dirty === dirty) { return; }
+			this._dirty = dirty;
+			this.onDirtyChanged({type: "DirtyChanged"}); //$NON-NLS-0$
+		},
+		/**
+		 * Sets the editor's contents.
+		 *
+		 * @param {String} title the editor title
+		 * @param {String} message an error message
+		 * @param {String} contents the editor contents
+		 * @param {Boolean} contentsSaved whether the editor contents was saved.
+		 */
+		setInput: function(title, message, contents, contentsSaved) {
+			this._title = title;
+			this.onInputChanged({
+				type: "InputChanged", //$NON-NLS-0$
+				title: title,
+				message: message,
+				contents: contents,
+				contentsSaved: contentsSaved
+			});
+		},
+		/**
+		 * Removes the DOM hierarchy of the editor from the document.
+		 */
+		uninstall: function() {
+		}
+	};
+	mEventTarget.EventTarget.addMixin(BaseEditor.prototype);
 
 	/**
 	 * @name orion.editor.Editor
+	 * @augments orion.editor.BaseEditor
 	 * @class An <code>Editor</code> is a user interface for editing text that provides additional features over the basic {@link orion.editor.TextView}.
 	 * Some of <code>Editor</code>'s features include:
 	 * <ul>
@@ -10954,12 +12799,10 @@ define("orion/editor/editor", ['i18n!orion/editor/nls/messages', 'orion/keyBindi
 	 * @param {Object} options.textViewFactory
 	 * @param {Object} options.undoStackFactory
 	 * @param {Object} options.textDNDFactory
-	 *
-	 * @borrows orion.editor.EventTarget#addEventListener as #addEventListener
-	 * @borrows orion.editor.EventTarget#removeEventListener as #removeEventListener
-	 * @borrows orion.editor.EventTarget#dispatchEvent as #dispatchEvent
 	 */
 	function Editor(options) {
+		options = options || {};
+		BaseEditor.call(this, options);
 		this._textViewFactory = options.textViewFactory;
 		this._undoStackFactory = options.undoStackFactory;
 		this._textDNDFactory = options.textDNDFactory;
@@ -10968,8 +12811,6 @@ define("orion/editor/editor", ['i18n!orion/editor/nls/messages', 'orion/keyBindi
 		this._lineNumberRulerFactory = options.lineNumberRulerFactory;
 		this._contentAssistFactory = options.contentAssistFactory;
 		this._keyBindingFactory = options.keyBindingFactory;
-		this._statusReporter = options.statusReporter;
-		this._domNode = options.domNode;
 		
 		this._annotationStyler = null;
 		this._annotationModel = null;
@@ -10977,21 +12818,18 @@ define("orion/editor/editor", ['i18n!orion/editor/nls/messages', 'orion/keyBindi
 		this._lineNumberRuler = null;
 		this._overviewRuler = null;
 		this._foldingRuler = null;
-		this._dirty = false;
 		this._contentAssist = null;
-		this._title = null;
-		this._keyModes = [];
 	}
-	Editor.prototype = /** @lends orion.editor.Editor.prototype */ {
+	Editor.prototype = new BaseEditor();
+	objects.mixin(Editor.prototype, /** @lends orion.editor.Editor.prototype */ {
 		/**
 		 * Destroys the editor.
 		 */
 		destroy: function() {
-			this.uninstallTextView();
+			BaseEditor.prototype.destroy.call(this);
 			this._textViewFactory = this._undoStackFactory = this._textDNDFactory = 
 			this._annotationFactory = this._foldingRulerFactory = this._lineNumberRulerFactory = 
-			this._contentAssistFactory = this._keyBindingFactory = this._statusReporter =
-			this._domNode = null;
+			this._contentAssistFactory = this._keyBindingFactory = null;
 		},
 		/**
 		 * Returns the annotation model of the editor. 
@@ -11016,6 +12854,14 @@ define("orion/editor/editor", ['i18n!orion/editor/nls/messages', 'orion/keyBindi
 		 */
 		getAnnotationStyler: function() {
 			return this._annotationStyler;
+		},
+		/**
+		 * Returns the content assist of the editor. 
+		 *
+		 * @returns {orion.editor.LineNumberRuler}
+		 */
+		getContentAssist: function() {
+			return this._contentAssist;
 		},
 		/**
 		 * Returns the folding ruler of the editor. 
@@ -11061,37 +12907,71 @@ define("orion/editor/editor", ['i18n!orion/editor/nls/messages', 'orion/keyBindi
 			return this._textView;
 		},
 		/**
-		 * Returns the editor title. 
+		 * Returns the editor undo stack. 
 		 *
-		 * @returns {String} the editor title.
+		 * @returns {orion.editor.UndoStack} the editor undo stack.
 		 */
-		getTitle: function() {
-			return this._title;
+		getUndoStack: function() {
+			return this._undoStack;
 		},
-		
 		/**
 		 * Returns the editor's key modes.
 		 *
 		 * @returns {Array} the editor key modes.
 		 */
 		getKeyModes: function() {
-			return this._keyModes;
+			return this._textView.getKeyModes();
 		},
-		
 		/**
-		 * Returns <code>true</code> if the editor is dirty; <code>false</code> otherwise.
-		 * @returns {Boolean} 
+		 * Returns the editor source code actions.
+		 *
+		 * @returns {orion.editor.sourceCodeActions}
 		 */
-		isDirty: function() {
-			return this._dirty;
+		getSourceCodeActions: function() {
+			return this._sourceCodeActions;
+		},
+		/**
+		 * Returns the editor linked mode.
+		 *
+		 * @returns {orion.editor.LinkedMode}
+		 */
+		getLinkedMode: function() {
+			return this._linkedMode;
+		},
+		/**
+		 * Returns the editor text actions.
+		 *
+		 * @returns {orion.editor.textActions}
+		 */
+		getTextActions: function() {
+			return this._textActions;
+		},
+		/**
+		 * Gives focus to the text view.
+		 */
+		focus: function() {
+			if (this._textView) {
+				this._textView.focus();
+			}
+		},
+		markClean: function() {
+			this.getUndoStack().markClean();
+		},
+		/**
+		 * Resizes the text view.
+		 */
+		resize: function() {
+			if (this._textView) {
+				this._textView.resize();
+			}
 		},
 		/**
 		 * Sets whether the annotation ruler is visible.
 		 *
 		 * @param {Boolean} visible <code>true</code> to show ruler, <code>false</code> otherwise
 		 */
-		setAnnotationRulerVisible: function(visible) {
-			if (this._annotationRulerVisible === visible) { return; }
+		setAnnotationRulerVisible: function(visible, force) {
+			if (this._annotationRulerVisible === visible && !force) { return; }
 			this._annotationRulerVisible = visible;
 			if (!this._annotationRuler) { return; }
 			var textView = this._textView;
@@ -11106,40 +12986,30 @@ define("orion/editor/editor", ['i18n!orion/editor/nls/messages', 'orion/keyBindi
 		 *
 		 * @param {Boolean} visible <code>true</code> to show ruler, <code>false</code> otherwise
 		 */
-		setFoldingRulerVisible: function(visible) {
-			if (this._foldingRulerVisible === visible) { return; }
+		setFoldingRulerVisible: function(visible, force) {
+			if (this._foldingRulerVisible === visible && !force) { return; }
 			this._foldingRulerVisible = visible;
 			if (!this._foldingRuler) { return; }
 			var textView = this._textView;
 			if (!textView.getModel().getBaseModel) { return; }
 			if (visible) {
-				textView.addRuler(this._foldingRuler, 100);
+				textView.addRuler(this._foldingRuler);
 			} else {
 				textView.removeRuler(this._foldingRuler);
 			}
-		},
-		/**
-		 * Sets whether the editor is dirty.
-		 *
-		 * @param {Boolean} dirty
-		 */
-		setDirty: function(dirty) {
-			if (this._dirty === dirty) { return; }
-			this._dirty = dirty;
-			this.onDirtyChanged({type: "DirtyChanged"}); //$NON-NLS-0$
 		},
 		/**
 		 * Sets whether the line numbering ruler is visible.
 		 *
 		 * @param {Boolean} visible <code>true</code> to show ruler, <code>false</code> otherwise
 		 */
-		setLineNumberRulerVisible: function(visible) {
-			if (this._lineNumberRulerVisible === visible) { return; }
+		setLineNumberRulerVisible: function(visible, force) {
+			if (this._lineNumberRulerVisible === visible && !force) { return; }
 			this._lineNumberRulerVisible = visible;
 			if (!this._lineNumberRuler) { return; }
 			var textView = this._textView;
 			if (visible) {
-				textView.addRuler(this._lineNumberRuler, 1);
+				textView.addRuler(this._lineNumberRuler, !this._annotationRulerVisible ? 0 : 1);
 			} else {
 				textView.removeRuler(this._lineNumberRuler);
 			}
@@ -11149,8 +13019,8 @@ define("orion/editor/editor", ['i18n!orion/editor/nls/messages', 'orion/keyBindi
 		 *
 		 * @param {Boolean} visible <code>true</code> to show ruler, <code>false</code> otherwise
 		 */
-		setOverviewRulerVisible: function(visible) {
-			if (this._overviewRulerVisible === visible) { return; }
+		setOverviewRulerVisible: function(visible, force) {
+			if (this._overviewRulerVisible === visible && !force) { return; }
 			this._overviewRulerVisible = visible;
 			if (!this._overviewRuler) { return; }
 			var textView = this._textView;
@@ -11185,15 +13055,6 @@ define("orion/editor/editor", ['i18n!orion/editor/nls/messages', 'orion/keyBindi
 			return selection;
 		},
 		
-		getText: function(start, end) {
-			var textView = this._textView;
-			var model = textView.getModel();
-			if (model.getBaseModel) {
-				model = model.getBaseModel();
-			}
-			return model.getText(start, end);
-		},
-		
 		_expandOffset: function(offset) {
 			var model = this._textView.getModel();
 			var annotationModel = this._annotationModel;
@@ -11201,7 +13062,7 @@ define("orion/editor/editor", ['i18n!orion/editor/nls/messages', 'orion/keyBindi
 			var annotations = annotationModel.getAnnotations(offset, offset + 1);
 			while (annotations.hasNext()) {
 				var annotation = annotations.next();
-				if (annotation.type === mAnnotations.AnnotationType.ANNOTATION_FOLDING) {
+				if (annotation.type === AT.ANNOTATION_FOLDING) {
 					if (annotation.expand) {
 						annotation.expand();
 						annotationModel.modifyAnnotation(annotation);
@@ -11234,13 +13095,6 @@ define("orion/editor/editor", ['i18n!orion/editor/nls/messages', 'orion/keyBindi
 				}
 			}
 			textView.setText(text, start, end);
-		},
-		
-		/**
-		 * @deprecated use #setFoldingRulerVisible
-		 */
-		setFoldingEnabled: function(enabled) {
-			this.setFoldingRulerVisible(enabled);
 		},
 		
 		setSelection: function(start, end, show, callback) {
@@ -11281,15 +13135,6 @@ define("orion/editor/editor", ['i18n!orion/editor/nls/messages', 'orion/keyBindi
 			this.setDirty(!this._undoStack.isClean());
 		},
 		
-		/**
-		 * @private
-		 */
-		reportStatus: function(message, type, isAccessible) {
-			if (this._statusReporter) {
-				this._statusReporter(message, type, isAccessible);
-			}
-		},
-		
 		/** @private */
 		_getTooltipInfo: function(x, y) {
 			var textView = this._textView;			
@@ -11322,7 +13167,8 @@ define("orion/editor/editor", ['i18n!orion/editor/nls/messages', 'orion/keyBindi
 		_highlightCurrentLine: function(newSelection, oldSelection) {
 			var annotationModel = this._annotationModel;
 			if (!annotationModel) { return; }
-			var textView = this._textView;	
+			var textView = this._textView;
+			if (textView.getOptions("singleMode")) { return; } //$NON-NLS-0$
 			var model = textView.getModel();
 			var oldLineIndex = oldSelection ? model.getLineAtOffset(oldSelection.start) : -1;
 			var lineIndex = model.getLineAtOffset(newSelection.start);
@@ -11341,18 +13187,24 @@ define("orion/editor/editor", ['i18n!orion/editor/nls/messages', 'orion/keyBindi
 			var remove = annotation ? [annotation] : null;
 			var add;
 			if (newEmpty) {
-				var type = mAnnotations.AnnotationType.ANNOTATION_CURRENT_LINE;
-				annotation = mAnnotations.AnnotationType.createAnnotation(type, start, end);
+				var type = AT.ANNOTATION_CURRENT_LINE;
+				annotation = AT.createAnnotation(type, start, end);
 				add = [annotation];
 			}
 			this._currentLineAnnotation = annotation;
 			annotationModel.replaceAnnotations(remove, add);
 		},
 		
+		install: function() {
+			this.installTextView();
+		},
+		
 		/**
 		 * Creates the underlying TextView and installs the editor's features.
 		 */
 		installTextView : function() {
+			if (this._textView) { return; }
+			
 			// Create textView and install optional features
 			this._textView = this._textViewFactory();
 			if (this._undoStackFactory) {
@@ -11363,7 +13215,6 @@ define("orion/editor/editor", ['i18n!orion/editor/nls/messages', 'orion/keyBindi
 			}
 			if (this._contentAssistFactory) {
 				var contentAssistMode = this._contentAssistFactory.createContentAssistMode(this);
-				this._keyModes.push(contentAssistMode);
 				this._contentAssist = contentAssistMode.getContentAssist();
 			}
 			
@@ -11406,7 +13257,7 @@ define("orion/editor/editor", ['i18n!orion/editor/nls/messages', 'orion/keyBindi
 				onScroll: function(e) {
 					var tooltip = mTooltip.Tooltip.getTooltip(textView);
 					if (!tooltip) { return; }
-					tooltip.setTarget(null);
+					tooltip.setTarget(null, 0, 0);
 				},
 				onSelection: function(e) {
 					self._updateCursorStatus();
@@ -11422,47 +13273,18 @@ define("orion/editor/editor", ['i18n!orion/editor/nls/messages', 'orion/keyBindi
 						
 			// Set up keybindings
 			if (this._keyBindingFactory) {
-				this._keyBindingFactory(this, this._keyModes, this._undoStack, this._contentAssist);
+				var keyBindings;
+				if (typeof this._keyBindingFactory === "function") { //$NON-NLS-0$
+					keyBindings = this._keyBindingFactory(this, this.getKeyModes(), this._undoStack, this._contentAssist);
+				} else {
+					keyBindings = this._keyBindingFactory.createKeyBindings(editor, this._undoStack, this._contentAssist);
+				}
+				if (keyBindings) {
+					this._textActions = keyBindings.textActions;
+					this._linkedMode = keyBindings.linkedMode;
+					this._sourceCodeActions = keyBindings.sourceCodeActions;
+				}
 			}
-			
-			// Set keybindings for keys that apply to different modes
-			textView.setKeyBinding(new mKeyBinding.KeyBinding(27), "cancelMode"); //$NON-NLS-0$
-			textView.setAction("cancelMode", function() { //$NON-NLS-0$
-				// loop through all modes in case multiple modes are active.  Keep track of whether we processed the key.
-				var keyUsed = false;
-				for (var i=0; i<this._keyModes.length; i++) {
-					if (this._keyModes[i].isActive()) {
-						keyUsed = this._keyModes[i].cancel() || keyUsed;
-					}
-				}
-				return keyUsed;
-			}.bind(this), {name: messages.cancelMode});
-
-			textView.setAction("lineUp", function() { //$NON-NLS-0$
-				for (var i=0; i<this._keyModes.length; i++) {
-					if (this._keyModes[i].isActive()) {
-						return this._keyModes[i].lineUp();
-					}
-				}
-				return false;
-			}.bind(this));
-			textView.setAction("lineDown", function() { //$NON-NLS-0$
-				for (var i=0; i<this._keyModes.length; i++) {
-					if (this._keyModes[i].isActive()) {
-						return this._keyModes[i].lineDown();
-					}
-				}
-				return false;
-			}.bind(this));
-
-			textView.setAction("enter", function() { //$NON-NLS-0$
-				for (var i=0; i<this._keyModes.length; i++) {
-					if (this._keyModes[i].isActive()) {
-						return this._keyModes[i].enter();
-					}
-				}
-				return false;
-			}.bind(this));
 
 			var addRemoveBookmark = function(lineIndex, e) {
 				if (lineIndex === undefined) { return; }
@@ -11476,7 +13298,7 @@ define("orion/editor/editor", ['i18n!orion/editor/nls/messages', 'orion/keyBindi
 				var bookmark = null;
 				while (annotations.hasNext()) {
 					var annotation = annotations.next();
-					if (annotation.type === mAnnotations.AnnotationType.ANNOTATION_BOOKMARK) {
+					if (annotation.type === AT.ANNOTATION_BOOKMARK) {
 						bookmark = annotation;
 						break;
 					}
@@ -11484,7 +13306,7 @@ define("orion/editor/editor", ['i18n!orion/editor/nls/messages', 'orion/keyBindi
 				if (bookmark) {
 					annotationModel.removeAnnotation(bookmark);
 				} else {
-					bookmark = mAnnotations.AnnotationType.createAnnotation(mAnnotations.AnnotationType.ANNOTATION_BOOKMARK, lineStart, lineEnd);
+					bookmark = AT.createAnnotation(AT.ANNOTATION_BOOKMARK, lineStart, lineEnd);
 					bookmark.title = undefined;
 					annotationModel.addAnnotation(bookmark);
 				}
@@ -11498,15 +13320,18 @@ define("orion/editor/editor", ['i18n!orion/editor/nls/messages', 'orion/keyBindi
 				if (this._annotationModel) {
 					var styler = this._annotationStyler = this._annotationFactory.createAnnotationStyler(textView, this._annotationModel);
 					if (styler) {
-						styler.addAnnotationType(mAnnotations.AnnotationType.ANNOTATION_CURRENT_SEARCH);
-						styler.addAnnotationType(mAnnotations.AnnotationType.ANNOTATION_MATCHING_SEARCH);
-						styler.addAnnotationType(mAnnotations.AnnotationType.ANNOTATION_ERROR);
-						styler.addAnnotationType(mAnnotations.AnnotationType.ANNOTATION_WARNING);
-						styler.addAnnotationType(mAnnotations.AnnotationType.ANNOTATION_MATCHING_BRACKET);
-						styler.addAnnotationType(mAnnotations.AnnotationType.ANNOTATION_CURRENT_BRACKET);
-						styler.addAnnotationType(mAnnotations.AnnotationType.ANNOTATION_CURRENT_LINE);
-						styler.addAnnotationType(mAnnotations.AnnotationType.ANNOTATION_READ_OCCURRENCE);
-						styler.addAnnotationType(mAnnotations.AnnotationType.ANNOTATION_WRITE_OCCURRENCE);
+						styler.addAnnotationType(AT.ANNOTATION_CURRENT_SEARCH);
+						styler.addAnnotationType(AT.ANNOTATION_MATCHING_SEARCH);
+						styler.addAnnotationType(AT.ANNOTATION_ERROR);
+						styler.addAnnotationType(AT.ANNOTATION_WARNING);
+						styler.addAnnotationType(AT.ANNOTATION_MATCHING_BRACKET);
+						styler.addAnnotationType(AT.ANNOTATION_CURRENT_BRACKET);
+						styler.addAnnotationType(AT.ANNOTATION_CURRENT_LINE);
+						styler.addAnnotationType(AT.ANNOTATION_READ_OCCURRENCE);
+						styler.addAnnotationType(AT.ANNOTATION_WRITE_OCCURRENCE);
+						styler.addAnnotationType(AT.ANNOTATION_SELECTED_LINKED_GROUP);
+						styler.addAnnotationType(AT.ANNOTATION_CURRENT_LINKED_GROUP);
+						styler.addAnnotationType(AT.ANNOTATION_LINKED_GROUP);
 						styler.addAnnotationType(HIGHLIGHT_ERROR_ANNOTATION);
 					}
 				}
@@ -11523,40 +13348,43 @@ define("orion/editor/editor", ['i18n!orion/editor/nls/messages', 'orion/keyBindi
 				if (ruler) {
 					ruler.onDblClick = addRemoveBookmark;
 					ruler.setMultiAnnotationOverlay({html: "<div class='annotationHTML overlay'></div>"}); //$NON-NLS-0$
-					ruler.addAnnotationType(mAnnotations.AnnotationType.ANNOTATION_ERROR);
-					ruler.addAnnotationType(mAnnotations.AnnotationType.ANNOTATION_WARNING);
-					ruler.addAnnotationType(mAnnotations.AnnotationType.ANNOTATION_TASK);
-					ruler.addAnnotationType(mAnnotations.AnnotationType.ANNOTATION_BOOKMARK);
+					ruler.addAnnotationType(AT.ANNOTATION_ERROR);
+					ruler.addAnnotationType(AT.ANNOTATION_WARNING);
+					ruler.addAnnotationType(AT.ANNOTATION_TASK);
+					ruler.addAnnotationType(AT.ANNOTATION_BOOKMARK);
 				}
-				this.setAnnotationRulerVisible(true);
+				this.setAnnotationRulerVisible(this._annotationRulerVisible || this._annotationRulerVisible === undefined, true);
 					
 				ruler = this._overviewRuler = rulers.overviewRuler;
 				if (ruler) {
-					ruler.addAnnotationType(mAnnotations.AnnotationType.ANNOTATION_CURRENT_SEARCH);
-					ruler.addAnnotationType(mAnnotations.AnnotationType.ANNOTATION_MATCHING_SEARCH);
-					ruler.addAnnotationType(mAnnotations.AnnotationType.ANNOTATION_ERROR);
-					ruler.addAnnotationType(mAnnotations.AnnotationType.ANNOTATION_WARNING);
-					ruler.addAnnotationType(mAnnotations.AnnotationType.ANNOTATION_TASK);
-					ruler.addAnnotationType(mAnnotations.AnnotationType.ANNOTATION_BOOKMARK);
-					ruler.addAnnotationType(mAnnotations.AnnotationType.ANNOTATION_MATCHING_BRACKET);
-					ruler.addAnnotationType(mAnnotations.AnnotationType.ANNOTATION_CURRENT_BRACKET);
-					ruler.addAnnotationType(mAnnotations.AnnotationType.ANNOTATION_CURRENT_LINE);
-					ruler.addAnnotationType(mAnnotations.AnnotationType.ANNOTATION_READ_OCCURRENCE);
-					ruler.addAnnotationType(mAnnotations.AnnotationType.ANNOTATION_WRITE_OCCURRENCE);
+					ruler.addAnnotationType(AT.ANNOTATION_CURRENT_SEARCH);
+					ruler.addAnnotationType(AT.ANNOTATION_MATCHING_SEARCH);
+					ruler.addAnnotationType(AT.ANNOTATION_READ_OCCURRENCE);
+					ruler.addAnnotationType(AT.ANNOTATION_WRITE_OCCURRENCE);
+					ruler.addAnnotationType(AT.ANNOTATION_CURRENT_BLAME);
+					ruler.addAnnotationType(AT.ANNOTATION_ERROR);
+					ruler.addAnnotationType(AT.ANNOTATION_WARNING);
+					ruler.addAnnotationType(AT.ANNOTATION_TASK);
+					ruler.addAnnotationType(AT.ANNOTATION_BOOKMARK);
+					ruler.addAnnotationType(AT.ANNOTATION_MATCHING_BRACKET);
+					ruler.addAnnotationType(AT.ANNOTATION_CURRENT_BRACKET);
+					ruler.addAnnotationType(AT.ANNOTATION_CURRENT_LINE);
 				}
-				this.setOverviewRulerVisible(true);
+				this.setOverviewRulerVisible(this._overviewRulerVisible || this._overviewRulerVisible === undefined, true);
 			}
 			
 			if (this._lineNumberRulerFactory) {
 				this._lineNumberRuler = this._lineNumberRulerFactory.createLineNumberRuler(this._annotationModel);
+				this._lineNumberRuler.addAnnotationType(AT.ANNOTATION_CURRENT_BLAME);
+				this._lineNumberRuler.addAnnotationType(AT.ANNOTATION_BLAME);
 				this._lineNumberRuler.onDblClick = addRemoveBookmark;
-				this.setLineNumberRulerVisible(true);
+				this.setLineNumberRulerVisible(this._lineNumberRulerVisible || this._lineNumberRulerVisible === undefined, true);
 			}
 			
 			if (this._foldingRulerFactory) {
 				this._foldingRuler = this._foldingRulerFactory.createFoldingRuler(this._annotationModel);
-				this._foldingRuler.addAnnotationType(mAnnotations.AnnotationType.ANNOTATION_FOLDING);
-				this.setFoldingRulerVisible(false);
+				this._foldingRuler.addAnnotationType(AT.ANNOTATION_FOLDING);
+				this.setFoldingRulerVisible(this._foldingRulerVisible || this._foldingRulerVisible === undefined, true);
 			}
 			
 			var textViewInstalledEvent = {
@@ -11564,6 +13392,10 @@ define("orion/editor/editor", ['i18n!orion/editor/nls/messages', 'orion/keyBindi
 				textView: textView
 			};
 			this.dispatchEvent(textViewInstalledEvent);
+		},
+
+		uninstall: function() {
+			this.uninstallTextView();
 		},
 		
 		/**
@@ -11580,7 +13412,8 @@ define("orion/editor/editor", ['i18n!orion/editor/nls/messages', 'orion/keyBindi
 				this._annotationRuler = this._overviewRuler = this._lineNumberRuler =
 				this._foldingRuler = this._currentLineAnnotation = this._title = null;
 			this._dirty = false;
-			this._keyModes = [];
+			this._foldingRulerVisible = this._overviewRulerVisible =
+				this._lineNumberRulerVisible = this._annotationRulerVisible = undefined;
 			
 			var textViewUninstalledEvent = {
 				type: "TextViewUninstalled", //$NON-NLS-0$
@@ -11596,8 +13429,9 @@ define("orion/editor/editor", ['i18n!orion/editor/nls/messages', 'orion/keyBindi
 			var lineStart = model.getLineStart(lineIndex);
 			var offsetInLine = caretOffset - lineStart;
 			// If we are in a mode and it owns status reporting, we bail out from reporting the cursor position.
-			for (var i=0; i<this._keyModes.length; i++) {
-				var mode = this._keyModes[i];
+			var keyModes = this.getKeyModes();
+			for (var i=0; i<keyModes.length; i++) {
+				var mode = keyModes[i];
 				if (mode.isActive() && mode.isStatusActive && mode.isStatusActive()) {
 					return;
 				}
@@ -11605,70 +13439,137 @@ define("orion/editor/editor", ['i18n!orion/editor/nls/messages', 'orion/keyBindi
 			this.reportStatus(util.formatMessage(messages.lineColumn, lineIndex + 1, offsetInLine + 1));
 		},
 		
-		showProblems: function(problems) {
+		showAnnotations: function(annotations, types, createAnnotation, getType) {
 			var annotationModel = this._annotationModel;
 			if (!annotationModel) {
 				return;
 			}
 			var remove = [], add = [];
 			var model = annotationModel.getTextModel();
-			var annotations = annotationModel.getAnnotations(0, model.getCharCount()), annotation;
-			while (annotations.hasNext()) {
-				annotation = annotations.next();
-				if (annotation.type === mAnnotations.AnnotationType.ANNOTATION_ERROR || annotation.type === mAnnotations.AnnotationType.ANNOTATION_WARNING) {
-					remove.push(annotation);
+			var iter = annotationModel.getAnnotations(0, model.getCharCount()), annotation;
+			while (iter.hasNext()) {
+				annotation = iter.next();
+				if (types.indexOf(annotation.type) !== -1) {
+					if (annotation.creatorID === this) {
+						remove.push(annotation);
+					}
 				}
 			}
-			if (problems) { 
-				for (var i = 0; i < problems.length; i++) {
-					var problem = problems[i];
-					if (problem) {
-						// escaping voodoo... we need to construct HTML that contains valid JavaScript.
-						var escapedDescription = problem.description.replace(/'/g, "&#39;").replace(/"/g, '&#34;'); //$NON-NLS-1$ //$NON-NLS-0$
-						var lineIndex = problem.line - 1;
-						var lineStart = model.getLineStart(lineIndex);
-						var severity = problem.severity;
-						var type = severity === "error" ? mAnnotations.AnnotationType.ANNOTATION_ERROR : mAnnotations.AnnotationType.ANNOTATION_WARNING; //$NON-NLS-0$
-						var start = lineStart + problem.start - 1;
-						var end = lineStart + problem.end;
-						annotation = mAnnotations.AnnotationType.createAnnotation(type, start, end, escapedDescription);
-						add.push(annotation);
+			if (annotations) { 
+				for (var i = 0; i < annotations.length; i++) {
+					annotation = annotations[i];
+					if (!annotation) { continue; }
+					if (createAnnotation) {
+						annotation = createAnnotation(annotation);
+					} else {
+						var start, end;
+						if (typeof annotation.line === "number") { //$NON-NLS-0$
+							// line/column
+							var lineIndex = annotation.line - 1;
+							var lineStart = model.getLineStart(lineIndex);
+							start = lineStart + annotation.start - 1;
+							end = lineStart + annotation.end;
+						} else {
+							// document offsets
+							start = annotation.start;
+							end = annotation.end;
+						}
+						var type = getType(annotation);
+						if (!type) { continue; }
+						annotation = AT.createAnnotation(type, start, end, annotation.description);
 					}
+					annotation.creatorID = this;
+					add.push(annotation);
+					
 				}
 			}
 			annotationModel.replaceAnnotations(remove, add);
 		},
 		
+		showProblems: function(problems) {
+			this.showAnnotations(problems, [
+				AT.ANNOTATION_ERROR,
+				AT.ANNOTATION_WARNING,
+				AT.ANNOTATION_TASK
+			], null, function(annotation) {
+				switch (annotation.severity) {
+					case "error": return AT.ANNOTATION_ERROR; //$NON-NLS-0$
+					case "warning": return AT.ANNOTATION_WARNING; //$NON-NLS-0$
+					case "task": return AT.ANNOTATION_TASK; //$NON-NLS-0$
+				}
+				return null;
+			});
+		},
+		
 		showOccurrences: function(occurrences) {
-			var annotationModel = this._annotationModel;
-			if (!annotationModel) {
-				return;
+			this.showAnnotations(occurrences, [
+				AT.ANNOTATION_READ_OCCURRENCE,
+				AT.ANNOTATION_WRITE_OCCURRENCE
+			], null, function(annotation) {
+				return annotation.readAccess ? AT.ANNOTATION_READ_OCCURRENCE : AT.ANNOTATION_WRITE_OCCURRENCE;
+			});
+		},
+		
+		showBlame : function(blameMarkers) {
+			var blameRGB = this._blameRGB;
+			var document = this.getTextView().getOptions("parent").ownerDocument; //$NON-NLS-0$
+			if (!blameRGB) {
+				var div = util.createElement(document, "div"); //$NON-NLS-0$
+				div.className = "annotation blame"; //$NON-NLS-0$
+				document.body.appendChild(div);
+				var window = document.defaultView || document.parentWindow;
+				var blameStyle = window.getComputedStyle(div);
+				var color = blameStyle.getPropertyValue("background-color"); //$NON-NLS-0$
+				div.parentNode.removeChild(div);
+				var i1 = color.indexOf("("); //$NON-NLS-0$
+				var i2 = color.indexOf(")"); //$NON-NLS-0$
+				color = color.substring(i1 + 1, i2);
+				this._blameRGB = blameRGB = color.split(",").slice(0,3); //$NON-NLS-0$
 			}
-			var remove = [], add = [];
-			var model = annotationModel.getTextModel();
-			var annotations = annotationModel.getAnnotations(0, model.getCharCount()), annotation;
-			while (annotations.hasNext()) {
-				annotation = annotations.next();
-				if (annotation.type === mAnnotations.AnnotationType.ANNOTATION_READ_OCCURRENCE || annotation.type === mAnnotations.AnnotationType.ANNOTATION_WRITE_OCCURRENCE) {
-					remove.push(annotation);
-				}
-			}
-			if (occurrences) { 
-				for (var i = 0; i < occurrences.length; i++) {
-					var occurrence = occurrences[i];
-					if (occurrence) {
-						var lineIndex = occurrence.line - 1;
-						var lineStart = model.getLineStart(lineIndex);
-						var start = lineStart + occurrence.start - 1;
-						var end = lineStart + occurrence.end;
-						var type = occurrence.readAccess === true ? mAnnotations.AnnotationType.ANNOTATION_READ_OCCURRENCE : mAnnotations.AnnotationType.ANNOTATION_WRITE_OCCURRENCE;
-						var description = occurrence.description;
-						annotation = mAnnotations.AnnotationType.createAnnotation(type, start, end, description);
-						add.push(annotation);
-					}
-				}
-			}
-			annotationModel.replaceAnnotations(remove, add);
+			var createGroup = function() {
+				var annotation = mAnnotations.AnnotationType.createAnnotation(this.groupType, this.start, this.end, this.title);
+				annotation.style = objects.mixin({}, annotation.style);
+				annotation.style.style = objects.mixin({}, annotation.style.style);
+				annotation.style.style.backgroundColor = "";
+				this.groupAnnotation = annotation;
+				annotation.blame = this.blame;
+				annotation.html = this.html;
+				annotation.creatorID = this.creatorID;
+				return annotation;
+			};
+			var title = function() {
+				var div = util.createElement(document, "div"); //$NON-NLS-0$
+				div.className = "tooltipTitle"; //$NON-NLS-0$
+				var index = this.blame.Message.indexOf("\n"); //$NON-NLS-0$
+				if (index === -1) { index = this.blame.Message.length; }
+				var commitLink = util.createElement(document, "a"); //$NON-NLS-0$
+				commitLink.href = this.blame.CommitLink;
+				commitLink.appendChild(document.createTextNode(this.blame.Message.substring(0, index)));
+				div.appendChild(commitLink);
+				div.appendChild(util.createElement(document, "br")); //$NON-NLS-0$
+				div.appendChild(document.createTextNode(util.formatMessage(messages.committerOnTime, this.blame.AuthorName, this.blame.Time)));
+				return div;
+			};
+			var model = this.getModel();
+			this.showAnnotations(blameMarkers, [
+				AT.ANNOTATION_BLAME,
+				AT.ANNOTATION_CURRENT_BLAME
+			], function (blameMarker) {
+				var start = model.getLineStart(blameMarker.Start - 1);
+				var end = model.getLineEnd(blameMarker.End - 1, true);
+				var annotation = mAnnotations.AnnotationType.createAnnotation(AT.ANNOTATION_BLAME, start, end, title);
+				var blameColor = blameRGB.slice(0);
+				blameColor.push(blameMarker.Shade);
+				annotation.style = objects.mixin({}, annotation.style);
+				annotation.style.style = objects.mixin({}, annotation.style.style);
+				annotation.style.style.backgroundColor = "rgba(" + blameColor.join() + ")"; //$NON-NLS-0$ //$NON-NLS-1$
+				annotation.groupId = blameMarker.Name;
+				annotation.groupType = AT.ANNOTATION_CURRENT_BLAME;
+				annotation.createGroupAnnotation = createGroup;
+				annotation.html = '<img class="annotationHTML blame" src="' + blameMarker.AuthorImage + '"/>'; //$NON-NLS-0$ //$NON-NLS-1$
+				annotation.blame = blameMarker;
+				return annotation;
+			});
 		},
 		
 		/**
@@ -11708,13 +13609,8 @@ define("orion/editor/editor", ['i18n!orion/editor/nls/messages', 'orion/keyBindi
 		 * @param {Boolean} contentsSaved
 		 */
 		setInput: function(title, message, contents, contentsSaved) {
-			this._title = title;
 			if (this._textView) {
-				if (contentsSaved) {
-					// don't reset undo stack on save, just mark it clean so that we don't lose the undo past the save
-					this._undoStack.markClean();
-					this.checkDirty();
-				} else {
+				if (!contentsSaved) {
 					if (message) {
 						this._textView.setText(message);
 					} else {
@@ -11725,25 +13621,11 @@ define("orion/editor/editor", ['i18n!orion/editor/nls/messages', 'orion/keyBindi
 						}
 					}
 					this._undoStack.reset();
-					this.checkDirty();
 					this._textView.focus();
 				}
+				this.checkDirty();
 			}
-			this.onInputChanged({
-				type: "InputChanged", //$NON-NLS-0$
-				title: title,
-				message: message,
-				contents: contents,
-				contentsSaved: contentsSaved
-			});
-		},
-		
-		/**
-		 * Called when the editor's contents have changed.
-		 * @param {Event} inputChangedEvent
-		 */
-		onInputChanged: function (inputChangedEvent) {
-			return this.dispatchEvent(inputChangedEvent);
+			BaseEditor.prototype.setInput.call(this, title, message, contents, contentsSaved);
 		},
 		/**
 		 * Reveals a line in the editor, and optionally selects a portion of the line.
@@ -11751,9 +13633,10 @@ define("orion/editor/editor", ['i18n!orion/editor/nls/messages', 'orion/keyBindi
 		 * @param {Number|String} column
 		 * @param {Number} [end]
 		 */
-		onGotoLine: function(line, column, end) {
+		onGotoLine: function(line, column, end, callback) {
 			if (this._textView) {
 				var model = this.getModel();
+				line = Math.max(0, Math.min(line, model.getLineCount() - 1));
 				var lineStart = model.getLineStart(line);
 				var start = 0;
 				if (end === undefined) {
@@ -11771,53 +13654,20 @@ define("orion/editor/editor", ['i18n!orion/editor/nls/messages', 'orion/keyBindi
 					start = Math.min(start, lineLength);
 					end = Math.min(end, lineLength);
 				}
-				this.moveSelection(lineStart + start, lineStart + end);
+				this.moveSelection(lineStart + start, lineStart + end, callback);
 			}
-		},
-		
-		/**
-		 * Called when the dirty state of the editor changes.
-		 * @param {Event} dirtyChangedEvent
-		 */
-		onDirtyChanged: function(dirtyChangedEvent) {
-			return this.dispatchEvent(dirtyChangedEvent);
 		}
-	};
-	mEventTarget.EventTarget.addMixin(Editor.prototype);
-
-	/**
-	 * @private
-	 * @param context Value to be used as the returned function's <code>this</code> value.
-	 * @param [arg1, arg2, ...] Fixed argument values that will prepend any arguments passed to the returned function when it is invoked.
-	 * @returns {Function} A function that always executes this function in the given <code>context</code>.
-	 */
-	function bind(context) {
-		var fn = this,
-		    fixed = Array.prototype.slice.call(arguments, 1);
-		if (fixed.length) {
-			return function() {
-				return arguments.length
-					? fn.apply(context, fixed.concat(Array.prototype.slice.call(arguments)))
-					: fn.apply(context, fixed);
-			};
-		}
-		return function() {
-			return arguments.length ? fn.apply(context, arguments) : fn.call(context);
-		};
-	}
-
-	if (!Function.prototype.bind) {
-		Function.prototype.bind = bind;
-	}
+	});
 
 	return {
+		BaseEditor: BaseEditor,
 		Editor: Editor
 	};
 });
 
 /*******************************************************************************
  * @license
- * Copyright (c) 2011 IBM Corporation and others.
+ * Copyright (c) 2011, 2013 IBM Corporation and others.
  * All rights reserved. This program and the accompanying materials are made 
  * available under the terms of the Eclipse Public License v1.0 
  * (http://www.eclipse.org/legal/epl-v10.html), and the Eclipse Distribution 
@@ -11829,24 +13679,26 @@ define("orion/editor/editor", ['i18n!orion/editor/nls/messages', 'orion/keyBindi
 /*global define */
 /*jslint browser:true regexp:false*/
 /**
- * @name orion.editor.regex
+ * @name orion.regex
  * @class Utilities for dealing with regular expressions.
  * @description Utilities for dealing with regular expressions.
  */
-define("orion/editor/regex", [], function() {
+define("orion/regex", [], function() { //$NON-NLS-0$
 	/**
-	 * @methodOf orion.editor.regex
+	 * @memberOf orion.regex
+	 * @function
 	 * @static
 	 * @description Escapes regex special characters in the input string.
 	 * @param {String} str The string to escape.
 	 * @returns {String} A copy of <code>str</code> with regex special characters escaped.
 	 */
 	function escape(str) {
-		return str.replace(/([\\$\^*\/+?\.\(\)|{}\[\]])/g, "\\$&");
+		return str.replace(/([\\$\^*\/+?\.\(\)|{}\[\]])/g, "\\$&"); //$NON-NLS-0$
 	}
 
 	/**
-	 * @methodOf orion.editor.regex
+	 * @memberOf orion.regex
+	 * @function
 	 * @static
 	 * @description Parses a pattern and flags out of a regex literal string.
 	 * @param {String} str The string to parse. Should look something like <code>"/ab+c/"</code> or <code>"/ab+c/i"</code>.
@@ -11875,7 +13727,7 @@ define("orion/editor/regex", [], function() {
 
 /*******************************************************************************
  * @license
- * Copyright (c) 2011, 2012 IBM Corporation and others.
+ * Copyright (c) 2013 IBM Corporation and others.
  * All rights reserved. This program and the accompanying materials are made 
  * available under the terms of the Eclipse Public License v1.0 
  * (http://www.eclipse.org/legal/epl-v10.html), and the Eclipse Distribution 
@@ -11884,85 +13736,37 @@ define("orion/editor/regex", [], function() {
  * Contributors:
  *     IBM Corporation - initial API and implementation
  *******************************************************************************/
-/*global define prompt */
+/*global define prompt window*/
 
-define("orion/editor/editorFeatures", [ //$NON-NLS-0$
+define("orion/editor/find", [ //$NON-NLS-0$
 	'i18n!orion/editor/nls/messages', //$NON-NLS-0$
-	'orion/editor/undoStack', //$NON-NLS-0$
 	'orion/keyBinding', //$NON-NLS-0$
-	'orion/editor/rulers', //$NON-NLS-0$
+	'orion/editor/keyModes', //$NON-NLS-0$
 	'orion/editor/annotations', //$NON-NLS-0$
-	'orion/editor/tooltip', //$NON-NLS-0$
-	'orion/editor/textDND', //$NON-NLS-0$
-	'orion/editor/regex', //$NON-NLS-0$
+	'orion/regex', //$NON-NLS-0$
+	'orion/objects', //$NON-NLS-0$
 	'orion/util' //$NON-NLS-0$
-], function(messages, mUndoStack, mKeyBinding, mRulers, mAnnotations, mTooltip, mTextDND, mRegex, util) {
+], function(messages, mKeyBinding, mKeyModes, mAnnotations, mRegex, objects, util) {
 
-	function UndoFactory() {
-	}
-	UndoFactory.prototype = {
-		createUndoStack: function(editor) {
-			var textView = editor.getTextView();
-			var undoStack =  new mUndoStack.UndoStack(textView, 200);
-			textView.setAction("undo", function() { //$NON-NLS-0$
-				undoStack.undo();
-				return true;
-			}, {name: messages.undo});
-			
-			textView.setAction("redo", function() { //$NON-NLS-0$
-				undoStack.redo();
-				return true;
-			}, {name: messages.redo});
-			return undoStack;
-		}
-	};
-
-	function LineNumberRulerFactory() {
-	}
-	LineNumberRulerFactory.prototype = {
-		createLineNumberRuler: function(annotationModel) {
-			return new mRulers.LineNumberRuler(annotationModel, "left", {styleClass: "ruler lines"}, {styleClass: "rulerLines odd"}, {styleClass: "rulerLines even"}); //$NON-NLS-3$ //$NON-NLS-2$ //$NON-NLS-1$ //$NON-NLS-0$
-		}
-	};
-	
-	function FoldingRulerFactory() {
-	}
-	FoldingRulerFactory.prototype = {
-		createFoldingRuler: function(annotationModel) {
-			return new mRulers.FoldingRuler(annotationModel, "left", {styleClass: "ruler folding"}); //$NON-NLS-1$ //$NON-NLS-0$
-		}
-	};
-	
-	function AnnotationFactory() {
-	}
-	AnnotationFactory.prototype = {
-		createAnnotationModel: function(model) {
-			return new mAnnotations.AnnotationModel(model);
-		},
-		createAnnotationStyler: function(annotationModel, view) {
-			return new mAnnotations.AnnotationStyler(annotationModel, view);
-		},
-		createAnnotationRulers: function(annotationModel) {
-			var annotationRuler = new mRulers.AnnotationRuler(annotationModel, "left", {styleClass: "ruler annotations"}); //$NON-NLS-1$ //$NON-NLS-0$
-			var overviewRuler = new mRulers.OverviewRuler(annotationModel, "right", {styleClass: "ruler overview"}); //$NON-NLS-1$ //$NON-NLS-0$
-			return {annotationRuler: annotationRuler, overviewRuler: overviewRuler};
-		}
-	};
-	
-	function TextDNDFactory() {
-	}
-	TextDNDFactory.prototype = {
-		createTextDND: function(editor, undoStack) {
-			return new mTextDND.TextDND(editor.getTextView(), undoStack);
-		}
-	};
+	var exports = {};
 	
 	function IncrementalFind(editor) {
+		var textView = editor.getTextView();
+		mKeyModes.KeyMode.call(this, textView);
 		this.editor = editor;
 		this._active = false;
 		this._success = true;
 		this._ignoreSelection = false;
 		this._prefix = "";
+		
+		textView.setAction("incrementalFindCancel", function() { //$NON-NLS-0$
+			this.setActive(false);
+			return true;
+		}.bind(this));
+		textView.setAction("incrementalFindBackspace", function() { //$NON-NLS-0$
+			return this._backspace();
+		}.bind(this));
+		
 		var self = this;
 		this._listener = {
 			onVerify: function(e){
@@ -11978,7 +13782,7 @@ define("orion/editor/editorFeatures", [ //$NON-NLS-0$
 					prefix = self._prefix += e.text;
 					self._success = true;
 					self._status();
-					self.find(true);
+					self.find(self._forward, true);
 					e.text = null;
 				}
 			},
@@ -11989,25 +13793,24 @@ define("orion/editor/editorFeatures", [ //$NON-NLS-0$
 			}
 		};
 	}
-	IncrementalFind.prototype = {
-		backspace: function() {
-			if (!this.isActive()) {
-				return false;
-			}
-			var prefix = this._prefix;
-			prefix = this._prefix = prefix.substring(0, prefix.length-1);
-			if (prefix.length === 0) {
-				this._success = true;
-				this._ignoreSelection = true;
-				this.editor.setCaretOffset(this.editor.getSelection().start);
-				this._ignoreSelection = false;
-				this._status();
-				return true;
-			}
-			return this.find(false);
+	IncrementalFind.prototype = new mKeyModes.KeyMode();
+	objects.mixin(IncrementalFind.prototype, {
+		createKeyBindings: function() {
+			var KeyBinding = mKeyBinding.KeyBinding;
+			var bindings = [];
+			bindings.push({actionID: "incrementalFindBackspace", keyBinding: new KeyBinding(8)}); //$NON-NLS-0$
+			bindings.push({actionID: "incrementalFindCancel", keyBinding: new KeyBinding(13)}); //$NON-NLS-0$
+			bindings.push({actionID: "incrementalFindCancel", keyBinding: new KeyBinding(27)}); //$NON-NLS-0$
+			bindings.push({actionID: "incrementalFindReverse", keyBinding: new KeyBinding(38)}); //$NON-NLS-0$
+			bindings.push({actionID: "incrementalFind", keyBinding: new KeyBinding(40)}); //$NON-NLS-0$
+			bindings.push({actionID: "incrementalFindReverse", keyBinding: new KeyBinding('k', true, true)}); //$NON-NLS-1$ //$NON-NLS-0$
+			bindings.push({actionID: "incrementalFind", keyBinding: new KeyBinding('k', true)}); //$NON-NLS-1$ //$NON-NLS-0$
+			return bindings;
 		},
-		find: function(forward) {
+		find: function(forward, incremental) {
+			this._forward = forward;
 			if (!this.isActive()) {
+				this.setActive(true);
 				return false;
 			}
 			var prefix = this._prefix;
@@ -12019,13 +13822,13 @@ define("orion/editor/editorFeatures", [ //$NON-NLS-0$
 			var start;
 			if (forward) {
 				if (this._success) {
-					start = editor.getSelection().start + 1;
+					start = incremental ? this._start : editor.getCaretOffset() + 1;
 				} else {
 					start = 0;
 				}
 			} else {
 				if (this._success) {
-					start = editor.getCaretOffset() - prefix.length - 1;
+					start = incremental ? this._start : editor.getCaretOffset();
 				} else {
 					start = model.getCharCount() - 1;
 				}
@@ -12036,9 +13839,12 @@ define("orion/editor/editorFeatures", [ //$NON-NLS-0$
 				reverse: !forward,
 				caseInsensitive: prefix.toLowerCase() === prefix}).next();
 			if (result) {
+				if (!incremental) {
+					this._start = start;
+				}
 				this._success = true;
 				this._ignoreSelection = true;
-				editor.moveSelection(result.start, result.end);
+				editor.moveSelection(forward ? result.start : result.end, forward ? result.end : result.start);
 				this._ignoreSelection = false;
 			} else {
 				this._success = false;
@@ -12049,405 +13855,731 @@ define("orion/editor/editorFeatures", [ //$NON-NLS-0$
 		isActive: function() {
 			return this._active;
 		},
+		isStatusActive: function() {
+			return this.isActive();
+		},
 		setActive: function(active) {
+			if (this._active === active) {
+				return;
+			}
 			this._active = active;
 			this._prefix = "";
 			this._success = true;
 			var editor = this.editor;
 			var textView = editor.getTextView();
-			this.editor.setCaretOffset(this.editor.getCaretOffset());
+			this._start = this.editor.getCaretOffset();
+			this.editor.setCaretOffset(this._start);
 			if (this._active) {
 				textView.addEventListener("Verify", this._listener.onVerify); //$NON-NLS-0$
 				textView.addEventListener("Selection", this._listener.onSelection); //$NON-NLS-0$
+				textView.addKeyMode(this);
 			} else {
 				textView.removeEventListener("Verify", this._listener.onVerify); //$NON-NLS-0$
 				textView.removeEventListener("Selection", this._listener.onSelection); //$NON-NLS-0$
+				textView.removeKeyMode(this);
 			}
 			this._status();
+		},
+		_backspace: function() {
+			var prefix = this._prefix;
+			prefix = this._prefix = prefix.substring(0, prefix.length-1);
+			if (prefix.length === 0) {
+				this._success = true;
+				this._ignoreSelection = true;
+				this.editor.setCaretOffset(this.editor.getSelection().start);
+				this._ignoreSelection = false;
+				this._status();
+				return true;
+			}
+			return this.find(this._forward, true);
 		},
 		_status: function() {
 			if (!this.isActive()) {
 				this.editor.reportStatus("");
 				return;
 			}
-			var formattedMessage = util.formatMessage(this._success ? messages.incrementalFind : messages.incrementalFindNotFound, this._prefix);
-			this.editor.reportStatus(formattedMessage, this._success ? "" : "error"); //$NON-NLS-0$
+			var msg;
+			if (this._forward) {
+				msg = this._success ? messages.incrementalFindStr : messages.incrementalFindStrNotFound;
+			} else {
+				msg = this._success ? messages.incrementalFindReverseStr : messages.incrementalFindReverseStrNotFound;
+			}
+			msg = util.formatMessage(msg, this._prefix);
+			this.editor.reportStatus(msg, this._success ? "" : "error"); //$NON-NLS-0$
+		}
+	});
+	exports.IncrementalFind = IncrementalFind;
+	
+	
+	function Find(editor, undoStack, options) {
+		if (!editor) { return; }	
+		this._editor = editor;
+		this._undoStack = undoStack;
+		this._showAll = true;
+		this._visible = false;
+		this._caseInsensitive = true;
+		this._wrap = true;
+		this._wholeWord = false;
+		this._incremental = true;
+		this._regex = false;
+		this._findAfterReplace = true;
+		this._hideAfterFind = false;
+		this._reverse = false;
+		this._start = undefined;
+		this._end = undefined;
+		this._timer = undefined;
+		this._lastString = "";
+		var that = this;
+		this._listeners = {
+			onEditorFocus: function(e) {
+				that._removeCurrentAnnotation(e);
+			}
+		};
+		this.setOptions(options);
+	}
+	Find.prototype = {
+		find: function (forward, tempOptions, incremental) {
+			this.setOptions({
+				reverse : !forward
+			});
+			var string = this.getFindString();
+			var count;
+			if (tempOptions) {
+				string = tempOptions.findString || string;
+				count =  tempOptions.count;
+			}
+			var savedOptions = this.getOptions();
+			this.setOptions(tempOptions);
+			var startOffset = incremental ? this._startOffset : this.getStartOffset();
+			var result = this._doFind(string, startOffset, count);
+			if (result) {
+				if (!incremental) {
+					this._startOffset = result.start;
+				}
+			}
+			this.setOptions(savedOptions);
+			if (this._hideAfterFind) {
+				this.hide();
+			}
+			return result;
+		},
+		getStartOffset: function() {
+			if (this._start !== undefined) {
+				return this._start;
+			}
+			if (this._reverse) {
+				return this._editor.getSelection().start - 1;
+			}
+			return this._editor.getCaretOffset();
+		},
+		getFindString: function() {
+			var selection = this._editor.getSelection();
+			var searchString = this._editor.getText(selection.start, selection.end);
+			if (this._regex) {
+				searchString = mRegex.escape(searchString);
+			}
+			return searchString || this._lastString;
+		},
+		getOptions: function() {
+			return {
+				showAll: this._showAll, 
+				caseInsensitive: this._caseInsensitive, 
+				wrap: this._wrap, 
+				wholeWord: this._wholeWord, 
+				incremental: this._incremental,
+				regex: this._regex,
+				findAfterReplace: this._findAfterReplace,
+				hideAfterFind: this._hideAfterFind,
+				reverse: this._reverse,
+				findCallback: this._findCallback,
+				start: this._start,
+				end: this._end
+			};
+		},
+		getReplaceString: function() {
+			return "";
+		},
+		hide: function() {
+			this._visible = false;
+			if (this._savedOptions) {
+				this.setOptions(this._savedOptions.pop());
+				if (this._savedOptions.length === 0) {
+					this._savedOptions = null;
+				}
+			}
+			this._removeAllAnnotations();
+			var textView = this._editor.getTextView();
+			if (textView) {
+				textView.removeEventListener("Focus", this._listeners.onEditorFocus); //$NON-NLS-0$
+				textView.focus();
+			}
+		},
+		_processReplaceString: function(str) {
+			var newStr = str;
+			if (this._regex) {
+				newStr = "";
+				var escape = false;
+				var delimiter = this._editor.getModel().getLineDelimiter();
+				for (var i=0; i<str.length; i++) {
+					var c = str.substring(i, i + 1);
+					if (escape) {
+						switch (c) {
+							case "R": newStr += delimiter; break;
+							case "r": newStr += "\r"; break;
+							case "n": newStr += "\n"; break;
+							case "t": newStr += "\t"; break;
+							case "\\": newStr += "\\"; break;
+							default: newStr += "\\" + c;
+						}
+						escape = false;
+					} else if (c === "\\") {
+						escape = true;
+					} else {
+						newStr += c;
+					}
+				}
+				if (escape) {
+					newStr += "\\";
+				}
+			}
+			return newStr;
+		},
+		isVisible: function() {
+			return this._visible;
+		},
+		replace: function() {
+			var string = this.getFindString();
+			if (string) {
+				var editor = this._editor;
+				var replaceString = this._processReplaceString(this.getReplaceString());
+				var selection = editor.getSelection();
+				var start = selection.start;
+				var result = editor.getModel().find({
+					string: string,
+					start: start,
+					reverse: false,
+					wrap: this._wrap,
+					regex: this._regex,
+					wholeWord: this._wholeWord,
+					caseInsensitive: this._caseInsensitive
+				}).next();
+				if (result) {
+					this.startUndo();
+					this._doReplace(result.start, result.end, string, replaceString);
+					this.endUndo();
+				}
+			}
+			if (this._findAfterReplace && string){
+				this._doFind(string, this.getStartOffset());
+			}
+		},
+		replaceAll : function() {
+			var string = this.getFindString();
+			if (string) {
+				this._replacingAll = true;
+				var editor = this._editor;
+				var textView = editor.getTextView();
+				editor.reportStatus(messages.replaceAll);
+				var replaceString = this._processReplaceString(this.getReplaceString());
+				var self = this;
+				window.setTimeout(function() {
+					var startPos = 0;
+					var count = 0, lastResult;
+					while (true) {
+						//For replace all, we need to ignore the wrap search from the user option
+						//Otherwise the loop will be dead, see https://bugs.eclipse.org/bugs/show_bug.cgi?id=411813
+						var result = self._doFind(string, startPos, null, true);
+						if (!result) {
+							break;
+						}
+						lastResult = result;
+						count++;
+						if (count === 1) {
+							textView.setRedraw(false);
+							self.startUndo();
+						}
+						self._doReplace(result.start, result.end, string, replaceString);
+						startPos = self.getStartOffset();
+					}
+					if (count > 0) {
+						self.endUndo();
+						textView.setRedraw(true);
+					}
+					if (startPos > 0) {
+						editor.reportStatus(util.formatMessage(messages.replacedMatches, count));
+					} else {
+						editor.reportStatus(messages.nothingReplaced, "error"); //$NON-NLS-0$ 
+					}
+					self._replacingAll = false;
+				}, 100);				
+			}
+		},
+		/**
+		 * @property {String} string the search string to be found.
+		 * @property {Boolean} [regex=false] whether or not the search string is a regular expression.
+		 * @property {Boolean} [wrap=false] whether or not to wrap search.
+		 * @property {Boolean} [wholeWord=false] whether or not to search only whole words.
+		 * @property {Boolean} [caseInsensitive=false] whether or not search is case insensitive.
+		 * @property {Boolean} [reverse=false] whether or not to search backwards.
+		 * @property {Number} [start=0] The start offset to start searching
+		 * @property {Number} [end=charCount] The end offset of the search. Used to search in a given range.	
+		 */
+		setOptions : function(options) {
+			if (options) {
+				if ((options.showAll === true || options.showAll === false) && this._showAll !== options.showAll) {
+					this._showAll = options.showAll;
+					if (this.isVisible()) {
+						if (this._showAll) {
+							this._markAllOccurrences();
+						} else {
+							var annotationModel = this._editor.getAnnotationModel();
+							if (annotationModel) {
+								annotationModel.removeAnnotations(mAnnotations.AnnotationType.ANNOTATION_MATCHING_SEARCH);
+							}
+						}
+					}
+				}
+				if (options.caseInsensitive === true || options.caseInsensitive === false) {
+					this._caseInsensitive = options.caseInsensitive;
+				}
+				if (options.wrap === true || options.wrap === false) {
+					this._wrap = options.wrap;
+				}
+				if (options.wholeWord === true || options.wholeWord === false) {
+					this._wholeWord = options.wholeWord;
+				}
+				if (options.incremental === true || options.incremental === false) {
+					this._incremental = options.incremental;
+				}
+				if (options.regex === true || options.regex === false) {
+					this._regex = options.regex;
+				}
+				if (options.findAfterReplace === true || options.findAfterReplace === false) {
+					this._findAfterReplace = options.findAfterReplace;
+				}
+				if (options.hideAfterFind === true || options.hideAfterFind === false) {
+					this._hideAfterFind = options.hideAfterFind;
+				}
+				if (options.reverse === true || options.reverse === false) {
+					this._reverse = options.reverse;
+				}
+				if (options.hasOwnProperty("findCallback")) { //$NON-NLS-0$
+					this._findCallback = options.findCallback;
+				}
+				if (options.hasOwnProperty("start")) { //$NON-NLS-0$	
+					this._start = options.start;
+				}
+				if (options.hasOwnProperty("end")) { //$NON-NLS-0$
+					this._end = options.end;
+				}
+			}
+		},
+		show: function(tempOptions) {
+			this._visible = true;
+			if (tempOptions) {
+				if (!this._savedOptions) {
+					this._savedOptions = [];
+				}	
+				this._savedOptions.push(this.getOptions());
+				this.setOptions(tempOptions);
+			}
+			this._startOffset = this._editor.getSelection().start;
+			this._editor.getTextView().addEventListener("Focus", this._listeners.onEditorFocus); //$NON-NLS-0$
+			var self = this;
+			window.setTimeout(function() {
+				if (self._incremental) {
+					self.find(true, null, true);
+				}
+			}, 0);
+		},
+		startUndo: function() {
+			if (this._undoStack) {
+				this._undoStack.startCompoundChange();
+			}
+		}, 
+		endUndo: function() {
+			if (this._undoStack) {
+				this._undoStack.endCompoundChange();
+			}
+		},
+		_find: function(string, startOffset, noWrap) {
+			return this._editor.getModel().find({
+				string: string,
+				start: startOffset,
+				end: this._end,
+				reverse: this._reverse,
+				wrap: (noWrap ? false: this._wrap),
+				regex: this._regex,
+				wholeWord: this._wholeWord,
+				caseInsensitive: this._caseInsensitive
+			});
+		},
+		_doFind: function(string, startOffset, count, noWrap) {
+			count = count || 1;
+			var editor = this._editor;
+			if (!string) {
+				this._removeAllAnnotations();
+				return null;
+			}
+			this._lastString = string;
+			var result, iterator;
+			if (this._regex) {
+				try {
+					iterator = this._find(string, startOffset, noWrap);
+				} catch (ex) {
+					editor.reportStatus(ex.message, "error"); //$NON-NLS-0$
+					return;
+				}
+			} else {
+				iterator = this._find(string, startOffset, noWrap);
+			}
+			for (var i=0; i<count && iterator.hasNext(); i++) {
+				result = iterator.next();
+			}
+			if (!this._replacingAll) {
+				if (result) {
+					this._editor.reportStatus("");
+				} else {
+					this._editor.reportStatus(messages.notFound, "error"); //$NON-NLS-0$
+				}
+				if (this.isVisible()) {
+					var type = mAnnotations.AnnotationType.ANNOTATION_CURRENT_SEARCH;
+					var annotationModel = editor.getAnnotationModel();
+					if (annotationModel) {
+						annotationModel.removeAnnotations(type);
+						if (result) {
+							annotationModel.addAnnotation(mAnnotations.AnnotationType.createAnnotation(type, result.start, result.end));
+						}
+					}
+					if (this._showAll) {
+						if (this._timer) {
+							window.clearTimeout(this._timer);
+						}
+						var that = this;
+						this._timer = window.setTimeout(function(){
+							that._markAllOccurrences();
+							that._timer = null;
+						}, 500);
+					}
+				}
+				if (this._findCallback) {
+					this._findCallback(result);
+				}
+				else if (result) {
+					editor.moveSelection(result.start, result.end, null, false);
+				}
+			}
+			return result;
+		},
+		_doReplace: function(start, end, searchStr, newStr) {
+			var editor = this._editor;
+			if (this._regex) {
+				newStr = editor.getText(start, end).replace(new RegExp(searchStr, this._caseInsensitive ? "i" : ""), newStr); //$NON-NLS-0$
+				if (!newStr) {
+					return;
+				}
+			}
+			editor.setText(newStr, start, end);
+			editor.setSelection(start, start + newStr.length, true);
+		},
+		_markAllOccurrences: function() {
+			var annotationModel = this._editor.getAnnotationModel();
+			if (!annotationModel) {
+				return;
+			}
+			var type = mAnnotations.AnnotationType.ANNOTATION_MATCHING_SEARCH;
+			var iter = annotationModel.getAnnotations(0, annotationModel.getTextModel().getCharCount());
+			var remove = [], add;
+			while (iter.hasNext()) {
+				var annotation = iter.next();
+				if (annotation.type === type) {
+					remove.push(annotation);
+				}
+			}
+			if (this.isVisible()) {
+				var string = this.getFindString();
+				iter = this._editor.getModel().find({
+					string: string,
+					regex: this._regex,
+					wholeWord: this._wholeWord,
+					caseInsensitive: this._caseInsensitive
+				});
+				add = [];
+				while (iter.hasNext()) {
+					var range = iter.next();
+					add.push(mAnnotations.AnnotationType.createAnnotation(type, range.start, range.end));
+				}
+			}
+			annotationModel.replaceAnnotations(remove, add);
+		},
+		_removeAllAnnotations: function() {
+			var annotationModel = this._editor.getAnnotationModel();
+			if (annotationModel) {
+				annotationModel.removeAnnotations(mAnnotations.AnnotationType.ANNOTATION_CURRENT_SEARCH);
+				annotationModel.removeAnnotations(mAnnotations.AnnotationType.ANNOTATION_MATCHING_SEARCH);
+			}
+		},
+		_removeCurrentAnnotation: function(evt){
+			var annotationModel = this._editor.getAnnotationModel();
+			if (annotationModel) {
+				annotationModel.removeAnnotations(mAnnotations.AnnotationType.ANNOTATION_CURRENT_SEARCH);
+			}
 		}
 	};
+	exports.Find = Find;
+	
+	return exports;
+});
+
+/*******************************************************************************
+ * @license
+ * Copyright (c) 2013 IBM Corporation and others.
+ * All rights reserved. This program and the accompanying materials are made
+ * available under the terms of the Eclipse Public License v1.0
+ * (http://www.eclipse.org/legal/epl-v10.html), and the Eclipse Distribution
+ * License v1.0 (http://www.eclipse.org/org/documents/edl-v10.html).
+ *
+ * Contributors:
+ *     IBM Corporation - initial API and implementation
+ *******************************************************************************/
+/*global define prompt */
+
+define("orion/editor/actions", [ //$NON-NLS-0$
+	'i18n!orion/editor/nls/messages', //$NON-NLS-0$
+	'orion/keyBinding', //$NON-NLS-0$
+	'orion/editor/annotations', //$NON-NLS-0$
+	'orion/editor/tooltip', //$NON-NLS-0$
+	'orion/editor/find', //$NON-NLS-0$
+	'orion/util' //$NON-NLS-0$
+], function(messages, mKeyBinding, mAnnotations, mTooltip, mFind, util) {
+
+	var AT = mAnnotations.AnnotationType;
+
+	var exports = {};
 
 	/**
-	 * TextCommands connects common text editing keybindings onto an editor.
+	 * TextActions connects common text editing keybindings onto an editor.
 	 */
-	function TextActions(editor, undoStack, searcher) {
+	function TextActions(editor, undoStack, find) {
 		this.editor = editor;
 		this.undoStack = undoStack;
-		this._incrementalFind = new IncrementalFind(editor);
-		this._searcher =  searcher;
+		this._incrementalFind = new mFind.IncrementalFind(editor);
+		this._find = find ? find : new mFind.Find(editor, undoStack);
 		this._lastEditLocation = null;
 		this.init();
 	}
+
 	TextActions.prototype = {
 		init: function() {
-			var self = this;
 			var textView = this.editor.getTextView();
-			
+
 			this._lastEditListener = {
 				onModelChanged: function(e) {
-					if (self.editor.isDirty()) {
-						self._lastEditLocation = e.start + e.addedCharCount;
+					if (this.editor.isDirty()) {
+						this._lastEditLocation = e.start + e.addedCharCount;
 					}
-				}
+				}.bind(this)
 			};
 			textView.addEventListener("ModelChanged", this._lastEditListener.onModelChanged); //$NON-NLS-0$
-			
-			textView.setKeyBinding(new mKeyBinding.KeyBinding("k", true), "findNext"); //$NON-NLS-1$ //$NON-NLS-0$
-			textView.setAction("findNext", function() { //$NON-NLS-0$
-				if (this._searcher){
-					var selection = textView.getSelection();
-					if(selection.start < selection.end) {
-						this._searcher.findNext(true, textView.getText(selection.start, selection.end));
-					} else {
-						this._searcher.findNext(true);
+
+			textView.setAction("undo", function() { //$NON-NLS-0$
+				if (this.undoStack) {
+					this.undoStack.undo();
+					return true;
+				}
+				return false;
+			}.bind(this), {name: messages.undo});
+
+			textView.setAction("redo", function() { //$NON-NLS-0$
+				if (this.undoStack) {
+					this.undoStack.redo();
+					return true;
+				}
+				return false;
+			}.bind(this), {name: messages.redo});
+
+			textView.setKeyBinding(new mKeyBinding.KeyBinding("f", true), "find"); //$NON-NLS-1$ //$NON-NLS-0$
+			textView.setAction("find", function() { //$NON-NLS-0$
+				if (this._find) {
+					var selection = this.editor.getSelection();
+					var search = prompt(messages.find, this.editor.getText(selection.start, selection.end));
+					if (search) {
+						this._find.find(true, {findString:search});
 					}
+				}
+			}.bind(this), {name: messages.find});
+
+			textView.setKeyBinding(new mKeyBinding.KeyBinding("k", true), "findNext"); //$NON-NLS-1$ //$NON-NLS-0$
+			textView.setAction("findNext", function(options) { //$NON-NLS-0$
+				if (this._find){
+					this._find.find(true, options);
 					return true;
 				}
 				return false;
 			}.bind(this), {name: messages.findNext});
-			
+
 			textView.setKeyBinding(new mKeyBinding.KeyBinding("k", true, true), "findPrevious"); //$NON-NLS-1$ //$NON-NLS-0$
-			textView.setAction("findPrevious", function() { //$NON-NLS-0$
-				if (this._searcher){
-					var selection = textView.getSelection();
-					if(selection.start < selection.end) {
-						this._searcher.findNext(false, textView.getText(selection.start, selection.end));
-					} else {
-						this._searcher.findNext(false);
-					}
+			textView.setAction("findPrevious", function(options) { //$NON-NLS-0$
+				if (this._find){
+					this._find.find(false, options);
 					return true;
 				}
 				return false;
 			}.bind(this), {name: messages.findPrevious});
-	
+
 			textView.setKeyBinding(new mKeyBinding.KeyBinding("j", true), "incrementalFind"); //$NON-NLS-1$ //$NON-NLS-0$
 			textView.setAction("incrementalFind", function() { //$NON-NLS-0$
-				if (this._searcher && this._searcher.visible()) {
-					return true;
-				}
-				if (!this._incrementalFind.isActive()) {
-					this._incrementalFind.setActive(true);
-				} else {
+				if (this._incrementalFind) {
 					this._incrementalFind.find(true);
 				}
 				return true;
-			}.bind(this), {name: messages.incrementalFindKey});
-			textView.setAction("deletePrevious", function() { //$NON-NLS-0$
-				return this._incrementalFind.backspace();
-			}.bind(this));
-			
-			textView.setAction("tab", function() { //$NON-NLS-0$
-				if (textView.getOptions("readonly")) { return false; } //$NON-NLS-0$
-				if(!textView.getOptions("tabMode")) { return; } //$NON-NLS-0$
-				var editor = this.editor;
-				var model = editor.getModel();
-				var selection = editor.getSelection();
-				var firstLine = model.getLineAtOffset(selection.start);
-				var lastLine = model.getLineAtOffset(selection.end > selection.start ? selection.end - 1 : selection.end);
-				if (firstLine !== lastLine) {
-					var lines = [];
-					lines.push("");
-					for (var i = firstLine; i <= lastLine; i++) {
-						lines.push(model.getLine(i, true));
-					}
-					var lineStart = model.getLineStart(firstLine);
-					var lineEnd = model.getLineEnd(lastLine, true);
-					var options = textView.getOptions("tabSize", "expandTab"); //$NON-NLS-1$ //$NON-NLS-0$
-					var text = options.expandTab ? new Array(options.tabSize + 1).join(" ") : "\t"; //$NON-NLS-1$ //$NON-NLS-0$
-					editor.setText(lines.join(text), lineStart, lineEnd);
-					editor.setSelection(lineStart === selection.start ? selection.start : selection.start + text.length, selection.end + ((lastLine - firstLine + 1) * text.length));
-					return true;
+			}.bind(this), {name: messages.incrementalFind});
+
+			textView.setKeyBinding(new mKeyBinding.KeyBinding("j", true, true), "incrementalFindReverse"); //$NON-NLS-1$ //$NON-NLS-0$
+			textView.setAction("incrementalFindReverse", function() { //$NON-NLS-0$
+				if (this._incrementalFind) {
+					this._incrementalFind.find(false);
 				}
-				
-				var keyModes = editor.getKeyModes();
-				for (var j = 0; j < keyModes.length; j++) {
-					if (keyModes[j].isActive()) {
-						return keyModes[j].tab();
-					}
-				}
-				
-				return false;
-			}.bind(this));
-	
-			textView.setAction("shiftTab", function() { //$NON-NLS-0$
-				if (textView.getOptions("readonly")) { return false; } //$NON-NLS-0$
-				if(!textView.getOptions("tabMode")) { return; } //$NON-NLS-0$
-				var editor = this.editor;
-				var model = editor.getModel();
-				var selection = editor.getSelection();
-				var firstLine = model.getLineAtOffset(selection.start);
-				var lastLine = model.getLineAtOffset(selection.end > selection.start ? selection.end - 1 : selection.end);
-				var tabSize = textView.getOptions("tabSize"); //$NON-NLS-0$
-				var spaceTab = new Array(tabSize + 1).join(" "); //$NON-NLS-0$
-				var lines = [], removeCount = 0, firstRemoveCount = 0;
-				for (var i = firstLine; i <= lastLine; i++) {
-					var line = model.getLine(i, true);
-					if (model.getLineStart(i) !== model.getLineEnd(i)) {
-						if (line.indexOf("\t") === 0) { //$NON-NLS-0$
-							line = line.substring(1);
-							removeCount++;
-						} else if (line.indexOf(spaceTab) === 0) {
-							line = line.substring(tabSize);
-							removeCount += tabSize;
-						} else {
-							return true;
-						}
-					}
-					if (i === firstLine) {
-						firstRemoveCount = removeCount;
-					}
-					lines.push(line);
-				}
-				var lineStart = model.getLineStart(firstLine);
-				var lineEnd = model.getLineEnd(lastLine, true);
-				var lastLineStart = model.getLineStart(lastLine);
-				editor.setText(lines.join(""), lineStart, lineEnd);
-				var start = lineStart === selection.start ? selection.start : selection.start - firstRemoveCount;
-				var end = Math.max(start, selection.end - removeCount + (selection.end === lastLineStart+1 && selection.start !== selection.end ? 1 : 0));
-				editor.setSelection(start, end);
 				return true;
+			}.bind(this), {name: messages.incrementalFindReverse});
+
+			textView.setAction("tab", function() { //$NON-NLS-0$
+				return this.indentLines();
+			}.bind(this));
+
+			textView.setAction("shiftTab", function() { //$NON-NLS-0$
+				return this.unindentLines();
 			}.bind(this), {name: messages.unindentLines});
-			
+
 			textView.setKeyBinding(new mKeyBinding.KeyBinding(38, false, false, true), "moveLinesUp"); //$NON-NLS-0$
 			textView.setAction("moveLinesUp", function() { //$NON-NLS-0$
-				if (textView.getOptions("readonly")) { return false; } //$NON-NLS-0$
-				var editor = this.editor;
-				var model = editor.getModel();
-				var selection = editor.getSelection();
-				var firstLine = model.getLineAtOffset(selection.start);
-				if (firstLine === 0) {
-					return true;
-				}
-				var lastLine = model.getLineAtOffset(selection.end > selection.start ? selection.end - 1 : selection.end);
-				var lineCount = model.getLineCount();
-				var insertOffset = model.getLineStart(firstLine - 1);
-				var lineStart = model.getLineStart(firstLine);
-				var lineEnd = model.getLineEnd(lastLine, true);
-				var text = model.getText(lineStart, lineEnd);
-				var delimiterLength = 0;
-				if (lastLine === lineCount-1) {
-					// Move delimiter preceding selection to end of text
-					var delimiterStart = model.getLineEnd(firstLine - 1);
-					var delimiterEnd = model.getLineEnd(firstLine - 1, true);
-					text += model.getText(delimiterStart, delimiterEnd);
-					lineStart = delimiterStart;
-					delimiterLength = delimiterEnd - delimiterStart;
-				}
-				this.startUndo();
-				editor.setText("", lineStart, lineEnd);
-				editor.setText(text, insertOffset, insertOffset);
-				editor.setSelection(insertOffset, insertOffset + text.length - delimiterLength);
-				this.endUndo();
-				return true;
+				return this.moveLinesUp();
 			}.bind(this), {name: messages.moveLinesUp});
-			
+
 			textView.setKeyBinding(new mKeyBinding.KeyBinding(40, false, false, true), "moveLinesDown"); //$NON-NLS-0$
 			textView.setAction("moveLinesDown", function() { //$NON-NLS-0$
-				if (textView.getOptions("readonly")) { return false; } //$NON-NLS-0$
-				var editor = this.editor;
-				var model = editor.getModel();
-				var selection = editor.getSelection();
-				var firstLine = model.getLineAtOffset(selection.start);
-				var lastLine = model.getLineAtOffset(selection.end > selection.start ? selection.end - 1 : selection.end);
-				var lineCount = model.getLineCount();
-				if (lastLine === lineCount-1) {
-					return true;
-				}
-				var lineStart = model.getLineStart(firstLine);
-				var lineEnd = model.getLineEnd(lastLine, true);
-				var insertOffset = model.getLineEnd(lastLine+1, true) - (lineEnd - lineStart);
-				var text, delimiterLength = 0;
-				if (lastLine !== lineCount-2) {
-					text = model.getText(lineStart, lineEnd);
-				} else {
-					// Move delimiter following selection to front of the text
-					var lineEndNoDelimiter = model.getLineEnd(lastLine);
-					text = model.getText(lineEndNoDelimiter, lineEnd) + model.getText(lineStart, lineEndNoDelimiter);
-					delimiterLength += lineEnd - lineEndNoDelimiter;
-				}
-				this.startUndo();
-				editor.setText("", lineStart, lineEnd);
-				editor.setText(text, insertOffset, insertOffset);
-				editor.setSelection(insertOffset + delimiterLength, insertOffset + delimiterLength + text.length);
-				this.endUndo();
-				return true;
+				return this.moveLinesDown();
 			}.bind(this), {name: messages.moveLinesDown});
-			
+
 			textView.setKeyBinding(new mKeyBinding.KeyBinding(38, true, false, true), "copyLinesUp"); //$NON-NLS-0$
 			textView.setAction("copyLinesUp", function() { //$NON-NLS-0$
-				if (textView.getOptions("readonly")) { return false; } //$NON-NLS-0$
-				var editor = this.editor;
-				var model = editor.getModel();
-				var selection = editor.getSelection();
-				var firstLine = model.getLineAtOffset(selection.start);
-				var lastLine = model.getLineAtOffset(selection.end > selection.start ? selection.end - 1 : selection.end);
-				var lineStart = model.getLineStart(firstLine);
-				var lineEnd = model.getLineEnd(lastLine, true);
-				var lineCount = model.getLineCount();
-				var delimiter = "";
-				var text = model.getText(lineStart, lineEnd);
-				if (lastLine === lineCount-1) {
-					text += (delimiter = model.getLineDelimiter());
-				}
-				var insertOffset = lineStart;
-				editor.setText(text, insertOffset, insertOffset);
-				editor.setSelection(insertOffset, insertOffset + text.length - delimiter.length);
-				return true;
+				return this.copyLinesUp();
 			}.bind(this), {name: messages.copyLinesUp});
-			
+
 			textView.setKeyBinding(new mKeyBinding.KeyBinding(40, true, false, true), "copyLinesDown"); //$NON-NLS-0$
 			textView.setAction("copyLinesDown", function() { //$NON-NLS-0$
-				if (textView.getOptions("readonly")) { return false; } //$NON-NLS-0$
-				var editor = this.editor;
-				var model = editor.getModel();
-				var selection = editor.getSelection();
-				var firstLine = model.getLineAtOffset(selection.start);
-				var lastLine = model.getLineAtOffset(selection.end > selection.start ? selection.end - 1 : selection.end);
-				var lineStart = model.getLineStart(firstLine);
-				var lineEnd = model.getLineEnd(lastLine, true);
-				var lineCount = model.getLineCount();
-				var delimiter = "";
-				var text = model.getText(lineStart, lineEnd);
-				if (lastLine === lineCount-1) {
-					text = (delimiter = model.getLineDelimiter()) + text;
-				}
-				var insertOffset = lineEnd;
-				editor.setText(text, insertOffset, insertOffset);
-				editor.setSelection(insertOffset + delimiter.length, insertOffset + text.length);
-				return true;
+				return this.copyLinesDown();
 			}.bind(this), {name: messages.copyLinesDown});
-			
+
 			textView.setKeyBinding(new mKeyBinding.KeyBinding('d', true, false, false), "deleteLines"); //$NON-NLS-1$ //$NON-NLS-0$
-			textView.setAction("deleteLines", function() { //$NON-NLS-0$
-				if (textView.getOptions("readonly")) { return false; } //$NON-NLS-0$
-				var editor = this.editor;
-				var selection = editor.getSelection();
-				var model = editor.getModel();
-				var firstLine = model.getLineAtOffset(selection.start);
-				var lastLine = model.getLineAtOffset(selection.end > selection.start ? selection.end - 1 : selection.end);
-				var lineStart = model.getLineStart(firstLine);
-				var lineEnd = model.getLineEnd(lastLine, true);
-				editor.setText("", lineStart, lineEnd);
-				return true;
+			textView.setAction("deleteLines", function(data) { //$NON-NLS-0$
+				return this.deleteLines(data);
 			}.bind(this), {name: messages.deleteLines});
-			
-			// Go To Line action
-			textView.setKeyBinding(new mKeyBinding.KeyBinding("l", true), "gotoLine"); //$NON-NLS-1$ //$NON-NLS-0$
+
+			textView.setKeyBinding(new mKeyBinding.KeyBinding("l", !util.isMac, false, false, util.isMac), "gotoLine"); //$NON-NLS-1$ //$NON-NLS-0$
 			textView.setAction("gotoLine", function() { //$NON-NLS-0$
-				var editor = this.editor;
-				var model = editor.getModel();
-				var line = model.getLineAtOffset(editor.getCaretOffset());
-				line = prompt(messages.gotoLinePrompty, line + 1);
-				if (line) {
-					line = parseInt(line, 10);
-					editor.onGotoLine(line - 1, 0);
-				}
-				return true;
+				return this.gotoLine();
 			}.bind(this), {name: messages.gotoLine});
-			
+
 			textView.setKeyBinding(new mKeyBinding.KeyBinding(190, true), "nextAnnotation"); //$NON-NLS-0$
 			textView.setAction("nextAnnotation", function() { //$NON-NLS-0$
 				return this.nextAnnotation(true);
 			}.bind(this), {name: messages.nextAnnotation});
-			
+
 			textView.setKeyBinding(new mKeyBinding.KeyBinding(188, true), "previousAnnotation"); //$NON-NLS-0$
 			textView.setAction("previousAnnotation", function() { //$NON-NLS-0$
 				return this.nextAnnotation(false);
 			}.bind(this), {name: messages.prevAnnotation});
-			
+
 			textView.setKeyBinding(new mKeyBinding.KeyBinding("e", true, false, true, false), "expand"); //$NON-NLS-1$ //$NON-NLS-0$
 			textView.setAction("expand", function() { //$NON-NLS-0$
 				return this.expandAnnotation(true);
 			}.bind(this), {name: messages.expand});
-	
+
 			textView.setKeyBinding(new mKeyBinding.KeyBinding("c", true, false, true, false), "collapse"); //$NON-NLS-1$ //$NON-NLS-0$
 			textView.setAction("collapse", function() { //$NON-NLS-0$
 				return this.expandAnnotation(false);
 			}.bind(this), {name: messages.collapse});
-	
+
 			textView.setKeyBinding(new mKeyBinding.KeyBinding("e", true, true, true, false), "expandAll"); //$NON-NLS-1$ //$NON-NLS-0$
 			textView.setAction("expandAll", function() { //$NON-NLS-0$
 				return this.expandAnnotations(true);
 			}.bind(this), {name: messages.expandAll});
-	
+
 			textView.setKeyBinding(new mKeyBinding.KeyBinding("c", true, true, true, false), "collapseAll"); //$NON-NLS-1$ //$NON-NLS-0$
 			textView.setAction("collapseAll", function() { //$NON-NLS-0$
 				return this.expandAnnotations(false);
 			}.bind(this), {name: messages.collapseAll});
-			
+
 			textView.setKeyBinding(new mKeyBinding.KeyBinding("q", !util.isMac, false, false, util.isMac), "lastEdit"); //$NON-NLS-1$ //$NON-NLS-0$
 			textView.setAction("lastEdit", function() { //$NON-NLS-0$
-				if (typeof this._lastEditLocation === "number")  { //$NON-NLS-0$
-					this.editor.showSelection(this._lastEditLocation);
-				}
-				return true;
+				return this.gotoLastEdit();
 			}.bind(this), {name: messages.lastEdit});
 		},
-		
-		nextAnnotation: function (forward) {
+		copyLinesDown: function() {
 			var editor = this.editor;
-			var annotationModel = editor.getAnnotationModel();
-			if(!annotationModel) { return true; }
+			var textView = editor.getTextView();
+			if (textView.getOptions("readonly")) { return false; } //$NON-NLS-0$
 			var model = editor.getModel();
-			var currentOffset = editor.getCaretOffset();
-			var annotations = annotationModel.getAnnotations(forward ? currentOffset : 0, forward ? model.getCharCount() : currentOffset);
-			var foundAnnotation = null;
-			while (annotations.hasNext()) {
-				var annotation = annotations.next();
-				if (forward) {
-					if (annotation.start <= currentOffset) { continue; }
-				} else {
-					if (annotation.start >= currentOffset) { continue; }
-				}
-				switch (annotation.type) {
-					case mAnnotations.AnnotationType.ANNOTATION_ERROR:
-					case mAnnotations.AnnotationType.ANNOTATION_WARNING:
-					case mAnnotations.AnnotationType.ANNOTATION_TASK:
-					case mAnnotations.AnnotationType.ANNOTATION_BOOKMARK:
-						break;
-					default:
-						continue;
-				}
-				foundAnnotation = annotation;
-				if (forward) {
-					break;
-				}
+			var selection = editor.getSelection();
+			var firstLine = model.getLineAtOffset(selection.start);
+			var lastLine = model.getLineAtOffset(selection.end > selection.start ? selection.end - 1 : selection.end);
+			var lineStart = model.getLineStart(firstLine);
+			var lineEnd = model.getLineEnd(lastLine, true);
+			var lineCount = model.getLineCount();
+			var delimiter = "";
+			var text = model.getText(lineStart, lineEnd);
+			if (lastLine === lineCount-1) {
+				text = (delimiter = model.getLineDelimiter()) + text;
 			}
-			if (foundAnnotation) {
-				var view = editor.getTextView();
-				var nextLine = model.getLineAtOffset(foundAnnotation.start);
-				var tooltip = mTooltip.Tooltip.getTooltip(view);
-				if (!tooltip) {
-					editor.moveSelection(foundAnnotation.start);
-					return true;
-				}
-				editor.moveSelection(foundAnnotation.start, foundAnnotation.start, function() {
-					tooltip.setTarget({
-						getTooltipInfo: function() {
-							var tooltipCoords = view.convert({
-								x: view.getLocationAtOffset(foundAnnotation.start).x, 
-								y: view.getLocationAtOffset(model.getLineStart(nextLine)).y
-							}, "document", "page"); //$NON-NLS-1$ //$NON-NLS-0$
-							return {
-								contents: [foundAnnotation],
-								x: tooltipCoords.x,
-								y: tooltipCoords.y + Math.floor(view.getLineHeight(nextLine) * 1.33)
-							};
-						}
-					}, 0);
-				});
-			}
+			var insertOffset = lineEnd;
+			editor.setText(text, insertOffset, insertOffset);
+			editor.setSelection(insertOffset + delimiter.length, insertOffset + text.length);
 			return true;
 		},
-		
+		copyLinesUp: function() {
+			var editor = this.editor;
+			var textView = editor.getTextView();
+			if (textView.getOptions("readonly")) { return false; } //$NON-NLS-0$
+			var model = editor.getModel();
+			var selection = editor.getSelection();
+			var firstLine = model.getLineAtOffset(selection.start);
+			var lastLine = model.getLineAtOffset(selection.end > selection.start ? selection.end - 1 : selection.end);
+			var lineStart = model.getLineStart(firstLine);
+			var lineEnd = model.getLineEnd(lastLine, true);
+			var lineCount = model.getLineCount();
+			var delimiter = "";
+			var text = model.getText(lineStart, lineEnd);
+			if (lastLine === lineCount-1) {
+				text += (delimiter = model.getLineDelimiter());
+			}
+			var insertOffset = lineStart;
+			editor.setText(text, insertOffset, insertOffset);
+			editor.setSelection(insertOffset, insertOffset + text.length - delimiter.length);
+			return true;
+		},
+		deleteLines: function(data) {
+			var editor = this.editor;
+			var textView = editor.getTextView();
+			if (textView.getOptions("readonly")) { return false; } //$NON-NLS-0$
+			var count = 1;
+			if (data && data.count) {
+				count = data.count;
+			}
+			var selection = editor.getSelection();
+			var model = editor.getModel();
+			var firstLine = model.getLineAtOffset(selection.start);
+			var lineStart = model.getLineStart(firstLine);
+			var lastLine;
+			if (selection.start !== selection.end || count === 1) {
+				lastLine = model.getLineAtOffset(selection.end > selection.start ? selection.end - 1 : selection.end);
+			} else {
+				lastLine = Math.min(firstLine + count - 1, model.getLineCount() - 1);
+			}
+			var lineEnd = model.getLineEnd(lastLine, true);
+			editor.setText("", lineStart, lineEnd);
+			return true;
+		},
 		expandAnnotation: function(expand) {
 			var editor = this.editor;
 			var annotationModel = editor.getAnnotationModel();
@@ -12481,7 +14613,6 @@ define("orion/editor/editorFeatures", [ //$NON-NLS-0$
 			}
 			return true;
 		},
-
 		expandAnnotations: function(expand) {
 			var editor = this.editor;
 			var textView = editor.getTextView();
@@ -12505,42 +14636,219 @@ define("orion/editor/editorFeatures", [ //$NON-NLS-0$
 			textView.setRedraw(true);
 			return true;
 		},
-		
+		indentLines: function() {
+			var editor = this.editor;
+			var textView = editor.getTextView();
+			if (textView.getOptions("readonly")) { return false; } //$NON-NLS-0$
+			if(!textView.getOptions("tabMode")) { return; } //$NON-NLS-0$
+			var model = editor.getModel();
+			var selection = editor.getSelection();
+			var firstLine = model.getLineAtOffset(selection.start);
+			var lastLine = model.getLineAtOffset(selection.end > selection.start ? selection.end - 1 : selection.end);
+			if (firstLine !== lastLine) {
+				var lines = [];
+				lines.push("");
+				for (var i = firstLine; i <= lastLine; i++) {
+					lines.push(model.getLine(i, true));
+				}
+				var lineStart = model.getLineStart(firstLine);
+				var lineEnd = model.getLineEnd(lastLine, true);
+				var options = textView.getOptions("tabSize", "expandTab"); //$NON-NLS-1$ //$NON-NLS-0$
+				var text = options.expandTab ? new Array(options.tabSize + 1).join(" ") : "\t"; //$NON-NLS-1$ //$NON-NLS-0$
+				editor.setText(lines.join(text), lineStart, lineEnd);
+				editor.setSelection(lineStart === selection.start ? selection.start : selection.start + text.length, selection.end + ((lastLine - firstLine + 1) * text.length));
+				return true;
+			}
+			return false;
+		},
+		gotoLastEdit: function() {
+			if (typeof this._lastEditLocation === "number")  { //$NON-NLS-0$
+				this.editor.showSelection(this._lastEditLocation);
+			}
+			return true;
+		},
+		gotoLine: function() {
+			var editor = this.editor;
+			var model = editor.getModel();
+			var line = model.getLineAtOffset(editor.getCaretOffset());
+			line = prompt(messages.gotoLinePrompty, line + 1);
+			if (line) {
+				line = parseInt(line, 10);
+				editor.onGotoLine(line - 1, 0);
+			}
+			return true;
+		},
+		moveLinesDown: function() {
+			var editor = this.editor;
+			var textView = editor.getTextView();
+			if (textView.getOptions("readonly")) { return false; } //$NON-NLS-0$
+			var model = editor.getModel();
+			var selection = editor.getSelection();
+			var firstLine = model.getLineAtOffset(selection.start);
+			var lastLine = model.getLineAtOffset(selection.end > selection.start ? selection.end - 1 : selection.end);
+			var lineCount = model.getLineCount();
+			if (lastLine === lineCount-1) {
+				return true;
+			}
+			var lineStart = model.getLineStart(firstLine);
+			var lineEnd = model.getLineEnd(lastLine, true);
+			var insertOffset = model.getLineEnd(lastLine+1, true) - (lineEnd - lineStart);
+			var text, delimiterLength = 0;
+			if (lastLine !== lineCount-2) {
+				text = model.getText(lineStart, lineEnd);
+			} else {
+				// Move delimiter following selection to front of the text
+				var lineEndNoDelimiter = model.getLineEnd(lastLine);
+				text = model.getText(lineEndNoDelimiter, lineEnd) + model.getText(lineStart, lineEndNoDelimiter);
+				delimiterLength += lineEnd - lineEndNoDelimiter;
+			}
+			this.startUndo();
+			editor.setText("", lineStart, lineEnd);
+			editor.setText(text, insertOffset, insertOffset);
+			editor.setSelection(insertOffset + delimiterLength, insertOffset + delimiterLength + text.length);
+			this.endUndo();
+			return true;
+		},
+		moveLinesUp: function() {
+			var editor = this.editor;
+			var textView = editor.getTextView();
+			if (textView.getOptions("readonly")) { return false; } //$NON-NLS-0$
+			var model = editor.getModel();
+			var selection = editor.getSelection();
+			var firstLine = model.getLineAtOffset(selection.start);
+			if (firstLine === 0) {
+				return true;
+			}
+			var lastLine = model.getLineAtOffset(selection.end > selection.start ? selection.end - 1 : selection.end);
+			var lineCount = model.getLineCount();
+			var insertOffset = model.getLineStart(firstLine - 1);
+			var lineStart = model.getLineStart(firstLine);
+			var lineEnd = model.getLineEnd(lastLine, true);
+			var text = model.getText(lineStart, lineEnd);
+			var delimiterLength = 0;
+			if (lastLine === lineCount-1) {
+				// Move delimiter preceding selection to end of text
+				var delimiterStart = model.getLineEnd(firstLine - 1);
+				var delimiterEnd = model.getLineEnd(firstLine - 1, true);
+				text += model.getText(delimiterStart, delimiterEnd);
+				lineStart = delimiterStart;
+				delimiterLength = delimiterEnd - delimiterStart;
+			}
+			this.startUndo();
+			editor.setText("", lineStart, lineEnd);
+			editor.setText(text, insertOffset, insertOffset);
+			editor.setSelection(insertOffset, insertOffset + text.length - delimiterLength);
+			this.endUndo();
+			return true;
+		},
+		nextAnnotation: function (forward) {
+			var editor = this.editor;
+			var annotationModel = editor.getAnnotationModel();
+			if (!annotationModel) { return true; }
+			var list = editor.getOverviewRuler() || editor.getAnnotationStyler();
+			if (!list) { return true; }
+			var model = editor.getModel();
+			var currentOffset = editor.getCaretOffset();
+			var annotations = annotationModel.getAnnotations(forward ? currentOffset : 0, forward ? model.getCharCount() : currentOffset);
+			var foundAnnotation = null;
+			while (annotations.hasNext()) {
+				var annotation = annotations.next();
+				if (forward) {
+					if (annotation.start <= currentOffset) { continue; }
+				} else {
+					if (annotation.start >= currentOffset) { continue; }
+				}
+				if (
+					annotation.lineStyle ||
+					annotation.type === AT.ANNOTATION_MATCHING_BRACKET ||
+					annotation.type === AT.ANNOTATION_CURRENT_BRACKET ||
+					!list.isAnnotationTypeVisible(annotation.type)
+				) {
+					continue;
+				}
+				foundAnnotation = annotation;
+				if (forward) {
+					break;
+				}
+			}
+			if (foundAnnotation) {
+				var view = editor.getTextView();
+				var nextLine = model.getLineAtOffset(foundAnnotation.start);
+				var tooltip = mTooltip.Tooltip.getTooltip(view);
+				if (!tooltip) {
+					editor.moveSelection(foundAnnotation.start);
+					return true;
+				}
+				editor.moveSelection(foundAnnotation.start, foundAnnotation.start, function() {
+					tooltip.setTarget({
+						getTooltipInfo: function() {
+							var tooltipCoords = view.convert({
+								x: view.getLocationAtOffset(foundAnnotation.start).x,
+								y: view.getLocationAtOffset(model.getLineStart(nextLine)).y
+							}, "document", "page"); //$NON-NLS-1$ //$NON-NLS-0$
+							return {
+								contents: [foundAnnotation],
+								x: tooltipCoords.x,
+								y: tooltipCoords.y + Math.floor(view.getLineHeight(nextLine) * 1.33)
+							};
+						}
+					}, 0);
+				});
+			}
+			return true;
+		},
+		unindentLines: function() {
+			var editor = this.editor;
+			var textView = editor.getTextView();
+			if (textView.getOptions("readonly")) { return false; } //$NON-NLS-0$
+			if(!textView.getOptions("tabMode")) { return; } //$NON-NLS-0$
+			var model = editor.getModel();
+			var selection = editor.getSelection();
+			var firstLine = model.getLineAtOffset(selection.start);
+			var lastLine = model.getLineAtOffset(selection.end > selection.start ? selection.end - 1 : selection.end);
+			var tabSize = textView.getOptions("tabSize"); //$NON-NLS-0$
+			var spaceTab = new Array(tabSize + 1).join(" "); //$NON-NLS-0$
+			var lines = [], removeCount = 0, firstRemoveCount = 0;
+			for (var i = firstLine; i <= lastLine; i++) {
+				var line = model.getLine(i, true);
+				if (model.getLineStart(i) !== model.getLineEnd(i)) {
+					if (line.indexOf("\t") === 0) { //$NON-NLS-0$
+						line = line.substring(1);
+						removeCount++;
+					} else if (line.indexOf(spaceTab) === 0) {
+						line = line.substring(tabSize);
+						removeCount += tabSize;
+					} else {
+						return true;
+					}
+				}
+				if (i === firstLine) {
+					firstRemoveCount = removeCount;
+				}
+				lines.push(line);
+			}
+			var lineStart = model.getLineStart(firstLine);
+			var lineEnd = model.getLineEnd(lastLine, true);
+			var lastLineStart = model.getLineStart(lastLine);
+			editor.setText(lines.join(""), lineStart, lineEnd);
+			var start = lineStart === selection.start ? selection.start : selection.start - firstRemoveCount;
+			var end = Math.max(start, selection.end - removeCount + (selection.end === lastLineStart+1 && selection.start !== selection.end ? 1 : 0));
+			editor.setSelection(start, end);
+			return true;
+		},
 		startUndo: function() {
 			if (this.undoStack) {
 				this.undoStack.startCompoundChange();
 			}
-		}, 
-		
+		},
 		endUndo: function() {
 			if (this.undoStack) {
 				this.undoStack.endCompoundChange();
 			}
-		}, 
-	
-		cancel: function() {
-			this._incrementalFind.setActive(false);
-		},
-		
-		isActive: function() {
-			return this._incrementalFind.isActive();
-		},
-		
-		isStatusActive: function() {
-			return this._incrementalFind.isActive();
-		},
-		
-		lineUp: function() {
-			return this._incrementalFind.find(false);
-		},
-		lineDown: function() {	
-			return this._incrementalFind.find(true);
-		},
-		enter: function() {
-			return false;
 		}
 	};
-	
+	exports.TextActions = TextActions;
+
 	/**
 	 * @param {orion.editor.Editor} editor
 	 * @param {orion.editor.UndoStack} undoStack
@@ -12558,193 +14866,315 @@ define("orion/editor/editorFeatures", [ //$NON-NLS-0$
 		this.init();
 	}
 	SourceCodeActions.prototype = {
-		startUndo: function() {
-			if (this.undoStack) {
-				this.undoStack.startCompoundChange();
-			}
-		}, 
-		
-		endUndo: function() {
-			if (this.undoStack) {
-				this.undoStack.endCompoundChange();
-			}
-		}, 
 		init: function() {
 			var textView = this.editor.getTextView();
-		
+
 			textView.setAction("lineStart", function() { //$NON-NLS-0$
-				var editor = this.editor;
-				var model = editor.getModel();
-				var caretOffset = editor.getCaretOffset();
-				var lineIndex = model.getLineAtOffset(caretOffset);
-				var lineOffset = model.getLineStart(lineIndex);
-				var lineText = model.getLine(lineIndex);
-				var offset;
-				for (offset=0; offset<lineText.length; offset++) {
-					var c = lineText.charCodeAt(offset);
-					if (!(c === 32 || c === 9)) {
-						break;
-					}
-				}
-				offset += lineOffset;
-				if (caretOffset !== offset) {
-					editor.setSelection(offset, offset);
-					return true;
-				}
-				return false;
+				return this.lineStart();
 			}.bind(this));
-		
-			// Block comment operations
+
+			textView.setAction("enter", function() { //$NON-NLS-0$
+				return this.autoIndent();
+			}.bind(this));
+
+			textView.setKeyBinding(new mKeyBinding.KeyBinding("t", true, false, true), "trimTrailingWhitespaces"); //$NON-NLS-1$ //$NON-NLS-0$
+			textView.setAction("trimTrailingWhitespaces", function() { //$NON-NLS-0$
+				return this.trimTrailingWhitespaces();
+			}.bind(this), {name: messages.trimTrailingWhitespaces});
+
 			textView.setKeyBinding(new mKeyBinding.KeyBinding(191, true), "toggleLineComment"); //$NON-NLS-0$
 			textView.setAction("toggleLineComment", function() { //$NON-NLS-0$
-				if (textView.getOptions("readonly")) { return false; } //$NON-NLS-0$
-				var editor = this.editor;
-				var model = editor.getModel();
-				var selection = editor.getSelection();
-				var firstLine = model.getLineAtOffset(selection.start);
-				var lastLine = model.getLineAtOffset(selection.end > selection.start ? selection.end - 1 : selection.end);
-				var uncomment = true, lines = [], lineText, index;
-				for (var i = firstLine; i <= lastLine; i++) {
-					lineText = model.getLine(i, true);
-					lines.push(lineText);
-					if (!uncomment || (index = lineText.indexOf("//")) === -1) { //$NON-NLS-0$
-						uncomment = false;
-					} else {
-						if (index !== 0) {
-							var j;
-							for (j=0; j<index; j++) {
-								var c = lineText.charCodeAt(j);
-								if (!(c === 32 || c === 9)) {
-									break;
-								}
-							}
-							uncomment = j === index;
-						}
-					}
-				}
-				var text, selStart, selEnd;
-				var lineStart = model.getLineStart(firstLine);
-				var lineEnd = model.getLineEnd(lastLine, true);
-				if (uncomment) {
-					for (var k = 0; k < lines.length; k++) {
-						lineText = lines[k];
-						index = lineText.indexOf("//"); //$NON-NLS-0$
-						lines[k] = lineText.substring(0, index) + lineText.substring(index + 2);
-					}
-					text = lines.join("");
-					var lastLineStart = model.getLineStart(lastLine);
-					selStart = lineStart === selection.start ? selection.start : selection.start - 2;
-					selEnd = selection.end - (2 * (lastLine - firstLine + 1)) + (selection.end === lastLineStart+1 ? 2 : 0);
-				} else {
-					lines.splice(0, 0, "");
-					text = lines.join("//"); //$NON-NLS-0$
-					selStart = lineStart === selection.start ? selection.start : selection.start + 2;
-					selEnd = selection.end + (2 * (lastLine - firstLine + 1));
-				}
-				editor.setText(text, lineStart, lineEnd);
-				editor.setSelection(selStart, selEnd);
-				return true;
+				return this.toggleLineComment();
 			}.bind(this), {name: messages.toggleLineComment});
-			
-			function findEnclosingComment(model, start, end) {
-				var open = "/*", close = "*/"; //$NON-NLS-1$ //$NON-NLS-0$
-				var firstLine = model.getLineAtOffset(start);
-				var lastLine = model.getLineAtOffset(end);
-				var i, line, extent, openPos, closePos;
-				var commentStart, commentEnd;
-				for (i=firstLine; i >= 0; i--) {
-					line = model.getLine(i);
-					extent = (i === firstLine) ? start - model.getLineStart(firstLine) : line.length;
-					openPos = line.lastIndexOf(open, extent);
-					closePos = line.lastIndexOf(close, extent);
-					if (closePos > openPos) {
-						break; // not inside a comment
-					} else if (openPos !== -1) {
-						commentStart = model.getLineStart(i) + openPos;
-						break;
-					}
-				}
-				for (i=lastLine; i < model.getLineCount(); i++) {
-					line = model.getLine(i);
-					extent = (i === lastLine) ? end - model.getLineStart(lastLine) : 0;
-					openPos = line.indexOf(open, extent);
-					closePos = line.indexOf(close, extent);
-					if (openPos !== -1 && openPos < closePos) {
-						break;
-					} else if (closePos !== -1) {
-						commentEnd = model.getLineStart(i) + closePos;
-						break;
-					}
-				}
-				return {commentStart: commentStart, commentEnd: commentEnd};
-			}
-			
+
 			textView.setKeyBinding(new mKeyBinding.KeyBinding(191, true, !util.isMac, false, util.isMac), "addBlockComment"); //$NON-NLS-0$
 			textView.setAction("addBlockComment", function() { //$NON-NLS-0$
-				if (textView.getOptions("readonly")) { return false; } //$NON-NLS-0$
-				var editor = this.editor;
-				var model = editor.getModel();
-				var selection = editor.getSelection();
-				var open = "/*", close = "*/", commentTags = new RegExp("/\\*" + "|" + "\\*/", "g"); //$NON-NLS-5$ //$NON-NLS-4$ //$NON-NLS-3$ //$NON-NLS-2$ //$NON-NLS-1$ //$NON-NLS-0$
-				
-				var result = findEnclosingComment(model, selection.start, selection.end);
-				if (result.commentStart !== undefined && result.commentEnd !== undefined) {
-					return true; // Already in a comment
-				}
-				
-				var text = model.getText(selection.start, selection.end);
-				if (text.length === 0) { return true; }
-				
-				var oldLength = text.length;
-				text = text.replace(commentTags, "");
-				var newLength = text.length;
-				
-				editor.setText(open + text + close, selection.start, selection.end);
-				editor.setSelection(selection.start + open.length, selection.end + open.length + (newLength-oldLength));
-				return true;
+				return this.addBlockComment();
 			}.bind(this), {name: messages.addBlockComment});
-			
+
 			textView.setKeyBinding(new mKeyBinding.KeyBinding(220, true, !util.isMac, false, util.isMac), "removeBlockComment"); //$NON-NLS-0$
 			textView.setAction("removeBlockComment", function() { //$NON-NLS-0$
-				if (textView.getOptions("readonly")) { return false; } //$NON-NLS-0$
-				var editor = this.editor;
+				return this.removeBlockComment();
+			}.bind(this), {name: messages.removeBlockComment});
+
+			// Autocomplete square brackets []
+			textView.setKeyBinding(new mKeyBinding.KeyBinding("[", false, false, false, false, "keypress"), "autoPairSquareBracket"); //$NON-NLS-2$ //$NON-NLS-1$ //$NON-NLS-0$
+			textView.setAction("autoPairSquareBracket", function() { //$NON-NLS-0$
+				return this.autoPairBrackets("[", "]"); //$NON-NLS-1$ //$NON-NLS-0$
+			}.bind(this));
+
+			textView.setKeyBinding(new mKeyBinding.KeyBinding(']', false, false, false, false, "keypress"), "skipClosingSquareBracket"); //$NON-NLS-2$ //$NON-NLS-1$ //$NON-NLS-0$
+			textView.setAction("skipClosingSquareBracket", function() { //$NON-NLS-0$
+				return this.skipClosingBracket(']'); //$NON-NLS-0$
+			}.bind(this));
+
+			// Autocomplete angle brackets <>
+			textView.setKeyBinding(new mKeyBinding.KeyBinding("<", false, false, false, false, "keypress"), "autoPairAngleBracket"); //$NON-NLS-2$ //$NON-NLS-1$ //$NON-NLS-0$
+			textView.setAction("autoPairAngleBracket", function() { //$NON-NLS-0$
+				return this.autoPairBrackets("<", ">"); //$NON-NLS-1$ //$NON-NLS-0$
+			}.bind(this));
+
+			textView.setKeyBinding(new mKeyBinding.KeyBinding('>', false, false, false, false, "keypress"), "skipClosingAngleBracket"); //$NON-NLS-2$ //$NON-NLS-1$ //$NON-NLS-0$
+			textView.setAction("skipClosingAngleBracket", function() { //$NON-NLS-0$
+				return this.skipClosingBracket('>'); //$NON-NLS-0$
+			}.bind(this));
+
+			// Autocomplete parentheses ()
+			textView.setKeyBinding(new mKeyBinding.KeyBinding("(", false, false, false, false, "keypress"), "autoPairParentheses"); //$NON-NLS-2$ //$NON-NLS-1$ //$NON-NLS-0$
+			textView.setAction("autoPairParentheses", function() { //$NON-NLS-0$
+				return this.autoPairBrackets("(", ")"); //$NON-NLS-1$ //$NON-NLS-0$
+			}.bind(this));
+
+			textView.setKeyBinding(new mKeyBinding.KeyBinding(')', false, false, false, false, "keypress"), "skipClosingParenthesis"); //$NON-NLS-2$ //$NON-NLS-1$ //$NON-NLS-0$
+			textView.setAction("skipClosingParenthesis", function() { //$NON-NLS-0$
+				return this.skipClosingBracket(")"); //$NON-NLS-0$
+			}.bind(this));
+
+			// Autocomplete braces {}
+			textView.setKeyBinding(new mKeyBinding.KeyBinding("{", false, false, false, false, "keypress"), "autoPairBraces"); //$NON-NLS-2$ //$NON-NLS-1$ //$NON-NLS-0$
+			textView.setAction("autoPairBraces", function() { //$NON-NLS-0$
+				return this.autoPairBrackets("{", "}"); //$NON-NLS-1$ //$NON-NLS-0$
+			}.bind(this));
+
+			textView.setKeyBinding(new mKeyBinding.KeyBinding('}', false, false, false, false, "keypress"), "skipClosingBrace"); //$NON-NLS-2$ //$NON-NLS-1$ //$NON-NLS-0$
+			textView.setAction("skipClosingBrace", function() { //$NON-NLS-0$
+				return this.skipClosingBracket("}"); //$NON-NLS-0$
+			}.bind(this));
+
+			// Autocomplete single quotations
+			textView.setKeyBinding(new mKeyBinding.KeyBinding("'", false, false, false, false, "keypress"), "autoPairSingleQuotation"); //$NON-NLS-2$ //$NON-NLS-1$ //$NON-NLS-0$
+			textView.setAction("autoPairSingleQuotation", function() { //$NON-NLS-0$
+				return this.autoPairQuotations("'"); //$NON-NLS-1$ //$NON-NLS-0$
+			}.bind(this));
+
+			// Autocomplete double quotations
+			textView.setKeyBinding(new mKeyBinding.KeyBinding('"', false, false, false, false, "keypress"), "autoPairDblQuotation"); //$NON-NLS-2$ //$NON-NLS-1$ //$NON-NLS-0$
+			textView.setAction("autoPairDblQuotation", function() { //$NON-NLS-0$
+				return this.autoPairQuotations('"'); //$NON-NLS-1$ //$NON-NLS-0$
+			}.bind(this));
+
+			textView.setAction("deletePrevious", function() { //$NON-NLS-0$
+				return this.deletePrevious();
+			}.bind(this));
+		},
+		autoIndent: function() {
+			var editor = this.editor;
+			var textView = editor.getTextView();
+			if (textView.getOptions("readonly")) { return false; } //$NON-NLS-0$
+			var selection = editor.getSelection();
+			if (selection.start === selection.end) {
 				var model = editor.getModel();
-				var selection = editor.getSelection();
-				var open = "/*", close = "*/"; //$NON-NLS-1$ //$NON-NLS-0$
-				
-				// Try to shrink selection to a comment block
-				var selectedText = model.getText(selection.start, selection.end);
-				var newStart, newEnd;
-				var i;
-				for(i=0; i < selectedText.length; i++) {
-					if (selectedText.substring(i, i + open.length) === open) {
-						newStart = selection.start + i;
-						break;
-					}
-				}
-				for (; i < selectedText.length; i++) {
-					if (selectedText.substring(i, i + close.length) === close) {
-						newEnd = selection.start + i;
-						break;
-					}
-				}
-				
-				if (newStart !== undefined && newEnd !== undefined) {
-					editor.setText(model.getText(newStart + open.length, newEnd), newStart, newEnd + close.length);
-					editor.setSelection(newStart, newEnd);
-				} else {
-					// Otherwise find enclosing comment block
-					var result = findEnclosingComment(model, selection.start, selection.end);
-					if (result.commentStart === undefined || result.commentEnd === undefined) {
+				var lineIndex = model.getLineAtOffset(selection.start);
+				var lineText = model.getLine(lineIndex, false);
+				var lineStart = model.getLineStart(lineIndex);
+				var index = 0;
+				var lineOffset = selection.start - lineStart;
+				var c;
+				while (index < lineOffset && ((c = lineText.charCodeAt(index)) === 32 || c === 9)) { index++; }
+				var prefix = lineText.substring(0, index);
+				var options = textView.getOptions("tabSize", "expandTab"); //$NON-NLS-1$ //$NON-NLS-0$
+				var tab = options.expandTab ? new Array(options.tabSize + 1).join(" ") : "\t"; //$NON-NLS-1$ //$NON-NLS-0$
+				var lineDelimiter = model.getLineDelimiter();
+				var matchCommentStart = /^[\s]*\/\*[\*]*[\s]*$/;
+				var matchCommentDelimiter = /^[\s]*\*/;
+				var matchCommentEnd = /\*\/[\s]*$/;
+				var lineTextBeforeCaret = lineText.substring(0, lineOffset);
+				var lineTextAfterCaret = lineText.substring(lineOffset);
+				var text;
+				// If the character before the caret is an opening brace, smart indent the next line.
+				var prevCharIdx;
+				if (this.smartIndentation && lineText.charCodeAt(prevCharIdx = lineTextBeforeCaret.trimRight().length - 1) === 123) {
+					// Remove any extra whitespace
+					var whitespaceBeforeCaret = lineOffset - prevCharIdx - 1;
+					var whitespaceAfterCaret = lineTextAfterCaret.length - lineTextAfterCaret.trimLeft().length;
+
+					text = lineText.charCodeAt(lineOffset + whitespaceAfterCaret) === 125 ?
+						   lineDelimiter + prefix + tab + lineDelimiter + prefix :
+						   lineDelimiter + prefix + tab;
+
+					editor.setText(text, selection.start - whitespaceBeforeCaret, selection.end + whitespaceAfterCaret);
+					editor.setCaretOffset(selection.start + lineDelimiter.length + prefix.length + tab.length - whitespaceBeforeCaret);
+					return true;
+				// Proceed with autocompleting multi-line comment if the text before the caret matches
+				// the start or comment delimiter (*) of a multi-line comment
+				} else if (this.autoCompleteComments && !matchCommentEnd.test(lineTextBeforeCaret) &&
+							(matchCommentStart.test(lineTextBeforeCaret) || matchCommentDelimiter.test(lineTextBeforeCaret))) {
+					var caretOffset;
+
+					/**
+					 * Matches the start of a multi-line comment. Autocomplete the multi-line block comment,
+					 * moving any text after the caret into the block comment and setting the caret to be
+					 * after the comment delimiter.
+					 */
+					var match = matchCommentStart.exec(lineTextBeforeCaret);
+					if (match) {
+						text = lineDelimiter + prefix + " * "; //$NON-NLS-0$
+						// Text added into the comment block are trimmed of all preceding and trailing whitespaces.
+						// If the text after the caret contains the ending of a block comment, exclude the ending.
+						if (matchCommentEnd.test(lineTextAfterCaret)) {
+							text += lineTextAfterCaret.substring(0, lineTextAfterCaret.length - 2).trim();
+						} else {
+							text += lineTextAfterCaret.trim();
+						}
+						// Add the closing to the multi-line block comment if the next line is not a
+						// comment delimiter.
+						if ((model.getLineCount() === lineIndex + 1) ||
+							!matchCommentDelimiter.test(model.getLine(lineIndex + 1))) {
+							text += lineDelimiter + prefix + " */"; //$NON-NLS-0$
+						}
+						editor.setText(text, selection.start, selection.end + lineTextAfterCaret.length);
+						editor.setCaretOffset(selection.start + lineDelimiter.length + prefix.length + 3);
 						return true;
 					}
-					
-					var text = model.getText(result.commentStart + open.length, result.commentEnd);
-					editor.setText(text, result.commentStart, result.commentEnd + close.length);
-					editor.setSelection(selection.start - open.length, selection.end - close.length);
+
+					/**
+					 * Matches a comment delimiter (*) as the start of the line, and traverses up the lines to confirm if
+					 * it is a multi-line comment by matching the start of a block comment. If so, continue the
+					 * multi-line comment in the next line. Any text that follows after the caret is moved to the newly
+					 * added comment delimiter.
+					 */
+					match = matchCommentDelimiter.exec(lineTextBeforeCaret);
+					if (match) {
+						for (var i = lineIndex - 1; i >= 0; i--) {
+							var prevLine = model.getLine(i, false);
+							if (matchCommentStart.test(prevLine)) {
+								/**
+								 * If the text after the caret matches the end of a comment block or the character in front of the
+								 * caret is a forward slash, continue the block comment with the caret and text after the caret on
+								 * the next line directly in front of the star (*).
+								 */
+								if (matchCommentEnd.test(lineTextAfterCaret) || lineText.charCodeAt(lineOffset) === 47) {
+									text = lineDelimiter + prefix + "*" + lineTextAfterCaret; //$NON-NLS-0$
+									caretOffset = selection.start + lineDelimiter.length + prefix.length + 1;
+								} else {
+									text = lineDelimiter + prefix + "* " + lineTextAfterCaret; //$NON-NLS-0$
+									caretOffset = selection.start + lineDelimiter.length + prefix.length + 2;
+								}
+								editor.setText(text, selection.start, selection.end + lineTextAfterCaret.length);
+								editor.setCaretOffset(caretOffset);
+								return true;
+							} else if (!matchCommentDelimiter.test(prevLine)) {
+								return false;
+							}
+						}
+					}
+
+					return false;
+				} else if (matchCommentEnd.test(lineTextBeforeCaret)) {
+					// Matches the end of a block comment. Fix the indentation for the following line.
+					text = lineText.substring(selection.start) + lineDelimiter + prefix.substring(0, prefix.length - 1);
+					editor.setText(text, selection.start, selection.end);
+					editor.setCaretOffset(selection.start + text.length);
+					return true;
+				} else if (index > 0) {
+					//TODO still wrong when typing inside folding
+					index = lineOffset;
+					while (index < lineText.length && ((c = lineText.charCodeAt(index++)) === 32 || c === 9)) { selection.end++; }
+					editor.setText(model.getLineDelimiter() + prefix, selection.start, selection.end);
+					return true;
 				}
+			}
+			return false;
+		},
+		addBlockComment: function() {
+			var editor = this.editor;
+			var textView = editor.getTextView();
+			if (textView.getOptions("readonly")) { return false; } //$NON-NLS-0$
+			var model = editor.getModel();
+			var selection = editor.getSelection();
+			var open = "/*", close = "*/", commentTags = new RegExp("/\\*" + "|" + "\\*/", "g"); //$NON-NLS-5$ //$NON-NLS-4$ //$NON-NLS-3$ //$NON-NLS-2$ //$NON-NLS-1$ //$NON-NLS-0$
+
+			var result = this._findEnclosingComment(model, selection.start, selection.end);
+			if (result.commentStart !== undefined && result.commentEnd !== undefined) {
+				return true; // Already in a comment
+			}
+
+			var text = model.getText(selection.start, selection.end);
+			if (text.length === 0) { return true; }
+
+			var oldLength = text.length;
+			text = text.replace(commentTags, "");
+			var newLength = text.length;
+
+			editor.setText(open + text + close, selection.start, selection.end);
+			editor.setSelection(selection.start + open.length, selection.end + open.length + (newLength-oldLength));
+			return true;
+		},
+		/**
+		 * Called on an opening bracket keypress.
+		 * Automatically inserts the specified opening and closing brackets around the caret or selected text.
+		 */
+		autoPairBrackets: function(openBracket, closeBracket) {
+			if (openBracket === "[" && !this.autoPairSquareBrackets) {
+				return false;
+			} else if (openBracket === "{" && !this.autoPairBraces) {
+				return false;
+			} else if (openBracket === "(" && !this.autoPairParentheses) {
+				return false;
+			} else if (openBracket === "<" && !this.autoPairAngleBrackets) {
+				return false;
+			}
+
+			var editor = this.editor;
+			var textView = editor.getTextView();
+			if (textView.getOptions("readonly")) { return false; } //$NON-NLS-0$
+			var selection = editor.getSelection();
+			var model = editor.getModel();
+			var currentOffset = editor.getCaretOffset();
+			var nextChar = (currentOffset === model.getCharCount()) ? "" : model.getText(selection.start, selection.start + 1).trim(); //$NON-NLS-0$
+			var isClosingBracket = new RegExp("^$|[)}\\]>]"); //$NON-NLS-0$ // matches any empty string and closing bracket
+
+			if (selection.start === selection.end && isClosingBracket.test(nextChar)) { //$NON-NLS-0$
+				// No selection and subsequent character is not a closing bracket - wrap the caret with the opening and closing brackets,
+				// and maintain the caret position inbetween the brackets
+				editor.setText(openBracket + closeBracket, selection.start, selection.start);
+				editor.setCaretOffset(selection.start + 1);
 				return true;
-			}.bind(this), {name: messages.removeBlockComment});
+			} else if (selection.start !== selection.end) {
+				// Wrap the selected text with the specified opening and closing brackets and keep selection on text
+				var text = model.getText(selection.start, selection.end);
+				editor.setText(openBracket + text + closeBracket, selection.start, selection.end);
+				editor.setSelection(selection.start + 1, selection.end + 1);
+				return true;
+			}
+			return false;
+		},
+		/**
+		 * Called on a quotation mark keypress.
+		 * Automatically inserts a pair of the specified quotation around the caret the caret or selected text.
+		 */
+		autoPairQuotations: function(quotation) {
+			if (!this.autoPairQuotation) { return false; }
+			var editor = this.editor;
+			var textView = editor.getTextView();
+			if (textView.getOptions("readonly")) { return false; } //$NON-NLS-0$
+			var selection = editor.getSelection();
+			var model = editor.getModel();
+			var currentOffset = editor.getCaretOffset();
+			var prevChar = (currentOffset === 0) ? "" : model.getText(selection.start - 1, selection.start).trim(); //$NON-NLS-0$
+			var nextChar = (currentOffset === model.getCharCount()) ? "" : model.getText(selection.start, selection.start + 1).trim(); //$NON-NLS-0$
+			var isQuotation = new RegExp("^\"$|^'$"); //$NON-NLS-0$
+			var isAlpha = new RegExp("\\w"); //$NON-NLS-0$
+			var isClosingBracket = new RegExp("^$|[)}\\]>]"); //$NON-NLS-0$ // matches any empty string and closing bracket
+
+			// Wrap the selected text with the specified opening and closing quotation marks and keep selection on text
+			if (selection.start !== selection.end) {
+				var text = model.getText(selection.start, selection.end);
+				if (isQuotation.test(text)) { return false; }
+				editor.setText(quotation + text + quotation, selection.start, selection.end);
+				editor.setSelection(selection.start + 1, selection.end + 1);
+			} else if (nextChar === quotation) {
+				// Skip over the next character if it matches the specified quotation mark
+				editor.setCaretOffset(selection.start + 1);
+			} else if (prevChar === quotation || isQuotation.test(nextChar) || isAlpha.test(prevChar) || !isClosingBracket.test(nextChar)) {
+				// Insert the specified quotation mark
+				return false;
+			} else {
+				// No selection - wrap the caret with the opening and closing quotation marks, and maintain the caret position inbetween the quotations
+				editor.setText(quotation + quotation, selection.start, selection.start);
+				editor.setCaretOffset(selection.start + 1);
+			}
+			return true;
 		},
 		/**
 		 * Called when a content assist proposal has been applied. Inserts the proposal into the
@@ -12752,7 +15182,7 @@ define("orion/editor/editorFeatures", [ //$NON-NLS-0$
 		 * @param {orion.editor.ContentAssist#ProposalAppliedEvent} event
 		 */
 		contentAssistProposalApplied: function(event) {
-			/**
+			/*
 			 * The event.proposal is an object with this shape:
 			 * {   proposal: "[proposal string]", // Actual text of the proposal
 			 *     description: "diplay string", // Optional
@@ -12767,9 +15197,9 @@ define("orion/editor/editorFeatures", [ //$NON-NLS-0$
 			 * Offsets are relative to the text buffer.
 			 */
 			var proposal = event.data.proposal;
-			
+
 			//if the proposal specifies linked positions, build the model and enter linked mode
-			if (proposal.positions && this.linkedMode) {
+			if (proposal.positions && proposal.positions.length > 0 && this.linkedMode) {
 				var positionGroups = [];
 				for (var i = 0; i < proposal.positions.length; ++i) {
 					positionGroups[i] = {
@@ -12779,12 +15209,15 @@ define("orion/editor/editorFeatures", [ //$NON-NLS-0$
 						}]
 					};
 				}
-
-				var linkedModeModel = {
+				this.linkedMode.enterLinkedMode({
 					groups: positionGroups,
 					escapePosition: proposal.escapePosition
-				};
-				this.linkedMode.enterLinkedMode(linkedModeModel);
+				});
+			} else if (proposal.groups && proposal.groups.length > 0 && this.linkedMode) {
+				this.linkedMode.enterLinkedMode({
+					groups: proposal.groups,
+					escapePosition: proposal.escapePosition
+				});
 			} else if (proposal.escapePosition) {
 				//we don't want linked mode, but there is an escape position, so just set cursor position
 				var textView = this.editor.getTextView();
@@ -12792,214 +15225,1037 @@ define("orion/editor/editorFeatures", [ //$NON-NLS-0$
 			}
 			return true;
 		},
-		cancel: function() {
-			return false;
-		},
-		isActive: function() {
-			return true;
-		},
-		isStatusActive: function() {
-			// SourceCodeActions never reports status
-			return false;
-		},
-		lineUp: function() {
-			return false;
-		},
-		lineDown: function() {
-			return false;
-		},
-		enter: function() {
-			// Auto indent
-			var textView = this.editor.getTextView();
-			if (textView.getOptions("readonly")) { return false; } //$NON-NLS-0$
+		// On backspace keypress, checks if there are a pair of brackets or quotation marks to be deleted
+		deletePrevious: function() {
 			var editor = this.editor;
+			var textView = editor.getTextView();
+			if (textView.getOptions("readonly")) { return false; } //$NON-NLS-0$
 			var selection = editor.getSelection();
-			if (selection.start === selection.end) {
-				var model = editor.getModel();
-				var lineIndex = model.getLineAtOffset(selection.start);
-				var lineText = model.getLine(lineIndex, true);
-				var lineStart = model.getLineStart(lineIndex);
-				var index = 0, end = selection.start - lineStart, c;
-				while (index < end && ((c = lineText.charCodeAt(index)) === 32 || c === 9)) { index++; }
-				if (index > 0) {
-					//TODO still wrong when typing inside folding
-					var prefix = lineText.substring(0, index);
-					index = end;
-					while (index < lineText.length && ((c = lineText.charCodeAt(index++)) === 32 || c === 9)) { selection.end++; }
-					editor.setText(model.getLineDelimiter() + prefix, selection.start, selection.end);
-					return true;
-				}
+			var model = editor.getModel();
+			var caretOffset = editor.getCaretOffset();
+			var prevChar = (caretOffset === 0) ? "" : model.getText(selection.start - 1, selection.start); //$NON-NLS-0$
+			var nextChar = (caretOffset === model.getCharCount()) ? "" : model.getText(selection.start, selection.start + 1); //$NON-NLS-0$
+
+			if ((prevChar === "(" && nextChar === ")") || //$NON-NLS-1$ //$NON-NLS-0$
+				(prevChar === "[" && nextChar === "]") || //$NON-NLS-1$ //$NON-NLS-0$
+				(prevChar === "{" && nextChar === "}") || //$NON-NLS-1$ //$NON-NLS-0$
+				(prevChar === "<" && nextChar === ">") || //$NON-NLS-1$ //$NON-NLS-0$
+				(prevChar === '"' && nextChar === '"') || //$NON-NLS-1$ //$NON-NLS-0$
+				(prevChar === "'" && nextChar === "'")) { //$NON-NLS-1$ //$NON-NLS-0$
+				editor.setText("", selection.start, selection.start + 1); //$NON-NLS-0$
 			}
 			return false;
 		},
-		tab: function() {
+		_findEnclosingComment: function(model, start, end) {
+			var open = "/*", close = "*/"; //$NON-NLS-1$ //$NON-NLS-0$
+			var firstLine = model.getLineAtOffset(start);
+			var lastLine = model.getLineAtOffset(end);
+			var i, line, extent, openPos, closePos;
+			var commentStart, commentEnd;
+			for (i=firstLine; i >= 0; i--) {
+				line = model.getLine(i);
+				extent = (i === firstLine) ? start - model.getLineStart(firstLine) : line.length;
+				openPos = line.lastIndexOf(open, extent);
+				closePos = line.lastIndexOf(close, extent);
+				if (closePos > openPos) {
+					break; // not inside a comment
+				} else if (openPos !== -1) {
+					commentStart = model.getLineStart(i) + openPos;
+					break;
+				}
+			}
+			for (i=lastLine; i < model.getLineCount(); i++) {
+				line = model.getLine(i);
+				extent = (i === lastLine) ? end - model.getLineStart(lastLine) : 0;
+				openPos = line.indexOf(open, extent);
+				closePos = line.indexOf(close, extent);
+				if (openPos !== -1 && openPos < closePos) {
+					break;
+				} else if (closePos !== -1) {
+					commentEnd = model.getLineStart(i) + closePos;
+					break;
+				}
+			}
+			return {commentStart: commentStart, commentEnd: commentEnd};
+		},
+		lineStart: function() {
+			var editor = this.editor;
+			var model = editor.getModel();
+			var caretOffset = editor.getCaretOffset();
+			var lineIndex = model.getLineAtOffset(caretOffset);
+			var lineOffset = model.getLineStart(lineIndex);
+			var lineText = model.getLine(lineIndex);
+			var offset;
+			for (offset=0; offset<lineText.length; offset++) {
+				var c = lineText.charCodeAt(offset);
+				if (!(c === 32 || c === 9)) {
+					break;
+				}
+			}
+			offset += lineOffset;
+			if (caretOffset !== offset) {
+				editor.setSelection(offset, offset);
+				return true;
+			}
 			return false;
+		},
+		removeBlockComment: function() {
+			var editor = this.editor;
+			var textView = editor.getTextView();
+			if (textView.getOptions("readonly")) { return false; } //$NON-NLS-0$
+			var model = editor.getModel();
+			var selection = editor.getSelection();
+			var open = "/*", close = "*/"; //$NON-NLS-1$ //$NON-NLS-0$
+
+			// Try to shrink selection to a comment block
+			var selectedText = model.getText(selection.start, selection.end);
+			var newStart, newEnd;
+			var i;
+			for(i=0; i < selectedText.length; i++) {
+				if (selectedText.substring(i, i + open.length) === open) {
+					newStart = selection.start + i;
+					break;
+				}
+			}
+			for (; i < selectedText.length; i++) {
+				if (selectedText.substring(i, i + close.length) === close) {
+					newEnd = selection.start + i;
+					break;
+				}
+			}
+
+			if (newStart !== undefined && newEnd !== undefined) {
+				editor.setText(model.getText(newStart + open.length, newEnd), newStart, newEnd + close.length);
+				editor.setSelection(newStart, newEnd);
+			} else {
+				// Otherwise find enclosing comment block
+				var result = this._findEnclosingComment(model, selection.start, selection.end);
+				if (result.commentStart === undefined || result.commentEnd === undefined) {
+					return true;
+				}
+
+				var text = model.getText(result.commentStart + open.length, result.commentEnd);
+				editor.setText(text, result.commentStart, result.commentEnd + close.length);
+				editor.setSelection(selection.start - open.length, selection.end - close.length);
+			}
+			return true;
+		},
+		toggleLineComment: function() {
+			var editor = this.editor;
+			var textView = editor.getTextView();
+			if (textView.getOptions("readonly")) { return false; } //$NON-NLS-0$
+			var model = editor.getModel();
+			var selection = editor.getSelection();
+			var firstLine = model.getLineAtOffset(selection.start);
+			var lastLine = model.getLineAtOffset(selection.end > selection.start ? selection.end - 1 : selection.end);
+			var uncomment = true, lines = [], lineText, index;
+			for (var i = firstLine; i <= lastLine; i++) {
+				lineText = model.getLine(i, true);
+				lines.push(lineText);
+				if (!uncomment || (index = lineText.indexOf("//")) === -1) { //$NON-NLS-0$
+					uncomment = false;
+				} else {
+					if (index !== 0) {
+						var j;
+						for (j=0; j<index; j++) {
+							var c = lineText.charCodeAt(j);
+							if (!(c === 32 || c === 9)) {
+								break;
+							}
+						}
+						uncomment = j === index;
+					}
+				}
+			}
+			var text, selStart, selEnd;
+			var lineStart = model.getLineStart(firstLine);
+			var lineEnd = model.getLineEnd(lastLine, true);
+			if (uncomment) {
+				for (var k = 0; k < lines.length; k++) {
+					lineText = lines[k];
+					index = lineText.indexOf("//"); //$NON-NLS-0$
+					lines[k] = lineText.substring(0, index) + lineText.substring(index + 2);
+				}
+				text = lines.join("");
+				var lastLineStart = model.getLineStart(lastLine);
+				selStart = lineStart === selection.start ? selection.start : selection.start - 2;
+				selEnd = selection.end - (2 * (lastLine - firstLine + 1)) + (selection.end === lastLineStart+1 ? 2 : 0);
+			} else {
+				lines.splice(0, 0, "");
+				text = lines.join("//"); //$NON-NLS-0$
+				selStart = lineStart === selection.start ? selection.start : selection.start + 2;
+				selEnd = selection.end + (2 * (lastLine - firstLine + 1));
+			}
+			editor.setText(text, lineStart, lineEnd);
+			editor.setSelection(selStart, selEnd);
+			return true;
+		},
+		trimTrailingWhitespaces: function() {
+			var editor = this.editor;
+			var model = editor.getModel();
+			var selection = editor.getSelection();
+			editor.getTextView().setRedraw(false);
+			editor.getUndoStack().startCompoundChange();
+			var matchTrailingWhiteSpace = /(\s+$)/;
+			var lineCount = model.getLineCount();
+			for (var i = 0; i < lineCount; i++) {
+				var lineText = model.getLine(i);
+				var match = matchTrailingWhiteSpace.exec(lineText);
+				if (match) {
+					var lineStartOffset = model.getLineStart(i);
+					var matchLength = match[0].length;
+					var start = lineStartOffset + match.index;
+					model.setText("", start, start + matchLength);
+					/**
+					 * Move the caret to its original position prior to the save. If the caret
+					 * was in the trailing whitespaces, move the caret to the end of the line.
+					 */
+					if (selection.start > start) {
+						selection.start = Math.max(start, selection.start - matchLength);
+					}
+					if (selection.start !== selection.end && selection.end > start) {
+						selection.end = Math.max(start, selection.end - matchLength);
+					}
+				}
+			}
+			editor.getUndoStack().endCompoundChange();
+			editor.getTextView().setRedraw(true);
+			editor.setSelection(selection.start, selection.end, false);
+		},
+		startUndo: function() {
+			if (this.undoStack) {
+				this.undoStack.startCompoundChange();
+			}
+		},
+		skipClosingBracket: function(closingChar) {
+			var editor = this.editor;
+			var textView = editor.getTextView();
+			if (textView.getOptions("readonly")) { return false; } //$NON-NLS-0$
+			var selection = editor.getSelection();
+			var model = editor.getModel();
+			var currentOffset = editor.getCaretOffset();
+			var nextChar = (currentOffset === model.getCharCount()) ? "" : model.getText(selection.start, selection.start + 1); //$NON-NLS-0$
+
+			if (nextChar === closingChar) {
+				editor.setCaretOffset(selection.start + 1);
+				return true;
+			}
+			return false;
+		},
+		endUndo: function() {
+			if (this.undoStack) {
+				this.undoStack.endCompoundChange();
+			}
+		},
+		setAutoPairParentheses: function(enabled) {
+			this.autoPairParentheses = enabled;
+		},
+		setAutoPairBraces: function(enabled) {
+			this.autoPairBraces = enabled;
+		},
+		setAutoPairSquareBrackets: function(enabled) {
+			this.autoPairSquareBrackets = enabled;
+		},
+		setAutoPairAngleBrackets: function(enabled) {
+			this.autoPairAngleBrackets = enabled;
+		},
+		setAutoPairQuotations: function(enabled) {
+			this.autoPairQuotation = enabled;
+		},
+		setAutoCompleteComments: function(enabled) {
+			this.autoCompleteComments = enabled;
+		},
+		setSmartIndentation: function(enabled) {
+			this.smartIndentation = enabled;
+		}
+	};
+	exports.SourceCodeActions = SourceCodeActions;
+
+	if (!String.prototype.trimLeft) {
+		String.prototype.trimLeft = function(){
+			return this.replace(/^\s+/g, '');
+		};
+	}
+	if (!String.prototype.trimRight) {
+		String.prototype.trimRight = function(){
+			return this.replace(/\s+$/g, '');
+		};
+	}
+
+	return exports;
+});
+
+/*******************************************************************************
+ * @license
+ * Copyright (c) 2010, 2012 IBM Corporation and others.
+ * All rights reserved. This program and the accompanying materials are made 
+ * available under the terms of the Eclipse Public License v1.0 
+ * (http://www.eclipse.org/legal/epl-v10.html), and the Eclipse Distribution 
+ * License v1.0 (http://www.eclipse.org/org/documents/edl-v10.html). 
+ * 
+ * Contributors: IBM Corporation - initial API and implementation
+ ******************************************************************************/
+
+/*global define*/
+
+define("orion/editor/templates", [], function() { //$NON-NLS-0$
+
+	/** 
+	 * Removes prefix from string.
+	 * @param {String} prefix
+	 * @param {String} string
+	 */
+	function chop(prefix, string) {
+		return string.substring(prefix.length);
+	}
+	
+	var tabVar = "${tab}"; //$NON-NLS-0$
+	var delimiterVar = "${delimiter}"; //$NON-NLS-0$
+	var cursorVar = "${cursor}"; //$NON-NLS-0$
+	
+	function Template (prefix, description, template) {
+		this.prefix = prefix;
+		this.description = description;
+		this.template = template;
+		this._parse();
+	}
+	Template.prototype = /** @lends orion.editor.Template.prototype */ {
+		getProposal: function(prefix, offset, context) {
+			//any returned positions need to be offset based on current cursor position and length of prefix
+			var startOffset = offset-prefix.length;
+			var groups = {};
+			var escapePosition;
+			var delimiter = context.delimiter !== undefined ? context.delimiter : "\n"; //$NON-NLS-0$
+			if (context.indentation) {
+				delimiter += context.indentation;
+			}
+			var tab = context.tab !== undefined ? context.tab : "\t"; //$NON-NLS-0$
+			var delta = 0;
+			var variables = this.variables;
+			var segments = this.segments, proposal = [];
+			for (var i = 0; i < segments.length; i++) {
+				var segment = segments[i];
+				var variable = variables[segment];
+				if (variable !== undefined) {
+					switch (segment) {
+						case tabVar:
+							segment = tab;
+							break;
+						case delimiterVar:
+							segment = delimiter;
+							break;
+						case cursorVar:
+							segment = "";
+							escapePosition = delta;
+							break;
+						default:
+							var g = groups[segment];
+							if (!g) {
+								g = groups[segment] = {data: variable.data, positions: []};
+							}
+							segment = variable.substitution;
+							if (g.data && g.data.values) { segment = g.data.values[0]; }
+							g.positions.push({
+								offset: startOffset + delta,
+								length: segment.length
+							});
+					}
+				}
+				proposal.push(segment);
+				delta += segment.length;
+			}
+			var newGroups = [];
+			for (var p in groups) {
+				if (groups.hasOwnProperty(p)) {
+					newGroups.push(groups[p]);
+				}
+			}
+			proposal = proposal.join("");
+			if (escapePosition === undefined) {
+				escapePosition = proposal.length;
+			}
+			return {
+				proposal: proposal,
+				description: this.description,
+				groups: newGroups,
+				escapePosition: startOffset + escapePosition
+			};
+		},
+		match: function(prefix) {
+			return this.prefix.indexOf(prefix) === 0;
+		},
+		_parse: function() {
+			var template = this.template;
+			var segments = [], variables = {}, segment, start = 0;
+			template = template.replace(/\n/g, delimiterVar);
+			template = template.replace(/\t/g, tabVar);
+			template.replace(/\$\{((?:[^\\}]+|\\.))*\}/g, function(group, text1, index) {
+				var text = group.substring(2,group.length-1);
+				var variable = group, substitution = text, data = null;
+				var colon = substitution.indexOf(":"); //$NON-NLS-0$
+				if (colon !== -1) {
+					substitution = substitution.substring(0, colon);
+					variable = "${"+ substitution + "}"; //$NON-NLS-1$ //$NON-NLS-0$
+					data = JSON.parse(text.substring(colon + 1).replace("\\}", "}").trim()); //$NON-NLS-1$ //$NON-NLS-0$
+				}
+				var v = variables[variable];
+				if (!v) { v = variables[variable] = {}; }
+				v.substitution = substitution;
+				if (data) {
+					v.data = data;
+				}
+				segment = template.substring(start, index);
+				if (segment) { segments.push(segment); }
+				segments.push(variable);
+				start = index + group.length;
+				return substitution;
+			});
+			segment = template.substring(start, template.length);
+			if (segment) { segments.push(segment); }
+			this.segments = segments;
+			this.variables = variables;
 		}
 	};
 	
-	function LinkedMode(editor) {
+	function TemplateContentAssist (keywords, templates) {
+		this._keywords = keywords || [];
+		this._templates = [];
+		this.addTemplates(templates || []);
+	}
+	TemplateContentAssist.prototype = /** @lends orion.editor.TemplateContentAssist.prototype */ {
+		addTemplates: function(json) {
+			var templates = this.getTemplates();
+			for (var j = 0; j < json.length; j++) {
+				templates.push(new Template(json[j].prefix, json[j].description, json[j].template));
+			}
+		},
+		computeProposals: function(buffer, offset, context) {
+			var prefix = this.getPrefix(buffer, offset, context);
+			var proposals = [];
+			if (!this.isValid(prefix, buffer, offset, context)) {
+				return proposals;
+			}
+			proposals = proposals.concat(this.getTemplateProposals(prefix, offset, context));
+			proposals = proposals.concat(this.getKeywordProposals(prefix));
+			return proposals;
+		},
+		getKeywords: function() {
+			return this._keywords;
+		},
+		getKeywordProposals: function(prefix) {
+			var proposals = [];
+			var keywords = this.getKeywords();
+			if (keywords) {
+				for (var i = 0; i < keywords.length; i++) {
+					if (keywords[i].indexOf(prefix) === 0) {
+						proposals.push({proposal: chop(prefix, keywords[i]), description: keywords[i]});
+					}
+				}
+			}
+			return proposals;
+		},
+		getPrefix: function(buffer, offset, context) {
+			return context.prefix;
+		},
+		getTemplates: function() {
+			return this._templates;
+		},
+		getTemplateProposals: function(prefix, offset, context) {
+			var proposals = [];
+			var templates = this.getTemplates();
+			for (var t = 0; t < templates.length; t++) {
+				var template = templates[t];
+				if (template.match(prefix)) {
+					var proposal = template.getProposal(prefix, offset, context);
+					this.removePrefix(prefix, proposal);
+					proposals.push(proposal);
+				}
+			}
+			return proposals;
+		},
+		removePrefix: function(prefix, proposal) {
+			var overwrite = proposal.overwrite = proposal.proposal.substring(0, prefix.length) !== prefix;
+			if (!overwrite) {
+				proposal.proposal = chop(prefix, proposal.proposal);
+			}
+		},
+		isValid: function(prefix, buffer, offset, context) {
+			return true;
+		}
+	};
+	
+	return {
+		Template: Template,
+		TemplateContentAssist: TemplateContentAssist
+	};
+});
+
+/*******************************************************************************
+ * @license
+ * Copyright (c) 2013 IBM Corporation and others.
+ * All rights reserved. This program and the accompanying materials are made 
+ * available under the terms of the Eclipse Public License v1.0 
+ * (http://www.eclipse.org/legal/epl-v10.html), and the Eclipse Distribution 
+ * License v1.0 (http://www.eclipse.org/org/documents/edl-v10.html). 
+ *
+ * Contributors:
+ *     IBM Corporation - initial API and implementation
+ *******************************************************************************/
+/*global define */
+
+define("orion/editor/linkedMode", [ //$NON-NLS-0$
+	'i18n!orion/editor/nls/messages', //$NON-NLS-0$
+	'orion/keyBinding', //$NON-NLS-0$
+	'orion/editor/keyModes', //$NON-NLS-0$
+	'orion/editor/annotations', //$NON-NLS-0$
+	'orion/editor/templates', //$NON-NLS-0$
+	'orion/objects', //$NON-NLS-0$
+	'orion/util' //$NON-NLS-0$
+], function(messages, mKeyBinding, mKeyModes, mAnnotations, mTemplates, objects) {
+
+	var exports = {};
+
+	function LinkedMode(editor, undoStack, contentAssist) {
+		var textView = editor.getTextView();
+		mKeyModes.KeyMode.call(this, textView);
 		this.editor = editor;
+		this.undoStack = undoStack;
+		this.contentAssist = contentAssist;
 		
-		/**
-		 * The variables used by the Linked Mode. The elements of linkedModePositions have following structure:
-		 * {
-		 *     offset: 10, // The offset of the position counted from the beginning of the text buffer
-		 *     length: 3 // The length of the position (selection)
-		 * }
-		 *
-		 * The linkedModeEscapePosition contains an offset (counted from the beginning of the text buffer) of a
-		 * position where the caret will be placed after exiting from the Linked Mode.
-		 */
-		this.linkedModeActive = false;
-		this.linkedModePositions = [];
-		this.linkedModeCurrentPositionIndex = 0;
-		this.linkedModeEscapePosition = 0;
+		this.linkedModeModel = null;
+		
+		textView.setAction("linkedModeEnter", function() { //$NON-NLS-0$
+			this.exitLinkedMode(true);
+			return true;
+		}.bind(this));
+		textView.setAction("linkedModeCancel", function() { //$NON-NLS-0$
+			this.exitLinkedMode(false);
+			return true;
+		}.bind(this));
+		textView.setAction("linkedModeNextGroup", function() { //$NON-NLS-0$
+			var model = this.linkedModeModel;
+			this.selectLinkedGroup((model.selectedGroupIndex + 1) % model.groups.length);
+			return true;
+		}.bind(this));
+		textView.setAction("linkedModePreviousGroup", function() { //$NON-NLS-0$
+			var model = this.linkedModeModel;
+			this.selectLinkedGroup(model.selectedGroupIndex > 0 ? model.selectedGroupIndex-1 : model.groups.length-1);
+			return true;
+		}.bind(this));
 		
 		/**
 		 * Listener called when Linked Mode is active. Updates position's offsets and length
 		 * on user change. Also escapes the Linked Mode if the text buffer was modified outside of the Linked Mode positions.
 		 */
 		this.linkedModeListener = {
-			onVerify: function(event) {
-				var changeInsideGroup = false;
-				var offsetDifference = 0;
-				for (var i = 0; i < this.linkedModePositions.length; ++i) {
-					var position = this.linkedModePositions[i];
-					if (changeInsideGroup) {
-						// The change has already been noticed, update the offsets of all positions next to the changed one
-						position.offset += offsetDifference;
-					} else if (event.start >= position.offset && event.end <= position.offset + position.length) {
-						// The change was done in the current position, update its length
-						var oldLength = position.length;
-						position.length = (event.start - position.offset) + event.text.length + (position.offset + position.length - event.end);
-						offsetDifference = position.length - oldLength;
-						changeInsideGroup = true;
+		
+			onActivating: function(event) {
+				if (this._groupContentAssistProvider) {
+					this.contentAssist.setProviders([this._groupContentAssistProvider]);
+					this.contentAssist.setProgress(null);
+				}
+			}.bind(this),
+			
+			onModelChanged: function(event) {
+				if (this.ignoreVerify) { return; }
+
+				// Get the position being modified
+				var start = this.editor.mapOffset(event.start);
+				var model = this.linkedModeModel, positionChanged, changed;
+				while (model) {
+					positionChanged = this._getPositionChanged(model, start, start + event.removedCharCount);
+					changed = positionChanged.position;
+					if (changed === undefined || changed.model !== model) {
+						// The change has been done outside of the positions, exit the Linked Mode
+						this.exitLinkedMode(false);
+						model = this.linkedModeModel;
+					} else {
+						break;
 					}
 				}
+				if (!model) { return; }
 
-				if (changeInsideGroup) {
-					// Update escape position too
-					this.linkedModeEscapePosition += offsetDifference;
-				} else {
-					// The change has been done outside of the positions, exit the Linked Mode
-					this.cancel();
+				// Update position offsets for this change. Group changes are done in #onVerify
+				var deltaCount = 0;
+				var changeCount = event.addedCharCount - event.removedCharCount;
+				var sortedPositions = positionChanged.positions, position, pos;
+				for (var i = 0; i < sortedPositions.length; ++i) {
+					pos = sortedPositions[i];
+					position = pos.position;
+					var inside = position.offset <= start && start <= position.offset + position.length;
+					if (inside && !pos.ansestor) {
+						position.offset += deltaCount;
+						position.length += changeCount;
+						deltaCount += changeCount;
+					} else {
+						position.offset += deltaCount;
+						if (pos.ansestor && inside) {
+							position.length += changeCount;
+						}
+					}
+					if (pos.escape) {
+						pos.model.escapePosition = position.offset;
+					}
 				}
+				this._updateAnnotations(sortedPositions);
+			}.bind(this),
+
+			onVerify: function(event) {
+				if (this.ignoreVerify) { return; }
+
+				// Get the position being modified
+				var editor = this.editor;
+				var start = editor.mapOffset(event.start);
+				var end = this.editor.mapOffset(event.end);
+				var model = this.linkedModeModel, positionChanged, changed;
+				while (model) {
+					positionChanged = this._getPositionChanged(model, start, end);
+					changed = positionChanged.position;
+					if (changed === undefined || changed.model !== model) {
+						// The change has been done outside of the positions, exit the Linked Mode
+						this.exitLinkedMode(false);
+						model = this.linkedModeModel;
+					} else {
+						break;
+					}
+				}
+				if (!model) { return; }
+				
+				// Make sure changes in a same group are compound
+				var undo = this._compoundChange;
+				if (undo) {
+					if (!(undo.owner.model === model && undo.owner.group === changed.group)) {
+						this.endUndo();
+						this.startUndo();
+					}
+				} else {
+					this.startUndo();
+				}
+
+				model.selectedGroupIndex = changed.group;
+				
+				// Update position offsets taking into account all positions in the same changing group
+				var deltaCount = 0;
+				var changeCount = event.text.length - (end - start);
+				var sortedPositions = positionChanged.positions, position, pos;
+				var deltaStart = start - changed.position.offset, deltaEnd = end - changed.position.offset;
+				for (var i = 0; i < sortedPositions.length; ++i) {
+					pos = sortedPositions[i];
+					position = pos.position;
+					pos.oldOffset = position.offset;
+					if (pos.model === model && pos.group === changed.group) {
+						position.offset += deltaCount;
+						position.length += changeCount;
+						deltaCount += changeCount;
+					} else {
+						position.offset += deltaCount;
+						if (pos.ansestor) {
+							position.length += changed.count * changeCount;
+						}
+					}
+					if (pos.escape) {
+						pos.model.escapePosition = position.offset;
+					}
+				}
+				
+				// Cancel this modification and apply same modification to all positions in changing group
+				this.ignoreVerify = true;
+				for (i = sortedPositions.length - 1; i >= 0; i--) {
+					pos = sortedPositions[i];
+					if (pos.model === model && pos.group === changed.group) {
+						editor.setText(event.text, pos.oldOffset + deltaStart , pos.oldOffset + deltaEnd);
+					}
+				}
+				this.ignoreVerify = false;
+				event.text = null;
+				this._updateAnnotations(sortedPositions);
 			}.bind(this)
 		};
 	}
-	LinkedMode.prototype = {
+	LinkedMode.prototype = new mKeyModes.KeyMode();
+	objects.mixin(LinkedMode.prototype, {
+		createKeyBindings: function() {
+			var KeyBinding = mKeyBinding.KeyBinding;
+			var bindings = [];
+			bindings.push({actionID: "linkedModeEnter", keyBinding: new KeyBinding(13)}); //$NON-NLS-0$
+			bindings.push({actionID: "linkedModeCancel", keyBinding: new KeyBinding(27)}); //$NON-NLS-0$
+			bindings.push({actionID: "linkedModeNextGroup", keyBinding: new KeyBinding(9)}); //$NON-NLS-0$
+			bindings.push({actionID: "linkedModePreviousGroup", keyBinding: new KeyBinding(9, false, true)}); //$NON-NLS-0$
+			return bindings;
+		},
 		/**
 		 * Starts Linked Mode, selects the first position and registers the listeners.
-		 * @parma {Object} linkedModeModel An object describing the model to be used by linked mode.
-		 * Contains one or more position groups. If one positions in a group is edited, the other positions in the
-		 * group are edited the same way. The structure is as follows:<pre>
-		 * {
-		 *     groups: [{
-		 *         positions: [{
-		 *             offset: 10, // Relative to the text buffer
-		 *             length: 3
-		 *         }]
-		 *     }],
-		 *     escapePosition: 19, // Relative to the text buffer
+		 * @param {Object} linkedModeModel An object describing the model to be used by linked mode.
+		 * Contains one or more position groups. If a position in a group is edited, the other positions in
+		 * the same group are edited the same way. The model structure is as follows:
+		 * <pre>{
+		 *		groups: [{
+		 *			data: {},
+		 *			positions: [{
+		 *				offset: 10, // Relative to the text buffer
+		 *				length: 3
+		 *			}]
+		 *		}],
+		 *		escapePosition: 19, // Relative to the text buffer
 		 * }</pre>
+		 *
+		 * Each group in the model has an optional <code>data</code> property which can be
+		 * used to provide additional content assist for the group.  The <code>type</code> in
+		 * data determines what kind of content assist is provided. These are the support
+		 * structures for the <code>data</code> property.
+		 * <pre>{
+		 *		type: "link"
+		 *		values: ["proposal0", "proposal1", ...]
+		 * }</pre>
+		 *
+		 * The "link" data struture provides static content assist proposals stored in the
+		 * <code>values</code> property.
+		 *
+		 * <p>
+		 * <b>See:</b><br/>
+		 * {@link orion.editor.Template}<br/>
+		 * {@link orion.editor.TemplateContentAssist}<br/>
+		 * </p>
 		 */
 		enterLinkedMode: function(linkedModeModel) {
-			if (this.linkedModeActive) {
-				return;
+			if (!this.linkedModeModel) {
+				var textView = this.editor.getTextView();
+				textView.addKeyMode(this);
+				textView.addEventListener("Verify", this.linkedModeListener.onVerify); //$NON-NLS-0$
+				textView.addEventListener("ModelChanged", this.linkedModeListener.onModelChanged); //$NON-NLS-0$
+				var contentAssist = this.contentAssist;
+				contentAssist.addEventListener("Activating", this.linkedModeListener.onActivating); //$NON-NLS-0$
+				this.editor.reportStatus(messages.linkedModeEntered, null, true);
 			}
-			this.linkedModeActive = true;
-
-			// NOTE: only the first position from each group is supported for now
-			this.linkedModePositions = [];
-			for (var i = 0; i < linkedModeModel.groups.length; ++i) {
-				var group = linkedModeModel.groups[i];
-				this.linkedModePositions[i] = {
-					offset: group.positions[0].offset,
-					length: group.positions[0].length
-				};
+			this._sortedPositions = null;
+			if (this.linkedModeModel) {
+				linkedModeModel.previousModel = this.linkedModeModel;
+				linkedModeModel.parentGroup = this.linkedModeModel.selectedGroupIndex;
+				this.linkedModeModel.nextModel = linkedModeModel;
 			}
-
-			this.linkedModeEscapePosition = linkedModeModel.escapePosition;
-			this.linkedModeCurrentPositionIndex = 0;
-			this.selectTextForLinkedModePosition(this.linkedModePositions[this.linkedModeCurrentPositionIndex]);
-
-			var textView = this.editor.getTextView();
-			textView.addEventListener("Verify", this.linkedModeListener.onVerify); //$NON-NLS-0$
-
-			textView.setKeyBinding(new mKeyBinding.KeyBinding(9), "nextLinkedModePosition"); //$NON-NLS-0$
-			textView.setAction("nextLinkedModePosition", function() { //$NON-NLS-0$
-				// Switch to the next group on TAB key
-				this.linkedModeCurrentPositionIndex = ++this.linkedModeCurrentPositionIndex % this.linkedModePositions.length;
-				this.selectTextForLinkedModePosition(this.linkedModePositions[this.linkedModeCurrentPositionIndex]);
-				return true;
-			}.bind(this));
-			
-			textView.setKeyBinding(new mKeyBinding.KeyBinding(9, false, true), "previousLinkedModePosition"); //$NON-NLS-0$
-			textView.setAction("previousLinkedModePosition", function() { //$NON-NLS-0$
-				this.linkedModeCurrentPositionIndex = this.linkedModeCurrentPositionIndex > 0 ? this.linkedModeCurrentPositionIndex-1 : this.linkedModePositions.length-1;
-				this.selectTextForLinkedModePosition(this.linkedModePositions[this.linkedModeCurrentPositionIndex]);
-				return true;
-			}.bind(this));
-
-			this.editor.reportStatus(messages.linkedModeEntered, null, true);
-		},
-		isActive: function() {
-			return this.linkedModeActive;
-		},
-		isStatusActive: function() {
-			return this.linkedModeActive;
-		},
-		enter: function() {
-			this.cancel();
-			return true;
+			this.linkedModeModel = linkedModeModel;
+			this.selectLinkedGroup(0);
 		},
 		/** 
-		 * Exits Linked Mode. Optionally places the caret at linkedModeEscapePosition. 
-		 * @param {boolean} ignoreEscapePosition optional if true, do not place the caret at the 
-		 * escape position.
+		 * Exits Linked Mode. Optionally places the caret at linkedMode escapePosition. 
+		 * @param {Boolean} [escapePosition=false] if true, place the caret at the  escape position.
 		 */
-		cancel: function(ignoreEscapePosition) {
-			if (!this.linkedModeActive) {
+		exitLinkedMode: function(escapePosition) {
+			if (!this.isActive()) {
 				return;
 			}
-			this.linkedModeActive = false;
-			var textView = this.editor.getTextView();
-			textView.removeEventListener("Verify", this.linkedModeListener.onVerify); //$NON-NLS-0$
-			textView.setKeyBinding(new mKeyBinding.KeyBinding(9), "tab"); //$NON-NLS-0$
-			textView.setKeyBinding(new mKeyBinding.KeyBinding(9, false, true), "shiftTab"); //$NON-NLS-0$
-			
-			if (!ignoreEscapePosition) {
-				textView.setCaretOffset(this.linkedModeEscapePosition, false);
+			if (this._compoundChange) {
+				this.endUndo();
+				this._compoundChange = null;
 			}
+			this._sortedPositions = null;
+			var model = this.linkedModeModel;
+			this.linkedModeModel = model.previousModel;
+			model.parentGroup = model.previousModel = undefined;
+			if (this.linkedModeModel) {
+				this.linkedModeModel.nextModel = undefined;
+			}
+			if (!this.linkedModeModel) {
+				var editor = this.editor;
+				var textView = editor.getTextView();
+				textView.removeKeyMode(this);
+				textView.removeEventListener("Verify", this.linkedModeListener.onVerify); //$NON-NLS-0$
+				textView.removeEventListener("ModelChanged", this.linkedModeListener.onModelChanged); //$NON-NLS-0$
+				var contentAssist = this.contentAssist;
+				contentAssist.removeEventListener("Activating", this.linkedModeListener.onActivating); //$NON-NLS-0$
+				contentAssist.offset = undefined;
+				this.editor.reportStatus(messages.linkedModeExited, null, true);
+				if (escapePosition) {
+					editor.setCaretOffset(model.escapePosition, false);
+				}
+			}
+			this.selectLinkedGroup(0);
+		},
+		startUndo: function() {
+			if (this.undoStack) {
+				var self = this;
+				var model = this.linkedModeModel;
+				this._compoundChange = this.undoStack.startCompoundChange({
+					model: model,
+					group: model.selectedGroupIndex,
+					end: function() {
+						self._compoundChange = null;
+					}
+				});
+			}
+		}, 
+		endUndo: function() {
+			if (this.undoStack) {
+				this.undoStack.endCompoundChange();
+			}
+		},
+		isActive: function() {
+			return !!this.linkedModeModel;
+		},
+		isStatusActive: function() {
+			return !!this.linkedModeModel;
+		},
+		selectLinkedGroup: function(index) {
+			var model = this.linkedModeModel;
+			if (model) {
+				model.selectedGroupIndex = index;
+				var group = model.groups[index];
+				var position = group.positions[0];
+				var editor = this.editor;
+				editor.setSelection(position.offset, position.offset + position.length);
+				var contentAssist = this.contentAssist;
+				if (contentAssist) {
+					contentAssist.offset = undefined;
+					if (group.data && group.data.type === "link" && group.data.values) { //$NON-NLS-0$
+						var provider = this._groupContentAssistProvider = new mTemplates.TemplateContentAssist(group.data.values);
+						provider.getPrefix = function() {
+							var selection = editor.getSelection();
+							if (selection.start === selection.end) {
+								var caretOffset = editor.getCaretOffset();
+								if (position.offset <= caretOffset && caretOffset <= position.offset + position.length) {
+									return editor.getText(position.offset, caretOffset);
+								}
+							}
+							return "";
+						};
+						contentAssist.offset = position.offset;
+						contentAssist.deactivate();
+						contentAssist.activate();
+					} else if (this._groupContentAssistProvider) {
+						this._groupContentAssistProvider = null;
+						contentAssist.deactivate();
+					}
+				}
+			}
+			this._updateAnnotations();
+		},
+		_getModelPositions: function(all, model, delta) {
+			var groups = model.groups;
+			for (var i = 0; i < groups.length; i++) {
+				var positions = groups[i].positions;
+				for (var j = 0; j < positions.length; j++) {
+					var position = positions[j];
+					if (delta) {
+						position = {offset: position.offset + delta, length: position.length};
+					}
+					var pos = {
+						index: j,
+						group: i,
+						count: positions.length,
+						model: model,
+						position: position
+					};
+					all.push(pos);
+					if (model.nextModel && model.nextModel.parentGroup === i) {
+						pos.ansestor = true;
+						this._getModelPositions(all, model.nextModel, (delta || 0) + positions[j].offset - positions[0].offset);
+					}
+				}
+			}
+		},
+		_getSortedPositions: function(model) {
+			var all = this._sortedPositions;
+			if (!all) {
+				all = [];
+				// Get the root linked model
+				while (model.previousModel) {
+					model = model.previousModel;
+				}
+				// Get all positions under model expanding group positions of stacked linked modes
+				this._getModelPositions(all, model);
+				// Add escape position for all models
+				while (model) {
+					if (model.escapePosition !== undefined) {
+						all.push({
+							escape: true,
+							model: model,
+							position: {offset: model.escapePosition, length: 0}
+						});
+					}
+					model = model.nextModel;
+				}
+				all.sort(function(a, b) {
+					return a.position.offset - b.position.offset;
+				});
+				this._sortedPositions = all;
+			}
+			return all;
+		},
+		_getPositionChanged: function(model, start, end) {
+			var changed;
+			var sortedPositions = this._getSortedPositions(model);
+			for (var i = sortedPositions.length - 1; i >= 0; i--) {
+				var position = sortedPositions[i].position;
+				if (position.offset <= start && end <= position.offset + position.length) {
+					changed = sortedPositions[i];
+					break;
+				}
+			}
+			return {position: changed, positions: sortedPositions};
+		},
+		_updateAnnotations: function(positions) {
+			var annotationModel = this.editor.getAnnotationModel();
+			if (!annotationModel) { return; }
+			var remove = [], add = [];
+			var textModel = annotationModel.getTextModel();
+			var annotations = annotationModel.getAnnotations(0, textModel.getCharCount()), annotation;
+			while (annotations.hasNext()) {
+				annotation = annotations.next();
+				switch (annotation.type) {
+					case mAnnotations.AnnotationType.ANNOTATION_LINKED_GROUP:
+					case mAnnotations.AnnotationType.ANNOTATION_CURRENT_LINKED_GROUP:
+					case mAnnotations.AnnotationType.ANNOTATION_SELECTED_LINKED_GROUP:
+						remove.push(annotation);
+				}
+			}
+			var model = this.linkedModeModel;
+			if (model) {
+				positions = positions || this._getSortedPositions(model);
+				for (var i = 0; i < positions.length; i++) {
+					var position = positions[i];
+					if (position.model !== model) { continue; }
+					var type = mAnnotations.AnnotationType.ANNOTATION_LINKED_GROUP;
+					if (position.group === model.selectedGroupIndex) {
+						if (position.index === 0) {
+							type = mAnnotations.AnnotationType.ANNOTATION_SELECTED_LINKED_GROUP;
+						} else {
+							type = mAnnotations.AnnotationType.ANNOTATION_CURRENT_LINKED_GROUP;
+						}
+					}
+					position = position.position;
+					annotation = mAnnotations.AnnotationType.createAnnotation(type, position.offset, position.offset + position.length, "");
+					add.push(annotation);
+				}
+			}
+			annotationModel.replaceAnnotations(remove, add);
+		}
+	});
+	exports.LinkedMode = LinkedMode;
 
-			this.editor.reportStatus(messages.linkedModeExited, null, true);
-		},
-		lineUp: function() {
-			this.cancel(true);
-			return false;
-		},
-		lineDown: function() {
-			this.cancel(true);
-			return false;
-		},		/**
-		 * Updates the selection in the textView for given Linked Mode position.
-		 */
-		selectTextForLinkedModePosition: function(position) {
-			var textView = this.editor.getTextView();
-			textView.setSelection(position.offset, position.offset + position.length);
+	return exports;
+});
+
+/*******************************************************************************
+ * @license
+ * Copyright (c) 2013 IBM Corporation and others.
+ * All rights reserved. This program and the accompanying materials are made 
+ * available under the terms of the Eclipse Public License v1.0 
+ * (http://www.eclipse.org/legal/epl-v10.html), and the Eclipse Distribution 
+ * License v1.0 (http://www.eclipse.org/org/documents/edl-v10.html). 
+ *
+ * Contributors:
+ *     IBM Corporation - initial API and implementation
+ *******************************************************************************/
+/*global define */
+
+define("orion/editor/factories", [ //$NON-NLS-0$
+	'orion/editor/actions', //$NON-NLS-0$
+	'orion/editor/undoStack', //$NON-NLS-0$
+	'orion/editor/rulers', //$NON-NLS-0$
+	'orion/editor/annotations', //$NON-NLS-0$
+	'orion/editor/textDND', //$NON-NLS-0$
+	'orion/editor/linkedMode' //$NON-NLS-0$
+], function(mActions, mUndoStack, mRulers, mAnnotations, mTextDND, mLinkedMode) {
+
+	var exports = {};
+	
+	function KeyBindingsFactory() {
+	}
+	KeyBindingsFactory.prototype = {
+		createKeyBindings: function(editor, undoStack, contentAssist, searcher) {
+			// Create keybindings for generic editing, no dependency on the service model
+			var textActions = new mActions.TextActions(editor, undoStack , searcher);
+			// Linked Mode
+			var linkedMode = new mLinkedMode.LinkedMode(editor, undoStack, contentAssist);
+			// create keybindings for source editing
+			// TODO this should probably be something that happens more dynamically, when the editor changes input
+			var sourceCodeActions = new mActions.SourceCodeActions(editor, undoStack, contentAssist, linkedMode);
+			return {
+				textActions: textActions,
+				linkedMode: linkedMode,
+				sourceCodeActions: sourceCodeActions
+			};
 		}
 	};
-
-	return {
-		UndoFactory: UndoFactory,
-		LineNumberRulerFactory: LineNumberRulerFactory,
-		FoldingRulerFactory: FoldingRulerFactory,
-		AnnotationFactory: AnnotationFactory,
-		TextDNDFactory: TextDNDFactory,
-		TextActions: TextActions,
-		SourceCodeActions: SourceCodeActions,
-		LinkedMode: LinkedMode
+	exports.KeyBindingsFactory = KeyBindingsFactory;
+	
+	function UndoFactory() {
+	}
+	UndoFactory.prototype = {
+		createUndoStack: function(editor) {
+			var textView = editor.getTextView();
+			return new mUndoStack.UndoStack(textView, 200);
+		}
 	};
+	exports.UndoFactory = UndoFactory;
+
+	function LineNumberRulerFactory() {
+	}
+	LineNumberRulerFactory.prototype = {
+		createLineNumberRuler: function(annotationModel) {
+			return new mRulers.LineNumberRuler(annotationModel, "left", {styleClass: "ruler lines"}, {styleClass: "rulerLines odd"}, {styleClass: "rulerLines even"}); //$NON-NLS-3$ //$NON-NLS-2$ //$NON-NLS-1$ //$NON-NLS-0$
+		}
+	};
+	exports.LineNumberRulerFactory = LineNumberRulerFactory;
+	
+	function FoldingRulerFactory() {
+	}
+	FoldingRulerFactory.prototype = {
+		createFoldingRuler: function(annotationModel) {
+			return new mRulers.FoldingRuler(annotationModel, "left", {styleClass: "ruler folding"}); //$NON-NLS-1$ //$NON-NLS-0$
+		}
+	};
+	exports.FoldingRulerFactory = FoldingRulerFactory;
+	
+	function AnnotationFactory() {
+	}
+	AnnotationFactory.prototype = {
+		createAnnotationModel: function(model) {
+			return new mAnnotations.AnnotationModel(model);
+		},
+		createAnnotationStyler: function(annotationModel, view) {
+			return new mAnnotations.AnnotationStyler(annotationModel, view);
+		},
+		createAnnotationRulers: function(annotationModel) {
+			var annotationRuler = new mRulers.AnnotationRuler(annotationModel, "left", {styleClass: "ruler annotations"}); //$NON-NLS-1$ //$NON-NLS-0$
+			var overviewRuler = new mRulers.OverviewRuler(annotationModel, "right", {styleClass: "ruler overview"}); //$NON-NLS-1$ //$NON-NLS-0$
+			return {annotationRuler: annotationRuler, overviewRuler: overviewRuler};
+		}
+	};
+	exports.AnnotationFactory = AnnotationFactory;
+	
+	function TextDNDFactory() {
+	}
+	TextDNDFactory.prototype = {
+		createTextDND: function(editor, undoStack) {
+			return new mTextDND.TextDND(editor.getTextView(), undoStack);
+		}
+	};
+	exports.TextDNDFactory = TextDNDFactory;
+	
+	return exports;
+});
+
+/*******************************************************************************
+ * @license
+ * Copyright (c) 2011, 2013 IBM Corporation and others.
+ * All rights reserved. This program and the accompanying materials are made 
+ * available under the terms of the Eclipse Public License v1.0 
+ * (http://www.eclipse.org/legal/epl-v10.html), and the Eclipse Distribution 
+ * License v1.0 (http://www.eclipse.org/org/documents/edl-v10.html). 
+ *
+ * Contributors:
+ *     IBM Corporation - initial API and implementation
+ ******************************************************************************/
+/*global define */
+
+define("orion/editor/editorFeatures", [ //$NON-NLS-0$
+	'orion/editor/factories', //$NON-NLS-0$
+	'orion/editor/actions', //$NON-NLS-0$
+	'orion/editor/linkedMode', //$NON-NLS-0$
+	'orion/objects' //$NON-NLS-0$
+], function(mFactories, mActions, mLinkedMode, objects) {
+	return objects.mixin({}, mFactories, mActions, mLinkedMode);
 });
 
 /*******************************************************************************
@@ -13015,315 +16271,387 @@ define("orion/editor/editorFeatures", [ //$NON-NLS-0$
 /*global exports module define setTimeout*/
 
 (function(root, factory) { // UMD
-	if (typeof define === "function" && define.amd) { //$NON-NLS-0$
-		define('orion/Deferred',[],factory);
-	} else if (typeof exports === "object") { //$NON-NLS-0$
-		module.exports = factory();
-	} else {
-		root.orion = root.orion || {};
-		root.orion.Deferred = factory();
-	}
+    if (typeof define === "function" && define.amd) { //$NON-NLS-0$
+        define('orion/Deferred',factory);
+    } else if (typeof exports === "object") { //$NON-NLS-0$
+        module.exports = factory();
+    } else {
+        root.orion = root.orion || {};
+        root.orion.Deferred = factory();
+    }
 }(this, function() {
-	var syncQueue = [],
-		asyncQueue = [],
-		running = false;
+    var queue = [],
+        running = false;
 
-	function run() {
-		var fn;
-		while ((fn = syncQueue.shift() || asyncQueue.shift())) { //empty the sync queue first!!
-			fn();
-		}
-		running = false;
-	}
+    function run() {
+        var fn;
+        while ((fn = queue.shift())) {
+            fn();
+        }
+        running = false;
+    }
 
-	function enqueue(fn, async) {
-		var queue = async ? asyncQueue : syncQueue;
-		queue.push(fn);
-		if (!running) {
-			running = true;
-			if (async) {
-				setTimeout(run, 0);
-			} else {
-				run();
-			}
-		}
-	}
+    function enqueue(fn) {
+        queue.push(fn);
+        if (!running) {
+            running = true;
+            setTimeout(run, 0);
+        }
+    }
 
-	function noReturn(fn) {
-		return function() {
-			fn.apply(null, arguments);
-		};
-	}
+    function noReturn(fn) {
+        return function() {
+            fn.apply(undefined, arguments);
+        };
+    }
 
-	function noop() {}
+    /**
+     * @name orion.Promise
+     * @class Interface representing an eventual value.
+     * @description Promise is an interface that represents an eventual value returned from the single completion of an operation.
+     *
+     * <p>For a concrete class that implements Promise and provides additional API, see {@link orion.Deferred}.</p>
+     * @see orion.Deferred
+     * @see orion.Deferred#promise
+     */
+    /**
+     * @name then
+     * @function
+     * @memberOf orion.Promise.prototype
+     * @description Adds handlers to be called on fulfillment or progress of this promise.
+     * @param {Function} [onResolve] Called when this promise is resolved.
+     * @param {Function} [onReject] Called when this promise is rejected.
+     * @param {Function} [onProgress] May be called to report progress events on this promise.
+     * @returns {orion.Promise} A new promise that is fulfilled when the given <code>onResolve</code> or <code>onReject</code>
+     * callback is finished. The callback's return value gives the fulfillment value of the returned promise.
+     */
+    /**
+     * Cancels this promise.
+     * @name cancel
+     * @function
+     * @memberOf orion.Promise.prototype
+     * @param {Object} reason The reason for canceling this promise.
+     * @param {Boolean} [strict]
+     */
 
-	function createCancelError() {
-		var cancelError = new Error("Cancel"); //$NON-NLS-0$
-		cancelError.name = "Cancel"; //$NON-NLS-0$
-		return cancelError;
-	}
+    /**
+     * @name orion.Deferred
+     * @borrows orion.Promise#then as #then
+     * @borrows orion.Promise#cancel as #cancel
+     * @class Provides abstraction over asynchronous operations.
+     * @description Deferred provides abstraction over asynchronous operations.
+     *
+     * <p>Because Deferred implements the {@link orion.Promise} interface, a Deferred may be used anywhere a Promise is called for.
+     * However, in most such cases it is recommended to use the Deferred's {@link #promise} field instead, which exposes a 
+     * simplified, minimally <a href="https://github.com/promises-aplus/promises-spec">Promises/A+</a>-compliant interface to callers.</p>
+     */
+    function Deferred() {
+        var result, state, listeners = [],
+            _this = this,
+            _protected = {};
 
-	/**
-	 * @name orion.Promise
-	 * @class Interface representing an eventual value.
-	 * @description Promise is an interface that represents an eventual value returned from the single completion of an operation.
-	 *
-	 * <p>For a concrete class that provides Promise-based APIs, see {@link orion.Deferred}.</p>
-	 * @see orion.Deferred#promise
-	 * @see orion.Deferred
-	 */
-	/**
-	 * @name then
-	 * @methodOf orion.Promise.prototype
-	 * @description Adds handlers to be called on fulfillment or progress of this promise.
-	 * @param {Function} [onResolve] Called when this promise is resolved.
-	 * @param {Function} [onReject] Called when this promise is rejected.
-	 * @param {Function} [onProgress] May be called to report progress events on this promise.
-	 * @returns {orion.Promise} A new promise that is fulfilled when the given onResolve or onReject callback is finished.
-	 * The callback's return value gives the fulfillment value of the returned promise.
-	 */
+        Object.defineProperty(this, "_protected", {
+            value: function(secret) {
+                if (secret !== queue) {
+                    throw new Error("protected");
+                }
+                return _protected;
+            }
+        });
 
-	/**
-	 * @name orion.Deferred
-	 * @borrows orion.Promise#then as #then
-	 * @class Provides abstraction over asynchronous operations.
-	 * @description Deferred provides abstraction over asynchronous operations.
-	 *
-	 * <p>Because Deferred implements the {@link orion.Promise} interface, a Deferred may be used anywhere a Promise is called for.
-	 * However, in most such cases it is recommended to use the Deferred's {@link #promise} field instead, which exposes a read-only
-	 * interface to callers.</p>
-	 */
-	function Deferred() {
-		var result, state, listeners = [],
-			_this = this;
+        function notify() {
+            var listener;
+            while ((listener = listeners.shift())) {
+                var deferred = listener.deferred;
+                var methodName = state === "fulfilled" ? "resolve" : "reject"; //$NON-NLS-0$ //$NON-NLS-1$ //$NON-NLS-2$
+                if (typeof listener[methodName] === "function") { //$NON-NLS-0$
+                    try {
+                        var fn = listener[methodName];
+                        var listenerResult = fn(result);
+                        var listenerThen = listenerResult && (typeof listenerResult === "object" || typeof listenerResult === "function") && listenerResult.then;
+                        if (typeof listenerThen === "function") {
+                            if (listenerResult === deferred.promise) {
+                                deferred.reject(new TypeError());
+                            } else {
+                                var listenerResultCancel = listenerResult.cancel;
+                                if (typeof listenerResultCancel === "function") {
+                                    deferred._protected(queue).parentCancel = listenerResultCancel.bind(listenerResult);
+                                } else {
+                                    delete deferred._protected(queue).parentCancel;
+                                }
+                                listenerThen.call(listenerResult, noReturn(deferred.resolve), noReturn(deferred.reject), noReturn(deferred.progress));
+                            }
+                        } else {
+                            deferred.resolve(listenerResult);
+                        }
+                    } catch (e) {
+                        deferred.reject(e);
+                    }
+                } else {
+                    deferred[methodName](result);
+                }
+            }
+        }
 
-		function notify() {
-			var listener;
-			while ((listener = listeners.shift())) {
-				var deferred = listener.deferred;
-				var methodName = state === "resolved" ? "resolve" : "reject"; //$NON-NLS-0$ //$NON-NLS-1$ //$NON-NLS-2$
-				if (typeof listener[methodName] === "function") { //$NON-NLS-0$
-					try {
-						var listenerResult = listener[methodName](result);
-						if (listenerResult && typeof listenerResult.then === "function") { //$NON-NLS-0$
-							deferred.cancel = listenerResult.cancel || noop;
-							listenerResult.then(noReturn(deferred.resolve), noReturn(deferred.reject), deferred.progress);
-						} else {
-							deferred.resolve(listenerResult);
-						}
-					} catch (e) {
-						deferred.reject(e);
-					}
-				} else {
-					deferred[methodName](result);
-				}
-			}
-		}
+        function _reject(error) {
+            delete _protected.parentCancel;
+            state = "rejected";
+            result = error;
+            if (listeners.length) {
+                enqueue(notify);
+            }
+        }
 
-		/**
-		 * Rejects this Deferred.
-		 * @name reject
-		 * @methodOf orion.Deferred.prototype
-		 * @param {Object} error
-		 * @param {Boolean} [strict]
-		 * @returns {orion.Promise}
-		 */
-		this.reject = function(error, strict) {
-			if (!state) {
-				state = "rejected"; //$NON-NLS-0$
-				result = error;
-				if (listeners.length) {
-					enqueue(notify);
-				}
-			}
-			return _this.promise;
-		};
+        function _resolve(value) {
+            var called = false;
 
-		/**
-		 * Resolves this Deferred.
-		 * @name resolve
-		 * @methodOf orion.Deferred.prototype
-		 * @param {Object} value
-		 * @param {Boolean} [strict]
-		 * @returns {orion.Promise}
-		 */
-		this.resolve = function(value, strict) {
-			if (!state) {
-				state = "resolved"; //$NON-NLS-0$
-				result = value;
-				if (listeners.length) {
-					enqueue(notify);
-				}
-			}
-			return _this.promise;
-		};
+            function once(fn) {
+                return function(value) {
+                    if (!called) {
+                        called = true;
+                        fn(value);
+                    }
+                };
+            }
+            delete _protected.parentCancel;
+            try {
+                var valueThen = value && (typeof value === "object" || typeof value === "function") && value.then;
+                if (typeof valueThen === "function") {
+                    if (value === _this) {
+                        _reject(new TypeError());
+                    } else {
+                        state = "assumed";
+                        var valueCancel = value && value.cancel;
+                        if (typeof valueCancel !== "function") {
+                            var deferred = new Deferred();
+                            value = deferred.promise;
+                            try {
+                                valueThen(deferred.resolve, deferred.reject, deferred.progress);
+                            } catch (thenError) {
+                                deferred.reject(thenError);
+                            }
+                            valueCancel = value.cancel;
+                            valueThen = value.then;
+                        }
+                        result = value;
+                        valueThen.call(value, once(_resolve), once(_reject));
+                        _protected.parentCancel = valueCancel.bind(value);
+                    }
+                } else {
+                    state = "fulfilled";
+                    result = value;
+                    if (listeners.length) {
+                        enqueue(notify);
+                    }
+                }
+            } catch (error) {
+                once(_reject)(error);
+            }
+        }
 
-		/**
-		 * Notifies listeners of progress on this Deferred.
-		 * @name progress
-		 * @methodOf orion.Deferred.prototype
-		 * @param {Object} update The progress update.
-		 * @param {Boolean} [strict]
-		 * @returns {orion.Promise}
-		 */
-		this.progress = function(update, strict) {
-			if (!state) {
-				listeners.forEach(function(listener) {
-					if (listener.progress) {
-						listener.progress(update);
-					}
-				});
-			}
-			return _this.promise;
-		};
+        function cancel() {
+            var parentCancel = _protected.parentCancel;
+            if (parentCancel) {
+                delete _protected.parentCancel;
+                parentCancel();
+            } else if (!state) {
+                var cancelError = new Error("Cancel");
+                cancelError.name = "Cancel";
+                _reject(cancelError);
+            }
+        }
 
-		/**
-		 * Cancels this Deferred.
-		 * @name cancel
-		 * @methodOf orion.Deferred.prototype
-		 * @param {Object} reason The reason for canceling this Deferred.
-		 * @param {Boolean} [strict]
-		 */
-		this.cancel = function() {
-			if (!state) {
-				_this.reject(createCancelError());
-			}
-		};
 
-		// Note: "then" ALWAYS returns before having onResolve or onReject called as per http://promises-aplus.github.com/promises-spec/
-		this.then = function(onResolve, onReject, onProgress) {
-			var listener = {
-				resolve: onResolve,
-				reject: onReject,
-				progress: onProgress,
-				deferred: new Deferred()
-			};
-			var deferred = listener.deferred;
-			var thisCancel = this.cancel.bind(this);
-			var propagateCancel = function() {
-				enqueue(function() {
-					var cancel = deferred.cancel === propagateCancel ? thisCancel : deferred.cancel;
-					cancel();
-				}, true);
-			};
-			deferred.cancel = propagateCancel;
-			var promise = deferred.promise;
-			promise.cancel = function() {
-				deferred.cancel(); // require indirection since deferred.cancel will be assigned if a promise is returned by onResolve/onReject
-			};
+        /**
+         * Resolves this Deferred.
+         * @name resolve
+         * @function
+         * @memberOf orion.Deferred.prototype
+         * @param {Object} value
+         * @returns {orion.Promise}
+         */
+        this.resolve = function(value) {
+            if (!state) {
+                _resolve(value);
+            }
+            return _this;
+        };
 
-			listeners.push(listener);
-			if (state) {
-				enqueue(notify, true); //runAsync
-			}
-			return promise;
-		};
+        /**
+         * Rejects this Deferred.
+         * @name reject
+         * @function
+         * @memberOf orion.Deferred.prototype
+         * @param {Object} error
+         * @param {Boolean} [strict]
+         * @returns {orion.Promise}
+         */
+        this.reject = function(error) {
+            if (!state) {
+                _reject(error);
+            }
+            return _this;
+        };
 
-		/**
-		 * The promise exposed by this Deferred.
-		 * @name promise
-		 * @fieldOf orion.Deferred.prototype
-		 * @type orion.Promise
-		 */
-		this.promise = {
-			then: this.then,
-			cancel: this.cancel
-		};
-	}
+        /**
+         * Notifies listeners of progress on this Deferred.
+         * @name progress
+         * @function
+         * @memberOf orion.Deferred.prototype
+         * @param {Object} update The progress update.
+         * @returns {orion.Promise}
+         */
+        this.progress = function(update) {
+            if (!state) {
+                listeners.forEach(function(listener) {
+                    if (listener.progress) {
+                        try {
+                            listener.progress(update);
+                        } catch (ignore) {
+                            // ignore
+                        }
+                    }
+                });
+            }
+            return _this.promise;
+        };
 
-	/**
-	 * Takes multiple promises and returns a new promise that represents the outcome of all the promises.
-	 * <p>When <code>all</code> is called with a single parameter, the returned promise has <dfn>eager</dfn> semantics,
-	 * meaning if one of the input promises is rejected, the returned promise also rejects, without waiting for the 
-	 * rest of the promises to fulfill.</p>
-	 *
-	 * To obtain <dfn>lazy</dfn> semantics (meaning the returned promise waits for all input promises to fulfill), pass the
-	 * optional parameter <code>optOnError</code>.
-	 * @name all
-	 * @methodOf orion.Deferred
-	 * @static
-	 * @param {orion.Promise[]} promises The promises.
-	 * @param {Function} [optOnError] Handles a rejected input promise. When invoked, <code>optOnError</code> is passed the reason 
-	 * the input promise was rejected. The return value of this <code>optOnError</code> call serves as the value of the rejected promise.
-	 * @returns {orion.Promise} A new promise. The returned promise is generally fulfilled to an <code>Array</code> whose elements
-	 * give the fulfillment values of the input promises. However if an input promise is rejected and eager semantics is used, the 
-	 * returned promise will instead be fulfilled to a single error value.</p>
-	 */
-	Deferred.all = function(promises, optOnError) {
-		var count = promises.length,
-			result = [],
-			rejected = false,
-			deferred = new Deferred();
+        this.cancel = function() {
+            if (_protected.parentCancel) {
+                setTimeout(cancel, 0);
+            } else {
+                cancel();
+            }
 
-		deferred.then(null, function() {
-			rejected = true;
-			promises.forEach(function(promise) {
-				if (promise.cancel) {
-					promise.cancel();
-				}
-			});
-		});
+            return _this;
+        };
 
-		function onResolve(i, value) {
-			if (!rejected) {
-				result[i] = value;
-				if (--count === 0) {
-					deferred.resolve(result);
-				}
-			}
-		}
+        // Note: "then" ALWAYS returns before having onResolve or onReject called as per http://promises-aplus.github.com/promises-spec/
+        this.then = function(onFulfill, onReject, onProgress) {
+            var listener = {
+                resolve: onFulfill,
+                reject: onReject,
+                progress: onProgress,
+                deferred: new Deferred()
+            };
+            listeners.push(listener);
+            listener.deferred._protected(queue).parentCancel = _this.promise.cancel.bind(_this);
+            if (state === "fulfilled" || state === "rejected") {
+                enqueue(notify);
+            }
+            return listener.deferred.promise;
+        };
 
-		function onReject(i, error) {
-			if (!rejected) {
-				if (optOnError) {
-					try {
-						onResolve(i, optOnError(error));
-						return;
-					} catch (e) {
-						error = e;
-					}
-				}
-				deferred.reject(error);
-			}
-		}
+        /**
+         * The promise exposed by this Deferred.
+         * @name promise
+         * @field
+         * @memberOf orion.Deferred.prototype
+         * @type orion.Promise
+         */
+        this.promise = {
+            then: _this.then,
+            cancel: _this.cancel
+        };
+    }
 
-		if (count === 0) {
-			deferred.resolve(result);
-		} else {
-			promises.forEach(function(promise, i) {
-				promise.then(onResolve.bind(null, i), onReject.bind(null, i));
-			});
-		}
-		return deferred.promise;
-	};
+    /**
+     * Returns a promise that represents the outcome of all the input promises.
+     * <p>When <code>all</code> is called with a single parameter, the returned promise has <dfn>eager</dfn> semantics,
+     * meaning that if any input promise rejects, the returned promise immediately rejects, without waiting for the rest of the
+     * input promises to fulfill.</p>
+     *
+     * To obtain <dfn>lazy</dfn> semantics (meaning the returned promise waits for every input promise to fulfill), pass the
+     * optional parameter <code>optOnError</code>.
+     * @name all
+     * @function
+     * @memberOf orion.Deferred
+     * @static
+     * @param {orion.Promise[]} promises The input promises.
+     * @param {Function} [optOnError] Handles a rejected input promise. <code>optOnError</code> is invoked for every rejected
+     * input promise, and is passed the reason the input promise was rejected. <p><code>optOnError</code> can return a value, which
+     * allows it to act as a transformer: the return value serves as the final fulfillment value of the rejected promise in the 
+     * results array generated by <code>all</code>.
+     * @returns {orion.Promise} A new promise. The returned promise is generally fulfilled to an <code>Array</code> whose elements
+     * give the fulfillment values of the input promises. <p>However, if an input promise rejects and eager semantics is used, the 
+     * returned promise will instead be fulfilled to a single error value.</p>
+     */
+    Deferred.all = function(promises, optOnError) {
+        var count = promises.length,
+            result = [],
+            rejected = false,
+            deferred = new Deferred();
 
-	/**
-	 * Applies callbacks to a promise or to a regular object.
-	 * @name when
-	 * @methodOf orion.Deferred
-	 * @static
-	 * @param {Object|orion.Promise} value Either a {@link orion.Promise}, or a normal value.
-	 * @param {Function} onResolve Called when the <code>value</code> promise is resolved. If <code>value</code> is not a promise,
-	 * this function is called immediately.
-	 * @param {Function} onReject Called when the <code>value</code> promise is rejected. If <code>value</code> is not a promise, 
-	 * this function is never called.
-	 * @param {Function} onProgress Called when the <code>value</code> promise provides a progress update. If <code>value</code> is
-	 * not a promise, this function is never called.
-	 * @returns {orion.Promise} A new promise.
-	 */
-	Deferred.when = function(value, onResolve, onReject, onProgress) {
-		var promise, deferred;
-		if (value && typeof value.then === "function") { //$NON-NLS-0$
-			promise = value;
-		} else {
-			deferred = new Deferred();
-			deferred.resolve(value);
-			promise = deferred.promise;
-		}
-		return promise.then(onResolve, onReject, onProgress);
-	};
+        deferred.then(undefined, function() {
+            rejected = true;
+            promises.forEach(function(promise) {
+                if (promise.cancel) {
+                    promise.cancel();
+                }
+            });
+        });
 
-	return Deferred;
+        function onResolve(i, value) {
+            if (!rejected) {
+                result[i] = value;
+                if (--count === 0) {
+                    deferred.resolve(result);
+                }
+            }
+        }
+
+        function onReject(i, error) {
+            if (!rejected) {
+                if (optOnError) {
+                    try {
+                        onResolve(i, optOnError(error));
+                        return;
+                    } catch (e) {
+                        error = e;
+                    }
+                }
+                deferred.reject(error);
+            }
+        }
+
+        if (count === 0) {
+            deferred.resolve(result);
+        } else {
+            promises.forEach(function(promise, i) {
+                promise.then(onResolve.bind(undefined, i), onReject.bind(undefined, i));
+            });
+        }
+        return deferred.promise;
+    };
+
+    /**
+     * Applies callbacks to a promise or to a regular object.
+     * @name when
+     * @function
+     * @memberOf orion.Deferred
+     * @static
+     * @param {Object|orion.Promise} value Either a {@link orion.Promise}, or a normal value.
+     * @param {Function} onResolve Called when the <code>value</code> promise is resolved. If <code>value</code> is not a promise,
+     * this function is called immediately.
+     * @param {Function} onReject Called when the <code>value</code> promise is rejected. If <code>value</code> is not a promise, 
+     * this function is never called.
+     * @param {Function} onProgress Called when the <code>value</code> promise provides a progress update. If <code>value</code> is
+     * not a promise, this function is never called.
+     * @returns {orion.Promise} A new promise.
+     */
+    Deferred.when = function(value, onResolve, onReject, onProgress) {
+        var promise, deferred;
+        if (value && typeof value.then === "function") { //$NON-NLS-0$
+            promise = value;
+        } else {
+            deferred = new Deferred();
+            deferred.resolve(value);
+            promise = deferred.promise;
+        }
+        return promise.then(onResolve, onReject, onProgress);
+    };
+
+    return Deferred;
 }));
 
 /*******************************************************************************
@@ -13337,16 +16665,26 @@ define("orion/editor/editorFeatures", [ //$NON-NLS-0$
  * Contributors:
  *     IBM Corporation - initial API and implementation
  *******************************************************************************/
-/*global define */
-/*jslint maxerr:150 browser:true devel:true */
+/*global console define */
+/*jslint browser:true */
 
-define("orion/editor/contentAssist", ['i18n!orion/editor/nls/messages', 'orion/keyBinding', 'orion/editor/eventTarget', 'orion/Deferred', 'orion/util'], function(messages, mKeyBinding, mEventTarget, Deferred, util) {
+define("orion/editor/contentAssist", [ //$NON-NLS-0$
+	'i18n!orion/editor/nls/messages', //$NON-NLS-0$
+	'orion/keyBinding', //$NON-NLS-0$
+	'orion/editor/keyModes', //$NON-NLS-0$
+	'orion/editor/eventTarget', //$NON-NLS-0$
+	'orion/Deferred', //$NON-NLS-0$
+	'orion/objects', //$NON-NLS-0$
+	'orion/editor/util', //$NON-NLS-0$
+	'orion/util' //$NON-NLS-0$
+], function(messages, mKeyBinding, mKeyModes, mEventTarget, Deferred, objects, textUtil, util) {
 	/**
 	 * @name orion.editor.ContentAssistProvider
 	 * @class Interface defining a provider of content assist proposals.
 	 */
 	/**
-	 * @methodOf orion.editor.ContentAssistProvider.prototype
+	 * @memberOf orion.editor.ContentAssistProvider.prototype
+	 * @function
 	 * @name computeProposals
 	 * @param {String} buffer The buffer being edited.
 	 * @param {Number} offset The position in the buffer at which content assist is being requested.
@@ -13400,6 +16738,18 @@ define("orion/editor/contentAssist", ['i18n!orion/editor/nls/messages', 'orion/k
 	 * @name orion.editor.ContentAssist#ProposalsComputedEvent
 	 * @event
 	 */
+
+	/**
+	 * Flattens an array of arrays into a one-dimensional array.
+	 * @param {Array[]} array
+	 * @returns {Array}
+	 */
+	function flatten(array) {
+		return array.reduce(function(prev, curr) {
+			return Array.isArray(curr) ? prev.concat(curr) : prev;
+		}, []);
+	}
+
 	// INACTIVE --Ctrl+Space--> ACTIVE --ModelChanging--> FILTERING
 	var State = {
 		INACTIVE: 1,
@@ -13408,11 +16758,11 @@ define("orion/editor/contentAssist", ['i18n!orion/editor/nls/messages', 'orion/k
 	};
 	
 	var STYLES = {
-		selected : " selected",
-		hr : "proposal-hr",
-		emphasis : "proposal-emphasis",
-		noemphasis : "proposal-noemphasis",
-		dfault : "proposal-default"
+		selected : " selected", //$NON-NLS-0$
+		hr : "proposal-hr", //$NON-NLS-0$
+		emphasis : "proposal-emphasis", //$NON-NLS-0$
+		noemphasis : "proposal-noemphasis", //$NON-NLS-0$
+		dfault : "proposal-default" //$NON-NLS-0$
 	};
 	
 	function ContentAssist(textView) {
@@ -13441,9 +16791,11 @@ define("orion/editor/contentAssist", ['i18n!orion/editor/nls/messages', 'orion/k
 				}
 			}
 		};
-		textView.setKeyBinding(util.isMac ? new mKeyBinding.KeyBinding(' ', false, false, false, true) : new mKeyBinding.KeyBinding(' ', true), "contentAssist");
-		textView.setAction("contentAssist", function() {
-			self.activate();
+		textView.setKeyBinding(util.isMac ? new mKeyBinding.KeyBinding(' ', false, false, false, true) : new mKeyBinding.KeyBinding(' ', true), "contentAssist"); //$NON-NLS-2$ //$NON-NLS-1$ //$NON-NLS-0$
+		textView.setAction("contentAssist", function() { //$NON-NLS-0$
+			if (!textView.getOptions("readonly")) { //$NON-NLS-0$
+				self.activate();
+			}
 			return true;
 		}, {name: messages.contentAssist});
 	}
@@ -13461,22 +16813,29 @@ define("orion/editor/contentAssist", ['i18n!orion/editor/nls/messages', 'orion/k
 			// now handle prefixes
 			// if there is a non-empty selection, then replace it,
 			// if overwrite is truthy, then also replace the prefix
-			var sel = this.textView.getSelection();
-			var start = Math.min(sel.start, sel.end);
-			var end = Math.max(sel.start, sel.end);
+			var view = this.textView;
+			var sel = view.getSelection();
+			var start = Math.min(sel.start, sel.end), mapStart = start;
+			var end = Math.max(sel.start, sel.end), mapEnd = end;
+			var model = view.getModel();
+			if (model.getBaseModel) {
+				mapStart = model.mapOffset(mapStart);
+				mapEnd = model.mapOffset(mapEnd);
+				model = model.getBaseModel();
+			}
 			if (proposal.overwrite) {
-				start = this.getPrefixStart(start);
+				start = this.getPrefixStart(model, mapStart);
 			}
 
 			var data = {
 				proposal: proposal,
-				start: start,
-				end: end
+				start: mapStart,
+				end: mapEnd
 			};
 			this.setState(State.INACTIVE);
-			var proposalText = proposal.proposal || proposal;
-			this.textView.setText(proposalText, start, end);
-			this.dispatchEvent({type: "ProposalApplied", data: data});
+			var proposalText = typeof proposal === "string" ? proposal : proposal.proposal; //$NON-NLS-0$
+			view.setText(proposalText, start, end);
+			this.dispatchEvent({type: "ProposalApplied", data: data}); //$NON-NLS-0$
 			return true;
 		},
 		activate: function() {
@@ -13506,9 +16865,12 @@ define("orion/editor/contentAssist", ['i18n!orion/editor/nls/messages', 'orion/k
 		setState: function(state) {
 			var eventType;
 			if (state === State.ACTIVE) {
-				eventType = "Activating";
+				eventType = "Activating"; //$NON-NLS-0$
+				if (this._mode) { this._mode.setActive(true); }
+				
 			} else if (state === State.INACTIVE) {
-				eventType = "Deactivating";
+				eventType = "Deactivating"; //$NON-NLS-0$
+				if (this._mode) { this._mode.setActive(false); }
 			}
 			if (eventType) {
 				this.dispatchEvent({type: eventType});
@@ -13516,20 +16878,23 @@ define("orion/editor/contentAssist", ['i18n!orion/editor/nls/messages', 'orion/k
 			this.state = state;
 			this.onStateChange(state);
 		},
+		setMode: function(mode) {
+			this._mode = mode;
+		},
 		/** @private */
 		onStateChange: function(state) {
 			if (state === State.INACTIVE) {
 				if (this.listenerAdded) {
-					this.textView.removeEventListener("ModelChanging", this.contentAssistListener.onModelChanging);
-					this.textView.removeEventListener("Scroll", this.contentAssistListener.onScroll);
-					this.textView.removeEventListener("Selection", this.contentAssistListener.onSelection);
+					this.textView.removeEventListener("ModelChanging", this.contentAssistListener.onModelChanging); //$NON-NLS-0$
+					this.textView.removeEventListener("Scroll", this.contentAssistListener.onScroll); //$NON-NLS-0$
+					this.textView.removeEventListener("Selection", this.contentAssistListener.onSelection); //$NON-NLS-0$
 					this.listenerAdded = false;
 				}
 			} else if (state === State.ACTIVE) {
 				if (!this.listenerAdded) {
-					this.textView.addEventListener("ModelChanging", this.contentAssistListener.onModelChanging);
-					this.textView.addEventListener("Scroll", this.contentAssistListener.onScroll);
-					this.textView.addEventListener("Selection", this.contentAssistListener.onSelection);
+					this.textView.addEventListener("ModelChanging", this.contentAssistListener.onModelChanging); //$NON-NLS-0$
+					this.textView.addEventListener("Scroll", this.contentAssistListener.onScroll); //$NON-NLS-0$
+					this.textView.addEventListener("Selection", this.contentAssistListener.onSelection); //$NON-NLS-0$
 					this.listenerAdded = true;
 				}
 				this.computeProposals();
@@ -13542,58 +16907,88 @@ define("orion/editor/contentAssist", ['i18n!orion/editor/nls/messages', 'orion/k
 			var self = this;
 			var offset = this.textView.getCaretOffset();
 			this._computeProposals(offset).then(function(proposals) {
-				self.dispatchEvent({type: "ProposalsComputed", data: {proposals: proposals}});
+				if (!self.isActive()) { return; }
+				self.dispatchEvent({type: "ProposalsComputed", data: {proposals: proposals}}); //$NON-NLS-0$
 			});
 		},
 		/** @private */
-		getPrefixStart: function(end) {
+		getPrefixStart: function(model, end) {
 			var index = end;
-			while (index > 0 && /[A-Za-z0-9_]/.test(this.textView.getText(index - 1, index))) {
+			while (index > 0 && /[A-Za-z0-9_]/.test(model.getText(index - 1, index))) {
 				index--;
 			}
 			return index;
 		},
 		handleError: function(error) {
-			if (typeof console !== "undefined") {
-				console.log("Error retrieving content assist proposals");
-				console.log(error);
+			if (typeof console !== "undefined") { //$NON-NLS-0$
+				console.log("Error retrieving content assist proposals"); //$NON-NLS-0$
+				console.log(error && error.stack);
 			}
 		},
 		/**
-		 * @private
 		 * Retrieves the proposals at the given offset.
+		 * @private
 		 * @param {Number} offset The caret offset.
 		 * @returns {Deferred} A promise that will provide the proposals.
 		 */
 		_computeProposals: function(offset) {
 			var providers = this.providers;
-			var textView = this.textView, textModel = textView.getModel();
-			var buffer = textView.getText();
+			var textView = this.textView;
+			var sel = textView.getSelection();
+			var model = textView.getModel(), mapOffset = offset;
+			if (model.getBaseModel) {
+				mapOffset = model.mapOffset(mapOffset);
+				sel.start = model.mapOffset(sel.start);
+				sel.end = model.mapOffset(sel.end);
+				model = model.getBaseModel();
+			}
+			var line = model.getLine(model.getLineAtOffset(mapOffset));
+			var index = 0;
+			while (index < line.length && /\s/.test(line.charAt(index))) {
+				index++;
+			}
+			var indentation = line.substring(0, index);
+			var options = textView.getOptions("tabSize", "expandTab"); //$NON-NLS-1$ //$NON-NLS-0$
+			var tab = options.expandTab ? new Array(options.tabSize + 1).join(" ") : "\t"; //$NON-NLS-1$ //$NON-NLS-0$
 			var context = {
-				line: textModel.getLine(textModel.getLineAtOffset(offset)),
-				prefix: textView.getText(this.getPrefixStart(offset), offset),
-				selection: textView.getSelection()
+				line: line,
+				offset: mapOffset,
+				prefix: model.getText(this.getPrefixStart(model, mapOffset), mapOffset),
+				selection: sel,
+				delimiter: model.getLineDelimiter(),
+				tab: tab,
+				indentation: indentation
 			};
 			var self = this;
 			var promises = providers.map(function(provider) {
-				//prefer computeProposals but support getProposals for backwards compatibility
-				var func = provider.computeProposals || provider.getProposals;
 				var proposals;
 				try {
-					if (typeof func === "function") { //$NON-NLS-0$
-						proposals = self.progress ? self.progress.progress(func.apply(provider, [buffer, offset, context]), "Generating content assist proposal"): func.apply(provider, [buffer, offset, context]);
+					var func, promise;
+					if ((func = provider.computeContentAssist)) {
+						var editorContext = self.editorContextProvider && self.editorContextProvider();
+						promise = func.apply(provider, [editorContext, context]);
+					} else if ((func = provider.getProposals || provider.computeProposals)) {
+						// old API
+						promise = func.apply(provider, [model.getText(), mapOffset, context]);
 					}
+					proposals = self.progress ? self.progress.progress(promise, "Generating content assist proposal") : promise; //$NON-NLS-0$
 				} catch (e) {
 					self.handleError(e);
 				}
 				return Deferred.when(proposals);
 			});
-			return Deferred.all(promises, this.handleError).then(function(proposalArrays) {
-				return proposalArrays.reduce(function(prev, curr) {
-					return (curr instanceof Array) ? prev.concat(curr) : prev;
-				}, []);
-			});
+			return Deferred.all(promises, this.handleError).then(flatten);
 		},
+
+		/**
+		 * Sets the editor context factory that this ContentAssist will invoke to generate an <code>{@link orion.edit.EditorContext}</code>.
+		 * The EditorContext is passed to providers that implement the v4.0 content assist API.
+		 * @param {Function} editorContextProvider A function that returns an {@link orion.edit.EditorContext}.
+		 */
+		setEditorContextFactory: function(editorContextFactory) {
+			this.editorContextProvider = editorContextFactory;
+		},
+
 		/**
 		 * Sets the content assist providers that this ContentAssist will consult to obtain proposals.
 		 * @param {orion.editor.ContentAssistProvider[]} providers The providers.
@@ -13622,16 +17017,57 @@ define("orion/editor/contentAssist", ['i18n!orion/editor/nls/messages', 'orion/k
 	 * @param {orion.editor.ContentAssistWidget} [ContentAssistWidget]
 	 */
 	function ContentAssistMode(contentAssist, ContentAssistWidget) {
+		var textView = contentAssist.textView;
+		mKeyModes.KeyMode.call(this, textView);
 		this.contentAssist = contentAssist;
 		this.widget = ContentAssistWidget;
 		this.proposals = [];
 		var self = this;
-		this.contentAssist.addEventListener("ProposalsComputed", function(event) {
+		this.contentAssist.addEventListener("ProposalsComputed", function(event) { //$NON-NLS-0$
 			self.proposals = event.data.proposals;
-			self.selectedIndex = self.proposals.length ? 0 : -1;
+			if (self.proposals.length === 0) {
+				self.selectedIndex = -1;
+				self.cancel();
+			} else {
+				self.selectedIndex = 0;	
+			}
 		});
+		textView.setAction("contentAssistApply", function() { //$NON-NLS-0$
+			return this.enter();
+		}.bind(this));
+		textView.setAction("contentAssistCancel", function() { //$NON-NLS-0$
+			return this.cancel();
+		}.bind(this));
+		textView.setAction("contentAssistNextProposal", function() { //$NON-NLS-0$
+			return this.lineDown();
+		}.bind(this));
+		textView.setAction("contentAssistPreviousProposal", function() { //$NON-NLS-0$
+			return this.lineUp();
+		}.bind(this));
+		textView.setAction("contentAssistNextPage", function() { //$NON-NLS-0$
+			return this.pageDown();
+		}.bind(this));
+		textView.setAction("contentAssistPreviousPage", function() { //$NON-NLS-0$
+			return this.pageUp();
+		}.bind(this));
+		textView.setAction("contentAssistTab", function() { //$NON-NLS-0$
+			return this.tab();
+		}.bind(this));
 	}
-	ContentAssistMode.prototype = /** @lends orion.editor.ContentAssistMode.prototype */ {
+	ContentAssistMode.prototype = new mKeyModes.KeyMode();
+	objects.mixin(ContentAssistMode.prototype, {
+		createKeyBindings: function() {
+			var KeyBinding = mKeyBinding.KeyBinding;
+			var bindings = [];
+			bindings.push({actionID: "contentAssistApply", keyBinding: new KeyBinding(13)}); //$NON-NLS-0$
+			bindings.push({actionID: "contentAssistCancel", keyBinding: new KeyBinding(27)}); //$NON-NLS-0$
+			bindings.push({actionID: "contentAssistNextProposal", keyBinding: new KeyBinding(40)}); //$NON-NLS-0$
+			bindings.push({actionID: "contentAssistPreviousProposal", keyBinding: new KeyBinding(38)}); //$NON-NLS-0$
+			bindings.push({actionID: "contentAssistNextPage", keyBinding: new KeyBinding(34)}); //$NON-NLS-0$
+			bindings.push({actionID: "contentAssistPreviousPage", keyBinding: new KeyBinding(33)}); //$NON-NLS-0$
+			bindings.push({actionID: "contentAssistTab", keyBinding: new KeyBinding(9)}); //$NON-NLS-0$
+			return bindings;
+		},
 		cancel: function() {
 			this.getContentAssist().deactivate();
 		},
@@ -13642,8 +17078,18 @@ define("orion/editor/contentAssist", ['i18n!orion/editor/nls/messages', 'orion/k
 		isActive: function() {
 			return this.getContentAssist().isActive();
 		},
+		setActive: function(active) {
+			if (active) {
+				this.contentAssist.textView.addKeyMode(this);
+			} else {
+				this.contentAssist.textView.removeKeyMode(this);
+			}
+		},
 		lineUp: function() {
 			var newSelected = (this.selectedIndex === 0) ? this.proposals.length - 1 : this.selectedIndex - 1;
+			return this._lineUp(newSelected);
+		},
+		_lineUp: function(newSelected) {
 			while (this.proposals[newSelected].unselectable && newSelected > 0) {
 				newSelected--;
 			}
@@ -13655,6 +17101,9 @@ define("orion/editor/contentAssist", ['i18n!orion/editor/nls/messages', 'orion/k
 		},
 		lineDown: function() {
 			var newSelected = (this.selectedIndex === this.proposals.length - 1) ? 0 : this.selectedIndex + 1;
+			return this._lineDown(newSelected);
+		},
+		_lineDown: function(newSelected) {
 			while (this.proposals[newSelected].unselectable && newSelected < this.proposals.length-1) {
 				newSelected++;
 			}
@@ -13663,6 +17112,30 @@ define("orion/editor/contentAssist", ['i18n!orion/editor/nls/messages', 'orion/k
 				this.widget.setSelectedIndex(this.selectedIndex);
 			}
 			return true;
+		},
+		pageUp: function() {
+			if (this.widget) {
+				var newSelected = this.widget.getTopIndex();
+				if (newSelected === this.selectedIndex) {
+					this.widget.scrollIndex(newSelected, false);
+					newSelected = this.widget.getTopIndex();
+				}
+				return this._lineUp(newSelected);
+			} else {
+				return this.lineUp();
+			}
+		},
+		pageDown: function() {
+			if (this.widget) {
+				var newSelected = this.widget.getBottomIndex();
+				if (newSelected === this.selectedIndex) {
+					this.widget.scrollIndex(newSelected, true);
+					newSelected = this.widget.getBottomIndex();
+				}
+				return this._lineDown(newSelected);
+			} else {
+				return this.lineDown();
+			}
 		},
 		enter: function() {
 			var proposal = this.proposals[this.selectedIndex] || null;
@@ -13677,7 +17150,7 @@ define("orion/editor/contentAssist", ['i18n!orion/editor/nls/messages', 'orion/k
 				return false;
 			}
 		}
-	};
+	});
 
 	/**
 	 * @name orion.editor.ContentAssistWidget
@@ -13693,41 +17166,42 @@ define("orion/editor/contentAssist", ['i18n!orion/editor/nls/messages', 'orion/k
 		this.textView = this.contentAssist.getTextView();
 		this.textViewListenerAdded = false;
 		this.isShowing = false;
-		var document = this.textView.getOptions("parent").ownerDocument;
-		this.parentNode = typeof parentNode === "string" ? document.getElementById(parentNode) : parentNode;
+		var document = this.textView.getOptions("parent").ownerDocument; //$NON-NLS-0$
+		this.parentNode = typeof parentNode === "string" ? document.getElementById(parentNode) : parentNode; //$NON-NLS-0$
 		if (!this.parentNode) {
-			this.parentNode = util.createElement(document, "div");
-			this.parentNode.className = "contentassist";
-			var body = document.getElementsByTagName("body")[0];
+			this.parentNode = util.createElement(document, "div"); //$NON-NLS-0$
+			this.parentNode.className = "contentassist"; //$NON-NLS-0$
+			var body = document.getElementsByTagName("body")[0]; //$NON-NLS-0$
 			if (body) {
 				body.appendChild(this.parentNode);
 			} else {
-				throw new Error("parentNode is required");
+				throw new Error("parentNode is required"); //$NON-NLS-0$
 			}
 		}
 		var self = this;
 		this.textViewListener = {
 			onMouseDown: function(event) {
-				if (event.event.target.parentElement !== self.parentNode) {
+				var target = event.event.target || event.event.srcElement;
+				if (target.parentElement !== self.parentNode) {
 					self.contentAssist.deactivate();
 				}
 				// ignore the event if this is a click inside of the parentNode
 				// the click is handled by the onClick() function
 			}
 		};
-		this.contentAssist.addEventListener("ProposalsComputed", function(event) {
+		this.contentAssist.addEventListener("ProposalsComputed", function(event) { //$NON-NLS-0$
 			self.setProposals(event.data.proposals);
 			self.show();
 			if (!self.textViewListenerAdded) {
-				self.textView.addEventListener("MouseDown", self.textViewListener.onMouseDown);
+				self.textView.addEventListener("MouseDown", self.textViewListener.onMouseDown); //$NON-NLS-0$
 				self.textViewListenerAdded = true;
 			}
 		});
-		this.contentAssist.addEventListener("Deactivating", function(event) {
+		this.contentAssist.addEventListener("Deactivating", function(event) { //$NON-NLS-0$
 			self.setProposals([]);
 			self.hide();
 			if (self.textViewListenerAdded) {
-				self.textView.removeEventListener("MouseDown", self.textViewListener.onMouseDown);
+				self.textView.removeEventListener("MouseDown", self.textViewListener.onMouseDown); //$NON-NLS-0$
 				self.textViewListenerAdded = false;
 			}
 			self.textViewListenerAdded = false;
@@ -13737,30 +17211,29 @@ define("orion/editor/contentAssist", ['i18n!orion/editor/nls/messages', 'orion/k
 				self.position();
 			}
 		};
-		if (document.addEventListener) {
-			document.addEventListener("scroll", this.scrollListener);
-		}
+		textUtil.addEventListener(document, "scroll", this.scrollListener); //$NON-NLS-0$
 	}
 	ContentAssistWidget.prototype = /** @lends orion.editor.ContentAssistWidget.prototype */ {
 		/** @private */
 		onClick: function(e) {
-			this.contentAssist.apply(this.getProposal(e.target));
+			if (!e) { e = window.event; }
+			this.contentAssist.apply(this.getProposal(e.target || e.srcElement));
 			this.textView.focus();
 		},
 		/** @private */
 		createDiv: function(proposal, isSelected, parent, itemIndex) {
 			var document = parent.ownerDocument;
-			var div = util.createElement(document, "div");
-			div.id = "contentoption" + itemIndex;
-			div.setAttribute("role", "option");
+			var div = util.createElement(document, "div"); //$NON-NLS-0$
+			div.id = "contentoption" + itemIndex; //$NON-NLS-0$
+			div.setAttribute("role", "option"); //$NON-NLS-1$ //$NON-NLS-0$
 			var node;
-			if (proposal.style === "hr") {
-				node = util.createElement(document, "hr");
+			if (proposal.style === "hr") { //$NON-NLS-0$
+				node = util.createElement(document, "hr"); //$NON-NLS-0$
 			} else {
 				div.className = this.calculateClasses(proposal.style, isSelected);
 				node = document.createTextNode(this.getDisplayString(proposal));
 				if (isSelected) {
-					this.parentNode.setAttribute("aria-activedescendant", div.id);
+					this.parentNode.setAttribute("aria-activedescendant", div.id); //$NON-NLS-0$
 				}
 			}
 			div.appendChild(node, div);
@@ -13769,12 +17242,19 @@ define("orion/editor/contentAssist", ['i18n!orion/editor/nls/messages', 'orion/k
 		/** @private */
 		createAccessible: function(mode) {
 			if(!this._isAccessible) {
-				this.parentNode.addEventListener("keydown", function(evt) {
-					evt.preventDefault();
+				textUtil.addEventListener(this.parentNode, "keydown", function(evt) { //$NON-NLS-0$
+					if (!evt) { evt = window.event; }
 					if(evt.keyCode === 27) {return mode.cancel(); }
 					else if(evt.keyCode === 38) { return mode.lineUp(); }
 					else if(evt.keyCode === 40) { return mode.lineDown(); }
 					else if(evt.keyCode === 13) { return mode.enter(); }
+					if (evt.preventDefault) {
+						evt.preventDefault();
+					} else {
+						evt.cancelBubble = true;
+						evt.returnValue = false;
+						evt.keyCode = 0;
+					}
 					return false;
 				});
 			}
@@ -13791,11 +17271,11 @@ define("orion/editor/contentAssist", ['i18n!orion/editor/nls/messages', 'orion/k
 		/** @private */
 		getDisplayString: function(proposal) {
 			//for simple string content assist, the display string is just the proposal
-			if (typeof proposal === "string") {
+			if (typeof proposal === "string") { //$NON-NLS-0$
 				return proposal;
 			}
 			//return the description if applicable
-			if (proposal.description && typeof proposal.description === "string") {
+			if (proposal.description && typeof proposal.description === "string") { //$NON-NLS-0$
 				return proposal.description;
 			}
 			//by default return the straight proposal text
@@ -13815,6 +17295,32 @@ define("orion/editor/contentAssist", ['i18n!orion/editor/nls/messages', 'orion/k
 			}
 			return null;
 		},
+		/** @private */
+		getTopIndex: function() {
+			var nodes = this.parentNode.childNodes;
+			for (var i=0; i < nodes.length; i++) {
+				var child = nodes[i];
+				if (child.offsetTop >= this.parentNode.scrollTop) {
+					return i;
+				}
+			}
+			return 0;
+		},
+		/** @private */
+		getBottomIndex: function() {
+			var nodes = this.parentNode.childNodes;
+			for (var i=0; i < nodes.length; i++) {
+				var child = nodes[i];
+				if ((child.offsetTop + child.offsetHeight) > (this.parentNode.scrollTop + this.parentNode.clientHeight)) {
+					return Math.max(0, i - 1);
+				}
+			}
+			return nodes.length - 1;
+		},
+		/** @private */
+		scrollIndex: function(index, top) {
+			this.parentNode.childNodes[index].scrollIntoView(top);
+		},
 		/** Sets the index of the currently selected proposal. */
 		setSelectedIndex: function(/**Number*/ index) {
 			this.selectedIndex = index;
@@ -13832,7 +17338,7 @@ define("orion/editor/contentAssist", ['i18n!orion/editor/nls/messages', 'orion/k
 				}
 				if (child === node) {
 					child.className = child.className + STYLES.selected;
-					this.parentNode.setAttribute("aria-activedescendant", child.id);
+					this.parentNode.setAttribute("aria-activedescendant", child.id); //$NON-NLS-0$
 					child.focus();
 					if (child.offsetTop < this.parentNode.scrollTop) {
 						child.scrollIntoView(true);
@@ -13862,18 +17368,30 @@ define("orion/editor/contentAssist", ['i18n!orion/editor/nls/messages', 'orion/k
 			if(this.parentNode.ownerDocument.activeElement === this.parentNode) {
 				this.textView.focus();
 			}
-			this.parentNode.style.display = "none";
+			this.parentNode.style.display = "none"; //$NON-NLS-0$
 			this.parentNode.onclick = null;
 			this.isShowing = false;
 		},
 		position: function() {
-			var caretLocation = this.textView.getLocationAtOffset(this.textView.getCaretOffset());
-			caretLocation.y += this.textView.getLineHeight();
-			this.textView.convert(caretLocation, "document", "page");
-			this.parentNode.style.position = "fixed";
-			this.parentNode.style.left = caretLocation.x + "px";
-			this.parentNode.style.top = caretLocation.y + "px";
-			this.parentNode.style.display = "block";
+			var contentAssist = this.contentAssist;
+			var offset;
+			var view = this.textView;
+			if (contentAssist.offset !== undefined) {
+				offset = contentAssist.offset;
+				var model = view.getModel();
+				if (model.getBaseModel) {
+					offset = model.mapOffset(offset, true);
+				}
+			} else {
+				offset = this.textView.getCaretOffset();
+			}
+			var caretLocation = view.getLocationAtOffset(offset);
+			caretLocation.y += view.getLineHeight();
+			this.textView.convert(caretLocation, "document", "page"); //$NON-NLS-1$ //$NON-NLS-0$
+			this.parentNode.style.position = "fixed"; //$NON-NLS-0$
+			this.parentNode.style.left = caretLocation.x + "px"; //$NON-NLS-0$
+			this.parentNode.style.top = caretLocation.y + "px"; //$NON-NLS-0$
+			this.parentNode.style.display = "block"; //$NON-NLS-0$
 			this.parentNode.scrollTop = 0;
 
 			// Make sure that the panel is never outside the viewport
@@ -13881,10 +17399,10 @@ define("orion/editor/contentAssist", ['i18n!orion/editor/nls/messages', 'orion/k
 			var viewportWidth = document.documentElement.clientWidth,
 			    viewportHeight =  document.documentElement.clientHeight;
 			if (caretLocation.y + this.parentNode.offsetHeight > viewportHeight) {
-				this.parentNode.style.top = (caretLocation.y - this.parentNode.offsetHeight - this.textView.getLineHeight()) + "px";
+				this.parentNode.style.top = (caretLocation.y - this.parentNode.offsetHeight - this.textView.getLineHeight()) + "px"; //$NON-NLS-0$
 			}
 			if (caretLocation.x + this.parentNode.offsetWidth > viewportWidth) {
-				this.parentNode.style.left = (viewportWidth - this.parentNode.offsetWidth) + "px";
+				this.parentNode.style.left = (viewportWidth - this.parentNode.offsetWidth) + "px"; //$NON-NLS-0$
 			}
 		}
 	};
@@ -13892,6 +17410,105 @@ define("orion/editor/contentAssist", ['i18n!orion/editor/nls/messages', 'orion/k
 		ContentAssist: ContentAssist,
 		ContentAssistMode: ContentAssistMode,
 		ContentAssistWidget: ContentAssistWidget
+	};
+});
+
+/*******************************************************************************
+ * @license
+ * Copyright (c) 2010, 2012 IBM Corporation and others.
+ * All rights reserved. This program and the accompanying materials are made 
+ * available under the terms of the Eclipse Public License v1.0 
+ * (http://www.eclipse.org/legal/epl-v10.html), and the Eclipse Distribution 
+ * License v1.0 (http://www.eclipse.org/org/documents/edl-v10.html). 
+ * 
+ * Contributors: IBM Corporation - initial API and implementation
+ ******************************************************************************/
+
+/*global define*/
+
+define("orion/editor/keywords", [], function() { //$NON-NLS-0$
+
+	var JS_KEYWORDS = [
+		"break", //$NON-NLS-0$
+		"case", "class", "catch", "continue", "const", //$NON-NLS-4$ //$NON-NLS-3$ //$NON-NLS-2$ //$NON-NLS-1$ //$NON-NLS-0$
+		"debugger", "default", "delete", "do", //$NON-NLS-3$ //$NON-NLS-2$ //$NON-NLS-1$ //$NON-NLS-0$
+		"else", "enum", "export", "extends", //$NON-NLS-3$ //$NON-NLS-2$ //$NON-NLS-1$ //$NON-NLS-0$
+		"false", "finally", "for", "function", //$NON-NLS-3$ //$NON-NLS-2$ //$NON-NLS-1$ //$NON-NLS-0$
+		"if", "implements", "import", "in", "instanceof", "interface", //$NON-NLS-5$ //$NON-NLS-4$ //$NON-NLS-3$ //$NON-NLS-2$ //$NON-NLS-1$ //$NON-NLS-0$
+		"let", //$NON-NLS-0$
+		"new", "null", //$NON-NLS-1$ //$NON-NLS-0$
+		"package", "private", "protected", "public", //$NON-NLS-0$ //$NON-NLS-1$ //$NON-NLS-2$ //$NON-NLS-3$
+		"return", //$NON-NLS-0$
+		"static", "super", "switch", //$NON-NLS-0$ //$NON-NLS-1$ //$NON-NLS-2$
+		"this", "throw", "true", "try", "typeof", //$NON-NLS-0$ //$NON-NLS-1$ //$NON-NLS-2$ //$NON-NLS-3$ //$NON-NLS-4$
+		"undefined", //$NON-NLS-0$
+		"var", "void", //$NON-NLS-0$ //$NON-NLS-1$
+		"while", "with", //$NON-NLS-0$ //$NON-NLS-1$
+		"yield" //$NON-NLS-0$
+	];
+
+	var CSS_KEYWORDS = [
+		"alignment-adjust", "alignment-baseline", "animation", "animation-delay", "animation-direction", "animation-duration", //$NON-NLS-5$ //$NON-NLS-4$ //$NON-NLS-3$ //$NON-NLS-2$ //$NON-NLS-1$ //$NON-NLS-0$
+		"animation-iteration-count", "animation-name", "animation-play-state", "animation-timing-function", "appearance", //$NON-NLS-5$ //$NON-NLS-4$ //$NON-NLS-3$ //$NON-NLS-2$ //$NON-NLS-1$ //$NON-NLS-0$
+		"azimuth", "backface-visibility", "background", "background-attachment", "background-clip", "background-color", //$NON-NLS-5$ //$NON-NLS-4$ //$NON-NLS-3$ //$NON-NLS-2$ //$NON-NLS-1$ //$NON-NLS-0$
+		"background-image", "background-origin", "background-position", "background-repeat", "background-size", "baseline-shift", //$NON-NLS-5$ //$NON-NLS-4$ //$NON-NLS-3$ //$NON-NLS-2$ //$NON-NLS-1$ //$NON-NLS-0$
+		"binding", "bleed", "bookmark-label", "bookmark-level", "bookmark-state", "bookmark-target", "border", "border-bottom", //$NON-NLS-7$ //$NON-NLS-6$ //$NON-NLS-5$ //$NON-NLS-4$ //$NON-NLS-3$ //$NON-NLS-2$ //$NON-NLS-1$ //$NON-NLS-0$
+		"border-bottom-color", "border-bottom-left-radius", "border-bottom-right-radius", "border-bottom-style", "border-bottom-width", //$NON-NLS-5$ //$NON-NLS-4$ //$NON-NLS-3$ //$NON-NLS-2$ //$NON-NLS-1$ //$NON-NLS-0$
+		"border-collapse", "border-color", "border-image", "border-image-outset", "border-image-repeat", "border-image-slice", //$NON-NLS-5$ //$NON-NLS-4$ //$NON-NLS-3$ //$NON-NLS-2$ //$NON-NLS-1$ //$NON-NLS-0$
+		"border-image-source", "border-image-width", "border-left", "border-left-color", "border-left-style", "border-left-width", //$NON-NLS-5$ //$NON-NLS-4$ //$NON-NLS-3$ //$NON-NLS-2$ //$NON-NLS-1$ //$NON-NLS-0$
+		"border-radius", "border-right", "border-right-color", "border-right-style", "border-right-width", "border-spacing", "border-style", //$NON-NLS-6$ //$NON-NLS-5$ //$NON-NLS-4$ //$NON-NLS-3$ //$NON-NLS-2$ //$NON-NLS-1$ //$NON-NLS-0$
+		"border-top", "border-top-color", "border-top-left-radius", "border-top-right-radius", "border-top-style", "border-top-width", //$NON-NLS-5$ //$NON-NLS-4$ //$NON-NLS-3$ //$NON-NLS-2$ //$NON-NLS-1$ //$NON-NLS-0$
+		"border-width", "bottom", "box-align", "box-decoration-break", "box-direction", "box-flex", "box-flex-group", "box-lines", //$NON-NLS-7$ //$NON-NLS-6$ //$NON-NLS-5$ //$NON-NLS-4$ //$NON-NLS-3$ //$NON-NLS-2$ //$NON-NLS-1$ //$NON-NLS-0$
+		"box-ordinal-group", "box-orient", "box-pack", "box-shadow", "box-sizing", "break-after", "break-before", "break-inside", //$NON-NLS-7$ //$NON-NLS-6$ //$NON-NLS-5$ //$NON-NLS-4$ //$NON-NLS-3$ //$NON-NLS-2$ //$NON-NLS-1$ //$NON-NLS-0$
+		"caption-side", "clear", "clip", "color", "color-profile", "column-count", "column-fill", "column-gap", "column-rule", //$NON-NLS-8$ //$NON-NLS-7$ //$NON-NLS-6$ //$NON-NLS-5$ //$NON-NLS-4$ //$NON-NLS-3$ //$NON-NLS-2$ //$NON-NLS-1$ //$NON-NLS-0$
+		"column-rule-color", "column-rule-style", "column-rule-width", "column-span", "column-width", "columns", "content", "counter-increment", //$NON-NLS-7$ //$NON-NLS-6$ //$NON-NLS-5$ //$NON-NLS-4$ //$NON-NLS-3$ //$NON-NLS-2$ //$NON-NLS-1$ //$NON-NLS-0$
+		"counter-reset", "crop", "cue", "cue-after", "cue-before", "cursor", "direction", "display", "dominant-baseline", //$NON-NLS-8$ //$NON-NLS-7$ //$NON-NLS-6$ //$NON-NLS-5$ //$NON-NLS-4$ //$NON-NLS-3$ //$NON-NLS-2$ //$NON-NLS-1$ //$NON-NLS-0$
+		"drop-initial-after-adjust", "drop-initial-after-align", "drop-initial-before-adjust", "drop-initial-before-align", "drop-initial-size", //$NON-NLS-5$ //$NON-NLS-4$ //$NON-NLS-3$ //$NON-NLS-2$ //$NON-NLS-1$ //$NON-NLS-0$
+		"drop-initial-value", "elevation", "empty-cells", "fit", "fit-position", "flex-align", "flex-flow", "flex-inline-pack", "flex-order", //$NON-NLS-8$ //$NON-NLS-7$ //$NON-NLS-6$ //$NON-NLS-5$ //$NON-NLS-4$ //$NON-NLS-3$ //$NON-NLS-2$ //$NON-NLS-1$ //$NON-NLS-0$
+		"flex-pack", "float", "float-offset", "font", "font-family", "font-size", "font-size-adjust", "font-stretch", "font-style", //$NON-NLS-8$ //$NON-NLS-7$ //$NON-NLS-6$ //$NON-NLS-5$ //$NON-NLS-4$ //$NON-NLS-3$ //$NON-NLS-2$ //$NON-NLS-1$ //$NON-NLS-0$
+		"font-variant", "font-weight", "grid-columns", "grid-rows", "hanging-punctuation", "height", "hyphenate-after", //$NON-NLS-7$ //$NON-NLS-6$ //$NON-NLS-5$ //$NON-NLS-4$ //$NON-NLS-3$ //$NON-NLS-2$ //$NON-NLS-1$ //$NON-NLS-0$
+		"hyphenate-before", "hyphenate-character", "hyphenate-lines", "hyphenate-resource", "hyphens", "icon", "image-orientation", //$NON-NLS-7$ //$NON-NLS-6$ //$NON-NLS-5$ //$NON-NLS-4$ //$NON-NLS-3$ //$NON-NLS-2$ //$NON-NLS-1$ //$NON-NLS-0$
+		"image-rendering", "image-resolution", "inline-box-align", "left", "letter-spacing", "line-height", "line-stacking", //$NON-NLS-7$ //$NON-NLS-6$ //$NON-NLS-5$ //$NON-NLS-4$ //$NON-NLS-3$ //$NON-NLS-2$ //$NON-NLS-1$ //$NON-NLS-0$
+		"line-stacking-ruby", "line-stacking-shift", "line-stacking-strategy", "list-style", "list-style-image", "list-style-position", //$NON-NLS-5$ //$NON-NLS-4$ //$NON-NLS-3$ //$NON-NLS-2$ //$NON-NLS-1$ //$NON-NLS-0$
+		"list-style-type", "margin", "margin-bottom", "margin-left", "margin-right", "margin-top", "mark", "mark-after", "mark-before", //$NON-NLS-8$ //$NON-NLS-7$ //$NON-NLS-6$ //$NON-NLS-5$ //$NON-NLS-4$ //$NON-NLS-3$ //$NON-NLS-2$ //$NON-NLS-1$ //$NON-NLS-0$
+		"marker-offset", "marks", "marquee-direction", "marquee-loop", "marquee-play-count", "marquee-speed", "marquee-style", "max-height", //$NON-NLS-7$ //$NON-NLS-6$ //$NON-NLS-5$ //$NON-NLS-4$ //$NON-NLS-3$ //$NON-NLS-2$ //$NON-NLS-1$ //$NON-NLS-0$
+		"max-width", "min-height", "min-width", "move-to", "nav-down", "nav-index", "nav-left", "nav-right", "nav-up", "opacity", "orphans", //$NON-NLS-10$ //$NON-NLS-9$ //$NON-NLS-8$ //$NON-NLS-7$ //$NON-NLS-6$ //$NON-NLS-5$ //$NON-NLS-4$ //$NON-NLS-3$ //$NON-NLS-2$ //$NON-NLS-1$ //$NON-NLS-0$
+		"outline", "outline-color", "outline-offset", "outline-style", "outline-width", "overflow", "overflow-style", "overflow-x", //$NON-NLS-7$ //$NON-NLS-6$ //$NON-NLS-5$ //$NON-NLS-4$ //$NON-NLS-3$ //$NON-NLS-2$ //$NON-NLS-1$ //$NON-NLS-0$
+		"overflow-y", "padding", "padding-bottom", "padding-left", "padding-right", "padding-top", "page", "page-break-after", "page-break-before", //$NON-NLS-8$ //$NON-NLS-7$ //$NON-NLS-6$ //$NON-NLS-5$ //$NON-NLS-4$ //$NON-NLS-3$ //$NON-NLS-2$ //$NON-NLS-1$ //$NON-NLS-0$
+		"page-break-inside", "page-policy", "pause", "pause-after", "pause-before", "perspective", "perspective-origin", "phonemes", "pitch", //$NON-NLS-8$ //$NON-NLS-7$ //$NON-NLS-6$ //$NON-NLS-5$ //$NON-NLS-4$ //$NON-NLS-3$ //$NON-NLS-2$ //$NON-NLS-1$ //$NON-NLS-0$
+		"pitch-range", "play-during", "position", "presentation-level", "punctuation-trim", "quotes", "rendering-intent", "resize", //$NON-NLS-7$ //$NON-NLS-6$ //$NON-NLS-5$ //$NON-NLS-4$ //$NON-NLS-3$ //$NON-NLS-2$ //$NON-NLS-1$ //$NON-NLS-0$
+		"rest", "rest-after", "rest-before", "richness", "right", "rotation", "rotation-point", "ruby-align", "ruby-overhang", "ruby-position", //$NON-NLS-9$ //$NON-NLS-8$ //$NON-NLS-7$ //$NON-NLS-6$ //$NON-NLS-5$ //$NON-NLS-4$ //$NON-NLS-3$ //$NON-NLS-2$ //$NON-NLS-1$ //$NON-NLS-0$
+		"ruby-span", "size", "speak", "speak-header", "speak-numeral", "speak-punctuation", "speech-rate", "stress", "string-set", "table-layout", //$NON-NLS-9$ //$NON-NLS-8$ //$NON-NLS-7$ //$NON-NLS-6$ //$NON-NLS-5$ //$NON-NLS-4$ //$NON-NLS-3$ //$NON-NLS-2$ //$NON-NLS-1$ //$NON-NLS-0$
+		"target", "target-name", "target-new", "target-position", "text-align", "text-align-last", "text-decoration", "text-emphasis", //$NON-NLS-7$ //$NON-NLS-6$ //$NON-NLS-5$ //$NON-NLS-4$ //$NON-NLS-3$ //$NON-NLS-2$ //$NON-NLS-1$ //$NON-NLS-0$
+		"text-height", "text-indent", "text-justify", "text-outline", "text-shadow", "text-transform", "text-wrap", "top", "transform", //$NON-NLS-8$ //$NON-NLS-7$ //$NON-NLS-6$ //$NON-NLS-5$ //$NON-NLS-4$ //$NON-NLS-3$ //$NON-NLS-2$ //$NON-NLS-1$ //$NON-NLS-0$
+		"transform-origin", "transform-style", "transition", "transition-delay", "transition-duration", "transition-property", //$NON-NLS-5$ //$NON-NLS-4$ //$NON-NLS-3$ //$NON-NLS-2$ //$NON-NLS-1$ //$NON-NLS-0$
+		"transition-timing-function", "unicode-bidi", "vertical-align", "visibility", "voice-balance", "voice-duration", "voice-family", //$NON-NLS-7$ //$NON-NLS-6$ //$NON-NLS-5$ //$NON-NLS-4$ //$NON-NLS-3$ //$NON-NLS-2$ //$NON-NLS-1$ //$NON-NLS-0$
+		"voice-pitch", "voice-pitch-range", "voice-rate", "voice-stress", "voice-volume", "volume", "white-space", "white-space-collapse", //$NON-NLS-7$ //$NON-NLS-6$ //$NON-NLS-5$ //$NON-NLS-4$ //$NON-NLS-3$ //$NON-NLS-2$ //$NON-NLS-1$ //$NON-NLS-0$
+		"widows", "width", "word-break", "word-spacing", "word-wrap", "z-index" //$NON-NLS-5$ //$NON-NLS-4$ //$NON-NLS-3$ //$NON-NLS-2$ //$NON-NLS-1$ //$NON-NLS-0$
+	];
+	
+	var JAVA_KEYWORDS = [
+		"abstract", //$NON-NLS-0$
+		"boolean", "break", "byte", //$NON-NLS-2$ //$NON-NLS-1$ //$NON-NLS-0$
+		"case", "catch", "char", "class", "continue", //$NON-NLS-4$ //$NON-NLS-3$ //$NON-NLS-2$ //$NON-NLS-1$ //$NON-NLS-0$
+		"default", "do", "double", //$NON-NLS-2$ //$NON-NLS-1$ //$NON-NLS-0$
+		"else", "extends", //$NON-NLS-1$ //$NON-NLS-0$
+		"false", "final", "finally", "float", "for", //$NON-NLS-4$ //$NON-NLS-3$ //$NON-NLS-2$ //$NON-NLS-1$ //$NON-NLS-0$
+		"if", "implements", "import", "instanceof", "int", "interface", //$NON-NLS-5$ //$NON-NLS-4$ //$NON-NLS-3$ //$NON-NLS-2$ //$NON-NLS-1$ //$NON-NLS-0$
+		"long", //$NON-NLS-0$
+		"native", "new", "null", //$NON-NLS-2$ //$NON-NLS-1$ //$NON-NLS-0$
+		"package", "private", "protected", "public", //$NON-NLS-3$ //$NON-NLS-2$ //$NON-NLS-1$ //$NON-NLS-0$
+		"return", //$NON-NLS-0$
+		"short", "static", "super", "switch", "synchronized", //$NON-NLS-4$ //$NON-NLS-3$ //$NON-NLS-2$ //$NON-NLS-1$ //$NON-NLS-0$
+		"this", "throw", "throws", "transient", "true", "try", //$NON-NLS-5$ //$NON-NLS-4$ //$NON-NLS-3$ //$NON-NLS-2$ //$NON-NLS-1$ //$NON-NLS-0$
+		"void", "volatile", //$NON-NLS-1$ //$NON-NLS-0$
+		"while" //$NON-NLS-0$
+	];
+
+	return {
+		JSKeywords: JS_KEYWORDS,
+		CSSKeywords: CSS_KEYWORDS,
+		JAVAKeywords: JAVA_KEYWORDS
 	};
 });
 
@@ -13908,79 +17525,240 @@ define("orion/editor/contentAssist", ['i18n!orion/editor/nls/messages', 'orion/k
  *******************************************************************************/
 /*global define */
 
-define("orion/editor/cssContentAssist", [], function() {
-	var keywords = ["alignment-adjust", "alignment-baseline", "animation", "animation-delay", "animation-direction", "animation-duration",
-			"animation-iteration-count", "animation-name", "animation-play-state", "animation-timing-function", "appearance",
-			"azimuth", "backface-visibility", "background", "background-attachment", "background-clip", "background-color",
-			"background-image", "background-origin", "background-position", "background-repeat", "background-size", "baseline-shift",
-			"binding", "bleed", "bookmark-label", "bookmark-level", "bookmark-state", "bookmark-target", "border", "border-bottom",
-			"border-bottom-color", "border-bottom-left-radius", "border-bottom-right-radius", "border-bottom-style", "border-bottom-width",
-			"border-collapse", "border-color", "border-image", "border-image-outset", "border-image-repeat", "border-image-slice",
-			"border-image-source", "border-image-width", "border-left", "border-left-color", "border-left-style", "border-left-width",
-			"border-radius", "border-right", "border-right-color", "border-right-style", "border-right-width", "border-spacing", "border-style",
-			"border-top", "border-top-color", "border-top-left-radius", "border-top-right-radius", "border-top-style", "border-top-width",
-			"border-width", "bottom", "box-align", "box-decoration-break", "box-direction", "box-flex", "box-flex-group", "box-lines",
-			"box-ordinal-group", "box-orient", "box-pack", "box-shadow", "box-sizing", "break-after", "break-before", "break-inside",
-			"caption-side", "clear", "clip", "color", "color-profile", "column-count", "column-fill", "column-gap", "column-rule",
-			"column-rule-color", "column-rule-style", "column-rule-width", "column-span", "column-width", "columns", "content", "counter-increment",
-			"counter-reset", "crop", "cue", "cue-after", "cue-before", "cursor", "direction", "display", "dominant-baseline",
-			"drop-initial-after-adjust", "drop-initial-after-align", "drop-initial-before-adjust", "drop-initial-before-align", "drop-initial-size",
-			"drop-initial-value", "elevation", "empty-cells", "fit", "fit-position", "flex-align", "flex-flow", "flex-inline-pack", "flex-order",
-			"flex-pack", "float", "float-offset", "font", "font-family", "font-size", "font-size-adjust", "font-stretch", "font-style",
-			"font-variant", "font-weight", "grid-columns", "grid-rows", "hanging-punctuation", "height", "hyphenate-after",
-			"hyphenate-before", "hyphenate-character", "hyphenate-lines", "hyphenate-resource", "hyphens", "icon", "image-orientation",
-			"image-rendering", "image-resolution", "inline-box-align", "left", "letter-spacing", "line-height", "line-stacking",
-			"line-stacking-ruby", "line-stacking-shift", "line-stacking-strategy", "list-style", "list-style-image", "list-style-position",
-			"list-style-type", "margin", "margin-bottom", "margin-left", "margin-right", "margin-top", "mark", "mark-after", "mark-before",
-			"marker-offset", "marks", "marquee-direction", "marquee-loop", "marquee-play-count", "marquee-speed", "marquee-style", "max-height",
-			"max-width", "min-height", "min-width", "move-to", "nav-down", "nav-index", "nav-left", "nav-right", "nav-up", "opacity", "orphans",
-			"outline", "outline-color", "outline-offset", "outline-style", "outline-width", "overflow", "overflow-style", "overflow-x",
-			"overflow-y", "padding", "padding-bottom", "padding-left", "padding-right", "padding-top", "page", "page-break-after", "page-break-before",
-			"page-break-inside", "page-policy", "pause", "pause-after", "pause-before", "perspective", "perspective-origin", "phonemes", "pitch",
-			"pitch-range", "play-during", "position", "presentation-level", "punctuation-trim", "quotes", "rendering-intent", "resize",
-			"rest", "rest-after", "rest-before", "richness", "right", "rotation", "rotation-point", "ruby-align", "ruby-overhang", "ruby-position",
-			"ruby-span", "size", "speak", "speak-header", "speak-numeral", "speak-punctuation", "speech-rate", "stress", "string-set", "table-layout",
-			"target", "target-name", "target-new", "target-position", "text-align", "text-align-last", "text-decoration", "text-emphasis",
-			"text-height", "text-indent", "text-justify", "text-outline", "text-shadow", "text-transform", "text-wrap", "top", "transform",
-			"transform-origin", "transform-style", "transition", "transition-delay", "transition-duration", "transition-property",
-			"transition-timing-function", "unicode-bidi", "vertical-align", "visibility", "voice-balance", "voice-duration", "voice-family",
-			"voice-pitch", "voice-pitch-range", "voice-rate", "voice-stress", "voice-volume", "volume", "white-space", "white-space-collapse",
-			"widows", "width", "word-break", "word-spacing", "word-wrap", "z-index"];
+define("orion/editor/cssContentAssist", [ //$NON-NLS-0$
+	'orion/editor/templates', //$NON-NLS-0$
+	'orion/editor/keywords' //$NON-NLS-0$
+], function(mTemplates, mKeywords) {
 
-	function getCSSPrefix(buffer, offset) {
-		var index = offset;
-		while (index && /[A-Za-z\-]/.test(buffer.charAt(index - 1))) {
-			index--;
+	var overflowValues = {
+		type: "link", //$NON-NLS-0$
+		values: ["visible", "hidden", "scroll", "auto", "no-display", "no-content"] //$NON-NLS-7$ //$NON-NLS-6$ //$NON-NLS-5$ //$NON-NLS-4$ //$NON-NLS-3$ //$NON-NLS-2$ //$NON-NLS-1$ //$NON-NLS-0$
+	};
+	var fontStyleValues = {
+		type: "link", //$NON-NLS-0$
+		values: ["italic", "normal", "oblique", "inherit"] //$NON-NLS-7$ //$NON-NLS-6$ //$NON-NLS-5$ //$NON-NLS-4$ //$NON-NLS-3$ //$NON-NLS-2$ //$NON-NLS-1$ //$NON-NLS-0$
+	};
+	var fontWeightValues = {
+		type: "link", //$NON-NLS-0$
+		values: [
+			"bold", "normal", "bolder", "lighter", //$NON-NLS-7$ //$NON-NLS-6$ //$NON-NLS-5$ //$NON-NLS-4$ //$NON-NLS-3$ //$NON-NLS-2$ //$NON-NLS-1$ //$NON-NLS-0$
+			"100", "200", "300", "400", "500", "600", //$NON-NLS-7$ //$NON-NLS-6$ //$NON-NLS-5$ //$NON-NLS-4$ //$NON-NLS-3$ //$NON-NLS-2$ //$NON-NLS-1$ //$NON-NLS-0$
+			"700", "800", "900", "inherit" //$NON-NLS-7$ //$NON-NLS-6$ //$NON-NLS-5$ //$NON-NLS-4$ //$NON-NLS-3$ //$NON-NLS-2$ //$NON-NLS-1$ //$NON-NLS-0$
+		]
+	};
+	var displayValues = {
+		type: "link", //$NON-NLS-0$
+		values: [
+			"none", "block", "box", "flex", "inline", "inline-block", "inline-flex", "inline-table", //$NON-NLS-7$ //$NON-NLS-6$ //$NON-NLS-5$ //$NON-NLS-4$ //$NON-NLS-3$ //$NON-NLS-2$ //$NON-NLS-1$ //$NON-NLS-0$
+			"list-item", "table", "table-caption", "table-cell", "table-column", "table-column-group", //$NON-NLS-7$ //$NON-NLS-6$ //$NON-NLS-5$ //$NON-NLS-4$ //$NON-NLS-3$ //$NON-NLS-2$ //$NON-NLS-1$ //$NON-NLS-0$
+			"table-footer-group", "table-header-group", "table-row", "table-row-group", "inherit" //$NON-NLS-7$ //$NON-NLS-6$ //$NON-NLS-5$ //$NON-NLS-4$ //$NON-NLS-3$ //$NON-NLS-2$ //$NON-NLS-1$ //$NON-NLS-0$
+		]
+	};
+	var visibilityValues = {
+		type: "link", //$NON-NLS-0$
+		values: ["hidden", "visible", "collapse", "inherit"] //$NON-NLS-7$ //$NON-NLS-6$ //$NON-NLS-5$ //$NON-NLS-4$ //$NON-NLS-3$ //$NON-NLS-2$ //$NON-NLS-1$ //$NON-NLS-0$
+	};
+	var positionValues = {
+		type: "link", //$NON-NLS-0$
+		values: ["absolute", "fixed", "relative", "static", "inherit"] //$NON-NLS-7$ //$NON-NLS-6$ //$NON-NLS-5$ //$NON-NLS-4$ //$NON-NLS-3$ //$NON-NLS-2$ //$NON-NLS-1$ //$NON-NLS-0$
+	};
+	var whitespaceValues = {
+		type: "link", //$NON-NLS-0$
+		values: ["pre", "pre-line", "pre-wrap", "nowrap", "normal", "inherit"] //$NON-NLS-7$ //$NON-NLS-6$ //$NON-NLS-5$ //$NON-NLS-4$ //$NON-NLS-3$ //$NON-NLS-2$ //$NON-NLS-1$ //$NON-NLS-0$
+	};
+	var wordwrapValues = {
+		type: "link", //$NON-NLS-0$
+		values: ["normal", "break-word"] //$NON-NLS-1$ //$NON-NLS-0$
+	};
+	var floatValues = {
+		type: "link", //$NON-NLS-0$
+		values: ["left", "right", "none", "inherit"] //$NON-NLS-3$ //$NON-NLS-2$ //$NON-NLS-1$ //$NON-NLS-0$
+	};
+	var borderStyles = {
+		type: "link", //$NON-NLS-0$
+		values: ["solid", "dashed", "dotted", "double", "groove", "ridge", "inset", "outset"] //$NON-NLS-7$ //$NON-NLS-6$ //$NON-NLS-5$ //$NON-NLS-4$ //$NON-NLS-3$ //$NON-NLS-2$ //$NON-NLS-1$ //$NON-NLS-0$
+	};
+	var widths = {
+		type: "link", //$NON-NLS-0$
+		values: []
+	};
+	for (var i=0; i<10; i++) {
+		widths.values.push(i.toString());
+	}
+	var colorValues = {
+		type: "link", //$NON-NLS-0$
+		values: [
+			"black", //$NON-NLS-0$
+			"white", //$NON-NLS-0$
+			"red", //$NON-NLS-0$
+			"green", //$NON-NLS-0$
+			"blue", //$NON-NLS-0$
+			"magenta", //$NON-NLS-0$
+			"yellow", //$NON-NLS-0$
+			"cyan", //$NON-NLS-0$
+			"grey", //$NON-NLS-0$
+			"darkred", //$NON-NLS-0$
+			"darkgreen", //$NON-NLS-0$
+			"darkblue", //$NON-NLS-0$
+			"darkmagenta", //$NON-NLS-0$
+			"darkcyan", //$NON-NLS-0$
+			"darkyellow", //$NON-NLS-0$
+			"darkgray", //$NON-NLS-0$
+			"lightgray" //$NON-NLS-0$
+		]
+	};
+	var cursorValues = {
+		type: "link", //$NON-NLS-0$
+		values: [
+			"auto", //$NON-NLS-0$
+			"crosshair", //$NON-NLS-0$
+			"default", //$NON-NLS-0$
+			"e-resize", //$NON-NLS-0$
+			"help", //$NON-NLS-0$
+			"move", //$NON-NLS-0$
+			"n-resize", //$NON-NLS-0$
+			"ne-resize", //$NON-NLS-0$
+			"nw-resize", //$NON-NLS-0$
+			"pointer", //$NON-NLS-0$
+			"progress", //$NON-NLS-0$
+			"s-resize", //$NON-NLS-0$
+			"se-resize", //$NON-NLS-0$
+			"sw-resize", //$NON-NLS-0$
+			"text", //$NON-NLS-0$
+			"w-resize", //$NON-NLS-0$
+			"wait", //$NON-NLS-0$
+			"inherit" //$NON-NLS-0$
+		]
+	};
+	
+	function fromJSON(o) {
+		return JSON.stringify(o).replace("}", "\\}"); //$NON-NLS-1$ //$NON-NLS-0$
+	}
+	
+	var templates = [
+		{
+			prefix: "rule", //$NON-NLS-0$
+			description: "rule - class selector rule",
+			template: ".${class} {\n\t${cursor}\n}" //$NON-NLS-0$
+		},
+		{
+			prefix: "rule", //$NON-NLS-0$
+			description: "rule - id selector rule",
+			template: "#${id} {\n\t${cursor}\n}" //$NON-NLS-0$
+		},
+		{
+			prefix: "outline", //$NON-NLS-0$
+			description: "outline - outline style",
+			template: "outline: ${color:" + fromJSON(colorValues) + "} ${style:" + fromJSON(borderStyles) + "} ${width:" + fromJSON(widths) + "}px;" //$NON-NLS-3$ //$NON-NLS-2$ //$NON-NLS-1$ //$NON-NLS-0$
+		},
+		{
+			prefix: "background-image", //$NON-NLS-0$
+			description: "background-image - image style",
+			template: "background-image: url(\"${uri}\");" //$NON-NLS-0$
+		},
+		{
+			prefix: "url", //$NON-NLS-0$
+			description: "url - url image",
+			template: "url(\"${uri}\");" //$NON-NLS-0$
+		},
+		{
+			prefix: "rgb", //$NON-NLS-0$
+			description: "rgb - rgb color",
+			template: "rgb(${red},${green},${blue});" //$NON-NLS-0$
+		},
+		{
+			prefix: "@", //$NON-NLS-0$
+			description: "import - import style sheet",
+			template: "@import \"${uri}\";" //$NON-NLS-0$
 		}
-		return index ? buffer.substring(index, offset) : "";
+	];
+	var valuesProperties = [
+		{prop: "display", values: displayValues}, //$NON-NLS-0$
+		{prop: "overflow", values: overflowValues}, //$NON-NLS-0$
+		{prop: "overflow-x", values: overflowValues}, //$NON-NLS-0$
+		{prop: "overflow-y", values: overflowValues}, //$NON-NLS-0$
+		{prop: "float", values: floatValues}, //$NON-NLS-0$
+		{prop: "position", values: positionValues}, //$NON-NLS-0$
+		{prop: "cursor", values: cursorValues}, //$NON-NLS-0$
+		{prop: "color", values: colorValues}, //$NON-NLS-0$
+		{prop: "border-top-color", values: colorValues}, //$NON-NLS-0$
+		{prop: "border-bottom-color", values: colorValues}, //$NON-NLS-0$
+		{prop: "border-right-color", values: colorValues}, //$NON-NLS-0$
+		{prop: "border-left-color", values: colorValues}, //$NON-NLS-0$
+		{prop: "background-color", values: colorValues}, //$NON-NLS-0$
+		{prop: "font-style", values: fontStyleValues}, //$NON-NLS-0$
+		{prop: "font-weight", values: fontWeightValues}, //$NON-NLS-0$
+		{prop: "white-space", values: whitespaceValues}, //$NON-NLS-0$
+		{prop: "word-wrap", values: wordwrapValues}, //$NON-NLS-0$
+		{prop: "visibility", values: visibilityValues} //$NON-NLS-0$
+	];
+	var prop;
+	for (i=0; i<valuesProperties.length; i++) {
+		prop = valuesProperties[i];
+		templates.push({
+			prefix: prop.prop, //$NON-NLS-0$
+			description: prop.prop + " - " + prop.prop + " style",
+			template: prop.prop + ": ${value:" + fromJSON(prop.values) + "};" //$NON-NLS-1$ //$NON-NLS-0$
+		});
+	}	
+	var pixelProperties = [
+		"width", "height", "top", "bottom", "left", "right", //$NON-NLS-7$ //$NON-NLS-6$ //$NON-NLS-5$ //$NON-NLS-4$ //$NON-NLS-3$ //$NON-NLS-2$ //$NON-NLS-1$ //$NON-NLS-0$
+		"min-width", "min-height", "max-width", "max-height", //$NON-NLS-7$ //$NON-NLS-6$ //$NON-NLS-5$ //$NON-NLS-4$ //$NON-NLS-3$ //$NON-NLS-2$ //$NON-NLS-1$ //$NON-NLS-0$
+		"margin", "padding", "padding-left", "padding-right", //$NON-NLS-7$ //$NON-NLS-6$ //$NON-NLS-5$ //$NON-NLS-4$ //$NON-NLS-3$ //$NON-NLS-2$ //$NON-NLS-1$ //$NON-NLS-0$
+		"padding-top", "padding-bottom", "margin-left", "margin-top", //$NON-NLS-7$ //$NON-NLS-6$ //$NON-NLS-5$ //$NON-NLS-4$ //$NON-NLS-3$ //$NON-NLS-2$ //$NON-NLS-1$ //$NON-NLS-0$
+		"margin-bottom", "margin-right" //$NON-NLS-7$ //$NON-NLS-6$ //$NON-NLS-5$ //$NON-NLS-4$ //$NON-NLS-3$ //$NON-NLS-2$ //$NON-NLS-1$ //$NON-NLS-0$
+	];
+	for (i=0; i<pixelProperties.length; i++) {
+		prop = pixelProperties[i];
+		templates.push({
+			prefix: prop, //$NON-NLS-0$
+			description: prop + " - " + prop + " pixel style",
+			template: prop  + ": ${value}px;" //$NON-NLS-0$
+		});
+	}
+	var fourWidthsProperties = ["padding", "margin"]; //$NON-NLS-1$ //$NON-NLS-0$
+	for (i=0; i<fourWidthsProperties.length; i++) {
+		prop = fourWidthsProperties[i];
+		templates.push({
+			prefix: prop, //$NON-NLS-0$
+			description: prop + " - " + prop + " top right bottom left style",
+			template: prop  + ": ${top}px ${left}px ${bottom}px ${right}px;" //$NON-NLS-0$
+		});
+		templates.push({
+			prefix: prop, //$NON-NLS-0$
+			description: prop + " - " + prop + " top right,left bottom style",
+			template: prop  + ": ${top}px ${right_left}px ${bottom}px;" //$NON-NLS-0$
+		});
+		templates.push({
+			prefix: prop, //$NON-NLS-0$
+			description: prop + " - " + prop + " top,bottom right,left style",
+			template: prop  + ": ${top_bottom}px ${right_left}px" //$NON-NLS-0$
+		});
+	}
+	var borderProperties = ["border", "border-top", "border-bottom", "border-left", "border-right"]; //$NON-NLS-7$ //$NON-NLS-6$ //$NON-NLS-5$ //$NON-NLS-4$ //$NON-NLS-3$ //$NON-NLS-2$ //$NON-NLS-1$ //$NON-NLS-0$
+	for (i=0; i<borderProperties.length; i++) {
+		prop = borderProperties[i];
+		templates.push({
+			prefix: prop, //$NON-NLS-0$
+			description: prop + " - " + prop + " style",
+			template: prop + ": ${width:" + fromJSON(widths) + "}px ${style:" + fromJSON(borderStyles) + "} ${color:" + fromJSON(colorValues) + "};" //$NON-NLS-3$ //$NON-NLS-2$ //$NON-NLS-1$ //$NON-NLS-0$
+		});
 	}
 
 	/**
-	 * @name orion.contentAssist.CssContentAssistProvider
+	 * @name orion.editor.CssContentAssistProvider
 	 * @class Provides content assist for CSS keywords.
 	 */
 	function CssContentAssistProvider() {
 	}
-	CssContentAssistProvider.prototype = /** @lends orion.editor.CssContentAssistProvider.prototype */ {
-		/**
-		 * @param {String} buffer The entire buffer being edited.
-		 * @param {Number} offset The offset at which proposals will be inserted.
-		 * @param {Object} context Extra information about the editor state.
-		 */
-		computeProposals: function(buffer, offset, context) {
-			var cssPrefix = getCSSPrefix(buffer, offset);
-			var proposals = [];
-			for (var i=0; i < keywords.length; i++) {
-					var keyword = keywords[i];
-					if (keyword.indexOf(cssPrefix) === 0) {
-						proposals.push({
-							proposal: keyword.substring(cssPrefix.length),
-							description: keyword
-						});
-					}
-			}
-			return proposals;
+	CssContentAssistProvider.prototype = new mTemplates.TemplateContentAssist(mKeywords.CSSKeywords, templates);
+	
+	CssContentAssistProvider.prototype.getPrefix = function(buffer, offset, context) {
+		var index = offset;
+		while (index && /[A-Za-z\-\@]/.test(buffer.charAt(index - 1))) {
+			index--;
 		}
+		return index ? buffer.substring(index, offset) : "";
 	};
 
 	return {
@@ -14001,168 +17779,137 @@ define("orion/editor/cssContentAssist", [], function() {
  *******************************************************************************/
 /*global define */
 
-define("orion/editor/htmlContentAssist", [], function() {
+define("orion/editor/htmlContentAssist", ['orion/editor/templates'], function(mTemplates) { //$NON-NLS-1$ //$NON-NLS-0$
 
-/**
- * @name orion.contentAssist.HTMLContentAssistProvider
- * @class Provides content assist for HTML.
- */
-function HTMLContentAssistProvider() {
-}
-HTMLContentAssistProvider.prototype = /** @lends orion.contentAssist.HTMLContentAssistProvider.prototype */ {
+	var simpleDocTemplate = new mTemplates.Template("", "Simple HTML document", //$NON-NLS-0$
+		"<!DOCTYPE html>\n" + //$NON-NLS-0$
+		"<html lang=\"en\">\n" + //$NON-NLS-0$
+		"\t<head>\n" + //$NON-NLS-0$
+		"\t\t<meta charset=utf-8>\n" + //$NON-NLS-0$
+		"\t\t<title>${title}</title>\n" + //$NON-NLS-0$
+		"\t</head>\n" + //$NON-NLS-0$
+		"\t<body>\n" + //$NON-NLS-0$
+		"\t\t<h1>${header}</h1>\n" + //$NON-NLS-0$
+		"\t\t<p>\n" + //$NON-NLS-0$
+		"\t\t\t${cursor}\n" + //$NON-NLS-0$
+		"\t\t</p>\n" + //$NON-NLS-0$
+		"\t</body>\n" + //$NON-NLS-0$
+		"</html>"); //$NON-NLS-0$
+		
+	var templates = [
+		{
+			prefix: "<img", //$NON-NLS-0$
+			description: "<img> - HTML image element",
+			template: "<img src=\"${cursor}\" alt=\"${Image}\"/>" //$NON-NLS-0$
+		},
+		{
+			prefix: "<a", //$NON-NLS-0$
+			description: "<a> - HTML anchor element",
+			template: "<a href=\"${cursor}\"></a>" //$NON-NLS-0$
+		},
+		{
+			prefix: "<ul", //$NON-NLS-0$
+			description: "<ul> - HTML unordered list",
+			template: "<ul>\n\t<li>${cursor}</li>\n</ul>" //$NON-NLS-0$
+		},
+		{
+			prefix: "<ol", //$NON-NLS-0$
+			description: "<ol> - HTML ordered list",
+			template: "<ol>\n\t<li>${cursor}</li>\n</ol>" //$NON-NLS-0$
+		},
+		{
+			prefix: "<dl", //$NON-NLS-0$
+			description: "<dl> - HTML definition list",
+			template: "<dl>\n\t<dt>${cursor}</dt>\n\t<dd></dd>\n</dl>" //$NON-NLS-0$
+		},
+		{
+			prefix: "<table", //$NON-NLS-0$
+			description: "<table> - basic HTML table",
+			template: "<table>\n\t<tr>\n\t\t<td>${cursor}</td>\n\t</tr>\n</table>" //$NON-NLS-0$
+		}
+	];
+
+	//elements that are typically placed on a single line (e.g., <b>, <h1>, etc)
+	var element, template, description, i;
+	var singleLineElements = [
+		"abbr","b","button","canvas","cite", //$NON-NLS-4$ //$NON-NLS-3$ //$NON-NLS-2$ //$NON-NLS-1$ //$NON-NLS-0$
+		"command","dd","del","dfn","dt", //$NON-NLS-4$ //$NON-NLS-3$ //$NON-NLS-2$ //$NON-NLS-1$ //$NON-NLS-0$
+		"em","embed","font","h1","h2", //$NON-NLS-4$ //$NON-NLS-3$ //$NON-NLS-2$ //$NON-NLS-1$ //$NON-NLS-0$
+		"h3","h4","h5","h6","i", //$NON-NLS-4$ //$NON-NLS-3$ //$NON-NLS-2$ //$NON-NLS-1$ //$NON-NLS-0$
+		"ins","kbd","label","li","mark", //$NON-NLS-4$ //$NON-NLS-3$ //$NON-NLS-2$ //$NON-NLS-1$ //$NON-NLS-0$
+		"meter","object","option","output","progress", //$NON-NLS-4$ //$NON-NLS-3$ //$NON-NLS-2$ //$NON-NLS-1$ //$NON-NLS-0$
+		"q","rp","rt","samp","small", //$NON-NLS-4$ //$NON-NLS-3$ //$NON-NLS-2$ //$NON-NLS-1$ //$NON-NLS-0$
+		"strong","sub","sup","td","time", //$NON-NLS-4$ //$NON-NLS-3$ //$NON-NLS-2$ //$NON-NLS-1$ //$NON-NLS-0$
+		"title","tt","u","var" //$NON-NLS-4$ //$NON-NLS-3$ //$NON-NLS-2$ //$NON-NLS-1$ //$NON-NLS-0$
+	];
+	for (i = 0; i < singleLineElements.length; i++) {
+		element = singleLineElements[i];
+		description = "<" + element + "></" + element + ">"; //$NON-NLS-2$ //$NON-NLS-1$ //$NON-NLS-0$
+		template = "<" + element + ">${cursor}</" + element + ">"; //$NON-NLS-2$ //$NON-NLS-1$ //$NON-NLS-0$
+		templates.push({prefix: "<" + element, description: description, template: template}); //$NON-NLS-0$
+	}
+
+	//elements that typically start a block spanning multiple lines (e.g., <p>, <div>, etc)
+	var multiLineElements = [
+		"address","article","aside","audio","bdo", //$NON-NLS-4$ //$NON-NLS-3$ //$NON-NLS-2$ //$NON-NLS-1$ //$NON-NLS-0$
+		"blockquote","body","caption","code","colgroup", //$NON-NLS-4$ //$NON-NLS-3$ //$NON-NLS-2$ //$NON-NLS-1$ //$NON-NLS-0$
+		"datalist","details","div","fieldset","figure", //$NON-NLS-4$ //$NON-NLS-3$ //$NON-NLS-2$ //$NON-NLS-1$ //$NON-NLS-0$
+		"footer","form","head","header","hgroup", //$NON-NLS-4$ //$NON-NLS-3$ //$NON-NLS-2$ //$NON-NLS-1$ //$NON-NLS-0$
+		"iframe","legend","map","menu","nav", //$NON-NLS-4$ //$NON-NLS-3$ //$NON-NLS-2$ //$NON-NLS-1$ //$NON-NLS-0$
+		"noframes","noscript","optgroup","p","pre", //$NON-NLS-4$ //$NON-NLS-3$ //$NON-NLS-2$ //$NON-NLS-1$ //$NON-NLS-0$
+		"ruby","script","section","select","span", //$NON-NLS-4$ //$NON-NLS-3$ //$NON-NLS-2$ //$NON-NLS-1$ //$NON-NLS-0$
+		"style","tbody","textarea","tfoot","th", //$NON-NLS-4$ //$NON-NLS-3$ //$NON-NLS-2$ //$NON-NLS-1$ //$NON-NLS-0$
+		"thead","tr","video" //$NON-NLS-4$ //$NON-NLS-3$ //$NON-NLS-2$ //$NON-NLS-1$ //$NON-NLS-0$
+	];
+	for (i = 0; i < multiLineElements.length; i++) {
+		element = multiLineElements[i];
+		description = "<" + element + "></" + element + ">"; //$NON-NLS-2$ //$NON-NLS-1$ //$NON-NLS-0$
+		template = "<" + element + ">\n\t${cursor}\n</" + element + ">"; //$NON-NLS-2$ //$NON-NLS-1$ //$NON-NLS-0$
+		templates.push({prefix: "<" + element, description: description, template: template}); //$NON-NLS-0$
+	}
+
+	//elements with no closing element (e.g., <hr>, <br>, etc)
+	var emptyElements = [
+		"area","base","br","col", //$NON-NLS-3$ //$NON-NLS-2$ //$NON-NLS-1$ //$NON-NLS-0$
+		"hr","input","link","meta", //$NON-NLS-3$ //$NON-NLS-2$ //$NON-NLS-1$ //$NON-NLS-0$
+		"param","keygen","source" //$NON-NLS-3$ //$NON-NLS-2$ //$NON-NLS-1$ //$NON-NLS-0$
+	];
+	for (i = 0; i < emptyElements.length; i++) {
+		element = emptyElements[i];
+		template = description = "<" + element + "/>"; //$NON-NLS-1$ //$NON-NLS-0$
+		templates.push({prefix: "<" + element, description: description, template: template}); //$NON-NLS-0$
+	}
 
 	/**
-	 * Returns a string of all the whitespace at the start of the current line.
-	 * @param {String} buffer The document
-	 * @param {Object} selection The current selection
-	 * @param {Integer} selection.offset The current selection offset
+	 * @name orion.editor.HTMLContentAssistProvider
+	 * @class Provides content assist for HTML.
 	 */
-	leadingWhitespace: function(buffer, offset) {
-		var whitespace = "";
-		offset = offset-1;
-		while (offset > 0) {
-			var c = buffer.charAt(offset--);
-			if (c === '\n' || c === '\r') {
-				//we hit the start of the line so we are done
+	function HTMLContentAssistProvider() {
+	}
+	HTMLContentAssistProvider.prototype = new mTemplates.TemplateContentAssist([], templates);
+
+	HTMLContentAssistProvider.prototype.getPrefix = function(buffer, offset, context) {
+		var index = offset;
+		while (index && /[A-Za-z0-9<]/.test(buffer.charAt(index - 1))) {
+			index--;
+			if (buffer.charAt(index) === "<") { //$NON-NLS-0$
 				break;
 			}
-			if (/\s/.test(c)) {
-				//we found whitespace to add it to our result
-				whitespace = c.concat(whitespace);
-			} else {
-				//we found non-whitespace, so reset our result
-				whitespace = "";
-			}
-
 		}
-		return whitespace;
-	},
-	computeProposals: function(buffer, offset, context) {
-		function removePrefix(string) {
-			return string.substring(context.prefix.length);
-		}
-
-		var proposals = [];
+		return index ? buffer.substring(index, offset) : "";
+	};
+	
+	HTMLContentAssistProvider.prototype.computeProposals = function(buffer, offset, context) {
 		//template - simple html document
 		if (buffer.length === 0) {
-			var text = "<!DOCTYPE html>\n" +
-				"<html lang=\"en\">\n" +
-				"\t<head>\n" +
-				"\t\t<meta charset=utf-8>\n" +
-				"\t\t<title>My Document</title>\n" +
-				"\t</head>\n" +
-				"\t<body>\n" +
-				"\t\t<h1>A basic HTML document</h1>\n" +
-				"\t\t<p>\n" +
-				"\t\t\t\n" + //cursor goes here
-				"\t\t</p>\n" +
-				"\t</body>\n" +
-				"</html>";
-			proposals.push({proposal: text, description: "Simple HTML document", escapePosition: offset+152});
-			return proposals;
+			return [simpleDocTemplate.getProposal("", offset, context)];
 		}
+		return mTemplates.TemplateContentAssist.prototype.computeProposals.call(this, buffer, offset, context);
+	};
 
-		var prefix = context.prefix;
-		//only offer HTML element proposals if the character preceeding the prefix is the start of an HTML element
-		var precedingChar = buffer.charAt(offset-prefix.length-1);
-		if (precedingChar !== '<') {
-			return proposals;
-		}
-		
-		//elements that are typically placed on a single line (e.g., <b>, <h1>, etc)
-		var element, proposalText, description, exitOffset;
-		var singleLineElements = ["abbr","b","button","canvas","cite","command","dd","del","dfn","dt","em","embed",
-			"font","h1","h2","h3","h4","h5","h6","i","ins","kbd","label","li","mark","meter","object","option","output",
-			"progress","q","rp","rt","samp","small","strong","sub","sup","td","time","title","tt","u","var"];
-		for (var i = 0; i < singleLineElements.length; i++) {
-			element = singleLineElements[i];
-			if (element.indexOf(prefix) === 0) {
-				proposalText = element + "></" + element + ">";
-				//exit position is the end of the opening element tag, so we need to substract the prefix already typed
-				exitOffset = offset+element.length-prefix.length+1;
-				proposals.push({proposal: removePrefix(proposalText), description: "<" + proposalText, escapePosition: exitOffset});
-			}
-		}
-		
-		//elements that typically start a block spanning multiple lines (e.g., <p>, <div>, etc)
-		var multiLineElements = ["address","article","aside","audio","bdo","blockquote","body","caption","code",
-			"colgroup","datalist","details","div","fieldset","figure","footer","form","head","header",
-			"hgroup","iframe","legend","map","menu","nav","noframes","noscript","optgroup","p","pre",
-			"ruby","script","section","select","span","style","tbody","textarea","tfoot","th","thead",
-			"tr","video"];
-		var whitespace = this.leadingWhitespace(buffer, offset);
-		for (i = 0; i < multiLineElements.length; i++) {
-			element = multiLineElements[i];
-			if (element.indexOf(prefix) === 0) {
-				proposalText = element + ">\n" + whitespace + "\t\n" + whitespace + "</" + element + ">";
-				//exit position is the end of the opening element tag, so we need to substract the prefix already typed
-				exitOffset = offset+element.length-prefix.length + whitespace.length + 3;
-				proposals.push({proposal: removePrefix(proposalText), description: "<" + proposalText, escapePosition: exitOffset});
-			}
-		}
-
-		//elements with no closing element (e.g., <hr>, <br>, etc)
-		var emptyElements = ["area","base","br","col","hr","input","link","meta","param","keygen","source"];
-		for (i = 0; i < emptyElements.length; i++) {
-			element = emptyElements[i];
-			if (element.indexOf(prefix) === 0) {
-				proposalText = element + "/>";
-				//exit position is the end of the element, so we need to substract the prefix already typed
-				exitOffset = offset+element.length-prefix.length+2;
-				proposals.push({proposal: removePrefix(proposalText), description: "<" + proposalText, escapePosition: exitOffset});
-			}
-		}
-
-		//deluxe handling for very common elements
-		//image
-		if ("img".indexOf(prefix) === 0) {
-			proposalText = "img src=\"\" alt=\"Image\"/>";
-			proposals.push({proposal: removePrefix(proposalText), description: "<" + proposalText, escapePosition: offset+9-prefix.length});
-		}
-		//anchor
-		if (prefix === 'a') {
-			proposals.push({proposal: removePrefix("a href=\"\"></a>"), description: "<a></a> - HTML anchor element", escapePosition: offset+7});
-		}
-		
-		//lists should also insert first element
-		if ("ul".indexOf(prefix) === 0) {
-			proposalText = "ul>\n" + whitespace + "\t<li></li>\n" + whitespace + "</ul>";
-			description = "<ul> - unordered list";
-			//exit position inside first list item
-			exitOffset = offset-prefix.length + whitespace.length + 9;
-			proposals.push({proposal: removePrefix(proposalText), description: description, escapePosition: exitOffset});
-		}
-		if ("ol".indexOf(prefix) === 0) {
-			proposalText = "ol>\n" + whitespace + "\t<li></li>\n" + whitespace + "</ol>";
-			description = "<ol> - ordered list";
-			//exit position inside first list item
-			exitOffset = offset-prefix.length + whitespace.length + 9;
-			proposals.push({proposal: removePrefix(proposalText), description: description, escapePosition: exitOffset});
-		}
-		if ("dl".indexOf(prefix) === 0) {
-			proposalText = "dl>\n" + whitespace + "\t<dt></dt>\n" + whitespace + "\t<dd></dd>\n" + whitespace + "</dl>";
-			description = "<dl> - definition list";
-			//exit position inside first definition term
-			exitOffset = offset-prefix.length + whitespace.length + 9;
-			proposals.push({proposal: removePrefix(proposalText), description: description, escapePosition: exitOffset});
-		}
-		if ("table".indexOf(prefix) === 0) {
-			proposalText = "table>\n" + whitespace + "\t<tr>\n" + whitespace + "\t\t<td></td>\n" + 
-				whitespace + "\t</tr>\n" + whitespace + "</table>";
-			description = "<table> - basic HTML table";
-			//exit position inside first table data
-			exitOffset = offset-prefix.length + (whitespace.length*2) + 19;
-			proposals.push({proposal: removePrefix(proposalText), description: description, escapePosition: exitOffset});
-		}
-
-		return proposals;
-	}
-};
-
-return {
-	HTMLContentAssistProvider: HTMLContentAssistProvider
-};
-
+	return {
+		HTMLContentAssistProvider: HTMLContentAssistProvider
+	};
 });
 
 /*******************************************************************************
@@ -14180,38 +17927,16 @@ return {
  *******************************************************************************/
 /*global define */
 
-define("orion/editor/jsTemplateContentAssist", [], function() {
+define("orion/editor/jsTemplateContentAssist", [ //$NON-NLS-0$
+	'orion/editor/templates', //$NON-NLS-0$
+	'orion/editor/keywords' //$NON-NLS-0$
+], function(mTemplates, mKeywords) {
 
-	/**
-	 * Returns a string of all the whitespace at the start of the current line.
-	 * @param {String} buffer The document
-	 * @param {Integer} offset The current selection offset
-	 */
-	function leadingWhitespace(buffer, offset) {
-		var whitespace = "";
-		offset = offset-1;
-		while (offset > 0) {
-			var c = buffer.charAt(offset--);
-			if (c === '\n' || c === '\r') {
-				//we hit the start of the line so we are done
-				break;
-			}
-			if (/\s/.test(c)) {
-				//we found whitespace to add it to our result
-				whitespace = c.concat(whitespace);
-			} else {
-				//we found non-whitespace, so reset our result
-				whitespace = "";
-			}
-		}
-		return whitespace;
-	}
-	
 	function findPreviousChar(buffer, offset) {
 		var c = "";
 		while (offset >= 0) {
 			c = buffer[offset];
-			if (c === '\n' || c === '\r') {
+			if (c === '\n' || c === '\r') { //$NON-NLS-1$ //$NON-NLS-0$
 				//we hit the start of the line so we are done
 				break;
 			} else if (/\s/.test(c)) {
@@ -14224,161 +17949,158 @@ define("orion/editor/jsTemplateContentAssist", [], function() {
 		return c;
 	}
 	
-	var uninterestingChars = { 
-		':': ':',
-		'!': '!',
-		'@': '@',
-		'#': '#',
-		'$': '$',
-		'^': '^',
-		'&': '&',
-		'*': '*',
-		'.': '.',
-		'?': '?',
-		'<': '<',
-		'>': '>'
+	var typeofValues = {
+		type: "link", //$NON-NLS-0$
+		values: [
+			"undefined", //$NON-NLS-0$
+			"object", //$NON-NLS-0$
+			"boolean", //$NON-NLS-0$
+			"number", //$NON-NLS-0$
+			"string", //$NON-NLS-0$
+			"function", //$NON-NLS-0$
+			"xml" //$NON-NLS-0$
+		]
 	};
 	
-	/** 
-	 * Determines if the invocation location is a valid place to use
-	 * templates.  We are not being too precise here.  As an approximation,
-	 * just look at the previous character.
-	 *
-	 * @return {Boolean} true iff the current invocation location is 
-	 * a valid place for template proposals to appear.
-	 * This means that the invocation location is at the start of anew statement.
-	 */
-	function isValid(prefix, buffer, offset) {
-		var previousChar = findPreviousChar(buffer, offset-prefix.length-1);
-		return !uninterestingChars[previousChar];
+	function fromJSON(o) {
+		return JSON.stringify(o).replace("}", "\\}"); //$NON-NLS-1$ //$NON-NLS-0$
 	}
 	
-	/** 
-	 * Removes prefix from string.
-	 * @param {String} prefix
-	 * @param {String} string
-	 */
-	function chop(prefix, string) {
-		return string.substring(prefix.length);
-	}
-	
-	/**
-	 * Returns proposals for javascript templates
-	 */
-	function getTemplateProposals(prefix, buffer, offset) {
-		//any returned positions need to be offset based on current cursor position and length of prefix
-		var startOffset = offset-prefix.length;
-		var proposals = [];
-		var whitespace = leadingWhitespace(buffer, offset);
-		//common vars for each proposal
-		var text, description, positions, endOffset;
-		if ("if".indexOf(prefix) === 0) {
-			//if statement
-			text = "if (condition) {\n" + whitespace + "\t\n" + whitespace + '}';
-			description = "if - if statement";
-			positions = [{offset: startOffset+4, length: 9}];
-			endOffset = startOffset+whitespace.length+18;//after indentation inside if body
-			proposals.push({proposal: chop(prefix, text), description: description, positions: positions, escapePosition: endOffset});
-			//if/else statement
-			text = "if (condition) {\n" + whitespace + "\t\n" + whitespace + "} else {\n" + whitespace + "\t\n" + whitespace + "}";
-			description = "if - if else statement";
-			positions = [{offset: startOffset+4, length: 9}];
-			endOffset = startOffset+whitespace.length+18;//after indentation inside if body
-			proposals.push({proposal: chop(prefix, text), description: description, positions: positions, escapePosition: endOffset});
-		}
-		if ("for".indexOf(prefix) === 0) {
-			//for loop
-			text = "for (var i = 0; i < array.length; i++) {\n" + whitespace + "\t\n" + whitespace + '}';
-			description = "for - iterate over array";
-			positions = [{offset: startOffset+9, length: 1}, {offset: startOffset+20, length: 5}];
-			endOffset = startOffset+whitespace.length+42;//after indentation inside for loop body
-			proposals.push({proposal: chop(prefix, text), description: description, positions: positions, escapePosition: endOffset});
-			//for ... in statement
-			text = "for (var property in object) {\n" + whitespace + "\tif (object.hasOwnProperty(property)) {\n" + 
-				whitespace + "\t\t\n" + whitespace + "\t}\n" + whitespace + '}';
-			description = "for..in - iterate over properties of an object";
-			positions = [{offset: startOffset+9, length: 8}, {offset: startOffset+21, length: 6}];
-			endOffset = startOffset+(2*whitespace.length)+73;//after indentation inside if statement body
-			proposals.push({proposal: chop(prefix, text), description: description, positions: positions, escapePosition: endOffset});
-		}
-		//while loop
-		if ("while".indexOf(prefix) === 0) {
-			text = "while (condition) {\n" + whitespace + "\t\n" + whitespace + '}';
-			description = "while - while loop with condition";
-			positions = [{offset: startOffset+7, length: 9}];
-			endOffset = startOffset+whitespace.length+21;//after indentation inside while loop body
-			proposals.push({proposal: chop(prefix, text), description: description, positions: positions, escapePosition: endOffset});
-		}
-		//do/while loop
-		if ("do".indexOf(prefix) === 0) {
-			text = "do {\n" + whitespace + "\t\n" + whitespace + "} while (condition);";
-			description = "do - do while loop with condition";
-			positions = [{offset: startOffset+16, length: 9}];
-			endOffset = startOffset+whitespace.length+6;//after indentation inside do/while loop body
-			proposals.push({proposal: chop(prefix, text), description: description, positions: positions, escapePosition: endOffset});
-		}
-		//switch statement
-		if ("switch".indexOf(prefix) === 0) {
-			text = "switch (expression) {\n" + whitespace + "\tcase value1:\n" + whitespace + "\t\t\n" +
-			whitespace + "\t\tbreak;\n" + whitespace + "\tdefault:\n" + whitespace + "}";
-			description = "switch - switch case statement";
-			positions = [{offset: startOffset+8, length: 10}, {offset: startOffset + 28, length: 6}];
-			endOffset = startOffset+(2*whitespace.length)+38;//after indentation inside first case statement
-			proposals.push({proposal: chop(prefix, text), description: description, positions: positions, escapePosition: endOffset});
-		}
-		if ("try".indexOf(prefix) === 0) {
-			//try..catch statement
-			text = "try {\n" + whitespace + "\t\n" + whitespace + "} catch (err) {\n" + whitespace + "}";
-			description = "try - try..catch statement";
-			endOffset = startOffset+whitespace.length+7;//after indentation inside try statement
-			proposals.push({proposal: chop(prefix, text), description: description, escapePosition: endOffset});
-			//try..catch..finally statement
-			text = "try {\n" + whitespace + "\t\n" + whitespace + "} catch (err) {\n" + whitespace +
-				"} finally {\n" + whitespace + "}";
-			description = "try - try..catch statement with finally block";
-			endOffset = startOffset+whitespace.length+7;//after indentation inside try statement
-			proposals.push({proposal: chop(prefix, text), description: description, escapePosition: endOffset});
-		}
-		return proposals;
-	}
+	var uninterestingChars = ":!@#$^&*.?<>"; //$NON-NLS-0$
 
-	/**
-	 * Returns proposals for javascript keywords.
-	 */
-	function getKeyWordProposals(prefix, buffer, offset) {
-		var keywords = ["break", "case", "catch", "continue", "debugger", "default", "delete", "do", "else", "finally", 
-			"for", "function", "if", "in", "instanceof", "new", "return", "switch", "this", "throw", "try", "typeof", 
-			"var", "void", "while", "with"];
-		var proposals = [];
-		for (var i = 0; i < keywords.length; i++) {
-			if (keywords[i].indexOf(prefix) === 0) {
-				proposals.push({proposal: chop(prefix, keywords[i]), description: keywords[i] });
-			}
+	var templates = [
+		{
+			prefix: "if", //$NON-NLS-0$
+			description: "if - if statement",
+			template: "if (${condition}) {\n\t${cursor}\n}" //$NON-NLS-0$
+		},
+		{
+			prefix: "if", //$NON-NLS-0$
+			description: "if - if else statement",
+			template: "if (${condition}) {\n\t${cursor}\n} else {\n\t\n}" //$NON-NLS-0$
+		},
+		{
+			prefix: "for", //$NON-NLS-0$
+			description: "for - iterate over array",
+			template: "for (var ${i}=0; ${i}<${array}.length; ${i}++) {\n\t${cursor}\n}" //$NON-NLS-0$
+		},
+		{
+			prefix: "for", //$NON-NLS-0$
+			description: "for - iterate over array with local var",
+			template: "for (var ${i}=0; ${i}<${array}.length; ${i}++) {\n\tvar ${value} = ${array}[${i}];\n\t${cursor}\n}" //$NON-NLS-0$
+		},
+		{
+			prefix: "for", //$NON-NLS-0$
+			description: "for..in - iterate over properties of an object",
+			template: "for (var ${property} in ${object}) {\n\tif (${object}.hasOwnProperty(${property})) {\n\t\t${cursor}\n\t}\n}" //$NON-NLS-0$
+		},
+		{
+			prefix: "while", //$NON-NLS-0$
+			description: "while - while loop with condition",
+			template: "while (${condition}) {\n\t${cursor}\n}" //$NON-NLS-0$
+		},
+		{
+			prefix: "do", //$NON-NLS-0$
+			description: "do - do while loop with condition",
+			template: "do {\n\t${cursor}\n} while (${condition});" //$NON-NLS-0$
+		},
+		{
+			prefix: "switch", //$NON-NLS-0$
+			description: "switch - switch case statement",
+			template: "switch (${expression}) {\n\tcase ${value1}:\n\t\t${cursor}\n\t\tbreak;\n\tdefault:\n}" //$NON-NLS-0$
+		},
+		{
+			prefix: "case", //$NON-NLS-0$
+			description: "case - case statement",
+			template: "case ${value}:\n\t${cursor}\n\tbreak;" //$NON-NLS-0$
+		},
+		{
+			prefix: "try", //$NON-NLS-0$
+			description: "try - try..catch statement",
+			template: "try {\n\t${cursor}\n} catch (${err}) {\n}" //$NON-NLS-0$
+			},
+		{
+			prefix: "try", //$NON-NLS-0$
+			description: "try - try..catch statement with finally block",
+			template: "try {\n\t${cursor}\n} catch (${err}) {\n} finally {\n}" //$NON-NLS-0$
+		},
+		{
+			prefix: "var", //$NON-NLS-0$
+			description: "var - variable declaration",
+			template: "var ${name};" //$NON-NLS-0$
+		},
+		{
+			prefix: "var", //$NON-NLS-0$
+			description: "var - variable declaration with value",
+			template: "var ${name} = ${value};" //$NON-NLS-0$
+		},
+		{
+			prefix: "let", //$NON-NLS-0$
+			description: "let - local scope variable declaration",
+			template: "let ${name};" //$NON-NLS-0$
+		},
+		{
+			prefix: "let", //$NON-NLS-0$
+			description: "let - local scope variable declaration with value",
+			template: "let ${name} = ${value};" //$NON-NLS-0$
+		},
+		{
+			prefix: "return", //$NON-NLS-0$
+			description: "return - return result",
+			template: "return ${result};" //$NON-NLS-0$
+		},
+		{
+			prefix: "typeof", //$NON-NLS-0$
+			description: "typeof - typeof statement",
+			template: "typeof ${object} === \"${type:" + fromJSON(typeofValues) + "}\"" //$NON-NLS-1$ //$NON-NLS-0$
+		},
+		{
+			prefix: "instanceof", //$NON-NLS-0$
+			description: "instanceof - instanceof statement",
+			template: "${object} instanceof ${type}" //$NON-NLS-0$
+		},
+		{
+			prefix: "with", //$NON-NLS-0$
+			description: "with - with statement",
+			template: "with (${object}) {\n\t${cursor}\n}" //$NON-NLS-0$
+		},
+		{
+			prefix: "function", //$NON-NLS-0$
+			description: "function - function declaration",
+			template: "function ${name} (${parameter}) {\n\t${cursor}\n}" //$NON-NLS-0$
+		},
+		{
+			prefix: "nls", //$NON-NLS-0$
+			description: "string - non NLS",
+			template: "${cursor} //$NON-NLS-${0}$" //$NON-NLS-0$
+		},
+		{
+			prefix: "log", //$NON-NLS-0$
+			description: "log - console log",
+			template: "console.log(${object});" //$NON-NLS-0$
 		}
-		return proposals;
-	}
+	];
 
 	/**
 	 * @name orion.editor.JSTemplateContentAssistProvider
 	 * @class Provides content assist for JavaScript keywords.
 	 */
+	function JSTemplateContentAssistProvider() {
+	}
+	JSTemplateContentAssistProvider.prototype = new mTemplates.TemplateContentAssist(mKeywords.JSKeywords, templates);
 
-	function JSTemplateContentAssistProvider() {}
-
-	JSTemplateContentAssistProvider.prototype = /** @lends orion.editor.JSTemplateContentAssistProvider.prototype */
-	{
-		computeProposals: function(buffer, offset, context) {
-			var prefix = context.prefix;
-			var proposals = [];
-			if (!isValid(prefix, buffer, offset)) {
-				return proposals;
-			}
-
-			//we are not completing on an object member, so suggest templates and keywords
-			proposals = proposals.concat(getTemplateProposals(prefix, buffer, offset));
-			proposals = proposals.concat(getKeyWordProposals(prefix, buffer, offset));
-			return proposals;
-		}
+	/** 
+	 * Determines if the invocation location is a valid place to use
+	 * templates.  We are not being too precise here.  As an approximation,
+	 * just look at the previous character.
+	 *
+	 * @return {Boolean} true if the current invocation location is 
+	 * a valid place for template proposals to appear.
+	 * This means that the invocation location is at the start of a new statement.
+	 */
+	JSTemplateContentAssistProvider.prototype.isValid = function(prefix, buffer, offset, context) {
+		var previousChar = findPreviousChar(buffer, offset-prefix.length-1);
+		return !previousChar || uninterestingChars.indexOf(previousChar) === -1;
 	};
 
 	return {
@@ -14530,7 +18252,7 @@ define("orion/editor/AsyncStyler", ['i18n!orion/editor/nls/messages', 'orion/edi
 			var min = Number.MAX_VALUE, max = -1;
 			var model = this.textView.getModel();
 			for (var lineIndex in style) {
-				if (style.hasOwnProperty(lineIndex)) {
+				if (Object.prototype.hasOwnProperty.call(style, lineIndex)) {
 					this.lineStyles[lineIndex] = style[lineIndex];
 					min = Math.min(min, lineIndex);
 					max = Math.max(max, lineIndex);
@@ -14691,7 +18413,7 @@ define("orion/editor/AsyncStyler", ['i18n!orion/editor/nls/messages', 'orion/edi
 
 /*******************************************************************************
  * @license
- * Copyright (c) 2011, 2012 IBM Corporation and others.
+ * Copyright (c) 2011, 2013 IBM Corporation and others.
  * All rights reserved. This program and the accompanying materials are made 
  * available under the terms of the Eclipse Public License v1.0 
  * (http://www.eclipse.org/legal/epl-v10.html), and the Eclipse Distribution 
@@ -14700,7 +18422,7 @@ define("orion/editor/AsyncStyler", ['i18n!orion/editor/nls/messages', 'orion/edi
  * Contributors:
  *     IBM Corporation - initial API and implementation
  *******************************************************************************/
-/*global define */
+/*global define console*/
 /*jslint browser:true forin:true*/
 define("orion/editor/mirror", ["i18n!orion/editor/nls/messages", "orion/editor/eventTarget", "orion/editor/annotations"], function(messages, mEventTarget, mAnnotations) {
 	// TODO this affects indentation, which we don't support. Should be a parameter.
@@ -14794,10 +18516,21 @@ define("orion/editor/mirror", ["i18n!orion/editor/nls/messages", "orion/editor/e
 	};
 
 	/**
+	 * Creates a mode that consumes a stream and generates no tokens.
+	 */
+	function NullModeFactory(cmConfig, modeConfig) {
+		return {
+			token: function(stream, state) {
+				return stream.skipToEnd();
+			}
+		};
+	}
+
+	/**
 	 * @name orion.mirror.Mirror
 	 * @class A shim for CodeMirror's <code>CodeMirror</code> API.
-	 * @description A Mirror is a partial implementation of the API provided by the <a href="http://codemirror.net/doc/manual.html#api">
-	 * <code>CodeMirror</code> object</a>. Mirror provides functionality related to mode and MIME management.
+	 * @description A Mirror is a partial implementation of the API provided by the <code><a href="http://codemirror.net/doc/manual.html#api">CodeMirror object</a></code>.
+	 * Mirror provides functionality related to mode and MIME management.
 	 * 
 	 * <p>If clients intend to reuse modes provided by CodeMirror without modification, they must expose a Mirror as 
 	 * a property named <code>"CodeMirror"</code> of the global object so that modes may access it to register themselves,
@@ -14820,6 +18553,9 @@ define("orion/editor/mirror", ["i18n!orion/editor/nls/messages", "orion/editor/e
 		// Expose Stream as a property named "StringStream". This is required to support CodeMirror's Perl mode,
 		// which monkey-patches CodeMirror.StringStream.prototype and will fail if that object doesn't exist.
 		this.StringStream = Stream;
+
+		this.defineMode("null", NullModeFactory);
+		this.defineMIME("text/plain", "null");
 	}
 	function keys(obj) {
 		var k = [];
@@ -14852,6 +18588,13 @@ define("orion/editor/mirror", ["i18n!orion/editor/nls/messages", "orion/editor/e
 			}
 			return newState;
 		},
+		/**
+		 * Alias for mode.startState().
+		 * @returns {Object} The start state returned by <code>mode</code>.
+		 */
+		startState: function(/**Object*/ mode, /**Number?*/ basecolumn) {
+			return mode.startState(basecolumn);
+		},
 		/** @see <a href="http://codemirror.net/doc/manual.html#modeapi">http://codemirror.net/doc/manual.html#modeapi</a> */
 		defineMode: function(/**String*/ name, /**Function(options, config)*/ modeFactory) {
 			this._modes[name] = modeFactory;
@@ -14880,7 +18623,11 @@ define("orion/editor/mirror", ["i18n!orion/editor/nls/messages", "orion/editor/e
 			}
 			modeFactory = modeFactory || this._modes[modeSpec];
 			if (typeof modeFactory !== "function") {
-				throw "Mode not found " + modeSpec;
+				if (typeof console !== "undefined" && console) {
+					console.log("Mode not found: " + modeSpec);
+				}
+				// Return the null mode here for compatibility with CodeMirror
+				return this.getMode(options, "null");
 			}
 			return modeFactory(options, config);
 		},
@@ -14915,7 +18662,6 @@ define("orion/editor/mirror", ["i18n!orion/editor/nls/messages", "orion/editor/e
 	/**
 	 * @name orion.mirror.MirrorLineStyle
 	 * @class Represents the style provided by a CodeMirror mode for a line.
-	 * @description 
 	 */
 	/**
 	 * @name orion.mirror.ModeApplier
@@ -15297,11 +19043,9 @@ define("orion/editor/mirror", ["i18n!orion/editor/nls/messages", "orion/editor/e
 		 * @param {Number} [lineIndex] The line index of the line having the given style. If omitted, the returned 
 		 * {@link orion.editor.StyleRange[]} objects will have offsets relative to the line, not the document.
 		 * 
-		 * @returns {orion.editor.StyleRange[][]} An array of 2 elements. The first element is an {@link orion.editor.StyleRange[]}
-		 * giving the styles for the line. 
-		 * <p>The second element is an {@link orion.editor.StyleRange[]} containing only those elements of
-		 * the first array that represent syntax errors. (By CodeMirror convention, anything assigned the <code>"cm-error"</code> tag
-		 * is assumed to be an error).</p>
+		 * @returns {Array} An array of 2 elements. The first element is an {@link orion.editor.StyleRange[]} giving the styles for the line. 
+		 * The second element is an {@link orion.editor.StyleRange[]} containing only those elements of the first array that represent
+		 * syntax errors. (By CodeMirror convention, anything assigned the <code>"cm-error"</code> tag is assumed to be an error).</p>
 		 */
 		toStyleRangesAndErrors: function(lineStyle, lineIndex) {
 			function token2Class(token) {
@@ -15495,7 +19239,7 @@ define("orion/editor/mirror", ["i18n!orion/editor/nls/messages", "orion/editor/e
 /*jslint regexp:false laxbreak:true*/
 /*global define */
 
-define("orion/editor/textMateStyler", ['orion/editor/regex' ], function(mRegex) {
+define("orion/editor/textMateStyler", ['orion/regex' ], function(mRegex) {
 
 var RegexUtil = {
 	// Rules to detect some unsupported Oniguruma features
@@ -15583,8 +19327,11 @@ var RegexUtil = {
 	/**
 	 * Checks if flag applies to entire pattern. If so, obtains replacement string by calling processor
 	 * on the unwrapped pattern. Handles 2 possible syntaxes: (?f)pat and (?f:pat)
+	 * @param {String} flag
+	 * @param {String} str
+	 * @param {Function} processor
 	 */
-	processGlobalFlag: function(/**String*/ flag, /**String*/ str, /**Function*/ processor) {
+	processGlobalFlag: function(flag, str, processor) {
 		function getMatchingCloseParen(/*String*/pat, /*Number*/start) {
 			var depth = 0,
 			    len = pat.length,
@@ -15998,8 +19745,8 @@ var RegexUtil = {
 		},
 		
 		/**
-		 * @private
 		 * Adds eclipse.Style objects for scope to our _styles cache.
+		 * @private
 		 * @param {String} scope A scope name, like "constant.character.php".
 		 */
 		addStyles: function(scope) {
@@ -16970,93 +20717,27 @@ define("orion/editor/htmlGrammar", [], function() {
 /*******************************************************************************
  * @license
  * Copyright (c) 2010, 2012 IBM Corporation and others.
- * All rights reserved. This program and the accompanying materials are made 
- * available under the terms of the Eclipse Public License v1.0 
- * (http://www.eclipse.org/legal/epl-v10.html), and the Eclipse Distribution 
- * License v1.0 (http://www.eclipse.org/org/documents/edl-v10.html). 
- * 
+ * All rights reserved. This program and the accompanying materials are made
+ * available under the terms of the Eclipse Public License v1.0
+ * (http://www.eclipse.org/legal/epl-v10.html), and the Eclipse Distribution
+ * License v1.0 (http://www.eclipse.org/org/documents/edl-v10.html).
+ *
  * Contributors: IBM Corporation - initial API and implementation
  *               Alex Lakatos - fix for bug#369781
  ******************************************************************************/
 
 /*global define */
 
-define("examples/editor/textStyler", ['orion/editor/annotations'], function(mAnnotations) {
+define("examples/editor/textStyler", [ //$NON-NLS-0$
+	'orion/editor/annotations', //$NON-NLS-0$
+	'orion/editor/keywords' //$NON-NLS-0$
+], function(mAnnotations, mKeywords) {
 
-	var JS_KEYWORDS =
-		["break",
-		 "case", "class", "catch", "continue", "const", 
-		 "debugger", "default", "delete", "do",
-		 "else", "enum", "export", "extends",  
-		 "false", "finally", "for", "function",
-		 "if", "implements", "import", "in", "instanceof", "interface", 
-		 "let",
-		 "new", "null",
-		 "package", "private", "protected", "public",
-		 "return", 
-		 "static", "super", "switch",
-		 "this", "throw", "true", "try", "typeof",
-		 "undefined",
-		 "var", "void",
-		 "while", "with",
-		 "yield"];
+	var JS_KEYWORDS = mKeywords.JSKeywords;
 
-	var JAVA_KEYWORDS =
-		["abstract",
-		 "boolean", "break", "byte",
-		 "case", "catch", "char", "class", "continue",
-		 "default", "do", "double",
-		 "else", "extends",
-		 "false", "final", "finally", "float", "for",
-		 "if", "implements", "import", "instanceof", "int", "interface",
-		 "long",
-		 "native", "new", "null",
-		 "package", "private", "protected", "public",
-		 "return",
-		 "short", "static", "super", "switch", "synchronized",
-		 "this", "throw", "throws", "transient", "true", "try",
-		 "void", "volatile",
-		 "while"];
+	var JAVA_KEYWORDS = mKeywords.JAVAKeywords;
 
-	var CSS_KEYWORDS =
-		["alignment-adjust", "alignment-baseline", "animation", "animation-delay", "animation-direction", "animation-duration",
-		 "animation-iteration-count", "animation-name", "animation-play-state", "animation-timing-function", "appearance",
-		 "azimuth", "backface-visibility", "background", "background-attachment", "background-clip", "background-color",
-		 "background-image", "background-origin", "background-position", "background-repeat", "background-size", "baseline-shift",
-		 "binding", "bleed", "bookmark-label", "bookmark-level", "bookmark-state", "bookmark-target", "border", "border-bottom",
-		 "border-bottom-color", "border-bottom-left-radius", "border-bottom-right-radius", "border-bottom-style", "border-bottom-width",
-		 "border-collapse", "border-color", "border-image", "border-image-outset", "border-image-repeat", "border-image-slice",
-		 "border-image-source", "border-image-width", "border-left", "border-left-color", "border-left-style", "border-left-width",
-		 "border-radius", "border-right", "border-right-color", "border-right-style", "border-right-width", "border-spacing", "border-style",
-		 "border-top", "border-top-color", "border-top-left-radius", "border-top-right-radius", "border-top-style", "border-top-width",
-		 "border-width", "bottom", "box-align", "box-decoration-break", "box-direction", "box-flex", "box-flex-group", "box-lines",
-		 "box-ordinal-group", "box-orient", "box-pack", "box-shadow", "box-sizing", "break-after", "break-before", "break-inside",
-		 "caption-side", "clear", "clip", "color", "color-profile", "column-count", "column-fill", "column-gap", "column-rule",
-		 "column-rule-color", "column-rule-style", "column-rule-width", "column-span", "column-width", "columns", "content", "counter-increment",
-		 "counter-reset", "crop", "cue", "cue-after", "cue-before", "cursor", "direction", "display", "dominant-baseline",
-		 "drop-initial-after-adjust", "drop-initial-after-align", "drop-initial-before-adjust", "drop-initial-before-align", "drop-initial-size",
-		 "drop-initial-value", "elevation", "empty-cells", "fit", "fit-position", "flex-align", "flex-flow", "flex-inline-pack", "flex-order",
-		 "flex-pack", "float", "float-offset", "font", "font-family", "font-size", "font-size-adjust", "font-stretch", "font-style",
-		 "font-variant", "font-weight", "grid-columns", "grid-rows", "hanging-punctuation", "height", "hyphenate-after",
-		 "hyphenate-before", "hyphenate-character", "hyphenate-lines", "hyphenate-resource", "hyphens", "icon", "image-orientation",
-		 "image-rendering", "image-resolution", "inline-box-align", "left", "letter-spacing", "line-height", "line-stacking",
-		 "line-stacking-ruby", "line-stacking-shift", "line-stacking-strategy", "list-style", "list-style-image", "list-style-position",
-		 "list-style-type", "margin", "margin-bottom", "margin-left", "margin-right", "margin-top", "mark", "mark-after", "mark-before",
-		 "marker-offset", "marks", "marquee-direction", "marquee-loop", "marquee-play-count", "marquee-speed", "marquee-style", "max-height",
-		 "max-width", "min-height", "min-width", "move-to", "nav-down", "nav-index", "nav-left", "nav-right", "nav-up", "opacity", "orphans",
-		 "outline", "outline-color", "outline-offset", "outline-style", "outline-width", "overflow", "overflow-style", "overflow-x",
-		 "overflow-y", "padding", "padding-bottom", "padding-left", "padding-right", "padding-top", "page", "page-break-after", "page-break-before",
-		 "page-break-inside", "page-policy", "pause", "pause-after", "pause-before", "perspective", "perspective-origin", "phonemes", "pitch",
-		 "pitch-range", "play-during", "position", "presentation-level", "punctuation-trim", "quotes", "rendering-intent", "resize",
-		 "rest", "rest-after", "rest-before", "richness", "right", "rotation", "rotation-point", "ruby-align", "ruby-overhang", "ruby-position",
-		 "ruby-span", "size", "speak", "speak-header", "speak-numeral", "speak-punctuation", "speech-rate", "stress", "string-set", "table-layout",
-		 "target", "target-name", "target-new", "target-position", "text-align", "text-align-last", "text-decoration", "text-emphasis",
-		 "text-height", "text-indent", "text-justify", "text-outline", "text-shadow", "text-transform", "text-wrap", "top", "transform",
-		 "transform-origin", "transform-style", "transition", "transition-delay", "transition-duration", "transition-property",
-		 "transition-timing-function", "unicode-bidi", "vertical-align", "visibility", "voice-balance", "voice-duration", "voice-family",
-		 "voice-pitch", "voice-pitch-range", "voice-rate", "voice-stress", "voice-volume", "volume", "white-space", "white-space-collapse",
-		 "widows", "width", "word-break", "word-spacing", "word-wrap", "z-index"
-		];
+	var CSS_KEYWORDS = mKeywords.CSSKeywords;
 
 	// Scanner constants
 	var UNKOWN = 1;
@@ -17073,29 +20754,29 @@ define("examples/editor/textStyler", ['orion/editor/annotations'], function(mAnn
 	var HTML_MARKUP = 12;
 	var DOC_TAG = 13;
 	var TASK_TAG = 14;
-	
-	var BRACKETS = "{}()[]<>";
 
-	// Styles 
-	var singleCommentStyle = {styleClass: "comment"};
-	var multiCommentStyle = {styleClass: "token_multiline_comment"};
-	var docCommentStyle = {styleClass: "token_doc_comment"};
-	var htmlMarkupStyle = {styleClass: "token_doc_html_markup"};
-	var tasktagStyle = {styleClass: "token_task_tag"};
-	var doctagStyle = {styleClass: "token_doc_tag"};
-	var stringStyle = {styleClass: "token_string"};
-	var numberStyle = {styleClass: "token_number"};
-	var keywordStyle = {styleClass: "token_keyword"};
-	var spaceStyle = {styleClass: "token_space"};
-	var tabStyle = {styleClass: "token_tab"};
-	var caretLineStyle = {styleClass: "line_caret"};
-	
+	var BRACKETS = "{}()[]<>"; //$NON-NLS-0$
+
+	// Styles
+	var singleCommentStyle = {styleClass: "token_singleline_comment"}; //$NON-NLS-0$
+	var multiCommentStyle = {styleClass: "token_multiline_comment"}; //$NON-NLS-0$
+	var docCommentStyle = {styleClass: "token_doc_comment"}; //$NON-NLS-0$
+	var htmlMarkupStyle = {styleClass: "token_doc_html_markup"}; //$NON-NLS-0$
+	var tasktagStyle = {styleClass: "token_task_tag"}; //$NON-NLS-0$
+	var doctagStyle = {styleClass: "token_doc_tag"}; //$NON-NLS-0$
+	var stringStyle = {styleClass: "token_string"}; //$NON-NLS-0$
+	var numberStyle = {styleClass: "token_number"}; //$NON-NLS-0$
+	var keywordStyle = {styleClass: "token_keyword"}; //$NON-NLS-0$
+	var spaceStyle = {styleClass: "token_space", unmergeable: true}; //$NON-NLS-0$
+	var tabStyle = {styleClass: "token_tab", unmergeable: true}; //$NON-NLS-0$
+	var caretLineStyle = {styleClass: "line_caret"}; //$NON-NLS-0$
+
 	function Scanner (keywords, whitespacesVisible) {
 		this.keywords = keywords;
 		this.whitespacesVisible = whitespacesVisible;
 		this.setText("");
 	}
-	
+
 	Scanner.prototype = {
 		getOffset: function() {
 			return this.offset;
@@ -17200,7 +20881,7 @@ define("examples/editor/textStyler", ['orion/editor/annotations'], function(mAnn
 								}
 							}
 						}
-						if (c === 42) { // STAR -> multi line 
+						if (c === 42) { // STAR -> multi line
 							c = this._read();
 							var token = MULTILINE_COMMENT;
 							if (c === 42) {
@@ -17289,7 +20970,7 @@ define("examples/editor/textStyler", ['orion/editor/annotations'], function(mAnn
 			this.startOffset = 0;
 		}
 	};
-	
+
 	function WhitespaceScanner () {
 		Scanner.call(this, null, true);
 	}
@@ -17313,7 +20994,7 @@ define("examples/editor/textStyler", ['orion/editor/annotations'], function(mAnn
 			}
 		}
 	};
-	
+
 	function CommentScanner (whitespacesVisible) {
 		Scanner.call(this, null, whitespacesVisible);
 	}
@@ -17385,7 +21066,7 @@ define("examples/editor/textStyler", ['orion/editor/annotations'], function(mAnn
 			}
 		}
 	};
-	
+
 	function FirstScanner () {
 		Scanner.call(this, null, false);
 	}
@@ -17403,17 +21084,17 @@ define("examples/editor/textStyler", ['orion/editor/annotations'], function(mAnn
 			}
 		}
 	};
-	
+
 	function TextStyler (view, lang, annotationModel) {
-		this.commentStart = "/*";
-		this.commentEnd = "*/";
+		this.commentStart = "/*"; //$NON-NLS-0$
+		this.commentEnd = "*/"; //$NON-NLS-0$
 		var keywords = [];
 		switch (lang) {
-			case "java": keywords = JAVA_KEYWORDS; break;
-			case "js": keywords = JS_KEYWORDS; break;
-			case "css": keywords = CSS_KEYWORDS; break;
+			case "java": keywords = JAVA_KEYWORDS; break; //$NON-NLS-0$
+			case "js": keywords = JS_KEYWORDS; break; //$NON-NLS-0$
+			case "css": keywords = CSS_KEYWORDS; break; //$NON-NLS-0$
 		}
-		this.whitespacesVisible = false;
+		this.whitespacesVisible = this.spacesVisible = this.tabsVisible = false;
 		this.detectHyperlinks = true;
 		this.highlightCaretLine = false;
 		this.foldingEnabled = true;
@@ -17423,14 +21104,14 @@ define("examples/editor/textStyler", ['orion/editor/annotations'], function(mAnn
 		this._commentScanner = new CommentScanner(this.whitespacesVisible);
 		this._whitespaceScanner = new WhitespaceScanner();
 		//TODO these scanners are not the best/correct way to parse CSS
-		if (lang === "css") {
+		if (lang === "css") { //$NON-NLS-0$
 			this._scanner.isCSS = true;
 			this._firstScanner.isCSS = true;
 		}
 		this.view = view;
 		this.annotationModel = annotationModel;
-		this._bracketAnnotations = undefined; 
-		
+		this._bracketAnnotations = undefined;
+
 		var self = this;
 		this._listener = {
 			onChanged: function(e) {
@@ -17453,16 +21134,16 @@ define("examples/editor/textStyler", ['orion/editor/annotations'], function(mAnn
 		if (model.getBaseModel) {
 			model = model.getBaseModel();
 		}
-		model.addEventListener("Changed", this._listener.onChanged);
-		view.addEventListener("MouseDown", this._listener.onMouseDown);
-		view.addEventListener("Selection", this._listener.onSelection);
-		view.addEventListener("Destroy", this._listener.onDestroy);
-		view.addEventListener("LineStyle", this._listener.onLineStyle);
+		model.addEventListener("Changed", this._listener.onChanged); //$NON-NLS-0$
+		view.addEventListener("MouseDown", this._listener.onMouseDown); //$NON-NLS-0$
+		view.addEventListener("Selection", this._listener.onSelection); //$NON-NLS-0$
+		view.addEventListener("Destroy", this._listener.onDestroy); //$NON-NLS-0$
+		view.addEventListener("LineStyle", this._listener.onLineStyle); //$NON-NLS-0$
 		this._computeComments ();
 		this._computeFolding();
 		view.redrawLines();
 	}
-	
+
 	TextStyler.prototype = {
 		destroy: function() {
 			var view = this.view;
@@ -17471,21 +21152,37 @@ define("examples/editor/textStyler", ['orion/editor/annotations'], function(mAnn
 				if (model.getBaseModel) {
 					model = model.getBaseModel();
 				}
-				model.removeEventListener("Changed", this._listener.onChanged);
-				view.removeEventListener("MouseDown", this._listener.onMouseDown);
-				view.removeEventListener("Selection", this._listener.onSelection);
-				view.removeEventListener("Destroy", this._listener.onDestroy);
-				view.removeEventListener("LineStyle", this._listener.onLineStyle);
+				model.removeEventListener("Changed", this._listener.onChanged); //$NON-NLS-0$
+				view.removeEventListener("MouseDown", this._listener.onMouseDown); //$NON-NLS-0$
+				view.removeEventListener("Selection", this._listener.onSelection); //$NON-NLS-0$
+				view.removeEventListener("Destroy", this._listener.onDestroy); //$NON-NLS-0$
+				view.removeEventListener("LineStyle", this._listener.onLineStyle); //$NON-NLS-0$
 				this.view = null;
 			}
 		},
 		setHighlightCaretLine: function(highlight) {
 			this.highlightCaretLine = highlight;
 		},
-		setWhitespacesVisible: function(visible) {
+		setWhitespacesVisible: function(visible, redraw) {
+			if (this.whitespacesVisible === visible) { return; }
 			this.whitespacesVisible = visible;
 			this._scanner.whitespacesVisible = visible;
 			this._commentScanner.whitespacesVisible = visible;
+			if (redraw) {
+				this.view.redraw();
+			}
+		},
+		setTabsVisible: function(visible) {
+			if (this.tabsVisible === visible) { return; }
+			this.tabsVisible = visible;
+			this.setWhitespacesVisible(this.tabsVisible || this.spacesVisible, false);
+			this.view.redraw();
+		},
+		setSpacesVisible: function(visible) {
+			if (this.spacesVisible === visible) { return; }
+			this.spacesVisible = visible;
+			this.setWhitespacesVisible(this.tabsVisible || this.spacesVisible, false);
+			this.view.redraw();
 		},
 		setDetectHyperlinks: function(enabled) {
 			this.detectHyperlinks = enabled;
@@ -17532,7 +21229,7 @@ define("examples/editor/textStyler", ['orion/editor/annotations'], function(mAnn
 			for (var i=0; i<comments.length; i++) {
 				var comment = comments[i];
 				var annotation = this._createFoldingAnnotation(viewModel, baseModel, comment.start, comment.end);
-				if (annotation) { 
+				if (annotation) {
 					add.push(annotation);
 				}
 			}
@@ -17594,9 +21291,9 @@ define("examples/editor/textStyler", ['orion/editor/annotations'], function(mAnn
 				start = model.mapOffset(start);
 			}
 			var end = start + text.length;
-			
+
 			var styles = [];
-			
+
 			// for any sub range that is not a comment, parse code generating tokens (keywords, numbers, brackets, line comments, etc)
 			var offset = start, comments = this.comments;
 			var startIndex = this._binarySearch(comments, start, true);
@@ -17655,22 +21352,22 @@ define("examples/editor/textStyler", ['orion/editor/annotations'], function(mAnn
 							style = stringStyle;
 						}
 						break;
-					case DOC_COMMENT: 
+					case DOC_COMMENT:
 						this._parseComment(scanner.getData(), tokenStart, styles, docCommentStyle, token);
 						continue;
 					case SINGLELINE_COMMENT:
 						this._parseComment(scanner.getData(), tokenStart, styles, singleCommentStyle, token);
 						continue;
-					case MULTILINE_COMMENT: 
+					case MULTILINE_COMMENT:
 						this._parseComment(scanner.getData(), tokenStart, styles, multiCommentStyle, token);
 						continue;
 					case WHITE_TAB:
-						if (this.whitespacesVisible) {
+						if (this.whitespacesVisible && this.tabsVisible) {
 							style = tabStyle;
 						}
 						break;
 					case WHITE_SPACE:
-						if (this.whitespacesVisible) {
+						if (this.whitespacesVisible && this.spacesVisible) {
 							style = spaceStyle;
 						}
 						break;
@@ -17688,12 +21385,12 @@ define("examples/editor/textStyler", ['orion/editor/annotations'], function(mAnn
 				var style = s;
 				switch (token) {
 					case WHITE_TAB:
-						if (this.whitespacesVisible) {
+						if (this.whitespacesVisible && this.tabsVisible) {
 							style = tabStyle;
 						}
 						break;
 					case WHITE_SPACE:
-						if (this.whitespacesVisible) {
+						if (this.whitespacesVisible && this.spacesVisible) {
 							style = spaceStyle;
 						}
 						break;
@@ -17725,12 +21422,12 @@ define("examples/editor/textStyler", ['orion/editor/annotations'], function(mAnn
 				var style = s;
 				switch (token) {
 					case WHITE_TAB:
-						if (this.whitespacesVisible) {
+						if (this.whitespacesVisible && this.tabsVisible) {
 							style = tabStyle;
 						}
 						break;
 					case WHITE_SPACE:
-						if (this.whitespacesVisible) {
+						if (this.whitespacesVisible && this.spacesVisible) {
 							style = spaceStyle;
 						}
 						break;
@@ -17742,7 +21439,7 @@ define("examples/editor/textStyler", ['orion/editor/annotations'], function(mAnn
 		},
 		_detectHyperlinks: function(text, offset, styles, s) {
 			var href = null, index, linkStyle;
-			if ((index = text.indexOf("://")) > 0) {
+			if ((index = text.indexOf("://")) > 0) { //$NON-NLS-0$
 				href = text;
 				var start = index;
 				while (start > 0) {
@@ -17753,12 +21450,12 @@ define("examples/editor/textStyler", ['orion/editor/annotations'], function(mAnn
 					start--;
 				}
 				if (start > 0) {
-					var brackets = "\"\"''(){}[]<>";
+					var brackets = "\"\"''(){}[]<>"; //$NON-NLS-0$
 					index = brackets.indexOf(href.substring(start - 1, start));
 					if (index !== -1 && (index & 1) === 0 && (index = href.lastIndexOf(brackets.substring(index + 1, index + 2))) !== -1) {
 						var end = index;
 						linkStyle = this._clone(s);
-						linkStyle.tagName = "A";
+						linkStyle.tagName = "a"; //$NON-NLS-0$
 						linkStyle.attributes = {href: href.substring(start, end)};
 						styles.push({start: offset, end: offset + start, style: s});
 						styles.push({start: offset + start, end: offset + end, style: linkStyle});
@@ -17766,12 +21463,12 @@ define("examples/editor/textStyler", ['orion/editor/annotations'], function(mAnn
 						return null;
 					}
 				}
-			} else if (text.toLowerCase().indexOf("bug#") === 0) {
-				href = "https://bugs.eclipse.org/bugs/show_bug.cgi?id=" + parseInt(text.substring(4), 10);
+			} else if (text.toLowerCase().indexOf("bug#") === 0) { //$NON-NLS-0$
+				href = "https://bugs.eclipse.org/bugs/show_bug.cgi?id=" + parseInt(text.substring(4), 10); //$NON-NLS-0$
 			}
 			if (href) {
 				linkStyle = this._clone(s);
-				linkStyle.tagName = "A";
+				linkStyle.tagName = "a"; //$NON-NLS-0$
 				linkStyle.attributes = {href: href};
 				return linkStyle;
 			}
@@ -17807,7 +21504,7 @@ define("examples/editor/textStyler", ['orion/editor/annotations'], function(mAnn
 				}
 			}
 			return result;
-		}, 
+		},
 		_findMatchingBracket: function(model, offset) {
 			var brackets = BRACKETS;
 			var bracket = model.getText(offset, offset + 1);
@@ -17988,7 +21685,7 @@ define("examples/editor/textStyler", ['orion/editor/annotations'], function(mAnn
 					if (offset > mapBracket) {
 						offset--;
 						mapBracket++;
-					}	
+					}
 					view.setSelection(mapBracket, offset);
 				}
 			}
@@ -18007,7 +21704,7 @@ define("examples/editor/textStyler", ['orion/editor/annotations'], function(mAnn
 			var lineStart = baseModel.getLineStart(baseModel.getLineAtOffset(start));
 			var commentStart = this._binarySearch(this.comments, lineStart, true);
 			var commentEnd = this._binarySearch(this.comments, end, false, commentStart - 1, commentCount);
-			
+
 			var ts;
 			if (commentStart < commentCount && this.comments[commentStart].start <= lineStart && lineStart < this.comments[commentStart].end) {
 				ts = this.comments[commentStart].start;
@@ -18043,7 +21740,7 @@ define("examples/editor/textStyler", ['orion/editor/annotations'], function(mAnn
 					if (comment.start !== newComment.start || comment.end !== newComment.end || comment.type !== newComment.type) {
 						redraw = true;
 						break;
-					} 
+					}
 				}
 			}
 			var args = [commentStart, commentEnd - commentStart].concat(newComments);
@@ -18118,7 +21815,7 @@ define("examples/editor/textStyler", ['orion/editor/annotations'], function(mAnn
 			}
 		}
 	};
-	
+
 	return {TextStyler: TextStyler};
 });
 
@@ -18134,9 +21831,10 @@ define("examples/editor/textStyler", ['orion/editor/annotations'], function(mAnn
  *     IBM Corporation - initial API and implementation
  *******************************************************************************/
  
-/*globals define */
+/*globals define Node */
 
 define('orion/editor/edit', [ //$NON-NLS-0$
+	"orion/editor/shim", //$NON-NLS-0$
 	
 	"orion/editor/textView", //$NON-NLS-0$
 	"orion/editor/textModel", //$NON-NLS-0$
@@ -18163,7 +21861,23 @@ define('orion/editor/edit', [ //$NON-NLS-0$
 	"orion/editor/textMateStyler", //$NON-NLS-0$
 	"orion/editor/htmlGrammar", //$NON-NLS-0$
 	"examples/editor/textStyler" //$NON-NLS-0$
-], function(mTextView, mTextModel, mTextTheme, mProjModel, mEventTarget, mKeyBinding, mRulers, mAnnotations, mTooltip, mUndoStack, mTextDND, mEditor, mEditorFeatures, mContentAssist, mCSSContentAssist, mHtmlContentAssist, mJSContentAssist, mAsyncStyler, mMirror, mTextMateStyler, mHtmlGrammar, mTextStyler) {
+], function(shim, mTextView, mTextModel, mTextTheme, mProjModel, mEventTarget, mKeyBinding, mRulers, mAnnotations, mTooltip, mUndoStack, mTextDND, mEditor, mEditorFeatures, mContentAssist, mCSSContentAssist, mHtmlContentAssist, mJSContentAssist, mAsyncStyler, mMirror, mTextMateStyler, mHtmlGrammar, mTextStyler) {
+
+	/**	@private */
+	function getDisplay(window, document, element) {
+		var display;
+		var temp = element;
+		while (temp && temp !== document && display !== "none") { //$NON-NLS-0$
+			if (window.getComputedStyle) {
+				var style = window.getComputedStyle(temp, null);
+				display = style.getPropertyValue("display"); //$NON-NLS-0$
+			} else {
+				display = temp.currentStyle.display;
+			}
+			temp = temp.parentNode;
+		}
+		return display;
+	}
 
 	/**	@private */
 	function getTextFromElement(element) {
@@ -18173,7 +21887,10 @@ define('orion/editor/edit', [ //$NON-NLS-0$
 		}
 		var document = element.ownerDocument;
 		var window = document.defaultView || document.parentWindow;
-		if (!window.getSelection) {
+		if (!window.getSelection ||
+			(element.childNodes.length === 1 && firstChild.nodeType === Node.TEXT_NODE) ||
+			getDisplay(window, document, element) === "none") //$NON-NLS-0$
+		{
 			return element.innerText || element.textContent;
 		}
 		var newRange = document.createRange();
@@ -18235,16 +21952,8 @@ define('orion/editor/edit', [ //$NON-NLS-0$
 	
 	/**	@private */
 	function getHeight(node) {
-		var document = node.ownerDocument;
-		var window = document.defaultView || document.parentWindow;
-		var height;
-		if (window.getComputedStyle) {
-			var style = window.getComputedStyle(node, null);
-			height = style.getPropertyValue("height"); //$NON-NLS-0$
-		} else if (node.currentStyle) {
-			height = node.currentStyle.height;
-		}
-		return parseInt(height, 10) || 0;
+		var rect = node.getBoundingClientRect();
+		return rect.bottom - rect.top;
 	}
 	
 	/**
@@ -18258,6 +21967,7 @@ define('orion/editor/edit', [ //$NON-NLS-0$
 	 * @property {Boolean} [expandTab=false] whether or not the tab key inserts white spaces.
 	 * @property {String} [themeClass] the CSS class for the view theming.
 	 * @property {Number} [tabSize=4] The number of spaces in a tab.
+	 * @property {Boolean} [singleMode=false] whether or not the editor is in single line mode.
 	 * @property {Boolean} [wrapMode=false] whether or not the view wraps lines.
 	 * @property {Function} [statusReporter] a status reporter.
 	 * @property {String} [title=""] the editor title.
@@ -18267,6 +21977,7 @@ define('orion/editor/edit', [ //$NON-NLS-0$
 	 * @property {Boolean} [showAnnotationRuler=true] whether or not the annotation ruler is shown.
 	 * @property {Boolean} [showOverviewRuler=true] whether or not the overview ruler is shown.
 	 * @property {Boolean} [showFoldingRuler=true] whether or not the folding ruler is shown.
+	 * @property {Number} [firstLineIndex=1] the line index displayed for the first line of text.
 	 */
 	/**
 	 * Creates an editor instance configured with the given options.
@@ -18319,6 +22030,7 @@ define('orion/editor/edit', [ //$NON-NLS-0$
 				fullSelection: options.fullSelection,
 				tabMode: options.tabMode,
 				expandTab: options.expandTab,
+				singleMode: options.singleMode,
 				themeClass: options.themeClass,
 				theme: options.theme,
 				wrapMode: options.wrapMode
@@ -18331,7 +22043,9 @@ define('orion/editor/edit', [ //$NON-NLS-0$
 				createContentAssistMode: function(editor) {
 					contentAssist = new mContentAssist.ContentAssist(editor.getTextView());
 					var contentAssistWidget = new mContentAssist.ContentAssistWidget(contentAssist);
-					return new mContentAssist.ContentAssistMode(contentAssist, contentAssistWidget);
+					var result = new mContentAssist.ContentAssistMode(contentAssist, contentAssistWidget);
+					contentAssist.setMode(result);
+					return result;
 				}
 			};
 		}
@@ -18363,17 +22077,6 @@ define('orion/editor/edit', [ //$NON-NLS-0$
 			}
 		};
 		
-		var keyBindingFactory = function(editor, keyModeStack, undoStack, contentAssist) {
-			
-			// Create keybindings for generic editing
-			var genericBindings = new mEditorFeatures.TextActions(editor, undoStack);
-			keyModeStack.push(genericBindings);
-			
-			// create keybindings for source editing
-			var codeBindings = new mEditorFeatures.SourceCodeActions(editor, undoStack, contentAssist);
-			keyModeStack.push(codeBindings);
-		};
-			
 		var editor = new mEditor.Editor({
 			textViewFactory: textViewFactory,
 			undoStackFactory: new mEditorFeatures.UndoFactory(),
@@ -18382,9 +22085,25 @@ define('orion/editor/edit', [ //$NON-NLS-0$
 			foldingRulerFactory: new mEditorFeatures.FoldingRulerFactory(),
 			textDNDFactory: new mEditorFeatures.TextDNDFactory(),
 			contentAssistFactory: contentAssistFactory,
-			keyBindingFactory: keyBindingFactory, 
+			keyBindingFactory: new mEditorFeatures.KeyBindingsFactory(), 
 			statusReporter: options.statusReporter,
 			domNode: parent
+		});
+		editor.addEventListener("TextViewInstalled", function() { //$NON-NLS-0$
+			var ruler = editor.getLineNumberRuler();
+			if (ruler && options.firstLineIndex !== undefined) {
+				ruler.setFirstLine(options.firstLineIndex);
+			}
+			var sourceCodeActions = editor.getSourceCodeActions();
+			if (sourceCodeActions) {
+				sourceCodeActions.setAutoPairParentheses(options.autoPairParentheses);
+				sourceCodeActions.setAutoPairBraces(options.autoPairBraces);
+				sourceCodeActions.setAutoPairSquareBrackets(options.autoPairSquareBrackets);
+				sourceCodeActions.setAutoPairAngleBrackets(options.autoPairAngleBrackets);
+				sourceCodeActions.setAutoPairQuotations(options.autoPairQuotations);
+				sourceCodeActions.setAutoCompleteComments(options.autoCompleteComments);
+				sourceCodeActions.setSmartIndentation(options.smartIndentation);
+			}
 		});
 		
 		var contents = options.contents;
@@ -18399,15 +22118,19 @@ define('orion/editor/edit', [ //$NON-NLS-0$
 		editor.setOverviewRulerVisible(options.showOverviewRuler === undefined || options.showOverviewRuler);
 		editor.setFoldingRulerVisible(options.showFoldingRuler === undefined || options.showFoldingRuler);
 		editor.setInput(options.title, null, contents);
+		
 		syntaxHighlighter.highlight(options.lang, editor);
 		if (contentAssist) {
 			var cssContentAssistProvider = new mCSSContentAssist.CssContentAssistProvider();
+			var htmlContentAssistProvider = new mHtmlContentAssist.HTMLContentAssistProvider();
 			var jsTemplateContentAssistProvider = new mJSContentAssist.JSTemplateContentAssistProvider();
 			contentAssist.addEventListener("Activating", function() { //$NON-NLS-0$
 				if (/css$/.test(options.lang)) {
 					contentAssist.setProviders([cssContentAssistProvider]);
 				} else if (/js$/.test(options.lang)) {
 					contentAssist.setProviders([jsTemplateContentAssistProvider]);
+				} else if (/html$/.test(options.lang)) {
+					contentAssist.setProviders([htmlContentAssistProvider]);
 				}
 			});
 		}
