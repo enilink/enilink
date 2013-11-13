@@ -60,7 +60,11 @@
 					<div class="span6">
 						<h3>Classes</h3>
 						<ul>
-							<li resource="?c" typeof="owl:Class" class="asc"><a
+							<li about="?c" class="asc">
+								<div class="union">
+									<div rel="rdf:type" resource="owl:Class"></div>
+									<div rel="rdf:type" resource="rdfs:Class"></div>
+								</div> <a
 								href="{app}/static/describe?model={model}&resource={}"
 								data-lift="rdf.ref?to=href"><span data-lift="rdf.label"></span></a>
 							</li>
