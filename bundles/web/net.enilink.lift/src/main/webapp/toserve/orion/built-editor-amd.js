@@ -720,6 +720,66 @@ define("orion/editor/eventTarget", [], function() { //$NON-NLS-0$
 
 /*******************************************************************************
  * @license
+ * Copyright (c) 2011, 2013 IBM Corporation and others.
+ * All rights reserved. This program and the accompanying materials are made 
+ * available under the terms of the Eclipse Public License v1.0 
+ * (http://www.eclipse.org/legal/epl-v10.html), and the Eclipse Distribution 
+ * License v1.0 (http://www.eclipse.org/org/documents/edl-v10.html). 
+ *
+ * Contributors:
+ *     IBM Corporation - initial API and implementation
+ *******************************************************************************/
+/*global define */
+/*jslint browser:true regexp:false*/
+/**
+ * @name orion.regex
+ * @class Utilities for dealing with regular expressions.
+ * @description Utilities for dealing with regular expressions.
+ */
+define("orion/regex", [], function() { //$NON-NLS-0$
+	/**
+	 * @memberOf orion.regex
+	 * @function
+	 * @static
+	 * @description Escapes regex special characters in the input string.
+	 * @param {String} str The string to escape.
+	 * @returns {String} A copy of <code>str</code> with regex special characters escaped.
+	 */
+	function escape(str) {
+		return str.replace(/([\\$\^*\/+?\.\(\)|{}\[\]])/g, "\\$&"); //$NON-NLS-0$
+	}
+
+	/**
+	 * @memberOf orion.regex
+	 * @function
+	 * @static
+	 * @description Parses a pattern and flags out of a regex literal string.
+	 * @param {String} str The string to parse. Should look something like <code>"/ab+c/"</code> or <code>"/ab+c/i"</code>.
+	 * @returns {Object} If <code>str</code> looks like a regex literal, returns an object with properties
+	 * <code><dl>
+	 * <dt>pattern</dt><dd>{String}</dd>
+	 * <dt>flags</dt><dd>{String}</dd>
+	 * </dl></code> otherwise returns <code>null</code>.
+	 */
+	function parse(str) {
+		var regexp = /^\s*\/(.+)\/([gim]{0,3})\s*$/.exec(str);
+		if (regexp) {
+			return {
+				pattern : regexp[1],
+				flags : regexp[2]
+			};
+		}
+		return null;
+	}
+
+	return {
+		escape: escape,
+		parse: parse
+	};
+});
+
+/*******************************************************************************
+ * @license
  * Copyright (c) 2012 IBM Corporation and others.
  * All rights reserved. This program and the accompanying materials are made 
  * available under the terms of the Eclipse Public License v1.0 
@@ -735,7 +795,7 @@ define('orion/util',[],function() {
 	var userAgent = navigator.userAgent;
 	var isIE = (userAgent.indexOf("MSIE") !== -1 || userAgent.indexOf("Trident") !== -1) ? document.documentMode : undefined; //$NON-NLS-1$ //$NON-NLS-0$
 	var isFirefox = parseFloat(userAgent.split("Firefox/")[1] || userAgent.split("Minefield/")[1]) || undefined; //$NON-NLS-1$ //$NON-NLS-0$
-	var isOpera = userAgent.indexOf("Opera") !== -1; //$NON-NLS-0$
+	var isOpera = userAgent.indexOf("Opera") !== -1 ? parseFloat(userAgent.split("Version/")[1]) : undefined; //$NON-NLS-0$
 	var isChrome = parseFloat(userAgent.split("Chrome/")[1]) || undefined; //$NON-NLS-0$
 	var isSafari = userAgent.indexOf("Safari") !== -1 && !isChrome; //$NON-NLS-0$
 	var isWebkit = parseFloat(userAgent.split("WebKit/")[1]) || undefined; //$NON-NLS-0$
@@ -802,7 +862,7 @@ define('orion/util',[],function() {
  
 /*global define*/
 
-define("orion/editor/textModel", ['orion/editor/eventTarget', 'orion/util'], function(mEventTarget, util) { //$NON-NLS-2$  //$NON-NLS-1$ //$NON-NLS-0$
+define("orion/editor/textModel", ['orion/editor/eventTarget', 'orion/regex', 'orion/util'], function(mEventTarget, mRegex, util) { //$NON-NLS-2$  //$NON-NLS-1$ //$NON-NLS-0$
 
 	/**
 	 * Constructs a new TextModel with the given text and default line delimiter.
@@ -870,17 +930,26 @@ define("orion/editor/textModel", ['orion/editor/eventTarget', 'orion/util'], fun
 			var string = options.string;
 			var regex = options.regex;
 			var pattern = string;
+			var flags = "";
 			var caseInsensitive = options.caseInsensitive;
-			if (!regex && string) {
-				pattern = string.replace(/([\\$\^*\/+?\.\(\)|{}\[\]])/g, "\\$&"); //$NON-NLS-0$
-				/*
-				* Bug in JS RegEx. In a Turkish locale, dotless i (u0131) capitalizes to I (u0049) and i (u0069) 
-				* capitalizes to dot I (u0130). The JS RegEx does not match correctly the Turkish i's in case
-				* insensitive mode. The fix is to detect the presence of Turkish i's in the search pattern and 
-				* to modify the pattern to search for both upper and lower case.
-				*/
-				if (caseInsensitive) {  //$NON-NLS-1$ //$NON-NLS-0$
-					pattern = pattern.replace(/[iI\u0130\u0131]/g, "[Ii\u0130\u0131]"); //$NON-NLS-0$
+			if (pattern) {
+				if (regex) {
+					var parsed = mRegex.parse(pattern);
+					if (parsed) {
+						pattern = parsed.pattern;
+						flags = parsed.flags;
+					}
+				} else {
+					pattern = string.replace(/([\\$\^*\/+?\.\(\)|{}\[\]])/g, "\\$&"); //$NON-NLS-0$
+					/*
+					* Bug in JS RegEx. In a Turkish locale, dotless i (u0131) capitalizes to I (u0049) and i (u0069) 
+					* capitalizes to dot I (u0130). The JS RegEx does not match correctly the Turkish i's in case
+					* insensitive mode. The fix is to detect the presence of Turkish i's in the search pattern and 
+					* to modify the pattern to search for both upper and lower case.
+					*/
+					if (caseInsensitive) {  //$NON-NLS-1$ //$NON-NLS-0$
+						pattern = pattern.replace(/[iI\u0130\u0131]/g, "[Ii\u0130\u0131]"); //$NON-NLS-0$
+					}
 				}
 			}
 			var current = null, skip;
@@ -891,8 +960,8 @@ define("orion/editor/textModel", ['orion/editor/eventTarget', 'orion/util'], fun
 				var start = options.start || 0;
 				var end = options.end;
 				var isRange = (end !== null && end !== undefined);
-				var flags = "";
 				if (flags.indexOf("g") === -1) { flags += "g"; } //$NON-NLS-1$ //$NON-NLS-0$
+				if (flags.indexOf("m") === -1) { flags += "m"; } //$NON-NLS-1$ //$NON-NLS-0$
 				if (caseInsensitive) {
 					if (flags.indexOf("i") === -1) { flags += "i"; } //$NON-NLS-1$ //$NON-NLS-0$
 				}
@@ -2638,11 +2707,13 @@ define("orion/editor/textView", [ //$NON-NLS-0$
 				/*
 				* Feature in WekKit. Adding a regular white space to the line will
 				* cause the longest line in the view to wrap even though "pre" is set.
-				* The fix is to use the zero-width non-joiner character (\u200C) instead.
+				* The fix is to use the zero-width space character (\u200B) instead.
+				* Note: Do not use \u200C because it causes br elements to be inserted on
+				* blank lines while typing chinese or dictation on Mac.
 				* Note: Do not use \uFEFF because in old version of Chrome this character 
 				* shows a glyph;
 				*/
-				c = "\u200C"; //$NON-NLS-0$
+				c = "\u200B"; //$NON-NLS-0$
 			}
 			var range = {text: c, style: view._metrics.largestFontStyle, ignoreChars: 1};
 			if (ranges.length === 0 || !ranges[ranges.length - 1].style || ranges[ranges.length - 1].style.tagName !== "div") { //$NON-NLS-0$
@@ -3995,6 +4066,20 @@ define("orion/editor/textView", [ //$NON-NLS-0$
 			return offset;
 		},
 		/**
+		 * @name getLineAtOffset
+		 * @description Compute the editor line number for the given offset
+		 * @function
+		 * @public
+		 * @memberof orion.editor.TextView
+		 * @param {Number} offset The offset into the editor
+		 * @returns {Number} Returns the line number in the editor corresponding to the given offset or <code>-1</code> if the offset is 
+		 * out of range
+		 * @since 5.0
+		 */
+		getLineAtOffset: function(offset) {
+			this.getModel().getLineAtOffset(offset);
+		},
+		/**
 		 * Get the view rulers.
 		 *
 		 * @returns {orion.editor.Ruler[]} the view rulers
@@ -5266,10 +5351,10 @@ define("orion/editor/textView", [ //$NON-NLS-0$
 			* execute the actions from the keypress handler.
 			* Note: This only happens on the Mac and Linux (Firefox 3.6).
 			*
-			* Feature in Opera.  Opera sends keypress events even for non-printable
+			* Feature in Opera < 12.16.  Opera sends keypress events even for non-printable
 			* keys.  The fix is to handle actions in keypress instead of keydown.
 			*/
-			if (((util.isMac || util.isLinux) && util.isFirefox < 4) || util.isOpera) {
+			if (((util.isMac || util.isLinux) && util.isFirefox < 4) || util.isOpera < 12.16) {
 				this._keyDownEvent = e;
 				return true;
 			}
@@ -5312,7 +5397,7 @@ define("orion/editor/textView", [ //$NON-NLS-0$
 					return false;
 				}
 			}
-			if (((util.isMac || util.isLinux) && util.isFirefox < 4) || util.isOpera) {
+			if (((util.isMac || util.isLinux) && util.isFirefox < 4) || util.isOpera < 12.16) {
 				if (this._doAction(this._keyDownEvent)) {
 					if (e.preventDefault) { e.preventDefault(); }
 					return false;
@@ -5419,7 +5504,7 @@ define("orion/editor/textView", [ //$NON-NLS-0$
 				}, 0);
 			}
 			if (this._clickCount === 1) {
-				result = this._setSelectionTo(e.clientX, e.clientY, e.shiftKey, !util.isOpera && this._hasFocus && this.isListening("DragStart")); //$NON-NLS-0$
+				result = this._setSelectionTo(e.clientX, e.clientY, e.shiftKey, (!util.isOpera || util.isOpera >= 12.16) && this._hasFocus && this.isListening("DragStart")); //$NON-NLS-0$
 				if (result) { this._setGrab(target); }
 			} else {
 				/*
@@ -5783,14 +5868,14 @@ define("orion/editor/textView", [ //$NON-NLS-0$
 			}
 		},
 		_handleResize: function (e) {
-			var newWidth = this._parent.clientWidth;
-			var newHeight = this._parent.clientHeight;
-			if (this._parentWidth !== newWidth || this._parentHeight !== newHeight) {
-				if (this._parentWidth !== newWidth && this._wrapMode) {
+			var newWidth = this._rootDiv.clientWidth;
+			var newHeight = this._rootDiv.clientHeight;
+			if (this._rootWidth !== newWidth || this._rootHeight !== newHeight) {
+				if (this._rootWidth !== newWidth && this._wrapMode) {
 					this._resetLineHeight();
 				}
-				this._parentWidth = newWidth;
-				this._parentHeight = newHeight;
+				this._rootWidth = newWidth;
+				this._rootHeight = newHeight;
 				/*
 				* Feature in IE7. For some reason, sometimes Internet Explorer 7 
 				* returns incorrect values for element.getBoundingClientRect() when 
@@ -5956,8 +6041,11 @@ define("orion/editor/textView", [ //$NON-NLS-0$
 		_handleTextInput: function (e) {
 			if (this._ignoreEvent(e)) { return; }
 			this._imeOffset = -1;
-			if (util.isAndroid) {
-				var selection = this._getWindow().getSelection();
+			var selection = this._getWindow().getSelection();
+			if (
+				selection.anchorNode !== this._anchorNode || selection.focusNode !== this._focusNode ||
+				selection.anchorOffset !== this._anchorOffset || selection.focusOffset !== this._focusOffset
+			) {
 				var temp = selection.anchorNode;
 				while (temp) {
 					if (temp.lineIndex !== undefined) {
@@ -6967,7 +7055,8 @@ define("orion/editor/textView", [ //$NON-NLS-0$
 			rootDiv.setAttribute("role", "application"); //$NON-NLS-1$ //$NON-NLS-0$
 			parent.appendChild(rootDiv);
 			
-			var leftDiv = this._leftDiv = this._createRulerParent("textviewLeftRuler"); //$NON-NLS-0$
+			var leftDiv = this._createRulerParent("textviewLeftRuler"); //$NON-NLS-0$
+			this._leftDiv = leftDiv;
 
 			var viewDiv = util.createElement(document, "div"); //$NON-NLS-0$
 			viewDiv.className = "textviewScroll"; //$NON-NLS-0$
@@ -6986,7 +7075,8 @@ define("orion/editor/textView", [ //$NON-NLS-0$
 			}
 			rootDiv.appendChild(viewDiv);
 			
-			var rightDiv = this._rightDiv = this._createRulerParent("textviewRightRuler"); //$NON-NLS-0$
+			var rightDiv = this._createRulerParent("textviewRightRuler"); //$NON-NLS-0$
+			this._rightDiv = rightDiv;
 			rightDiv.style.right = "0px"; //$NON-NLS-0$
 				
 			var scrollDiv = util.createElement(document, "div"); //$NON-NLS-0$
@@ -7341,12 +7431,14 @@ define("orion/editor/textView", [ //$NON-NLS-0$
 					var ignored = 0, childText = [], childOffset = -1;
 					while (textNode) {
 						var data = textNode.data;
-						for (var i = data.length - 1; i >= 0; i--) {
-							var ch = data.substring(i, i + 1);
-							if (ignored < lineChild.ignoreChars && (ch === " " || ch === "\u200C" || ch === "\uFEFF")) { //$NON-NLS-2$ //$NON-NLS-1$ //$NON-NLS-0$
-								ignored++;
-							} else {
-								childText.push(ch === "\u00A0" ? "\t" : ch); //$NON-NLS-1$ //$NON-NLS-0$
+						if (data) {
+							for (var i = data.length - 1; i >= 0; i--) {
+								var ch = data.substring(i, i + 1);
+								if (ignored < lineChild.ignoreChars && (ch === " " || ch === "\u200B" || ch === "\uFEFF")) { //$NON-NLS-2$ //$NON-NLS-1$ //$NON-NLS-0$
+									ignored++;
+								} else {
+									childText.push(ch === "\u00A0" ? "\t" : ch); //$NON-NLS-1$ //$NON-NLS-0$
+								}
 							}
 						}
 						if (offsetNode === textNode) {
@@ -8048,6 +8140,10 @@ define("orion/editor/textView", [ //$NON-NLS-0$
 					sel.anchorNode !== endLineNode || sel.anchorOffset !== endLineOffset ||
 					sel.focusNode !== startLineNode || sel.focusOffset !== startLineOffset))
 				{
+					this._anchorNode = startLineNode;
+					this._anchorOffset = startLineOffset;
+					this._focusNode = endLineNode;
+					this._focusOffset = endLineOffset;
 					this._ignoreSelect = false;
 					if (sel.rangeCount > 0) { sel.removeAllRanges(); }
 					sel.addRange(range);
@@ -8718,9 +8814,9 @@ define("orion/editor/textView", [ //$NON-NLS-0$
 				scrollHeight = lineCount * lineHeight;
 			}
 			this._topIndexY = topIndexY;
-			var parent = this._parent;
-			var parentWidth = parent.clientWidth;
-			var parentHeight = parent.clientHeight;
+			var rootDiv = this._rootDiv;
+			var rootWidth = rootDiv.clientWidth;
+			var rootHeight = rootDiv.clientHeight;
 			if (hScrollOnly) {
 				leftWidth = 0;
 				if (this._leftDiv) {
@@ -8857,9 +8953,9 @@ define("orion/editor/textView", [ //$NON-NLS-0$
 				scrollHeight = totalHeight;
 	
 				// Update rulers
-				this._updateRuler(this._leftDiv, topIndex, lineEnd, parentHeight);
-				this._updateRuler(this._rightDiv, topIndex, lineEnd, parentHeight);
-				this._updateRuler(this._marginDiv, topIndex, lineEnd, parentHeight);
+				this._updateRuler(this._leftDiv, topIndex, lineEnd, rootHeight);
+				this._updateRuler(this._rightDiv, topIndex, lineEnd, rootHeight);
+				this._updateRuler(this._marginDiv, topIndex, lineEnd, rootHeight);
 				
 				leftWidth = 0;
 				if (this._leftDiv) {
@@ -8987,8 +9083,8 @@ define("orion/editor/textView", [ //$NON-NLS-0$
 				}
 				clipDiv.style.left = clipLeft + "px"; //$NON-NLS-0$
 				clipDiv.style.top = clipTop + "px"; //$NON-NLS-0$
-				clipDiv.style.right = (parentWidth - clipWidth - clipLeft) + "px"; //$NON-NLS-0$
-				clipDiv.style.bottom = (parentHeight - clipHeight - clipTop) + "px"; //$NON-NLS-0$
+				clipDiv.style.right = (rootWidth - clipWidth - clipLeft) + "px"; //$NON-NLS-0$
+				clipDiv.style.bottom = (rootHeight - clipHeight - clipTop) + "px"; //$NON-NLS-0$
 				clientDiv.style.left = clientLeft + "px"; //$NON-NLS-0$
 				clientDiv.style.top = clientTop + "px"; //$NON-NLS-0$
 				clientDiv.style.width = scrollWidth + "px"; //$NON-NLS-0$
@@ -9045,7 +9141,7 @@ define("orion/editor/textView", [ //$NON-NLS-0$
 				viewDiv.style.overflow = "hidden"; //$NON-NLS-0$
 			}
 		},
-		_updateRuler: function (divRuler, topIndex, bottomIndex, parentHeight) {
+		_updateRuler: function (divRuler, topIndex, bottomIndex, rootHeight) {
 			if (!divRuler) { return; }
 			var document = this._parent.ownerDocument;
 			var lineHeight = this._getLineHeight();
@@ -9057,7 +9153,7 @@ define("orion/editor/textView", [ //$NON-NLS-0$
 				var overview = ruler.getOverview();
 				if (overview === "page") { offset += this._topIndexY; } //$NON-NLS-0$
 				div.style.top = -offset + "px"; //$NON-NLS-0$
-				div.style.height = (parentHeight + offset) + "px"; //$NON-NLS-0$
+				div.style.height = (rootHeight + offset) + "px"; //$NON-NLS-0$
 				
 				if (div.rulerChanged) {
 					applyStyle(ruler.getRulerStyle(), div);
@@ -12601,7 +12697,7 @@ define('orion/objects',[], function() {
 
 /*******************************************************************************
  * @license
- * Copyright (c) 2009, 2012 IBM Corporation and others.
+ * Copyright (c) 2009, 2013 IBM Corporation and others.
  * All rights reserved. This program and the accompanying materials are made 
  * available under the terms of the Eclipse Public License v1.0 
  * (http://www.eclipse.org/legal/epl-v10.html), and the Eclipse Distribution 
@@ -13039,7 +13135,19 @@ define("orion/editor/editor", [ //$NON-NLS-0$
 			}
 			return offset;
 		},
-		
+		/**
+		 * @name getLineAtOffset
+		 * @description Returns the line number corresponding to the given offset in the source
+		 * @function
+		 * @public
+		 * @memberof orion.editor.Editor
+		 * @param {Number} offset The offset into the source
+		 * @returns {Number} The line number corresponding to the given offset or <code>-1</code> if out of range
+		 * @since 5.0
+		 */
+		getLineAtOffset: function(offset) {
+			return this.getModel().getLineAtOffset(this.mapOffset(offset));	
+		},
 		getCaretOffset: function() {
 			return this.mapOffset(this._textView.getCaretOffset());
 		},
@@ -13607,8 +13715,9 @@ define("orion/editor/editor", [ //$NON-NLS-0$
 		 * @param {String} message
 		 * @param {String} contents
 		 * @param {Boolean} contentsSaved
+		 * @param {Boolean} noFocus
 		 */
-		setInput: function(title, message, contents, contentsSaved) {
+		setInput: function(title, message, contents, contentsSaved, noFocus) {
 			if (this._textView) {
 				if (!contentsSaved) {
 					if (message) {
@@ -13621,7 +13730,9 @@ define("orion/editor/editor", [ //$NON-NLS-0$
 						}
 					}
 					this._undoStack.reset();
-					this._textView.focus();
+					if (!noFocus) {
+						this._textView.focus();
+					}
 				}
 				this.checkDirty();
 			}
@@ -13662,66 +13773,6 @@ define("orion/editor/editor", [ //$NON-NLS-0$
 	return {
 		BaseEditor: BaseEditor,
 		Editor: Editor
-	};
-});
-
-/*******************************************************************************
- * @license
- * Copyright (c) 2011, 2013 IBM Corporation and others.
- * All rights reserved. This program and the accompanying materials are made 
- * available under the terms of the Eclipse Public License v1.0 
- * (http://www.eclipse.org/legal/epl-v10.html), and the Eclipse Distribution 
- * License v1.0 (http://www.eclipse.org/org/documents/edl-v10.html). 
- *
- * Contributors:
- *     IBM Corporation - initial API and implementation
- *******************************************************************************/
-/*global define */
-/*jslint browser:true regexp:false*/
-/**
- * @name orion.regex
- * @class Utilities for dealing with regular expressions.
- * @description Utilities for dealing with regular expressions.
- */
-define("orion/regex", [], function() { //$NON-NLS-0$
-	/**
-	 * @memberOf orion.regex
-	 * @function
-	 * @static
-	 * @description Escapes regex special characters in the input string.
-	 * @param {String} str The string to escape.
-	 * @returns {String} A copy of <code>str</code> with regex special characters escaped.
-	 */
-	function escape(str) {
-		return str.replace(/([\\$\^*\/+?\.\(\)|{}\[\]])/g, "\\$&"); //$NON-NLS-0$
-	}
-
-	/**
-	 * @memberOf orion.regex
-	 * @function
-	 * @static
-	 * @description Parses a pattern and flags out of a regex literal string.
-	 * @param {String} str The string to parse. Should look something like <code>"/ab+c/"</code> or <code>"/ab+c/i"</code>.
-	 * @returns {Object} If <code>str</code> looks like a regex literal, returns an object with properties
-	 * <code><dl>
-	 * <dt>pattern</dt><dd>{String}</dd>
-	 * <dt>flags</dt><dd>{String}</dd>
-	 * </dl></code> otherwise returns <code>null</code>.
-	 */
-	function parse(str) {
-		var regexp = /^\s*\/(.+)\/([gim]{0,3})\s*$/.exec(str);
-		if (regexp) {
-			return {
-				pattern : regexp[1],
-				flags : regexp[2]
-			};
-		}
-		return null;
-	}
-
-	return {
-		escape: escape,
-		parse: parse
 	};
 });
 
@@ -14382,17 +14433,31 @@ define("orion/editor/actions", [ //$NON-NLS-0$
 			};
 			textView.addEventListener("ModelChanged", this._lastEditListener.onModelChanged); //$NON-NLS-0$
 
-			textView.setAction("undo", function() { //$NON-NLS-0$
+			textView.setAction("undo", function(data) { //$NON-NLS-0$
 				if (this.undoStack) {
-					this.undoStack.undo();
+					var count = 1;
+					if (data && data.count) {
+						count = data.count;
+					}
+					while (count > 0) {
+						this.undoStack.undo();
+						--count;
+					}
 					return true;
 				}
 				return false;
 			}.bind(this), {name: messages.undo});
 
-			textView.setAction("redo", function() { //$NON-NLS-0$
+			textView.setAction("redo", function(data) { //$NON-NLS-0$
 				if (this.undoStack) {
-					this.undoStack.redo();
+					var count = 1;
+					if (data && data.count) {
+						count = data.count;
+					}
+					while (count > 0) {
+						this.undoStack.redo();
+						--count;
+					}
 					return true;
 				}
 				return false;
@@ -21951,9 +22016,20 @@ define('orion/editor/edit', [ //$NON-NLS-0$
 	}
 	
 	/**	@private */
+	function getParents(document, className) {
+		if (document.getElementsByClassName) {
+			return document.getElementsByClassName(className);
+		}
+		className = className.replace(/ *$/, '');
+		if (document.querySelectorAll) {
+			return document.querySelectorAll((' ' + className).replace(/ +/g, '.')); //$NON-NLS-1$ //$NON-NLS-0$
+		}
+		return null;
+	}
+	
+	/**	@private */
 	function getHeight(node) {
-		var rect = node.getBoundingClientRect();
-		return rect.bottom - rect.top;
+		return node.clientHeight;
 	}
 	
 	/**
@@ -21969,6 +22045,7 @@ define('orion/editor/edit', [ //$NON-NLS-0$
 	 * @property {Number} [tabSize=4] The number of spaces in a tab.
 	 * @property {Boolean} [singleMode=false] whether or not the editor is in single line mode.
 	 * @property {Boolean} [wrapMode=false] whether or not the view wraps lines.
+	 * @property {Boolean} [wrapable=false] whether or not the view is wrappable.
 	 * @property {Function} [statusReporter] a status reporter.
 	 * @property {String} [title=""] the editor title.
 	 * @property {String} [contents=""] the editor contents.
@@ -21977,6 +22054,7 @@ define('orion/editor/edit', [ //$NON-NLS-0$
 	 * @property {Boolean} [showAnnotationRuler=true] whether or not the annotation ruler is shown.
 	 * @property {Boolean} [showOverviewRuler=true] whether or not the overview ruler is shown.
 	 * @property {Boolean} [showFoldingRuler=true] whether or not the folding ruler is shown.
+	 * @property {Boolean} [noFocus=false] whether or not to focus the editor on creation.
 	 * @property {Number} [firstLineIndex=1] the line index displayed for the first line of text.
 	 */
 	/**
@@ -21985,18 +22063,21 @@ define('orion/editor/edit', [ //$NON-NLS-0$
 	 * @param {orion.editor.EditOptions} options the editor options.
 	 */
 	function edit(options) {
+		var doc = options.document || document;
 		var parent = options.parent;
 		if (!parent) { parent = "editor"; } //$NON-NLS-0$
 		if (typeof(parent) === "string") { //$NON-NLS-0$
-			parent = (options.document || document).getElementById(parent);
+			parent = doc.getElementById(parent);
 		}
 		if (!parent) {
 			if (options.className) {
-				var parents = (options.document || document).getElementsByClassName(options.className);
+				var parents = getParents(doc, options.className);
 				if (parents) {
 					options.className = undefined;
+					// Do not focus editors by default when creating multiple editors
+					if (parents.length > 1 && options.noFocus === undefined) { options.noFocus = true; }
 					var editors = [];
-					for (var i = 0; i < parents.length; i++) {
+					for (var i = parents.length - 1; i >= 0; i--) {
 						options.parent = parents[i];
 						editors.push(edit(options));
 					}
@@ -22033,7 +22114,8 @@ define('orion/editor/edit', [ //$NON-NLS-0$
 				singleMode: options.singleMode,
 				themeClass: options.themeClass,
 				theme: options.theme,
-				wrapMode: options.wrapMode
+				wrapMode: options.wrapMode,
+				wrappable: options.wrappable
 			});
 		};
 
@@ -22117,7 +22199,7 @@ define('orion/editor/edit', [ //$NON-NLS-0$
 		editor.setAnnotationRulerVisible(options.showAnnotationRuler === undefined || options.showFoldingRuler);
 		editor.setOverviewRulerVisible(options.showOverviewRuler === undefined || options.showOverviewRuler);
 		editor.setFoldingRulerVisible(options.showFoldingRuler === undefined || options.showFoldingRuler);
-		editor.setInput(options.title, null, contents);
+		editor.setInput(options.title, null, contents, false, options.noFocus);
 		
 		syntaxHighlighter.highlight(options.lang, editor);
 		if (contentAssist) {

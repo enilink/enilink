@@ -24,7 +24,8 @@
 				showAnnotationRuler : false,
 				showOverviewRuler : true,
 				showFoldingRuler : false,
-				wrapMode : false
+				wrapMode : false,
+				wrappable : true
 			});
 			// automatically resize text view, use height instead of line count
 			// to support wrapMode = true
