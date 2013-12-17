@@ -19,4 +19,5 @@ Import-Package: com.google.inject,
  org.eclipse.core.resources,
  net.enilink.composition.properties.komma
 Export-Package: net.enilink.core,
+ net.enilink.core.blobs,
  net.enilink.core.security
