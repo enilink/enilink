@@ -28,6 +28,13 @@ import scala.xml.TopScope
 import net.enilink.komma.model.IObject
 import net.enilink.komma.core.IReference
 import net.enilink.komma.concepts.IClass
+import net.enilink.komma.core.ILiteral
+import net.enilink.vocab.xmlschema.XMLSCHEMA
+import java.text.NumberFormat
+import java.util.Date
+import java.text.DateFormat
+import java.sql.Time
+import java.util.Locale
 
 class RdfContext(val subject: Any, val predicate: Any, val prefix: NamespaceBinding = TopScope) {
   override def equals(that: Any): Boolean = that match {
@@ -67,6 +74,18 @@ class Rdf extends DispatchSnippet with RDFaTemplates {
 
   private def toLabel(target: Any, useLabelForVocab: Boolean = false) = target match {
     case _: IClass => toManchester(target)
+    case l: ILiteral => l.getDatatype match {
+      case XMLSCHEMA.TYPE_STRING | null => ModelUtil.getLabel(target, useLabelForVocab)
+      case _ => Globals.contextModel.vend.map {
+        lazy val locale = Locale.ENGLISH // TODO use S.locale if client-side (x-editable) supports localized editing
+        _.getManager.toInstance(l) match {
+          case n: Number => NumberFormat.getInstance(locale).format(n)
+          case t: Time => DateFormat.getTimeInstance(DateFormat.SHORT, locale).format(t)
+          case d @ (_: Date | _: java.sql.Date) => DateFormat.getDateInstance(DateFormat.SHORT, locale).format(d)
+          case other => other.toString
+        }
+      } openOr { ModelUtil.getLabel(target, useLabelForVocab) }
+    }
     case _ => ModelUtil.getLabel(target, useLabelForVocab)
   }
 

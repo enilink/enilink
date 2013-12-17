@@ -172,7 +172,6 @@ class Rdfa extends Sparql with SparqlExtractor {
     val origParams = QueryParams.get
     val origAttrs = S.attrsToMetaData
     val refresh = (funcId: String) => {
-      println("FUNC " + funcId)
       val result = S.withAttrs(origAttrs) {
         // run rdfa snippet while reusing current refresh function
         RdfaRefreshFunc.withValue(Full(funcId)) { QueryParams.doWith(origParams ++ QueryParams.get) { new Rdfa().render(ns) } }

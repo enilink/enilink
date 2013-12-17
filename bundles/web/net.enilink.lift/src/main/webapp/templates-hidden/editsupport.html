@@ -154,11 +154,19 @@
 					// global deferred to allow the execution of 
 					// functions after doAdd finished
 					var resultDeferred = new $.Deferred;
-					var rdfStmts = target.rdf().databank.dump();
+					var triples = target.rdf().databank.triples();
+					var value = null;
+					if (triples.length && triples[0].object.type == "literal") {
+						// TODO implement real localized formatting
+						value = triples[0].object.value + "";
+					} else {
+						value = target.closest("[content]").attr("content")
+								|| target.text().trim();
+					}
+					var rdfStmts = $.rdf.dump(triples);
 					options = $.extend(defaultEditableOptions(rdfStmts), {
 						title : "Edit value",
-						value : target.closest("[content]").attr("content")
-								|| target.text().trim(),
+						value : value,
 						display : function(value, response) {
 							if (response && response.html) {
 								var newNode = $(response.html);

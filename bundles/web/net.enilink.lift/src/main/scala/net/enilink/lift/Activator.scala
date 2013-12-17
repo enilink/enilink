@@ -27,6 +27,7 @@ import net.enilink.core.IContext
 import net.enilink.core.IContextProvider
 import net.enilink.core.ISession
 import net.enilink.lift.util.Globals
+import net.enilink.lift.sitemap.Application
 import net.liftweb.common.Box
 import net.liftweb.common.Box.box2Iterable
 import net.liftweb.common.Box.box2Option
@@ -222,7 +223,17 @@ class Activator extends BundleActivator {
       def str[A](p: List[A]) = p.mkString("/", "/", "")
       def list(s: String) = s.stripPrefix("/").split("/").toList
       lazy val baseResourceLocation = list(ResourceServer.baseResourceLocation)
-      val places = Globals.application.vend match {
+      val resourcePath = list(s)
+      val places = if (resourcePath.startsWith(baseResourceLocation)) {
+        val suffix = resourcePath.drop(1)
+        // lookup possible appPath in sitemap
+        val appPath = LiftRules.siteMap.flatMap(_.findLoc(suffix.head))
+          .filter(_.params.contains(Application)).map(_.link.uriList) openOr Nil
+        if (appPath.nonEmpty && suffix.startsWith(appPath))
+          // /toserve/[application path]/some/resource => /toserve/some/resource
+          List(s, str(baseResourceLocation ++ suffix.drop(appPath.length)))
+        else List(s)
+      } else Globals.application.vend match {
         case Full(app) =>
           // search alternative places
           val resourcePath = list(s)
@@ -230,15 +241,7 @@ class Activator extends BundleActivator {
           if (resourcePath.startsWith(appPath))
             // /[application path]/some/resource => /some/resource
             List(s, str(resourcePath.drop(appPath.length)))
-          else if (resourcePath.startsWith(baseResourceLocation)) {
-            val suffix = resourcePath.drop(1)
-            if (suffix.startsWith(appPath))
-              // /toserve/[application path]/some/resource => /toserve/some/resource
-              List(s, str(baseResourceLocation ++ suffix.drop(appPath.length)))
-            else
-              // /toserve/some/resource => /toserve/[application path]/some/resource
-              List(str(baseResourceLocation ++ appPath ++ suffix), s)
-          } else resourcePath match {
+          else resourcePath match {
             case (prefix @ ("templates-hidden" | "resources-hidden")) :: (suffix @ _) =>
               if (suffix.startsWith(appPath)) {
                 List(s, str(List(prefix) ++ suffix.drop(appPath.length)))
@@ -260,7 +263,7 @@ class Activator extends BundleActivator {
           b.getKey getResource (b.getValue mapResource place) match {
             case null => None
             case res =>
-              debug("""Lift-powered bundle "%s" answered for resource "%s".""".format(b.getKey.getSymbolicName, s))
+              debug("""Lift-powered bundle "%s" answered for resource "%s".""".format(b.getKey.getSymbolicName, place))
               Some(res)
           }
         } headOption

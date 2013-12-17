@@ -21,6 +21,10 @@ import net.liftweb.http.ParsePath
 import net.liftweb.http.LiftRules
 import net.liftweb.http.ParsePath
 import net.liftweb.sitemap.Loc
+import net.enilink.core.blobs.FileStore
+import java.io.File
+import java.nio.file.Files
+import java.nio.file.Path
 
 /**
  * A registry for global variables which are shared throughout the application.
@@ -72,6 +76,9 @@ object Globals extends Factory {
   }: Box[AnyRef]) {}
   implicit val contextUser = new FactoryMaker(() => UNKNOWN_USER: IReference) {}
   implicit val UNKNOWN_USER: URI = SecurityUtil.UNKNOWN_USER
+  implicit val fileStore = new FactoryMaker(() => {
+    new FileStore(Platform.getLocation.toFile.toPath.resolve("files"))
+  }) {}
 }
 
 // extractor to test if access to context model is allowed
