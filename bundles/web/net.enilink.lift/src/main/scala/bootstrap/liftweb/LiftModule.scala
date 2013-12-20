@@ -2,6 +2,8 @@ package bootstrap.liftweb
 
 import java.security.AccessController
 import java.security.PrivilegedAction
+import java.util.Locale
+import scala.xml.NodeSeq
 import net.enilink.komma.model.IModel
 import net.enilink.komma.model.IObject
 import net.enilink.komma.core.BlankNode
@@ -10,21 +12,34 @@ import net.enilink.komma.core.URIImpl
 import javax.security.auth.Subject
 import net.enilink.auth.UserPrincipal
 import net.enilink.core.ModelSetManager
-import net.enilink.core.security.ISecureModelSet
-import net.enilink.lift.util.Globals
-import net.liftweb._
-import net.liftweb.common._
-import net.liftweb.common.Logger
-import net.liftweb.http._
-import net.liftweb.http.js.jquery.JQueryArtifacts
-import net.liftweb.sitemap._
-import net.liftweb.sitemap.Loc._
-import net.liftweb.util._
-import net.liftweb.util.Helpers._
-import net.enilink.lift.util.NotAllowedModel
 import net.enilink.lift.html.Html5ParserWithRDFaPrefixes
-import scala.xml.NodeSeq
-import java.util.Locale
+import net.enilink.lift.util.Globals
+import net.enilink.lift.util.NotAllowedModel
+import net.liftweb.common.Box
+import net.liftweb.common.Box.box2Option
+import net.liftweb.common.Empty
+import net.liftweb.common.Full
+import net.liftweb.common.Logger
+import net.liftweb.http.ForbiddenResponse
+import net.liftweb.http.Html5Properties
+import net.liftweb.http.LiftRules
+import net.liftweb.http.LiftRulesMocker.toLiftRules
+import net.liftweb.http.NoticeType
+import net.liftweb.http.OnDiskFileParamHolder
+import net.liftweb.http.Req
+import net.liftweb.http.ResourceServer
+import net.liftweb.http.S
+import net.liftweb.http.js.jquery.JQueryArtifacts
+import net.liftweb.util.DynoVar
+import net.liftweb.util.Helpers.intToTimeSpanBuilder
+import net.liftweb.util.LRU
+import net.liftweb.util.LoanWrapper
+import net.liftweb.util.Maker.vToMake
+import net.liftweb.util.Props
+import net.liftweb.util.TemplateCache
+import net.liftweb.util.Vendor.funcToVender
+import net.liftweb.util.Vendor.valToVender
+import net.enilink.lift.files.FileService
 
 /**
  * A class that's instantiated early and run.  It allows the application
@@ -104,6 +119,11 @@ class LiftModule extends Logger {
     // Force the request to be UTF-8
     LiftRules.early.append(_.setCharacterEncoding("UTF-8"))
 
+    // save uploaded files to disk
+    LiftRules.handleMimeFile = OnDiskFileParamHolder.apply
+    // register REST service for file management
+    LiftRules.dispatch.append(FileService)
+
     // dispatch function for checking access to context model
     LiftRules.dispatch.append {
       case NotAllowedModel(m) => () => Full(ForbiddenResponse("You don't have permissions to access " + m.getURI + "."))
@@ -114,7 +134,7 @@ class LiftModule extends Logger {
     }
 
     ResourceServer.allow {
-      case (("require" | "orion" | "select2") :: _) => true
+      case (("require" | "orion" | "select2" | "fileupload") :: _) => true
       case (("bootstrap" | "bootstrap-editable") :: _) | (_ :: "bootstrap" :: _) => true
       case rdfa @ ("rdfa" :: _) if rdfa.last.endsWith(".js") => true
     }

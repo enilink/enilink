@@ -234,7 +234,7 @@ class Activator extends BundleActivator {
           List(s, str(baseResourceLocation ++ suffix.drop(appPath.length)))
         else List(s)
       } else Globals.application.vend match {
-        case Full(app) =>
+        case Full(app) if app.link.uriList.headOption.exists(_.nonEmpty) =>
           // search alternative places
           val resourcePath = list(s)
           val appPath = app.link.uriList
