@@ -1,6 +1,7 @@
 package net.enilink.core.blobs;
 
 import java.io.BufferedInputStream;
+import java.io.BufferedOutputStream;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
@@ -10,22 +11,28 @@ import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.security.MessageDigest;
+import java.util.Properties;
+import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 import org.apache.commons.codec.binary.Hex;
 
-import net.enilink.komma.core.URIImpl;
-
 /**
- * A simple file store that stores file in a directory layout compared to GIT's
- * objects folder.
+ * A simple file store that stores blobs in a directory layout comparable to
+ * GIT's objects folder.
  */
 public class FileStore {
-	private static final int DIR_LEVELS = 2;
-	private static final Pattern KEY_PATTERN = Pattern.compile("[0-9a-f]{40}");
+	private static final int DIR_LEVELS = 3;
+	private static final Pattern KEY_PATTERN = Pattern
+			.compile("(md5|sha1|sha256)-([0-9a-f]{32,})");
 
-	protected String computeKey(InputStream in, long length, String extension)
-			throws Exception {
+	protected Path root;
+
+	public FileStore(Path root) {
+		this.root = root;
+	}
+
+	protected String computeKey(InputStream in, long length) throws Exception {
 		MessageDigest digest = MessageDigest.getInstance("SHA-1");
 		// add length to digest
 		digest.update(("length: " + length).getBytes(Charset.forName("UTF-8")));
@@ -41,14 +48,8 @@ public class FileStore {
 		} finally {
 			in.close();
 		}
-		return new String(Hex.encodeHex(digest.digest()))
-				+ (extension == null ? "" : "." + extension).toLowerCase();
-	}
-
-	protected Path root;
-
-	public FileStore(Path root) {
-		this.root = root;
+		return new StringBuilder("sha1").append("-")
+				.append(Hex.encodeHex(digest.digest())).toString();
 	}
 
 	/**
@@ -89,24 +90,38 @@ public class FileStore {
 	}
 
 	/**
-	 * Returns a path object for storing contents associated with the given
+	 * Return a properties object for the file associated with the given
 	 * <code>key</code>.
 	 * 
 	 * @param key
-	 *            The key for some content.
-	 * @return A file object for storing the content.
+	 *            Key of the file.
+	 * @return A properties object or <code>null</code> if it does not exist.
 	 */
-	protected Path pathForKey(String key) {
-		if (!KEY_PATTERN.matcher(key).matches()) {
-			throw new IllegalArgumentException("Invalid key: " + key);
+	public Properties getProperties(String key) {
+		Path metaPath = metaDataPath(pathForKey(key));
+		Properties properties = new Properties();
+		if (Files.exists(metaPath)) {
+			try {
+				properties.load(new BufferedInputStream(Files
+						.newInputStream(metaPath)));
+			} catch (IOException e) {
+				// ignore
+			}
 		}
-		Path dir = root;
-		// split key into 2 folders and one file name
-		for (int i = 0; i < 2; i++) {
-			dir = dir.resolve(key.substring(0, 2));
-			key = key.substring(2);
-		}
-		return dir.resolve(key);
+		return properties;
+	}
+
+	/**
+	 * Returns the path of the properties file with meta-data about the given
+	 * file denoted by <code>path</code>.
+	 * 
+	 * @param path
+	 *            The path which should be described with meta-data.
+	 * @return The path of a properties file.
+	 */
+	protected Path metaDataPath(Path path) {
+		return path.resolveSibling(path.getFileName().toString()
+				+ ".properties");
 	}
 
 	/**
@@ -118,14 +133,61 @@ public class FileStore {
 	 * @return An input stream for the file or <code>null</code> if it does not
 	 *         exist or an error has occurred.
 	 */
-	public InputStream openStream(String key) {
-		Path path = pathForKey(key);
-		try {
-			return new BufferedInputStream(Files.newInputStream(path));
-		} catch (IOException e) {
-			// return null if file is not found
-			return null;
+	public InputStream openStream(String key) throws IOException {
+		return new BufferedInputStream(Files.newInputStream(pathForKey(key)));
+	}
+
+	/**
+	 * Returns a path object for storing contents associated with the given
+	 * <code>key</code>.
+	 * 
+	 * @param key
+	 *            The key for some content.
+	 * @return A file object for storing the content.
+	 */
+	protected Path pathForKey(String key) {
+		Matcher m = KEY_PATTERN.matcher(key);
+		if (!m.matches()) {
+			throw new IllegalArgumentException("Invalid key: " + key);
 		}
+		// split key into 3 folders and one file name
+		Path dir = root.resolve(m.group(1));
+		String hashSuffix = m.group(2);
+		for (int i = 0; i < DIR_LEVELS - 1; i++) {
+			dir = dir.resolve(hashSuffix.substring(0, 2));
+			hashSuffix = hashSuffix.substring(2);
+		}
+		return dir.resolve(hashSuffix);
+	}
+
+	/**
+	 * Store meta-data for a object denoted by <code>key</code>.
+	 * 
+	 * @param key
+	 *            The key of a stored object.
+	 * @param properties
+	 *            Meta-data for a stored object.
+	 * @throws IOException
+	 *             If meta-data could not be stored to a file.
+	 */
+	public void setProperties(String key, Properties properties)
+			throws IOException {
+		Path metaPath = metaDataPath(pathForKey(key));
+		// override with existing properties
+		properties.putAll(getProperties(key));
+		properties.store(
+				new BufferedOutputStream(Files.newOutputStream(metaPath)), "");
+	}
+
+	/**
+	 * Return the size of the file associated with the given <code>key</code>.
+	 * 
+	 * @param key
+	 *            Key of the file.
+	 * @return The size of the file or <code>0</code> if it does not exists.
+	 */
+	public long size(String key) throws IOException {
+		return Files.size(pathForKey(key));
 	}
 
 	/**
@@ -137,11 +199,10 @@ public class FileStore {
 	 *            The file extension for the data.
 	 * @return A key for the stored file.
 	 */
-	public String store(byte[] data, String extension) throws IOException {
+	public String store(byte[] data) throws IOException {
 		String key;
 		try {
-			key = computeKey(new ByteArrayInputStream(data), data.length,
-					extension);
+			key = computeKey(new ByteArrayInputStream(data), data.length);
 		} catch (Exception e) {
 			throw new IOException("Unable to compute hash for data.", e);
 		}
@@ -169,11 +230,8 @@ public class FileStore {
 	 */
 	public String store(Path file, boolean move) throws IOException {
 		String key;
-		String extension = URIImpl.createFileURI(file.toString())
-				.fileExtension();
 		try {
-			key = computeKey(Files.newInputStream(file), Files.size(file),
-					extension);
+			key = computeKey(Files.newInputStream(file), Files.size(file));
 		} catch (Exception e) {
 			throw new IOException("Unable to compute hash for file: " + file, e);
 		}

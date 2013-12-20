@@ -28,7 +28,7 @@ public class FileStoreTest {
 		for (int i = 0; i < 0xFF; i++) {
 			byte[] origData = new BigInteger(2048, random).toString(16)
 					.getBytes(charset);
-			String key = store.store(origData, null);
+			String key = store.store(origData);
 			keys.add(key);
 			try (DataInputStream in = new DataInputStream(store.openStream(key))) {
 				byte[] data = new byte[origData.length];
