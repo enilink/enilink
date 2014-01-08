@@ -43,6 +43,8 @@ class LiftModule {
       Menu("enilink.SignUp", S ? "Sign up") / "register" >> Right >> Hidden,
       Menu("enilink.Profile", profileText) / "static" / "profile" >> Right >> If(() => S.loggedIn_?, S.?("must.be.logged.in"))
       submenus (Menu("enilink.Logout", S ? "Logout") / "logout" >> EarlyResponse(() => { logout; Full(RedirectResponse("/")) })),
+      // /upload for uploading of files
+      Menu("enilink.Upload", S ? "Upload") / "upload" >> Hidden,
       // /static path to be visible
       Menu(Loc("Static", Link(List("static"), true, "/static/index"),
         "Static Content", Hidden))))
