@@ -13,8 +13,6 @@ import net.liftweb.json.JsonAST._
 import net.liftweb.json.JsonDSL._
 
 object FileService extends RestHelper {
-  var FileKey = "^[0-9a-f]{40}$".r
-
   /**
    * Simple response without content.
    */
