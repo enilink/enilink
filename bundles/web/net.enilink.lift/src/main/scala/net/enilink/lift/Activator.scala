@@ -43,6 +43,7 @@ import net.liftweb.http.S
 import net.liftweb.osgi.OsgiBootable
 import net.liftweb.sitemap.SiteMap
 import net.liftweb.util.ClassHelpers
+import net.liftweb.util.Helpers
 
 object Activator {
   val PLUGIN_ID = "net.enilink.lift";
@@ -97,6 +98,7 @@ class Activator extends BundleActivator {
   }
 
   def start(context: BundleContext) {
+     Helpers.asDouble("0.0")
     this.context = context
     bundleTracker = new BundleTracker[LiftBundleConfig](context, Bundle.RESOLVED | Bundle.STARTING | Bundle.ACTIVE | Bundle.STOPPING, null) with Logger {
       override def addingBundle(bundle: Bundle, event: BundleEvent) = {
