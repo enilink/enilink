@@ -9,6 +9,7 @@ import net.enilink.core.security.SecurePropertySetFactory;
 import net.enilink.core.security.SecurityUtil;
 
 import org.aopalliance.intercept.MethodInvocation;
+
 import net.enilink.composition.annotations.ParameterTypes;
 import net.enilink.composition.annotations.Precedes;
 import net.enilink.composition.properties.PropertySetFactory;
@@ -19,12 +20,12 @@ import com.google.inject.Inject;
 import net.enilink.komma.common.adapter.AdapterSet;
 import net.enilink.komma.common.adapter.IAdapterFactory;
 import net.enilink.komma.common.adapter.IAdapterSet;
-import net.enilink.komma.concepts.IClass;
 import net.enilink.komma.edit.KommaEditPlugin;
 import net.enilink.komma.edit.command.EditingDomainCommandStack;
 import net.enilink.komma.edit.domain.AdapterFactoryEditingDomain;
 import net.enilink.komma.edit.provider.ComposedAdapterFactory;
 import net.enilink.komma.edit.provider.ReflectiveItemProviderAdapterFactory;
+import net.enilink.komma.em.concepts.IClass;
 import net.enilink.komma.model.IModel;
 import net.enilink.komma.model.IModelSet;
 import net.enilink.komma.core.EntityVar;

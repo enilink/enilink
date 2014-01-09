@@ -18,7 +18,9 @@ import net.enilink.vocab.foaf.FOAF;
 
 import org.eclipse.core.resources.IProject;
 import org.eclipse.core.resources.ResourcesPlugin;
+
 import net.enilink.composition.properties.PropertySetFactory;
+
 import org.osgi.framework.BundleContext;
 import org.osgi.framework.InvalidSyntaxException;
 import org.osgi.framework.ServiceReference;
@@ -35,7 +37,7 @@ import net.enilink.komma.model.IModel;
 import net.enilink.komma.model.IModelSet;
 import net.enilink.komma.model.IModelSetFactory;
 import net.enilink.komma.model.MODELS;
-import net.enilink.komma.model.ModelCore;
+import net.enilink.komma.model.ModelPlugin;
 import net.enilink.komma.model.ModelSetModule;
 import net.enilink.komma.model.base.IURIMapRule;
 import net.enilink.komma.model.base.SimpleURIMapRule;
@@ -48,7 +50,7 @@ import net.enilink.komma.core.LinkedHashGraph;
 import net.enilink.komma.core.StatementPattern;
 import net.enilink.komma.core.URI;
 import net.enilink.komma.core.URIImpl;
-import net.enilink.komma.util.UnitOfWork;
+import net.enilink.komma.em.util.UnitOfWork;
 import net.enilink.komma.workbench.IProjectModelSet;
 import net.enilink.komma.workbench.ProjectModelSetSupport;
 
@@ -151,7 +153,7 @@ public class ModelSetManager {
 	}
 
 	protected KommaModule createDataModelSetModule() {
-		KommaModule module = ModelCore.createModelSetModule(getClass()
+		KommaModule module = ModelPlugin.createModelSetModule(getClass()
 				.getClassLoader());
 		module.addBehaviour(SessionModelSetSupport.class);
 		module.addBehaviour(LazyModelSupport.class);
@@ -188,7 +190,7 @@ public class ModelSetManager {
 	}
 
 	protected IModelSet createMetaModelSet() {
-		KommaModule module = ModelCore.createModelSetModule(getClass()
+		KommaModule module = ModelPlugin.createModelSetModule(getClass()
 				.getClassLoader());
 		module.addBehaviour(SessionModelSetSupport.class);
 		module.addConcept(ISecureEntity.class);

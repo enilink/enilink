@@ -26,12 +26,12 @@ import org.apache.commons.codec.binary.Base64;
 
 import net.enilink.commons.iterator.IExtendedIterator;
 import net.enilink.vocab.rdfs.Resource;
-import net.enilink.komma.concepts.IResource;
 import net.enilink.komma.core.IEntity;
 import net.enilink.komma.core.IEntityManager;
 import net.enilink.komma.core.IQuery;
 import net.enilink.komma.core.URI;
 import net.enilink.komma.core.URIImpl;
+import net.enilink.komma.em.concepts.IResource;
 
 public class EnilinkLoginModule implements LoginModule {
 	private Subject subject;
