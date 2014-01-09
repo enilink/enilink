@@ -1,7 +1,7 @@
 package net.enilink.web.snippet
 
 import scala.xml.Node
-import net.enilink.komma.concepts.IResource
+import net.enilink.komma.em.concepts.IResource
 import net.enilink.komma.core.URIImpl
 import javax.security.auth.Subject
 import net.enilink.auth.AccountHelper

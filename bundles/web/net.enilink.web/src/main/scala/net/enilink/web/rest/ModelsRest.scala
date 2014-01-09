@@ -1,16 +1,13 @@
 package net.enilink.web.rest
 
 import java.io.ByteArrayOutputStream
-
 import scala.Array.canBuildFrom
 import scala.collection.JavaConversions.mapAsJavaMap
-
 import org.eclipse.core.runtime.Platform
 import org.eclipse.core.runtime.QualifiedName
 import org.eclipse.core.runtime.content.IContentDescription
 import org.eclipse.core.runtime.content.IContentType
-
-import net.enilink.komma.model.ModelCore
+import net.enilink.komma.model.ModelPlugin
 import net.enilink.komma.core.URI
 import net.enilink.komma.core.URIImpl
 import net.enilink.core.ModelSetManager
@@ -29,6 +26,7 @@ import net.liftweb.http.NotFoundResponse
 import net.liftweb.http.Req
 import net.liftweb.http.S
 import net.liftweb.http.rest.RestHelper
+import net.enilink.komma.model.ModelPlugin
 
 object ModelsRest extends RestHelper {
   /**
@@ -52,7 +50,7 @@ object ModelsRest extends RestHelper {
    * Retrieve all registered RDF content types (those with a special mimeType property) and store them in a map.
    */
   val mimeType = "^(.+)/(.+)$".r
-  lazy val mimeTypeProp = new QualifiedName(ModelCore.PLUGIN_ID, "mimeType")
+  lazy val mimeTypeProp = new QualifiedName(ModelPlugin.PLUGIN_ID, "mimeType")
   lazy val rdfContentTypes: Map[(String, String), IContentType] = Platform.getContentTypeManager.getAllContentTypes.flatMap {
     contentType =>
       contentType.getDefaultDescription.getProperty(mimeTypeProp) match {
