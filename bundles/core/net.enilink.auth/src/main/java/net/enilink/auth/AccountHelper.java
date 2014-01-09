@@ -11,7 +11,6 @@ import net.enilink.vocab.auth.AUTH;
 import net.enilink.vocab.foaf.FOAF;
 import net.enilink.commons.iterator.IMap;
 import net.enilink.commons.iterator.WrappedIterator;
-import net.enilink.komma.concepts.IResource;
 import net.enilink.komma.core.IEntity;
 import net.enilink.komma.core.IEntityManager;
 import net.enilink.komma.core.IReference;
@@ -19,6 +18,7 @@ import net.enilink.komma.core.IStatement;
 import net.enilink.komma.core.Statement;
 import net.enilink.komma.core.URI;
 import net.enilink.komma.core.URIImpl;
+import net.enilink.komma.em.concepts.IResource;
 
 /**
  * Helper class for managing user accounts.
