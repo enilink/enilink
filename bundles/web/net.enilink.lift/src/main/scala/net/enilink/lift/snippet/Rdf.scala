@@ -27,7 +27,7 @@ import scala.xml.NamespaceBinding
 import scala.xml.TopScope
 import net.enilink.komma.model.IObject
 import net.enilink.komma.core.IReference
-import net.enilink.komma.concepts.IClass
+import net.enilink.komma.em.concepts.IClass
 import net.enilink.komma.core.ILiteral
 import net.enilink.vocab.xmlschema.XMLSCHEMA
 import java.text.NumberFormat

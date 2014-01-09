@@ -11,8 +11,8 @@ import org.eclipse.core.runtime.IStatus
 import net.enilink.komma.common.command.AbortExecutionException
 import net.enilink.komma.common.command.CommandResult
 import net.enilink.komma.common.command.ICommand
-import net.enilink.komma.concepts.IProperty
-import net.enilink.komma.concepts.IResource
+import net.enilink.komma.em.concepts.IProperty
+import net.enilink.komma.em.concepts.IResource
 import net.enilink.komma.edit.domain.IEditingDomainProvider
 import net.enilink.komma.edit.properties.IResourceProposal
 import net.enilink.komma.edit.properties.PropertyEditingHelper
