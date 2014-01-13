@@ -54,6 +54,7 @@
 			<restrict>
 				<path>
 					<path refid="@dot.classpath" />
+					<pathelement location="${target.folder}" />
 					<pathelement location="${scala_library_bundle}" />
 				</path>
 				<!-- remove libraries from classpath that don't exist (optional) -->
