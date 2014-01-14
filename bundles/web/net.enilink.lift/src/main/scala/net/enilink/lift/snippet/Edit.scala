@@ -56,7 +56,7 @@ class JsonCallHandler {
   val model: Box[IModel] = Globals.contextModel.vend
   val path = S.request map (_.path)
 
-  class EditingHelper extends PropertyEditingHelper(false) {
+  class EditingHelper extends PropertyEditingHelper(PropertyEditingHelper.Type.VALUE) {
     override def getStatement(element: AnyRef) = {
       val stmt = element.asInstanceOf[IStatement]
       val em = model.get.getManager
