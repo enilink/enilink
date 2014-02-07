@@ -35,6 +35,7 @@ import java.util.Date
 import java.text.DateFormat
 import java.sql.Time
 import java.util.Locale
+import net.liftweb.http.LiftRules
 
 class RdfContext(val subject: Any, val predicate: Any, val prefix: NamespaceBinding = TopScope) {
   override def equals(that: Any): Boolean = that match {
@@ -101,6 +102,11 @@ class Rdf extends DispatchSnippet with RDFaTemplates {
       case "!label" => toLabel(target, true)
       case "label" => toLabel(target)
       case "manchester" => toManchester(target)
+      case "get-url" => target match {
+        case ref: IReference if ref.getURI != null && ref.getURI.scheme == "blobs" =>
+          S.contextPath + "/files/" + ref.getURI.opaquePart
+        case _ => target.toString
+      }
     }
     (ns: NodeSeq) =>
       ns flatMap { n =>
@@ -113,13 +119,16 @@ class Rdf extends DispatchSnippet with RDFaTemplates {
             case m if runMethod.isDefinedAt(m) => runMethod(m)
             case _ => ""
           }
+          
+          val origText = if (attrValue.isEmpty) "{}" else attrValue.text
+          
           // encode if attribute is used as URL
           val encode = replaceAttr.get.toLowerCase match {
-            case "href" | "src" => Helpers.urlEncode _
+            case "href" | "src" if origText != "{}" => Helpers.urlEncode _
             case _ => (v: String) => v
           }
-
-          val newAttrValue = "\\{([^}]*)\\}".r.replaceAllIn(attrValue.text, m => m.group(1) match {
+          
+          val newAttrValue = "\\{([^}]*)\\}".r.replaceAllIn(origText, m => m.group(1) match {
             case "" => encode(value)
             case "model" => {
               // insert current model into the attribute

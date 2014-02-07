@@ -25,6 +25,8 @@ import net.enilink.core.blobs.FileStore
 import java.io.File
 import java.nio.file.Files
 import java.nio.file.Path
+import net.liftweb.util.Props
+import java.nio.file.Paths
 
 /**
  * A registry for global variables which are shared throughout the application.
@@ -77,7 +79,8 @@ object Globals extends Factory {
   implicit val contextUser = new FactoryMaker(() => UNKNOWN_USER: IReference) {}
   implicit val UNKNOWN_USER: URI = SecurityUtil.UNKNOWN_USER
   implicit val fileStore = new FactoryMaker(() => {
-    new FileStore(Platform.getLocation.toFile.toPath.resolve("files"))
+    val path = Box.legacyNullTest(System.getProperty("net.enilink.filestore.path")) map (Paths.get(_)) openOr Platform.getLocation.toFile.toPath.resolve("files")
+    new FileStore(path)
   }) {}
 }
 

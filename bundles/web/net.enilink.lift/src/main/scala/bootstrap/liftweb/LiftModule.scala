@@ -124,6 +124,14 @@ class LiftModule extends Logger {
     // register REST service for file management
     LiftRules.dispatch.append(FileService)
 
+    // modify cache control for the FileService
+    val defaultHeaders = LiftRules.defaultHeaders
+    LiftRules.defaultHeaders = {
+      case (_, Req("files" :: _, _, _)) =>
+        List("Cache-Control" -> "private", "Pragma" -> "")
+      case other => defaultHeaders(other)
+    }
+
     // dispatch function for checking access to context model
     LiftRules.dispatch.append {
       case NotAllowedModel(m) => () => Full(ForbiddenResponse("You don't have permissions to access " + m.getURI + "."))
