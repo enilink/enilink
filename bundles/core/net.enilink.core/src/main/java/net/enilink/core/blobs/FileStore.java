@@ -154,10 +154,10 @@ public class FileStore {
 		Path dir = root.resolve(m.group(1));
 		String hashSuffix = m.group(2);
 		for (int i = 0; i < DIR_LEVELS - 1; i++) {
-			dir = dir.resolve(hashSuffix.substring(0, 2));
-			hashSuffix = hashSuffix.substring(2);
+			int start = i * 2;
+			dir = dir.resolve(hashSuffix.substring(start, start + 2));
 		}
-		return dir.resolve(hashSuffix);
+		return dir.resolve(key);
 	}
 
 	/**
