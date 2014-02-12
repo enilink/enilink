@@ -1,30 +1,30 @@
-package bootstrap.liftweb
+package net.enilink.web
 
 import net.enilink.lift.sitemap.Application
 import net.enilink.lift.util.Globals
 import net.enilink.web.rest.ELSRest
 import net.enilink.web.rest.ModelsRest
 import net.liftweb.common.Full
+import net.liftweb.common.StringFunc.strToStringFunc
+import net.liftweb.http.GetRequest
 import net.liftweb.http.LiftRules
 import net.liftweb.http.LiftRulesMocker.toLiftRules
+import net.liftweb.http.ParsePath
+import net.liftweb.http.RedirectResponse
 import net.liftweb.http.Req
+import net.liftweb.http.RewriteRequest
+import net.liftweb.http.RewriteResponse
 import net.liftweb.http.S
 import net.liftweb.http.auth.AuthRole
 import net.liftweb.http.auth.HttpBasicAuthentication
 import net.liftweb.http.auth.userRoles
 import net.liftweb.sitemap.Loc._
+import net.liftweb.sitemap.Loc
 import net.liftweb.sitemap.Loc.LinkText.strToLinkText
 import net.liftweb.sitemap.LocPath.stringToLocPath
 import net.liftweb.sitemap.Menu
 import net.liftweb.sitemap.Menu.Menuable.toMenu
 import net.liftweb.sitemap.SiteMap
-import net.liftweb.http.RedirectResponse
-import net.liftweb.sitemap.Loc
-import net.liftweb.http.RewriteRequest
-import net.liftweb.http.ParsePath
-import net.liftweb.http.RewriteResponse
-import net.liftweb.http.GetRequest
-import net.liftweb.common.Empty
 
 /**
  * A class that's instantiated early and run.  It allows the application
