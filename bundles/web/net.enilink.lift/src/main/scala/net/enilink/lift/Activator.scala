@@ -98,23 +98,30 @@ class Activator extends BundleActivator {
   }
 
   def start(context: BundleContext) {
-     Helpers.asDouble("0.0")
     this.context = context
     bundleTracker = new BundleTracker[LiftBundleConfig](context, Bundle.RESOLVED | Bundle.STARTING | Bundle.ACTIVE | Bundle.STOPPING, null) with Logger {
       override def addingBundle(bundle: Bundle, event: BundleEvent) = {
-        bundle.getHeaders.get("Lift-Packages") match {
-          case packageStr: String => {
-            val packages = packageStr.split("\\s,\\s")
-            if (!liftStarted) {
-              // add packages to search path
-              packages filterNot (_.isEmpty) foreach (LiftRules.addToPackages(_))
-            }
-            val config = new LiftBundleConfig(packages)
-            bootBundle(bundle, config)
-            config
+        val headers = bundle.getHeaders
+        val moduleStr = Box.legacyNullTest(headers.get("Lift-Module"))
+        val packageStr = Box.legacyNullTest(headers.get("Lift-Packages"))
+        if (moduleStr.isDefined || packageStr.isDefined) {
+          val packages = packageStr.map(_.split("\\s,\\s")) openOr Array.empty
+          if (!liftStarted) {
+            // add packages to search path
+            packages filterNot (_.isEmpty) foreach (LiftRules.addToPackages(_))
           }
-          case _ => null
-        }
+          val module = moduleStr flatMap { m =>
+            try {
+              val clazz = bundle loadClass m
+              Full(clazz.newInstance.asInstanceOf[AnyRef])
+            } catch {
+              case cnfe: ClassNotFoundException => error("Lift-Module class " + m + " of bundle " + bundle.getSymbolicName + " not found."); None
+            }
+          }
+          val config = new LiftBundleConfig(module, packages)
+          bootBundle(bundle, config)
+          config
+        } else null
       }
 
       override def removedBundle(bundle: Bundle, event: BundleEvent, config: LiftBundleConfig) {
@@ -122,19 +129,21 @@ class Activator extends BundleActivator {
       }
 
       def bootBundle(bundle: Bundle, config: LiftBundleConfig) {
-        try {
-          val clazz = bundle loadClass "bootstrap.liftweb.LiftModule"
-          val bootInvoker = ClassHelpers.createInvoker("boot", clazz.newInstance.asInstanceOf[AnyRef])
-          bootInvoker map (_())
-
-          val sitemapMutatorInvoker = ClassHelpers.createInvoker("sitemapMutator", clazz.newInstance.asInstanceOf[AnyRef])
-          sitemapMutatorInvoker map {
-            f => config.sitemapMutator = Full(() => f().get.asInstanceOf[SiteMap => SiteMap])
+        config.module map { m =>
+          try {
+            try {
+              ClassHelpers.createInvoker("boot", m) map (_())
+              ClassHelpers.createInvoker("sitemapMutator", m) map {
+                f => config.sitemapMutator = Full(() => f().get.asInstanceOf[SiteMap => SiteMap])
+              }
+              debug("Lift-powered bundle " + bundle.getSymbolicName + " booted.")
+            } catch {
+              case e: Throwable => error("Error while booting Lift-powered bundle " + bundle.getSymbolicName, e)
+            }
+          } catch {
+            case cnfe: ClassNotFoundException => // ignore
           }
-        } catch {
-          case cnfe: ClassNotFoundException => // ignore
         }
-        debug("Lift-powered bundle " + bundle.getSymbolicName + " booted.")
       }
     }
     bundleTracker.open
@@ -200,7 +209,7 @@ class Activator extends BundleActivator {
   /**
    * Configuration of a Lift-powered bundle.
    */
-  private case class LiftBundleConfig(packages: Seq[String]) {
+  private case class LiftBundleConfig(module: Box[AnyRef], packages: Seq[String]) {
     var sitemapMutator: Box[() => (SiteMap => SiteMap)] = None
     def mapResource(s: String) = s.replaceAll("//", "/")
   }

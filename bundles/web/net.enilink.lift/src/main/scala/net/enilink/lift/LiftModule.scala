@@ -1,22 +1,23 @@
-package bootstrap.liftweb
+package net.enilink.lift
 
 import java.security.AccessController
 import java.security.PrivilegedAction
 import java.util.Locale
 import scala.xml.NodeSeq
-import net.enilink.komma.model.IModel
-import net.enilink.komma.model.IObject
+import javax.security.auth.Subject
+import net.enilink.auth.UserPrincipal
+import net.enilink.auth.UserPrincipal
+import net.enilink.core.ModelSetManager
 import net.enilink.komma.core.BlankNode
 import net.enilink.komma.core.IUnitOfWork
 import net.enilink.komma.core.URIImpl
-import javax.security.auth.Subject
-import net.enilink.auth.UserPrincipal
-import net.enilink.core.ModelSetManager
+import net.enilink.komma.model.IModel
+import net.enilink.komma.model.IObject
+import net.enilink.lift.files.FileService
 import net.enilink.lift.html.Html5ParserWithRDFaPrefixes
 import net.enilink.lift.util.Globals
 import net.enilink.lift.util.NotAllowedModel
 import net.liftweb.common.Box
-import net.liftweb.common.Box.box2Option
 import net.liftweb.common.Empty
 import net.liftweb.common.Full
 import net.liftweb.common.Logger
@@ -24,22 +25,20 @@ import net.liftweb.http.ForbiddenResponse
 import net.liftweb.http.Html5Properties
 import net.liftweb.http.LiftRules
 import net.liftweb.http.LiftRulesMocker.toLiftRules
-import net.liftweb.http.NoticeType
 import net.liftweb.http.OnDiskFileParamHolder
 import net.liftweb.http.Req
 import net.liftweb.http.ResourceServer
 import net.liftweb.http.S
 import net.liftweb.http.js.jquery.JQueryArtifacts
 import net.liftweb.util.DynoVar
-import net.liftweb.util.Helpers.intToTimeSpanBuilder
 import net.liftweb.util.LRU
 import net.liftweb.util.LoanWrapper
-import net.liftweb.util.Maker.vToMake
 import net.liftweb.util.Props
 import net.liftweb.util.TemplateCache
+import net.liftweb.util.Helpers._
 import net.liftweb.util.Vendor.funcToVender
 import net.liftweb.util.Vendor.valToVender
-import net.enilink.lift.files.FileService
+import net.liftweb.http.NoticeType
 
 /**
  * A class that's instantiated early and run.  It allows the application

@@ -4,6 +4,7 @@ Bundle-Name: eniLINK Lift
 Bundle-SymbolicName: net.enilink.lift;singleton:=true
 Bundle-Version: 1.0.0.qualifier
 Eclipse-BuddyPolicy: dependent
+Lift-Module: net.enilink.lift.LiftModule
 Lift-Packages: net.enilink.lift
 Export-Package: net.enilink.lift.selection,
  net.enilink.lift.sitemap,
