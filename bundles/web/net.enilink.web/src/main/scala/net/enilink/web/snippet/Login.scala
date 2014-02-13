@@ -38,6 +38,8 @@ import org.eclipse.equinox.security.auth.ILoginContextListener
 import java.security.PrivilegedAction
 import org.eclipse.equinox.security.auth.ILoginContext
 import net.liftweb.http.SessionVar
+import net.enilink.lift.util.Globals
+import net.enilink.core.security.SecurityUtil
 
 trait SubjectHelper {
   val SUBJECT_KEY = "javax.security.auth.subject";
@@ -70,7 +72,10 @@ class Login extends SubjectHelper {
   val REQUIRE_LOGIN = false || "true"
     .equalsIgnoreCase(System.getProperty("enilink.loginrequired"))
 
-  val loginMethods = List(("eniLINK", "eniLINK"), ("IWU Share", "CMIS"), ("OpenID", "OpenID"))
+  val LOGIN_METHODS = List(("eniLINK", "eniLINK"), ("IWU Share", "CMIS"), ("OpenID", "OpenID"))
+
+  def isLinkIdentity = S.attr("mode").exists(_ == "link") && Globals.contextUser.vend != SecurityUtil.UNKNOWN_USER
+  def loginMethods = if (S.attr("mode").exists(_ == "link")) LOGIN_METHODS.tail else LOGIN_METHODS
 
   /**
    * Retrieve a HTTP param while omitting empty strings.
@@ -122,6 +127,8 @@ class Login extends SubjectHelper {
   }
 
   def render = {
+    val isRegister = S.attr("mode").exists(_ == "register") && Globals.contextUser.vend == SecurityUtil.UNKNOWN_USER
+
     val loginData = loadLoginData
     var currentMethod = S.param("method").orElse(Box.legacyNullTest(loginData.getProperty("method"))).flatMap {
       mParam => loginMethods.collectFirst { case m @ (_, name) if name == mParam => m }
@@ -129,7 +136,7 @@ class Login extends SubjectHelper {
     loginData.setProperty("method", currentMethod._2)
 
     var form: Seq[Node] = Nil
-    var buttons: Seq[Node] = <button class="btn btn-primary" type="submit">Sign in</button>
+    var buttons: Seq[Node] = <button class="btn btn-primary" type="submit">Sign { if (isRegister) "up" else "in" }</button>
 
     def hidden(name: String, value: String) { form ++= <input type="hidden" name={ name } value={ value }/> }
     def handleUserCallback(cb: Callback, field: String, hide: Boolean) = {
@@ -157,11 +164,10 @@ class Login extends SubjectHelper {
         }
       }
     }
-    val isRegister = S.attr("mode").exists(_ == "register")
 
     val session = S.session.get.httpSession.get
     val subject = getSubjectFromSession match {
-      case Full(s) if !isRegister => s // already logged in
+      case Full(s) if !(isRegister || isLinkIdentity) => s // already logged in
       case _ => {
         var redirectTo: String = null
         var requiresInput = false
@@ -211,7 +217,7 @@ class Login extends SubjectHelper {
                   case cb @ (_: TextInputCallback | _: NameCallback | _: PasswordCallback) => handleUserCallback(cb, name, !requiresInput)
                   // special callbacks introduced by enilink
                   case cb: RegisterCallback =>
-                    cb.setRegister(isRegister)
+                    cb.setRegister(isRegister || isLinkIdentity)
                   case cb: RedirectCallback =>
                     requiresInput = true
                     redirectTo = cb.getRedirectTo
@@ -221,7 +227,7 @@ class Login extends SubjectHelper {
                       // TODO maybe store these values in the session
                       // append field values as parameters
                       S.request.map(_._params.collect {
-                        case (k, v :: Nil) if k.startsWith("f-") => (k, v)
+                        case (k, v :: Nil) if k.startsWith("f-" + currentMethod._2) => (k, v)
                       } toList).openOr(Nil)
                     cb.setApplicationUrl(Helpers.appendParams(S.hostAndPath + S.uri, params))
                   case cb: ResponseCallback =>
@@ -266,7 +272,7 @@ class Login extends SubjectHelper {
       }
     }
     if (subject != null) {
-      if (isRegister) S.redirectTo(S.hostAndPath + S.uri)
+      if (isRegister) S.redirectTo(S.hostAndPath + "/static/profile")
       form ++= <div class="alert alert-success"><strong>You are logged in.</strong></div>
       buttons = SHtml.button("Logout", () => session.removeAttribute(SUBJECT_KEY), ("class", "btn btn-primary"))
     } else {
@@ -276,7 +282,11 @@ class Login extends SubjectHelper {
     var selectors = "form [action]" #> (S.contextPath + S.uri) &
       "#fields *" #> form &
       "#buttons *" #> buttons
-    if (isRegister) selectors &= "#login-form-label *" #> <xml:group><h2>Sign up with</h2>Use an external identity provider.</xml:group>
+    if (isRegister) {
+      selectors &= "#login-form-label *" #> <xml:group><h2>Sign up</h2>Select an identity provider.</xml:group>
+    } else if (isLinkIdentity) {
+      selectors &= "#login-form-label *" #> <xml:group><h2>Link other identity</h2>Select an identity provider.</xml:group>
+    }
     selectors
   }
 }
