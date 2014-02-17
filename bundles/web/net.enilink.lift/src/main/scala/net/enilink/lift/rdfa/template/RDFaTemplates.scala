@@ -40,9 +40,27 @@ case object Keep extends Operation
 case object RemoveInferred extends Operation
 case object Remove extends Operation
 
+object BinderHelpers {
+  final val Attribute = "^(?:data-(?:clear-)?)?(.+)".r
+
+  object RDFaRelAttribute {
+    def unapply(name: String) = name match {
+      case Attribute("rel" | "rev" | "property") => true
+      case _ => false
+    }
+  }
+
+  object RDFaResourceAttribute {
+    def unapply(name: String) = name match {
+      case Attribute("about" | "src" | "href" | "resource" | "content") => true
+      case _ => false
+    }
+  }
+}
+
+import BinderHelpers._
 trait Binder {
   type Result = (MetaData, RdfContext, Operation)
-  final val Attribute = "^(?:data-(?:clear-)?)?(.+)".r
 
   def shorten(uri: URI, currentCtx: RdfContext, elem: xml.Elem) = {
     val namespace = uri.namespace.toString
@@ -60,9 +78,9 @@ trait Binder {
   }
 
   def changeContext(ctx: RdfContext, attributeName: String, rdfValue: Any) = attributeName match {
-    case Attribute("rel" | "rev" | "property") =>
+    case RDFaRelAttribute() =>
       ctx.copy(predicate = rdfValue)
-    case Attribute("about" | "src" | "href" | "resource" | "content") =>
+    case RDFaResourceAttribute() =>
       ctx.copy(subject = rdfValue, predicate = null)
     case _ => ctx
   }
@@ -126,11 +144,11 @@ class VarBinder(val e: Elem, val attr: String, val name: String) extends RdfAttr
   }
 }
 
-class IriBinder(val e: Elem, val attr: String, val Iri: URI) extends RdfAttributeBinder {
+class IriBinder(val e: Elem, val attr: String, val iri: URI) extends RdfAttributeBinder {
   def bind(attrs: MetaData, ctx: RdfContext, bindings: IBindings[_], inferred: Boolean): Result = {
     // do also switch contexts for given constant CURIEs
     val rdfValue = ctx.subject match {
-      case e: IEntity => e.getEntityManager.find(Iri)
+      case e: IEntity => e.getEntityManager.find(iri)
       case _ => null
     }
     if (rdfValue != null) {
@@ -162,17 +180,19 @@ object TemplateNode extends RDFaUtils {
             case "inferred" if meta.key == "data-unless" => Some(new UnlessInferredBinder(meta.key))
             // fill variables for nodes of type <span about="?someVar">Data about some subject.</span>
             case variable(v) => if (!ignoreAttributes.contains(meta.key)) Some(new VarBinder(e, meta.key, v)) else None
-            case iriStr if !iriStr.isEmpty => {
-              try {
-                URIImpl.createURI(iriStr) match {
-                  // skip href attributes with values like "javascript:void(0)"
-                  case iri if meta.key.equalsIgnoreCase("href") && iri.scheme == "javascript" => None
-                  case iri if !iri.isRelative => Some(new IriBinder(e, meta.key, iri))
-                  case _ => None
+            case iriStr if !iriStr.isEmpty => meta.key match {
+              case RDFaRelAttribute() | RDFaResourceAttribute() =>
+                try {
+                  URIImpl.createURI(iriStr) match {
+                    // skip href attributes with values like "javascript:void(0)"
+                    case iri if meta.key.equalsIgnoreCase("href") && iri.scheme == "javascript" => None
+                    case iri if !iri.isRelative => Some(new IriBinder(e, meta.key, iri))
+                    case _ => None
+                  }
+                } catch {
+                  case iae: IllegalArgumentException => None // ignore, iriStr is an invalid IRI
                 }
-              } catch {
-                case iae: IllegalArgumentException => None // ignore, iriStr is an invalid IRI
-              }
+              case _ => None
             }
             case _ => None
           }

@@ -355,7 +355,7 @@ trait CURIE extends RDFNodeBuilder {
       if (bare && reserved.contains(token.toLowerCase)) Some(uri(xhv + token.toLowerCase))
       else {
         val (ref, refExpanded) = expandCurie(e, token)
-        expanded &= refExpanded
+        expanded |= refExpanded
         ref
       }
     }
