@@ -45,7 +45,6 @@ class Register extends SubjectHelper {
     getSubjectFromSession match {
       case Full(s) if currentUser == Globals.UNKNOWN_USER => {
         var form: Seq[Node] = Nil
-        var buttons: Seq[Node] = <button class="btn btn-primary" type="submit">Sign up</button>
 
         val username = S.param("f-username")
         if (username.isDefined) username.flatMap(createUser(s, _)) match {
@@ -59,7 +58,7 @@ class Register extends SubjectHelper {
           "#login-form-div [data-lift!]" #> "login" &
             "form [action]" #> (S.contextPath + S.uri) &
             "#fields *" #> form &
-            "#buttons *" #> buttons &
+            "#buttons *" #> <button class="btn btn-primary" type="submit">Sign up</button> &
             "#login-form-label *" #> <h2>Finish the registration</h2>
 
         // reuse the existing loginform template
@@ -72,6 +71,7 @@ class Register extends SubjectHelper {
         Globals.contextUser.session.remove
         S.redirectTo("/static/profile")
         ClearNodes
+      case _ if currentUser != Globals.UNKNOWN_USER => "*" #> <div data-lift="embed?what=loginform;mode=link"></div>
       case _ => "*" #> <div data-lift="embed?what=loginform;mode=register"></div>
     }
   }

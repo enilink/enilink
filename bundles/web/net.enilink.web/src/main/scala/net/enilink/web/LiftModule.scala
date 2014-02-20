@@ -52,7 +52,10 @@ class LiftModule {
     SiteMap.sitemapMutator { Map.empty }(SiteMap.addMenusAtEndMutator(entries))
   }
 
-  def logout() { S.session.map(_.httpSession.map(_.removeAttribute("javax.security.auth.subject"))) }
+  def logout() { 
+    S.session.map(_.httpSession.map(_.removeAttribute("javax.security.auth.subject"))) 
+    Globals.contextUser.session.remove
+  }
 
   def boot {
     LiftRules.httpAuthProtectedResource.prepend {
