@@ -111,6 +111,7 @@ object ModelsRest extends RestHelper {
   }
 
   protected lazy val RdfGet = new TestGet with RdfTest
+  lazy val hasWriter = new QualifiedName(ModelPlugin.PLUGIN_ID, "hasWriter")
 
   /**
    * Serialize and return RDF data according to the requested content type.
@@ -120,7 +121,7 @@ object ModelsRest extends RestHelper {
       model match {
         case NotAllowedModel(_) => Full(ForbiddenResponse("You don't have permissions to access " + model.getURI + "."))
         case _ => getResponseContentType(r) map (_.getDefaultDescription) match {
-          case Some(cd) =>
+          case Some(cd) if "true".equals(String.valueOf(cd.getProperty(hasWriter))) =>
             val baos = new ByteArrayOutputStream
             model.save(baos, Map(classOf[IContentDescription] -> cd))
             Full(new RdfResponse(baos.toByteArray, cd, Nil, 200))
