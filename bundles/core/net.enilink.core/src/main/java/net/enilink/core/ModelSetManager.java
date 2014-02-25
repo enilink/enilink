@@ -6,41 +6,12 @@ import java.util.Locale;
 import javax.security.auth.Subject;
 
 import net.enilink.auth.AuthModule;
+import net.enilink.composition.properties.PropertySetFactory;
 import net.enilink.core.security.ISecureEntity;
 import net.enilink.core.security.SecureEntitySupport;
 import net.enilink.core.security.SecureModelSetSupport;
 import net.enilink.core.security.SecurePropertySetFactory;
 import net.enilink.core.security.SecurityUtil;
-import net.enilink.vocab.acl.ACL;
-import net.enilink.vocab.acl.Authorization;
-import net.enilink.vocab.foaf.Agent;
-import net.enilink.vocab.foaf.FOAF;
-
-import org.eclipse.core.resources.IProject;
-import org.eclipse.core.resources.ResourcesPlugin;
-
-import net.enilink.composition.properties.PropertySetFactory;
-
-import org.osgi.framework.BundleContext;
-import org.osgi.framework.InvalidSyntaxException;
-import org.osgi.framework.ServiceReference;
-
-import com.google.inject.AbstractModule;
-import com.google.inject.Guice;
-import com.google.inject.Injector;
-import com.google.inject.Module;
-import com.google.inject.util.Modules;
-
-import net.enilink.vocab.rdf.RDF;
-import net.enilink.vocab.rdfs.RDFS;
-import net.enilink.komma.model.IModel;
-import net.enilink.komma.model.IModelSet;
-import net.enilink.komma.model.IModelSetFactory;
-import net.enilink.komma.model.MODELS;
-import net.enilink.komma.model.ModelPlugin;
-import net.enilink.komma.model.ModelSetModule;
-import net.enilink.komma.model.base.IURIMapRule;
-import net.enilink.komma.model.base.SimpleURIMapRule;
 import net.enilink.komma.core.IEntityManager;
 import net.enilink.komma.core.IGraph;
 import net.enilink.komma.core.IProvider;
@@ -51,10 +22,36 @@ import net.enilink.komma.core.StatementPattern;
 import net.enilink.komma.core.URI;
 import net.enilink.komma.core.URIImpl;
 import net.enilink.komma.em.util.UnitOfWork;
+import net.enilink.komma.model.IModel;
+import net.enilink.komma.model.IModelSet;
+import net.enilink.komma.model.IModelSetFactory;
+import net.enilink.komma.model.MODELS;
+import net.enilink.komma.model.ModelPlugin;
+import net.enilink.komma.model.ModelSetModule;
+import net.enilink.komma.model.base.IURIMapRule;
+import net.enilink.komma.model.base.SimpleURIMapRule;
 import net.enilink.komma.workbench.IProjectModelSet;
 import net.enilink.komma.workbench.ProjectModelSetSupport;
+import net.enilink.vocab.acl.ACL;
+import net.enilink.vocab.acl.Authorization;
+import net.enilink.vocab.foaf.Agent;
+import net.enilink.vocab.foaf.FOAF;
+import net.enilink.vocab.rdf.RDF;
+import net.enilink.vocab.rdfs.RDFS;
 
-public class ModelSetManager {
+import org.eclipse.core.resources.IProject;
+import org.eclipse.core.resources.ResourcesPlugin;
+import org.osgi.framework.BundleContext;
+import org.osgi.framework.InvalidSyntaxException;
+import org.osgi.framework.ServiceReference;
+
+import com.google.inject.AbstractModule;
+import com.google.inject.Guice;
+import com.google.inject.Injector;
+import com.google.inject.Module;
+import com.google.inject.util.Modules;
+
+class ModelSetManager {
 	public static final ModelSetManager INSTANCE = new ModelSetManager();
 	public static final String REPOSITORY_TYPE;
 	static {
@@ -314,9 +311,9 @@ public class ModelSetManager {
 								Authorization auth = em.createNamed(URIImpl
 										.createURI("urn:auth:anonymousAll"),
 										Authorization.class);
-								auth.setAclAccessToClass(em
-										.find(MODELS.TYPE_MODEL,
-												net.enilink.vocab.rdfs.Class.class));
+								auth.setAclAccessToClass(em.find(
+										MODELS.TYPE_MODEL,
+										net.enilink.vocab.rdfs.Class.class));
 								auth.setAclAgent(em.find(
 										SecurityUtil.UNKNOWN_USER, Agent.class));
 								auth.getAclMode()
@@ -343,7 +340,7 @@ public class ModelSetManager {
 		}
 		return modelSet;
 	}
-	
+
 	public synchronized void shutdown() {
 		if (modelSet != null) {
 			modelSet.dispose();

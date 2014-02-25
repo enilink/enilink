@@ -18,26 +18,30 @@ import javax.security.auth.spi.LoginModule;
 
 import net.enilink.auth.AccountHelper;
 import net.enilink.auth.UserPrincipal;
-import net.enilink.core.ModelSetManager;
-import net.enilink.security.callbacks.RegisterCallback;
-import net.enilink.vocab.auth.AUTH;
-
-import org.apache.commons.codec.binary.Base64;
-
 import net.enilink.commons.iterator.IExtendedIterator;
-import net.enilink.vocab.rdfs.Resource;
+import net.enilink.core.Activator;
 import net.enilink.komma.core.IEntity;
 import net.enilink.komma.core.IEntityManager;
 import net.enilink.komma.core.IQuery;
 import net.enilink.komma.core.URI;
 import net.enilink.komma.core.URIImpl;
 import net.enilink.komma.em.concepts.IResource;
+import net.enilink.komma.model.IModelSet;
+import net.enilink.security.callbacks.RegisterCallback;
+import net.enilink.vocab.auth.AUTH;
+import net.enilink.vocab.rdfs.Resource;
+
+import org.apache.commons.codec.binary.Base64;
+import org.osgi.framework.ServiceReference;
 
 public class EnilinkLoginModule implements LoginModule {
 	private Subject subject;
 	private CallbackHandler callbackHandler;
 	private boolean standalone;
 	private UserPrincipal userPrincipal;
+
+	private IEntityManager entityManager;
+	private ServiceReference<IModelSet> modelSetRef;
 
 	@Override
 	public void initialize(Subject subject, CallbackHandler callbackHandler,
@@ -58,6 +62,29 @@ public class EnilinkLoginModule implements LoginModule {
 			return false;
 		}
 		return registerCallback.isRegister();
+	}
+
+	protected void releaseEntityManager() {
+		if (entityManager != null) {
+			Activator.getContext().ungetService(modelSetRef);
+			entityManager = null;
+			modelSetRef = null;
+		}
+	}
+
+	protected IEntityManager getEntityManager() throws LoginException {
+		if (entityManager != null) {
+			return entityManager;
+		}
+		modelSetRef = Activator.getContext().getServiceReference(
+				IModelSet.class);
+		if (modelSetRef != null) {
+			IModelSet modelSet = Activator.getContext().getService(modelSetRef);
+			if (modelSet != null) {
+				return entityManager = modelSet.getMetaDataManager();
+			}
+		}
+		throw new LoginException("Unable to connect to the user database.");
 	}
 
 	@Override
@@ -103,30 +130,35 @@ public class EnilinkLoginModule implements LoginModule {
 			}
 
 			URI userId;
-			IEntityManager em = ModelSetManager.INSTANCE.getModelSet()
-					.getMetaDataManager();
-			if (isRegister) {
-				try {
-					IEntity user = AccountHelper.createUser(em, username);
-					user.as(IResource.class).addProperty(
-							URIImpl.createURI("urn:enilink:password"),
-							encodedPassword);
-					userId = user.getURI();
-				} catch (IllegalArgumentException iae) {
-					throw new LoginException(
-							"A user with this name already exists.");
+
+			IEntityManager em = getEntityManager();
+			try {
+				if (isRegister) {
+					try {
+						IEntity user = AccountHelper.createUser(em, username);
+						user.as(IResource.class).addProperty(
+								URIImpl.createURI("urn:enilink:password"),
+								encodedPassword);
+						userId = user.getURI();
+					} catch (IllegalArgumentException iae) {
+						throw new LoginException(
+								"A user with this name already exists.");
+					}
+				} else {
+					userId = AccountHelper.getUserURI(username);
+					boolean found = em
+							.createQuery(
+									"ask { ?user <urn:enilink:password> ?password }")
+							.setParameter("user", userId)
+							.setParameter("password", encodedPassword)
+							.getBooleanResult();
+					if (!found) {
+						throw new LoginException(
+								"Unknown user or wrong password.");
+					}
 				}
-			} else {
-				userId = AccountHelper.getUserURI(username);
-				boolean found = em
-						.createQuery(
-								"ask { ?user <urn:enilink:password> ?password }")
-						.setParameter("user", userId)
-						.setParameter("password", encodedPassword)
-						.getBooleanResult();
-				if (!found) {
-					throw new LoginException("Unknown user or wrong password.");
-				}
+			} finally {
+				releaseEntityManager();
 			}
 			userPrincipal = new UserPrincipal(userId);
 			return true;
@@ -136,58 +168,61 @@ public class EnilinkLoginModule implements LoginModule {
 
 	@Override
 	public boolean commit() throws LoginException {
-		if (userPrincipal == null) {
-			List<URI> externalIds = AccountHelper.getExternalIds(subject);
-			if (!externalIds.isEmpty()) {
-				IEntityManager em = ModelSetManager.INSTANCE.getModelSet()
-						.getMetaDataManager();
-				URI userId = null;
-				Iterator<UserPrincipal> principals = subject.getPrincipals(
-						UserPrincipal.class).iterator();
-				if (principals.hasNext()) {
-					userId = principals.next().getId();
-				}
-				if (userId == null) {
-					StringBuilder querySb = new StringBuilder(
-							"select ?user where {\n");
-					for (int i = 0; i < externalIds.size(); i++) {
-						querySb.append("\t{ ?user ?externalIdProp ?id")
-								.append(i).append(" }\n");
-						if (i < externalIds.size() - 1) {
-							querySb.append("\tunion\n");
+		try {
+			if (userPrincipal == null) {
+				List<URI> externalIds = AccountHelper.getExternalIds(subject);
+				if (!externalIds.isEmpty()) {
+					URI userId = null;
+					Iterator<UserPrincipal> principals = subject.getPrincipals(
+							UserPrincipal.class).iterator();
+					if (principals.hasNext()) {
+						userId = principals.next().getId();
+					}
+					if (userId == null) {
+						StringBuilder querySb = new StringBuilder(
+								"select ?user where {\n");
+						for (int i = 0; i < externalIds.size(); i++) {
+							querySb.append("\t{ ?user ?externalIdProp ?id")
+									.append(i).append(" }\n");
+							if (i < externalIds.size() - 1) {
+								querySb.append("\tunion\n");
+							}
+						}
+						querySb.append("\tfilter isIRI(?user)\n");
+						querySb.append("} limit 1");
+
+						IQuery<?> query = getEntityManager().createQuery(
+								querySb.toString());
+						int i = 0;
+						for (Iterator<URI> it = externalIds.iterator(); it
+								.hasNext(); i++) {
+							query.setParameter("id" + i, it.next());
+						}
+						query.setParameter("externalIdProp",
+								AUTH.PROPERTY_EXTERNALID);
+						IExtendedIterator<Resource> result = query
+								.evaluate(Resource.class);
+						if (result.hasNext()) {
+							userId = result.next().getURI();
 						}
 					}
-					querySb.append("\tfilter isIRI(?user)\n");
-					querySb.append("} limit 1");
-
-					IQuery<?> query = em.createQuery(querySb.toString());
-					int i = 0;
-					for (Iterator<URI> it = externalIds.iterator(); it
-							.hasNext(); i++) {
-						query.setParameter("id" + i, it.next());
+					boolean isRegister = isRegister();
+					if (!isRegister && userId == null) {
+						throw new LoginException("Unknown user.");
 					}
-					query.setParameter("externalIdProp",
-							AUTH.PROPERTY_EXTERNALID);
-					IExtendedIterator<Resource> result = query
-							.evaluate(Resource.class);
-					if (result.hasNext()) {
-						userId = result.next().getURI();
+					if (userId != null) {
+						userPrincipal = new UserPrincipal(userId);
 					}
-				}
-				boolean isRegister = isRegister();
-				if (!isRegister && userId == null) {
-					throw new LoginException("Unknown user.");
-				}
-				if (userId != null) {
-					userPrincipal = new UserPrincipal(userId);
 				}
 			}
+			if (userPrincipal != null) {
+				subject.getPrincipals().add(userPrincipal);
+				userPrincipal = null;
+			}
+			return true;
+		} finally {
+			releaseEntityManager();
 		}
-		if (userPrincipal != null) {
-			subject.getPrincipals().add(userPrincipal);
-			userPrincipal = null;
-		}
-		return true;
 	}
 
 	@Override

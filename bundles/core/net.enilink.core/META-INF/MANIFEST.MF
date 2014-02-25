@@ -14,10 +14,11 @@ Bundle-ActivationPolicy: lazy
 Import-Package: com.google.inject,
  com.google.inject.binder,
  com.google.inject.util,
+ net.enilink.composition.properties.komma,
  org.aopalliance.intercept,
  org.apache.commons.codec.binary,
  org.eclipse.core.resources,
- net.enilink.composition.properties.komma
+ org.slf4j
 Export-Package: net.enilink.core,
  net.enilink.core.blobs,
  net.enilink.core.security
