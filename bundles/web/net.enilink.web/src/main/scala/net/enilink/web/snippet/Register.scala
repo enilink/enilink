@@ -22,7 +22,7 @@ import net.liftweb.util.ClearNodes
 import net.enilink.vocab.rdf.RDF
 
 class Register extends SubjectHelper {
-  def getEntityManager = ModelSetManager.INSTANCE.getModelSet.getMetaDataManager
+  def getEntityManager = Globals.contextModelSet.vend.map(_.getMetaDataManager) openOrThrowException ("Unable to retrieve the model set")
 
   def createUser(s: Subject, name: String): Box[String] = {
     val em = getEntityManager

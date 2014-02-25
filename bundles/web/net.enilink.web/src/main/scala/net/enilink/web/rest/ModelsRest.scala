@@ -103,8 +103,7 @@ object ModelsRest extends RestHelper {
 
   def getUri(r: Req) = Globals.contextModel.vend.dmap(URIImpl.createURI(r.hostAndPath + r.uri): URI)(_.getURI)
 
-  def getModel(modelUri: URI) = {
-    val modelSet = ModelSetManager.INSTANCE.getModelSet
+  def getModel(modelUri: URI) = Globals.contextModelSet.vend flatMap { modelSet =>
     Box.legacyNullTest(modelSet.getModel(modelUri, false)) or {
       if (modelUri.fileExtension != null) Box.legacyNullTest(modelSet.getModel(modelUri.trimFileExtension, false)) else Empty
     }
