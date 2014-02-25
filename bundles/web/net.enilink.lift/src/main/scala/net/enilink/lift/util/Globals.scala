@@ -27,11 +27,18 @@ import java.nio.file.Files
 import java.nio.file.Path
 import net.liftweb.util.Props
 import java.nio.file.Paths
+import net.enilink.komma.model.IModelSet
+import org.osgi.util.tracker.ServiceTracker
+import net.enilink.lift.Activator
+import org.osgi.framework.FrameworkUtil
 
 /**
  * A registry for global variables which are shared throughout the application.
  */
 object Globals extends Factory {
+  private val modelSetTracker = new ServiceTracker[IModelSet, IModelSet](FrameworkUtil.getBundle(getClass).getBundleContext, classOf[IModelSet], null)
+  modelSetTracker.open
+
   implicit val time = new FactoryMaker(Helpers.now _) {}
   implicit val application = new FactoryMaker(() => Empty: Box[Loc[_]]) {}
   application.default.set(() => {
@@ -51,6 +58,7 @@ object Globals extends Factory {
       app
     }
   })
+
   implicit val applicationPath = new FactoryMaker(() => {
     S.getRequestHeader("X-Forwarded-For") match {
       // this is a virtual host hence application is at "/"
@@ -61,7 +69,18 @@ object Globals extends Factory {
       })
     }
   }) {}
+
+  implicit val contextModelSet = new FactoryMaker(() => Empty: Box[IModelSet]) {}
+  contextModelSet.default.set(() => {
+    contextModel.vend.map(_.getModelSet) or Box.legacyNullTest(modelSetTracker.getService) or {
+      // refresh service tracker
+      modelSetTracker.close; modelSetTracker.open
+      Box.legacyNullTest(modelSetTracker.getService)
+    }
+  })
+
   implicit val contextModel = new FactoryMaker(() => Empty: Box[IModel]) {}
+
   implicit val contextResource = new FactoryMaker(() => {
     Platform.getExtensionRegistry.getExtensionPoint("net.enilink.lift.selectionProviders").getConfigurationElements.flatMap {
       element =>
@@ -76,8 +95,11 @@ object Globals extends Factory {
       case _ => Empty
     }
   }: Box[AnyRef]) {}
+
   implicit val contextUser = new FactoryMaker(() => UNKNOWN_USER: IReference) {}
+
   implicit val UNKNOWN_USER: URI = SecurityUtil.UNKNOWN_USER
+
   implicit val fileStore = new FactoryMaker(() => {
     val path = Box.legacyNullTest(System.getProperty("net.enilink.filestore.path")) map (Paths.get(_)) openOr Platform.getLocation.toFile.toPath.resolve("files")
     new FileStore(path)

@@ -156,77 +156,79 @@ class LiftModule extends Logger {
         val resourceName = S.param("resource")
         val modelName = S.param("model")
 
-        var modelSet = ModelSetManager.INSTANCE.getModelSet
-        var unitsOfWork: Seq[IUnitOfWork] = Nil
-        // start a unit of work for the current model set
-        var uow = modelSet.getUnitOfWork
-        unitsOfWork = unitsOfWork ++ List(uow)
-        uow.begin
-        try {
-          var model: Box[IModel] = Empty
-          if (modelName.isDefined) {
-            // try to get the model from the model set
-            try {
-              val modelUri = URIImpl.createURI(modelName.get)
-              model = Box.legacyNullTest(modelSet.getModel(modelUri, false))
-            } catch {
-              case e: Exception => error(e)
-            }
-          }
-
-          var resource: Box[AnyRef] = Empty
-          if (model.isEmpty) {
-            // try to get the model from the global selection (e.g. from a RAP instance)
-            Globals.contextResource.vend.map(_ match {
-              case selected: IObject => {
-                resource = Full(selected)
-                model = Full(selected.getModel)
-              }
-              case other: AnyRef => resource = Full(other)
-              case _ => // leave resource empty
-            })
-          } else if (resourceName.isDefined) {
-            // a resource was passed as parameter, replace the global selection with this resource
-            val bnode = "^(_:.*)".r
-            resourceName.get match {
-              case bnode(id) => resource = Full(model.get.resolve(new BlankNode(id)))
-              case _ => try {
-                val resourceUri = URIImpl.createURI(resourceName.get)
-                resource = Full(model.get.resolve(resourceUri))
+        Globals.contextModelSet.vend.map { modelSet =>
+          var targetModelSet = modelSet
+          var unitsOfWork: Seq[IUnitOfWork] = Nil
+          // start a unit of work for the current model set
+          var uow = targetModelSet.getUnitOfWork
+          unitsOfWork = unitsOfWork ++ List(uow)
+          uow.begin
+          try {
+            var model: Box[IModel] = Empty
+            if (modelName.isDefined) {
+              // try to get the model from the model set
+              try {
+                val modelUri = URIImpl.createURI(modelName.get)
+                model = Box.legacyNullTest(targetModelSet.getModel(modelUri, false))
               } catch {
-                case e: Exception =>
+                case e: Exception => error(e)
               }
             }
-          }
-          if (resource.isDefined) {
-            Globals.contextResource.request.set(resource)
-          }
-          // fallback - use corresponding ontology as resource
-          if (model.isDefined && resource.isEmpty) {
-            resource = Full(model.get.getOntology)
-          }
-          if (model.isDefined) {
-            Globals.contextModel.request.set(model)
-            if (modelSet != model.get.getModelSet) {
-              modelSet = model.get.getModelSet
-              var uow = modelSet.getUnitOfWork
-              unitsOfWork = unitsOfWork ++ List(uow)
-              uow.begin
+
+            var resource: Box[AnyRef] = Empty
+            if (model.isEmpty) {
+              // try to get the model from the global selection (e.g. from a RAP instance)
+              Globals.contextResource.vend.map(_ match {
+                case selected: IObject => {
+                  resource = Full(selected)
+                  model = Full(selected.getModel)
+                }
+                case other: AnyRef => resource = Full(other)
+                case _ => // leave resource empty
+              })
+            } else if (resourceName.isDefined) {
+              // a resource was passed as parameter, replace the global selection with this resource
+              val bnode = "^(_:.*)".r
+              resourceName.get match {
+                case bnode(id) => resource = Full(model.get.resolve(new BlankNode(id)))
+                case _ => try {
+                  val resourceUri = URIImpl.createURI(resourceName.get)
+                  resource = Full(model.get.resolve(resourceUri))
+                } catch {
+                  case e: Exception =>
+                }
+              }
             }
-          }
-          Globals.contextResource.doWith(resource) {
-            Globals.contextModel.doWith(model) {
-              S.session.flatMap(_.httpSession.map(_.attribute("javax.security.auth.subject")) match {
-                case Full(s: Subject) => Full(Subject.doAs(s, new PrivilegedAction[T] {
-                  override def run = f
-                }))
-                case _ => Full(f)
-              }).openOrThrowException("Unexpected error.")
+            if (resource.isDefined) {
+              Globals.contextResource.request.set(resource)
             }
+            // fallback - use corresponding ontology as resource
+            if (model.isDefined && resource.isEmpty) {
+              resource = Full(model.get.getOntology)
+            }
+            if (model.isDefined) {
+              Globals.contextModel.request.set(model)
+              if (modelSet != model.get.getModelSet) {
+                targetModelSet = model.get.getModelSet
+                var uow = targetModelSet.getUnitOfWork
+                unitsOfWork = unitsOfWork ++ List(uow)
+                uow.begin
+              }
+            }
+            Globals.contextResource.doWith(resource) {
+              Globals.contextModel.doWith(model) {
+                S.session.flatMap(_.httpSession.map(_.attribute("javax.security.auth.subject")) match {
+                  case Full(s: Subject) => Full(Subject.doAs(s, new PrivilegedAction[T] {
+                    override def run = f
+                  }))
+                  case _ => Full(f)
+                }).openOrThrowException("Unexpected error.")
+              }
+            }
+          } finally {
+            for (uow <- unitsOfWork) uow.end
           }
-        } finally {
-          for (uow <- unitsOfWork) uow.end
-        }
+        } openOr f
       }
     })
   }

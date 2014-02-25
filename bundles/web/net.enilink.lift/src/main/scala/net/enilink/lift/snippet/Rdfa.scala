@@ -119,9 +119,10 @@ object Search extends SparqlHelper with SparqlExtractor {
         param = (ns \ "@data-param").text
         searchString = Full(ns \ "@data-value" text).filter(_.nonEmpty) or S.param(param).filter(_.nonEmpty)
         searchString.dmap(Nil: NodeSeq) { searchStr =>
-          val em = Globals.contextModel.vend.dmap(ModelSetManager.INSTANCE.getModelSet.getMetaDataManager)(_.getManager)
-          fragment = Full(em.getFactory.getDialect.fullTextSearch(bindingNames, IDialect.DEFAULT, searchStr))
-          <div data-pattern={ fragment.dmap("")(_.toString) } class="clearable"></div>
+          (Globals.contextModel.vend.map(_.getManager) or Globals.contextModelSet.vend.map(_.getMetaDataManager)) map { em =>
+            fragment = Full(em.getFactory.getDialect.fullTextSearch(bindingNames, IDialect.DEFAULT, searchStr))
+            <div data-pattern={ fragment.dmap("")(_.toString) } class="clearable"></div>
+          } openOr Nil
         }
       } else ns
     }

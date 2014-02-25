@@ -7,7 +7,6 @@ import scala.xml.NodeSeq
 import scala.xml.NodeSeq.seqToNodeSeq
 import scala.xml.UnprefixedAttribute
 import net.enilink.komma.core._
-import net.enilink.core.ModelSetManager
 import net.enilink.lift.rdfa.template.RDFaTemplates
 import net.enilink.lift.util.Globals
 import net.liftweb.common.Full
@@ -72,9 +71,9 @@ trait SparqlHelper {
     CurrentContext.value match {
       case Full(c) if !isMetaQuery => (f) => CurrentContext.withValue(Full(c)) { f }
       case _ =>
-        val target = if (isMetaQuery) ModelSetManager.INSTANCE.getModelSet else Globals.contextResource.vend.openOr(null)
+        val target = if (isMetaQuery) Globals.contextModelSet.vend else Globals.contextResource.vend
         target match {
-          case resource: Any => (f) => CurrentContext.withValue(Full(new RdfContext(resource, null))) { f }
+          case Full(resource) => (f) => CurrentContext.withValue(Full(new RdfContext(resource, null))) { f }
           case _ => (f) => f
         }
     }
