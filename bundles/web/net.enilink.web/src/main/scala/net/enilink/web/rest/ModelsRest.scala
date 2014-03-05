@@ -9,7 +9,7 @@ import org.eclipse.core.runtime.content.IContentDescription
 import org.eclipse.core.runtime.content.IContentType
 import net.enilink.komma.model.ModelPlugin
 import net.enilink.komma.core.URI
-import net.enilink.komma.core.URIImpl
+import net.enilink.komma.core.URIs
 import net.enilink.core.ModelSetManager
 import net.enilink.lift.util.Globals
 import net.enilink.lift.util.NotAllowedModel
@@ -101,7 +101,7 @@ object ModelsRest extends RestHelper {
     }
   }
 
-  def getUri(r: Req) = Globals.contextModel.vend.dmap(URIImpl.createURI(r.hostAndPath + r.uri): URI)(_.getURI)
+  def getUri(r: Req) = Globals.contextModel.vend.dmap(URIs.createURI(r.hostAndPath + r.uri): URI)(_.getURI)
 
   def getModel(modelUri: URI) = Globals.contextModelSet.vend flatMap { modelSet =>
     Box.legacyNullTest(modelSet.getModel(modelUri, false)) or {

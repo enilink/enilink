@@ -11,7 +11,7 @@ import net.enilink.komma.model.ModelUtil
 import net.enilink.komma.core.IEntity
 import net.enilink.komma.core.IReference
 import net.enilink.komma.core.URI
-import net.enilink.komma.core.URIImpl
+import net.enilink.komma.core.URIs
 import net.enilink.lift.util.Globals
 import net.liftweb.http.S
 import net.liftweb.http.rest.RestHelper
@@ -20,14 +20,14 @@ import net.enilink.vocab.rdfs.RDFS
 
 object ELSRest extends RestHelper {
   object MFG {
-    val NS_URI = URIImpl.createURI("http://enilink.net/vocab/manufacturing#")
+    val NS_URI = URIs.createURI("http://enilink.net/vocab/manufacturing#")
     val REQUIRES = NS_URI.appendLocalPart("requires")
     val PROCESS = NS_URI.appendLocalPart("Process")
     val RESOURCE = NS_URI.appendLocalPart("Resource")
   }
 
   implicit def referenceToString(ref: IReference) = if (ref != null) ref.toString else ""
-  implicit def stringToUri(uriStr: String) = URIImpl.createURI(uriStr)
+  implicit def stringToUri(uriStr: String) = URIs.createURI(uriStr)
 
   override def defaultGetAsXml = true
 
