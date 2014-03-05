@@ -16,7 +16,7 @@ import net.liftweb.http.Templates
 import net.liftweb.common.Full
 import net.liftweb.http.S
 import net.enilink.komma.core.IReference
-import net.enilink.komma.core.URIImpl
+import net.enilink.komma.core.URIs
 import scala.util.control.Exception._
 import net.liftweb.http.js.JE._
 import net.liftweb.http.S.SFuncHolder

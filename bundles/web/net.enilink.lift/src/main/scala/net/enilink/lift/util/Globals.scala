@@ -11,7 +11,7 @@ import net.liftweb.common._
 import net.enilink.komma.core.IReference
 import net.liftweb.http.S
 import javax.security.auth.Subject
-import net.enilink.komma.core.URIImpl
+import net.enilink.komma.core.URIs
 import net.enilink.komma.core.URI
 import net.enilink.core.security.ISecureModelSet
 import net.liftweb.http.Req

@@ -10,7 +10,7 @@ import net.enilink.auth.UserPrincipal
 import net.enilink.core.ModelSetManager
 import net.enilink.komma.core.BlankNode
 import net.enilink.komma.core.IUnitOfWork
-import net.enilink.komma.core.URIImpl
+import net.enilink.komma.core.URIs
 import net.enilink.komma.model.IModel
 import net.enilink.komma.model.IObject
 import net.enilink.lift.files.FileService
@@ -39,6 +39,7 @@ import net.liftweb.util.Helpers._
 import net.liftweb.util.Vendor.funcToVender
 import net.liftweb.util.Vendor.valToVender
 import net.liftweb.http.NoticeType
+import net.enilink.komma.core.URIs
 
 /**
  * A class that's instantiated early and run.  It allows the application
@@ -168,7 +169,7 @@ class LiftModule extends Logger {
             if (modelName.isDefined) {
               // try to get the model from the model set
               try {
-                val modelUri = URIImpl.createURI(modelName.get)
+                val modelUri = URIs.createURI(modelName.get)
                 model = Box.legacyNullTest(targetModelSet.getModel(modelUri, false))
               } catch {
                 case e: Exception => error(e)
@@ -192,7 +193,7 @@ class LiftModule extends Logger {
               resourceName.get match {
                 case bnode(id) => resource = Full(model.get.resolve(new BlankNode(id)))
                 case _ => try {
-                  val resourceUri = URIImpl.createURI(resourceName.get)
+                  val resourceUri = URIs.createURI(resourceName.get)
                   resource = Full(model.get.resolve(resourceUri))
                 } catch {
                   case e: Exception =>

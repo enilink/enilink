@@ -42,7 +42,7 @@ trait SparqlHelper {
     params flatMap {
       case (key, value: String) if value.startsWith("_:") => Some((key, new BlankNode(value)))
       case (key, value) =>
-        catching(classOf[IllegalArgumentException]) opt { (key, URIImpl.createURI(String.valueOf(value))) } filter (!_._2.isRelative)
+        catching(classOf[IllegalArgumentException]) opt { (key, URIs.createURI(String.valueOf(value))) } filter (!_._2.isRelative)
     }
   }
 

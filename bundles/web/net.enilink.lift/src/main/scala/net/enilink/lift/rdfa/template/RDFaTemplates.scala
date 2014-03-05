@@ -20,7 +20,7 @@ import scala.xml.Null
 import net.enilink.lift.snippet.RdfContext
 import net.enilink.komma.core.URI
 import net.enilink.komma.core.IEntity
-import net.enilink.komma.core.URIImpl
+import net.enilink.komma.core.URIs
 import scala.xml.NamespaceBinding
 import scala.collection.mutable.LinkedHashMap
 import scala.xml.Node
@@ -183,7 +183,7 @@ object TemplateNode extends RDFaUtils {
             case iriStr if !iriStr.isEmpty => meta.key match {
               case RDFaRelAttribute() | RDFaResourceAttribute() =>
                 try {
-                  URIImpl.createURI(iriStr) match {
+                  URIs.createURI(iriStr) match {
                     // skip href attributes with values like "javascript:void(0)"
                     case iri if meta.key.equalsIgnoreCase("href") && iri.scheme == "javascript" => None
                     case iri if !iri.isRelative => Some(new IriBinder(e, meta.key, iri))

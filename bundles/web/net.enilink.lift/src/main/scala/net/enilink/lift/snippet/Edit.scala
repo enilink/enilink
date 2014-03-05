@@ -25,7 +25,7 @@ import net.enilink.komma.core.IReference
 import net.enilink.komma.core.IStatement
 import net.enilink.komma.core.IStatementPattern
 import net.enilink.komma.core.Statement
-import net.enilink.komma.core.URIImpl
+import net.enilink.komma.core.URIs
 import net.enilink.komma.core.visitor.IDataVisitor
 import net.enilink.lift.rdfa.RDFaParser
 import net.enilink.lift.rdfa.template.RDFaTemplates
@@ -101,8 +101,8 @@ class JsonCallHandler {
     case JsonCommand("removeResource", _, JString(resource)) => {
       (for (model <- model; em = model.getManager) yield {
         val ref = if (resource.startsWith("_:")) em.createReference(resource)
-        else if (resource.startsWith("<") && resource.endsWith(">")) URIImpl.createURI(resource.substring(1, resource.length - 1))
-        else URIImpl.createURI(resource)
+        else if (resource.startsWith("<") && resource.endsWith(">")) URIs.createURI(resource.substring(1, resource.length - 1))
+        else URIs.createURI(resource)
         em.removeRecursive(ref, true);
         JBool(true)
       }) openOr JBool(false)
@@ -287,7 +287,7 @@ class JsonCallHandler {
    * Parses RDF JSON Alternate Serialization (RDF/JSON) in the form { "S" : { "P" : [ O ] } }.
    */
   def statementsFromJSON(rdf: JObject): Seq[IStatement] = {
-    def toResource(ref: String) = if (ref.startsWith("_:")) new BlankNode(ref) else URIImpl.createURI(ref)
+    def toResource(ref: String) = if (ref.startsWith("_:")) new BlankNode(ref) else URIs.createURI(ref)
     rdf.children flatMap {
       case JField(s, po: JObject) =>
         val sResource = toResource(s)
@@ -307,10 +307,10 @@ class JsonCallHandler {
     import net.enilink.komma.core.Literal
     val oValue = (o \ "value").values.toString
     (o \ "type") match {
-      case JString("uri") => URIImpl.createURI(oValue)
+      case JString("uri") => URIs.createURI(oValue)
       case JString("bnode") => new BlankNode(oValue)
       case _ /* JString("literal") */ => (o \ "datatype") match {
-        case JString(datatype) => new Literal(oValue, URIImpl.createURI(datatype))
+        case JString(datatype) => new Literal(oValue, URIs.createURI(datatype))
         case _ => (o \ "lang") match {
           case JString(lang) => new Literal(oValue, lang)
           case _ => new Literal(oValue)

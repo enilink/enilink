@@ -9,7 +9,7 @@ import scala.collection.mutable.ListBuffer
 import scala.xml.NodeSeq
 import scala.xml.TopScope
 import scala.xml.NamespaceBinding
-import net.enilink.komma.core.URIImpl
+import net.enilink.komma.core.URIs
 
 object RDFaParser extends RDFaParser()(new Scope())
 
@@ -336,7 +336,7 @@ trait CURIE extends RDFNodeBuilder {
           // this is the case if token is an absolute IRI  
           case None if !token.isEmpty => try {
             // test if token is a valid IRI
-            URIImpl.createURI(token)
+            URIs.createURI(token)
             Some(uri(token))
           } catch {
             // token is not a valid IRI
