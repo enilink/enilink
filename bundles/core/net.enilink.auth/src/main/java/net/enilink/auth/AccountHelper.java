@@ -17,7 +17,7 @@ import net.enilink.komma.core.IReference;
 import net.enilink.komma.core.IStatement;
 import net.enilink.komma.core.Statement;
 import net.enilink.komma.core.URI;
-import net.enilink.komma.core.URIImpl;
+import net.enilink.komma.core.URIs;
 import net.enilink.komma.em.concepts.IResource;
 
 /**
@@ -58,8 +58,8 @@ public class AccountHelper {
 	 * @return The user's URI.
 	 */
 	public static URI getUserURI(String username) {
-		return URIImpl.createURI("http://enilink.net/users").appendLocalPart(
-				URIImpl.encodeOpaquePart(username, false));
+		return URIs.createURI("http://enilink.net/users").appendLocalPart(
+				URIs.encodeOpaquePart(username, false));
 	}
 
 	/**
@@ -77,12 +77,9 @@ public class AccountHelper {
 		List<URI> externalIds = new ArrayList<URI>();
 		for (Principal principal : subject.getPrincipals()) {
 			if (!(principal instanceof Group || principal instanceof UserPrincipal)) {
-				URI externalId = URIImpl
-						.createURI("urn:jaas:principal:"
-								+ principal.getClass().getName()
-								+ ":"
-								+ URIImpl.encodeOpaquePart(
-										principal.toString(), false));
+				URI externalId = URIs.createURI("urn:jaas:principal:"
+						+ principal.getClass().getName() + ":"
+						+ URIs.encodeOpaquePart(principal.toString(), false));
 				externalIds.add(externalId);
 			}
 		}

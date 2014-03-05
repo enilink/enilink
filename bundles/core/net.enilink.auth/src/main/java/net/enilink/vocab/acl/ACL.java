@@ -1,11 +1,11 @@
 package net.enilink.vocab.acl;
 
-import net.enilink.komma.core.URIImpl;
+import net.enilink.komma.core.URIs;
 import net.enilink.komma.core.URI;
 
 public interface ACL {
 	public static final String NAMESPACE = "http://www.w3.org/ns/auth/acl#";
-	public static final URI NAMESPACE_URI = URIImpl.createURI(NAMESPACE);
+	public static final URI NAMESPACE_URI = URIs.createURI(NAMESPACE);
 
 	/**
 	 * Superclass of all access modes.
