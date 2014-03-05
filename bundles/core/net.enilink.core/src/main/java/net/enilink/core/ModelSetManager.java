@@ -20,7 +20,7 @@ import net.enilink.komma.core.KommaModule;
 import net.enilink.komma.core.LinkedHashGraph;
 import net.enilink.komma.core.StatementPattern;
 import net.enilink.komma.core.URI;
-import net.enilink.komma.core.URIImpl;
+import net.enilink.komma.core.URIs;
 import net.enilink.komma.em.util.UnitOfWork;
 import net.enilink.komma.model.IModel;
 import net.enilink.komma.model.IModelSet;
@@ -105,7 +105,7 @@ class ModelSetManager {
 			serverUrl = "http://localhost:8080/openrdf-sesame";
 		}
 		config.add(modelSet, MODELS.NAMESPACE_URI.appendLocalPart("server"),
-				URIImpl.createURI(serverUrl));
+				URIs.createURI(serverUrl));
 		String username = System.getProperty("net.enilink.repository.username");
 		if (username != null) {
 			config.add(modelSet,
@@ -174,7 +174,7 @@ class ModelSetManager {
 
 		// store meta data in repository
 		// graph.add(ms, MODELS.PROPERTY_METADATACONTEXT,
-		// URIImpl.createURI("komma:metadata"));
+		// URIs.createURI("komma:metadata"));
 		return graph;
 	}
 
@@ -195,7 +195,7 @@ class ModelSetManager {
 
 		Injector injector = Guice.createInjector(
 				createModelSetGuiceModule(module), new ContextProviderModule());
-		URI msUri = URIImpl.createURI("urn:enilink:metamodelset");
+		URI msUri = URIs.createURI("urn:enilink:metamodelset");
 		IGraph graph = createModelSetConfig(msUri);
 		addServerInfo(msUri, graph);
 		graph.add(msUri, MODELS.NAMESPACE_URI.appendLocalPart("repository"),
@@ -211,7 +211,7 @@ class ModelSetManager {
 	}
 
 	protected IModelSet createModelSet(IModel metaDataModel) {
-		URI msUri = URIImpl.createURI("urn:enilink:modelset");
+		URI msUri = URIs.createURI("urn:enilink:modelset");
 
 		IGraph graph = createModelSetConfig(msUri);
 		addServerInfo(msUri, graph);
@@ -237,7 +237,7 @@ class ModelSetManager {
 				createModelSetGuiceModule(module), new ContextProviderModule());
 		IModelSetFactory factory = injector.getInstance(IModelSetFactory.class);
 
-		URI msUri = URIImpl.createURI("urn:enilink:modelset");
+		URI msUri = URIs.createURI("urn:enilink:modelset");
 		IGraph graph = createModelSetConfig(msUri);
 		graph.add(msUri, MODELS.NAMESPACE_URI.appendFragment("inference"),
 				false);
@@ -274,7 +274,7 @@ class ModelSetManager {
 					if (rule instanceof SimpleURIMapRule) {
 						String modelUri = ((SimpleURIMapRule) rule)
 								.getPattern();
-						modelSet.createModel(URIImpl.createURI(modelUri));
+						modelSet.createModel(URIs.createURI(modelUri));
 					}
 				}
 			} catch (Exception e) {
@@ -299,7 +299,7 @@ class ModelSetManager {
 								modelSet = createModelSet();
 							} else {
 								IModelSet metaModelSet = createMetaModelSet();
-								IModel metaDataModel = metaModelSet.createModel(URIImpl
+								IModel metaDataModel = metaModelSet.createModel(URIs
 										.createURI("urn:enilink:metadata"));
 								modelSet = createModelSet(metaDataModel);
 							}
@@ -308,8 +308,8 @@ class ModelSetManager {
 											.getProperty("net.enilink.acl.anonymous"))) {
 								IEntityManager em = modelSet
 										.getMetaDataManager();
-								Authorization auth = em.createNamed(URIImpl
-										.createURI("urn:auth:anonymousAll"),
+								Authorization auth = em.createNamed(
+										URIs.createURI("urn:auth:anonymousAll"),
 										Authorization.class);
 								auth.setAclAccessToClass(em.find(
 										MODELS.TYPE_MODEL,

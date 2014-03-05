@@ -15,17 +15,16 @@ import org.eclipse.core.runtime.jobs.Job;
 import org.eclipse.core.runtime.jobs.JobChangeAdapter;
 
 import net.enilink.komma.core.URI;
-import net.enilink.komma.core.URIImpl;
+import net.enilink.komma.core.URIs;
 
 /**
  * Helper class to get current user from the execution context.
  */
 public class SecurityUtil {
-	public static final URI UNKNOWN_USER = URIImpl
+	public static final URI UNKNOWN_USER = URIs
 			.createURI("urn:enilink:anonymous");
 
-	public static final URI SYSTEM_USER = URIImpl
-			.createURI("urn:enilink:system");
+	public static final URI SYSTEM_USER = URIs.createURI("urn:enilink:system");
 
 	public static final Subject SYSTEM_USER_SUBJECT = new Subject(true,
 			Collections.singleton(new UserPrincipal(SYSTEM_USER)),

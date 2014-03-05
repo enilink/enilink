@@ -14,7 +14,7 @@ import net.enilink.komma.model.MODELS;
 import net.enilink.komma.core.IQuery;
 import net.enilink.komma.core.IReference;
 import net.enilink.komma.core.URI;
-import net.enilink.komma.core.URIImpl;
+import net.enilink.komma.core.URIs;
 
 /**
  * A Factory that can be used to create secure property sets. These property
@@ -26,11 +26,11 @@ public class SecurePropertySetFactory extends KommaPropertySetFactory {
 			Class<E> elementType, Annotation... annotations) {
 		if (bean instanceof ISecureModelSet
 				&& uri.equals(MODELS.PROPERTY_MODEL.toString())) {
-			URI predicate = URIImpl.createURI(uri);
+			URI predicate = URIs.createURI(uri);
 			URI rdfValueType = null;
 			for (Annotation annotation : annotations) {
 				if (Type.class.equals(annotation.annotationType())) {
-					rdfValueType = URIImpl.createURI(((Type) annotation)
+					rdfValueType = URIs.createURI(((Type) annotation)
 							.value());
 				}
 			}

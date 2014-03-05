@@ -24,7 +24,7 @@ import net.enilink.komma.core.IEntity;
 import net.enilink.komma.core.IEntityManager;
 import net.enilink.komma.core.IQuery;
 import net.enilink.komma.core.URI;
-import net.enilink.komma.core.URIImpl;
+import net.enilink.komma.core.URIs;
 import net.enilink.komma.em.concepts.IResource;
 import net.enilink.komma.model.IModelSet;
 import net.enilink.security.callbacks.RegisterCallback;
@@ -137,7 +137,7 @@ public class EnilinkLoginModule implements LoginModule {
 					try {
 						IEntity user = AccountHelper.createUser(em, username);
 						user.as(IResource.class).addProperty(
-								URIImpl.createURI("urn:enilink:password"),
+								URIs.createURI("urn:enilink:password"),
 								encodedPassword);
 						userId = user.getURI();
 					} catch (IllegalArgumentException iae) {
