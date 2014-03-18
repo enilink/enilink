@@ -2,11 +2,9 @@ package net.enilink.lift
 
 import java.io.File
 import java.util.concurrent.atomic.AtomicReference
-
 import scala.Option.option2Iterable
 import scala.collection.JavaConversions.asScalaSet
 import scala.collection.JavaConversions.collectionAsScalaIterable
-
 import org.eclipse.equinox.http.servlet.ExtendedHttpService
 import org.osgi.framework.Bundle
 import org.osgi.framework.BundleActivator
@@ -17,7 +15,6 @@ import org.osgi.framework.ServiceRegistration
 import org.osgi.service.http.HttpContext
 import org.osgi.util.tracker.BundleTracker
 import org.osgi.util.tracker.ServiceTracker
-
 import javax.servlet.FilterChain
 import javax.servlet.ServletRequest
 import javax.servlet.ServletResponse
@@ -44,6 +41,7 @@ import net.liftweb.osgi.OsgiBootable
 import net.liftweb.sitemap.SiteMap
 import net.liftweb.util.ClassHelpers
 import net.liftweb.util.Helpers
+import net.enilink.komma.http.KommaHttpPlugin
 
 object Activator {
   val PLUGIN_ID = "net.enilink.lift";
@@ -55,6 +53,7 @@ class Activator extends BundleActivator {
   private var context: BundleContext = _
 
   private var contextServiceReg: ServiceRegistration[_] = _
+  private var liftServiceReg: ServiceRegistration[_] = _
 
   class HttpServiceTracker(context: BundleContext) extends ServiceTracker[ExtendedHttpService, ExtendedHttpService](context, classOf[ExtendedHttpService].getName, null) {
     override def addingService(serviceRef: ServiceReference[ExtendedHttpService]) = {
@@ -66,6 +65,12 @@ class Activator extends BundleActivator {
         val httpContext = new LiftHttpContext(httpService.createDefaultHttpContext())
         httpService.registerResources("/", "/", httpContext)
         httpService.registerFilter("/", OsgiLiftFilter, null, httpContext)
+
+        liftServiceReg = context.registerService(classOf[LiftService], new LiftService() {
+          override def port() = {
+            Integer.valueOf(serviceRef.getProperty(KommaHttpPlugin.serviceKeyHttpPort).toString())
+          }
+        }, null);
       }
       httpService
     }
@@ -182,6 +187,10 @@ class Activator extends BundleActivator {
     if (contextServiceReg != null) {
       contextServiceReg.unregister
       contextServiceReg = null
+    }
+    if (liftServiceReg != null) {
+      liftServiceReg.unregister
+      liftServiceReg = null
     }
     if (bundleTracker != null) {
       bundleTracker.close
