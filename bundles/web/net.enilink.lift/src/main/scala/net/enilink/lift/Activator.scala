@@ -41,10 +41,11 @@ import net.liftweb.osgi.OsgiBootable
 import net.liftweb.sitemap.SiteMap
 import net.liftweb.util.ClassHelpers
 import net.liftweb.util.Helpers
-import net.enilink.komma.http.KommaHttpPlugin
 
 object Activator {
-  val PLUGIN_ID = "net.enilink.lift";
+  val SERVICE_KEY_HTTP_PORT = "http.port"
+
+  val PLUGIN_ID = "net.enilink.lift"
 }
 
 class Activator extends BundleActivator {
@@ -68,7 +69,7 @@ class Activator extends BundleActivator {
 
         liftServiceReg = context.registerService(classOf[LiftService], new LiftService() {
           override def port() = {
-            Integer.valueOf(serviceRef.getProperty(KommaHttpPlugin.serviceKeyHttpPort).toString())
+            Integer.valueOf(serviceRef.getProperty(Activator.SERVICE_KEY_HTTP_PORT).toString())
           }
         }, null);
       }
