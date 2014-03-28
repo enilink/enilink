@@ -218,6 +218,9 @@ class Rdfa extends Sparql with SparqlExtractor {
           (ParamsHelper.params(Set(offsetParam)) ++ List(offsetParam -> offset.toString)) toList
         }
         val paginator = new PaginatorSnippet[AnyRef] {
+          // ensure that offset param does not interfere with non-ajax offset
+          override def offsetParam = RdfaRefreshFunc.value match { case Full(name) => "offset_" + name case _ => "offset" }
+
           override def pageUrl(offset: Long): String = {
             appendParams(S.uri, paramsForOffset(offsetParam, offset))
           }

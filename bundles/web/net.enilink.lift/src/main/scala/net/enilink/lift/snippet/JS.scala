@@ -118,27 +118,38 @@ if ((runScript === undefined || runScript) && response.script) {
     }
 
     Script(JsRaw(
-      """function queryParameter(name, noDecode) {
-	name = name.replace(/[\[]/, "\\\[").replace(/[\]]/, "\\\]");
-	var regex = new RegExp("[\\?&]" + name + "=([^&#]*)");
-	var results = regex.exec(window.location.search);
-	if (results == null)
-		return undefined;
-	return noDecode ? results[1] : decodeURIComponent(results[1].replace(/\+/g,
-			" "));
-}
-
-function queryParameters(noDecode) {
-	var query = window.location.search;
-	var regex = /[\\?&]([^=]+)=([^&#]*)/g;
-	var result;
-	var params = {};
-	while ((result = regex.exec(query)) !== null) {
-		params[result[1]] = noDecode ? result[2] : decodeURIComponent(result[2]
-				.replace(/\+/g, " "));
+      """enilink = $.extend(window.enilink || {}, {
+	param : function(name, noDecode) {
+		name = name.replace(/[\[]/, "\\\[").replace(/[\]]/, "\\\]");
+		var regex = new RegExp("[\\?&]" + name + "=([^&#]*)");
+		var results = regex.exec(window.location.search);
+		if (results == null)
+			return undefined;
+		return noDecode ? results[1] : decodeURIComponent(results[1].replace(/\+/g,	" "));
+	},
+	
+	params : function(noDecode) {
+		var query = window.location.search;
+		var regex = /[\\?&]([^=]+)=([^&#]*)/g;
+		var result;
+		var params = {};
+		while ((result = regex.exec(query)) !== null) {
+			params[result[1]] = noDecode ? result[2] : decodeURIComponent(result[2].replace(/\+/g, " "));
+		}
+		return params;
+	},
+  
+  encodeParams : function(params) {
+		var paramStr = "";
+		$.each(params, function(name, value) {
+			if (paramStr.length > 0) {
+				paramStr += "&";
+			}
+			paramStr += name + "=" + encodeURIComponent(value);
+		});
+		return paramStr;
 	}
-	return params;
-}""") & jsCmd &
+});""") & jsCmd &
       SetExp(JsVar("enilink"), Call("$.extend", JsRaw("window.enilink || {}"), //
         JsObj(
           ("render", AnonFunc("pathOrXml, httpParams, target",
