@@ -2,9 +2,11 @@ package net.enilink.lift
 
 import java.io.File
 import java.util.concurrent.atomic.AtomicReference
+
 import scala.Option.option2Iterable
 import scala.collection.JavaConversions.asScalaSet
 import scala.collection.JavaConversions.collectionAsScalaIterable
+
 import org.eclipse.equinox.http.servlet.ExtendedHttpService
 import org.osgi.framework.Bundle
 import org.osgi.framework.BundleActivator
@@ -15,6 +17,7 @@ import org.osgi.framework.ServiceRegistration
 import org.osgi.service.http.HttpContext
 import org.osgi.util.tracker.BundleTracker
 import org.osgi.util.tracker.ServiceTracker
+
 import javax.servlet.FilterChain
 import javax.servlet.ServletRequest
 import javax.servlet.ServletResponse
@@ -23,14 +26,14 @@ import javax.servlet.http.HttpServletResponse
 import net.enilink.core.IContext
 import net.enilink.core.IContextProvider
 import net.enilink.core.ISession
-import net.enilink.lift.util.Globals
 import net.enilink.lift.sitemap.Application
+import net.enilink.lift.util.Globals
 import net.liftweb.common.Box
-import net.liftweb.common.Box.box2Iterable
 import net.liftweb.common.Box.box2Option
 import net.liftweb.common.Box.option2Box
 import net.liftweb.common.Empty
 import net.liftweb.common.Full
+import net.liftweb.common.Loggable
 import net.liftweb.common.Logger
 import net.liftweb.http.LiftFilter
 import net.liftweb.http.LiftRules
@@ -40,7 +43,6 @@ import net.liftweb.http.S
 import net.liftweb.osgi.OsgiBootable
 import net.liftweb.sitemap.SiteMap
 import net.liftweb.util.ClassHelpers
-import net.liftweb.util.Helpers
 
 object Activator {
   val SERVICE_KEY_HTTP_PORT = "http.port"
@@ -48,7 +50,7 @@ object Activator {
   val PLUGIN_ID = "net.enilink.lift"
 }
 
-class Activator extends BundleActivator {
+class Activator extends BundleActivator with Loggable {
   private var bundleTracker: BundleTracker[LiftBundleConfig] = _
   private val httpServiceHolder = new AtomicReference[ExtendedHttpService]
   private var context: BundleContext = _
@@ -87,7 +89,7 @@ class Activator extends BundleActivator {
   def initLift {
     // allow duplicate link names
     SiteMap.enforceUniqueLinks = false
-
+    
     // set context path
     LiftRules.calculateContextPath = () => Empty
 
@@ -301,7 +303,6 @@ class Activator extends BundleActivator {
         }
     }
 
-    override def handleSecurity(req: HttpServletRequest, res: HttpServletResponse) =
-      context.handleSecurity(req, res)
+    override def handleSecurity(req: HttpServletRequest, res: HttpServletResponse) = context.handleSecurity(req, res)
   }
 }

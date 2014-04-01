@@ -124,7 +124,7 @@ class Sparql extends SparqlHelper with RDFaTemplates {
                   withParameters(em.createQuery(sparql, false), params)
                     .bindResultType(null: String, classOf[IValue]).evaluate.asInstanceOf[ITupleResult[_]]
                     .map { row => (toBindings(firstBinding, row), false) } ++ allTuples
-                } else allTuples)
+                } else allTuples)                
                 // ensure at least one template iteration with empty binding set if no results where found
                 if (!toRender.hasNext) toRender = List((new LinkedHashBindings[Object], false)).toIterator
                 val transformers = (".query *" #> sparql) & ClearClearable

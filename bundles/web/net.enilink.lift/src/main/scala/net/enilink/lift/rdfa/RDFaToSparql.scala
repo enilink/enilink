@@ -73,7 +73,7 @@ private class RDFaToSparqlParser(e: xml.Elem, base: String)(implicit s: Scope = 
     val result = new StringBuilder
     addPrefixDecls(result, e1.scope)
     selectVars.map(toString).addString(result, "select distinct ", " ", " where {\n")
-    result.append(sparql)
+    result.append(patterns)
     result.append("}\n")
     modifiers(e, result)
     resultQuery = result.toString
@@ -100,10 +100,19 @@ private class RDFaToSparqlParser(e: xml.Elem, base: String)(implicit s: Scope = 
   def getQueryVariables = selectVars.toSet
   def getElement = resultElem
 
+  private def patterns = if (sparql.length == 0) {
+    // replace empty graph pattern {} with bind statements
+    val result = new StringBuilder
+    selectVars.map(toString).foreach { v => result.append("\tbind (" + v + " as " + v + ")\n") }
+    result.toString
+  } else {
+    sparql
+  }
+
   def getQuery(bindingName: String, offset: Any, limit: Any) = {
     val result = new StringBuilder
     result.append("select distinct ?").append(bindingName).append(" where {\n")
-    result.append(sparql)
+    result.append(patterns)
     result.append("}\n")
     modifiers(e, result, false)
     result.append("offset ").append(offset).append("\n")
@@ -120,7 +129,7 @@ private class RDFaToSparqlParser(e: xml.Elem, base: String)(implicit s: Scope = 
     result.append("{ ").append(getQuery(bindingName, offset, limit)).append("}\n")
     // end of subquery
 
-    result.append(sparql)
+    result.append(patterns)
     result.append("}\n")
     modifiers(e, result)
     result.toString
@@ -130,7 +139,7 @@ private class RDFaToSparqlParser(e: xml.Elem, base: String)(implicit s: Scope = 
     val result = new StringBuilder
     addPrefixDecls(result, resultElem.scope)
     result.append("select (count(distinct ?").append(bindingName).append(") as ?count) where {\n")
-    result.append(sparql)
+    result.append(patterns)
     result.append("}\n").toString
   }
 

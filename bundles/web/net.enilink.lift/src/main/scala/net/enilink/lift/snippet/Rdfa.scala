@@ -159,7 +159,7 @@ object Search extends SparqlHelper with SparqlExtractor {
 trait SparqlExtractor {
   def extractSparql(n: NodeSeq): SparqlFromRDFa = {
     val nodesWithAcl = (".acl" #> Acl.render _).apply(n)
-    SparqlFromRDFa(nodesWithAcl.head.asInstanceOf[Elem], S.request.map(r => r.hostAndPath + r.uri + "#") openOr "urn:")
+    SparqlFromRDFa(nodesWithAcl.headOption.map(_.asInstanceOf[Elem]) getOrElse <div></div>, S.request.map(r => r.hostAndPath + r.uri + "#") openOr "urn:")
   }
 }
 
@@ -233,7 +233,7 @@ class Rdfa extends Sparql with SparqlExtractor {
                   case Text(Nr(_)) => "active"
                   case _ => "disabled"
                 }
-              }><a href="#">{ ns }</a></li>
+              }><a href="javascript:void(0)">{ ns }</a></li>
             else
               <li>{
                 RdfaRefreshFunc.value match {

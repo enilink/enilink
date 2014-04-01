@@ -94,6 +94,7 @@ class Rdf extends DispatchSnippet with RDFaTemplates {
 
   private def execMethod(target: Any, method: String) = {
     def runMethod: PartialFunction[String, String] = {
+      case "pname" => ModelUtil.getPName(target)
       case "name" => target match {
         case ref: IReference if ref.getURI != null => ref.getURI.localPart
         case _ => target.toString
