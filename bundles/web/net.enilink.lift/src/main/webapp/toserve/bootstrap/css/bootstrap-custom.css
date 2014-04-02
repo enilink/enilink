@@ -28,3 +28,15 @@ div[lang]::before,span[lang]::before,div[lang]:before,span[lang]:before
 	width: auto;
 	max-width: none;
 }
+
+.edit_error_class {
+	display: block;
+	color: red;
+}
+
+/* Bootstrap 3.x */
+
+.navbar-brand {
+	padding: 13px;
+	padding-left: 0px;
+}

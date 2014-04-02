@@ -85,8 +85,8 @@ object Bs extends DispatchSnippet {
     }
     val items = menuEntries
     def pullRight(item: MenuItem) = item.cssClass.exists(_ == "pull-right")
-    <ul class="nav"> { for (item <- items.filterNot(pullRight(_))) yield renderItem(item) } </ul>
-    <ul class="nav pull-right"> { for (item <- items.filter(pullRight(_))) yield renderItem(item) } </ul>
+    <ul class="nav navbar-nav"> { for (item <- items.filterNot(pullRight(_))) yield renderItem(item) } </ul>
+    <ul class="nav navbar-nav pull-right"> { for (item <- items.filter(pullRight(_))) yield renderItem(item) } </ul>
   }
 
   def submenu: NodeSeq = {

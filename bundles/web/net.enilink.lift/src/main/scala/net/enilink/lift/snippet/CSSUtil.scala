@@ -23,7 +23,7 @@ object CSSUtil extends DispatchSnippet {
         prefix + "bootstrap.min.css"
       } type="text/css"/>
       <link rel="stylesheet" href={
-        prefix + "bootstrap-responsive.min.css"
+        prefix + "bootstrap-theme.min.css"
       } type="text/css"/>
       <link rel="stylesheet" href={
         prefix + "bootstrap-custom.css"
