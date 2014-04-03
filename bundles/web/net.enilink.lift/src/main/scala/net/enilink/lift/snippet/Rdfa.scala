@@ -250,7 +250,7 @@ class Rdfa extends Sparql with SparqlExtractor {
           def page = Nil
 
           // select last page if count < offset
-          override def first = super.first min (count / itemsPerPage * itemsPerPage)
+          override def first = super.first min (count - ((count % itemsPerPage) match { case 0 => itemsPerPage case r => r })) max 0
 
           override def paginate(ns: NodeSeq) = {
             // support lower case tags
