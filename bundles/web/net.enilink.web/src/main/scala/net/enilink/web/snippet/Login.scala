@@ -156,7 +156,7 @@ class Login extends SubjectHelper {
       // prevent transferring password back to client
       if (cb.isInstanceOf[PasswordCallback]) vbox = Empty
       if (hide) vbox.map(hidden(field, _)) else {
-        form ++= <label>{ prompt }</label><input id={ field } name={ field } type={ inputType } value={ vbox openOr "" } placeholder={ placeholder }/>;
+        form ++= <label>{ prompt }</label><input id={ field } name={ field } type={ inputType } value={ vbox openOr "" } placeholder={ placeholder } class="form-control" />;
         if (cb.isInstanceOf[TextInputCallback] && prompt.toLowerCase.contains("openid")) {
           form ++= <div><a href="javascript:void(0)" onclick={
             (SetValById(field, "https://www.google.com/accounts/o8/id") & Run("$('#login-form').submit()")).toJsCmd

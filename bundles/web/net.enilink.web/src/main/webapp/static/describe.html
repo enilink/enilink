@@ -64,7 +64,7 @@
 			});
 		</script>
 		<div data-lift="rdfa">
-			<div about="?this" class="row-fluid">
+			<div about="?this" class="row">
 				<div>
 					<h3>
 						<span data-lift="rdf.label"></span>
@@ -102,29 +102,29 @@
 					<!-- sort by property -->
 					<div class="clearable asc" about="?property"></div>
 
-					<div class="row-fluid" data-clear-rel="?property" data-t="property">
-						<div class="span4" style="font-weight: bold">
+					<div class="row" data-clear-rel="?property" data-t="property">
+						<div class="col-md-4" style="font-weight: bold">
 							<a href="{app}/static/describe?model={model}&resource={}&inferred={inferred}"
 								data-lift="rdf.ref?for=predicate&to=href"><span
 								data-lift="rdf.!label?for=predicate"></span></a>
 						</div>
-						<div class="span8">
+						<div class="col-md-8">
 							<div class="union">
-								<div class="row-fluid asc" rel="?property" resource="?oResource"
+								<div class="row asc" rel="?property" resource="?oResource"
 									data-filter="!isLiteral(?oResource)" data-t="resourceValue">
-									<div class="span12">
+									<div class="col-md-12">
 										<a href="{app}/static/describe?model={model}&resource={}&inferred={inferred}"
 											data-lift="rdf.ref?to=href"><span
 											data-lift="rdf.label"></span></a> <span data-if="inferred"><i
-											class="icon-share-alt" style="opacity: 0.5"></i></span>
+											class="glyphicon glyphicon-share-alt" style="opacity: 0.5"></i></span>
 									</div>
 								</div>
-								<div class="row-fluid asc" property="?property"
+								<div class="row asc" property="?property"
 									content="?oLiteral" data-if="?oLiteral"
 									data-filter="isLiteral(?oLiteral)" data-t="literalValue">
-									<div class="span12">
+									<div class="col-md-12">
 										<span data-lift="rdf.label" style="white-space: pre-wrap;"></span> <span data-if="inferred"><i
-											class="icon-share-alt" style="opacity: 0.5"></i></span>
+											class="glyphicon glyphicon-share-alt" style="opacity: 0.5"></i></span>
 									</div>
 								</div>
 							</div>
@@ -132,16 +132,16 @@
 							<div data-unless="?objectProperty">
 								<div data-unless="?oResource" data-property="?property"
 									data-add="literalValue">
-									<i class="icon-plus"></i>
+									<i class="glyphicon glyphicon-plus"></i>
 								</div>
 							</div>
 							<div data-if="?oResource" data-rel="?property"
 								data-add="resourceValue">
-								<i class="icon-plus"></i>
+								<i class="glyphicon glyphicon-plus"></i>
 							</div>
 							<div data-if="?objectProperty" data-rel="?property"
 								data-add="resourceValue">
-								<i class="icon-plus"></i>
+								<i class="glyphicon glyphicon-plus"></i>
 							</div>
 						</div>
 					</div>
@@ -149,20 +149,20 @@
 					<!-- sort by inverse property -->
 					<!-- div class="clearable asc" about="?invProperty"></div>
 
-					<div class="row-fluid" data-clear-rel="?invProperty">
-						<div class="span3" style="font-weight: bold">
-							<i class="icon-arrow-left"></i> <a
+					<div class="row" data-clear-rel="?invProperty">
+						<div class="col-md-3" style="font-weight: bold">
+							<i class="glyphicon glyphicon-arrow-left"></i> <a
 								href="{app}/static/describe?model={model}&resource={}"
 								data-lift="rdf.ref?for=predicate&to=href"><span
 								data-lift="rdf.label?for=predicate"></span></a>
 						</div>
-						<div class="span9 union">
-							<div class="row-fluid asc" rev="?invProperty"
+						<div class="col-md-9 union">
+							<div class="row asc" rev="?invProperty"
 								resource="?invResource">
-								<div class="span12">
+								<div class="col-md-12">
 									<a href="{app}/static/describe?model={model}&resource={}"
 										data-lift="rdf.ref?to=href"><span data-lift="rdf.label"></span></a>
-									<span data-if="inferred"><i class="icon-share-alt"
+									<span data-if="inferred"><i class="glyphicon glyphicon-share-alt"
 										style="opacity: 0.5"></i></span>
 								</div>
 							</div>
@@ -172,7 +172,7 @@
 			</div>
 			<br />
 			<!-- show relevant properties for classes -->
-			<div about="?this" typeof="rdfs:Class" class="row-fluid optional"
+			<div about="?this" typeof="rdfs:Class" class="row optional"
 				data-if="?classProperty">
 				<h4>Relevant class properties</h4>
 				<section>

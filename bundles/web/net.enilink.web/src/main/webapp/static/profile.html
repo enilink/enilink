@@ -11,25 +11,25 @@
 	foaf: http://xmlns.com/foaf/0.1/">
 	<div id="main" data-lift="surround?with=default;at=content">
 		<div about="?currentUser" data-lift="rdfa?target=meta"
-			class="row-fluid">
+			class="row">
 			<h3>
 				Profile <span data-if="?nick"> of </span><span property="foaf:nick"
 					class="optional" content="?nick" data-lift="rdf.label"></span>
 			</h3>
 			<section class="union">
-				<div class="row-fluid">
-					<div class="span5">Name</div>
-					<div class="span7">
+				<div class="row">
+					<div class="col-md-5">Name</div>
+					<div class="col-md-7">
 						<span property="foaf:name" data-lift="rdf.label"></span>
 					</div>
 				</div>
-				<div class="row-fluid optional">
-					<div class="span5">External IDs</div>
-					<div class="span7">
-						<div class="row-fluid"
+				<div class="row optional">
+					<div class="col-md-5">External IDs</div>
+					<div class="col-md-7">
+						<div class="row"
 							rel="http://enilink.net/vocab/auth#externalId"
 							resource="?externalId">
-							<div data-lift="rdf.ref" class="span12"></div>
+							<div data-lift="rdf.ref" class="col-md-12"></div>
 						</div>
 					</div>
 				</div>

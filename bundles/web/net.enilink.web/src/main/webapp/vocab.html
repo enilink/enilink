@@ -15,33 +15,33 @@
 			<h3>Ontologies</h3>
 			<div class="search-form"></div>
 			<div class="search-patterns" data-for="?model" data-param="q"></div>
-			<div about="?model" typeof="models:Model" class="row-fluid asc">
-				<section class="optional">
-					<div class="row-fluid union">
-						<div class="span5">
+			<div about="?model" typeof="models:Model" class="asc">
+				<div class="optional">
+					<div class="row union">
+						<div class="col-md-5">
 							<a href="?model={}" data-lift="rdf.ref?to=href">&lt;<span
 								data-lift="rdf.ref"></span>&gt;
 							</a>
 						</div>
-						<div class="span3">
+						<div class="col-md-3">
 							<div property="rdfs:label" content="?label">
-								<div class="row-fluid">
-									<div data-lift="rdf.label" class="span12"></div>
+								<div class="row">
+									<div data-lift="rdf.label" class="col-md-12"></div>
 								</div>
 							</div>
 						</div>
-						<div class="span4">
+						<div class="col-md-4">
 							<div property="rdfs:comment" content="?comment">
-								<div class="row-fluid">
-									<div data-lift="rdf.label" class="span12"></div>
+								<div class="row">
+									<div data-lift="rdf.label" class="col-md-12"></div>
 								</div>
 							</div>
 						</div>
 					</div>
-				</section>
+				</div>
 			</div>
 			<div data-for="?model" class="acl"></div>
-			<div data-for="?model" class="pagination"></div>
+			<div data-for="?model" class="paginator"></div>
 		</div>
 	</div>
 </body>
