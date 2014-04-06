@@ -26,6 +26,9 @@ object CSSUtil extends DispatchSnippet {
         prefix + "bootstrap-theme.min.css"
       } type="text/css"/>
       <link rel="stylesheet" href={
+        prefix + "typeahead-bootstrap.css"
+      } type="text/css"/>
+      <link rel="stylesheet" href={
         prefix + "bootstrap-custom.css"
       } type="text/css"/>
     </xml:group>

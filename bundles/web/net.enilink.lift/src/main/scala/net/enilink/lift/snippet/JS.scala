@@ -42,8 +42,8 @@ object JS extends DispatchSnippet with SparqlHelper {
 
   private def script(src: String) = <script src={ src } type="text/javascript" data-lift="head"></script>
 
-  def bootstrap: NodeSeq = List("bootstrap.min", "bootstrap-ext").flatMap {
-    lib => script("/" + LiftRules.resourceServerPath + "/bootstrap/js/" + lib + ".js")
+  def bootstrap: NodeSeq = List("/bootstrap/js/bootstrap.min", "/bootstrap/js/bootstrap-ext", "/typeaheadjs/typeahead.bundle").flatMap {
+    lib => script("/" + LiftRules.resourceServerPath + lib + ".js")
   }
 
   def rdfa: NodeSeq = script("/" + LiftRules.resourceServerPath + "/rdfa/jquery.rdfquery.rdfa.js")

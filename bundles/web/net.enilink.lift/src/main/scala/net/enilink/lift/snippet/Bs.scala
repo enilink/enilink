@@ -92,21 +92,19 @@ object Bs extends DispatchSnippet {
   def submenu: NodeSeq = {
     menuEntries.find { e => e.path && !e.kids.isEmpty } match {
       case Some(item) => {
-        <div class="subnav navbar navbar-fixed-top">
-          <div class="navbar-inner">
-            <div class="container">
-              <ul class="nav nav-pills">
-                {
-                  for (kid <- item.kids) yield {
-                    var styles = kid.cssClass openOr ""
-                    if (kid.current || kid.path) styles += " active"
-                    <li class={ styles }><a href={ kid.uri }>{ kid.text }</a></li>
-                  }
+        <nav class="navbar-main subnav navbar navbar-static-top navbar-default collapse navbar-collapse" role="navigation">
+          <div class="container">
+            <ul class="nav navbar-nav">
+              {
+                for (kid <- item.kids) yield {
+                  var styles = kid.cssClass openOr ""
+                  if (kid.current || kid.path) styles += " active"
+                  <li class={ styles }><a href={ kid.uri }>{ kid.text }</a></li>
                 }
-              </ul>
-            </div>
+              }
+            </ul>
           </div>
-        </div>
+        </nav>
       }
       case _ => NodeSeq.Empty
     }

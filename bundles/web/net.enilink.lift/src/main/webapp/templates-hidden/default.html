@@ -7,32 +7,32 @@
 <script id="json" src="/classpath/json.js" type="text/javascript"></script>
 </head>
 <body>
-	<nav class="navbar navbar-inverse navbar-static-top" role="navigation">
-		<div class="container">
-
-			<div class="navbar-header">
-				<button type="button" class="navbar-toggle" data-toggle="collapse"
-					data-target="#navigation">
-					<span class="sr-only">Toggle navigation</span> <span
-						class="icon-bar"></span> <span class="icon-bar"></span> <span
-						class="icon-bar"></span>
-				</button>
-				<a class="navbar-brand" href="#"><img
-					src="/images/enilink-grayscale.png"></img></a>
+	<header role="banner">
+		<div class="navbar navbar-inverse navbar-static-top">
+			<div class="container">
+				<div class="navbar-header">
+					<button type="button" class="navbar-toggle" data-toggle="collapse"
+						data-target=".navbar-main">
+						<span class="sr-only">Toggle navigation</span> <span
+							class="icon-bar"></span> <span class="icon-bar"></span> <span
+							class="icon-bar"></span>
+					</button>
+					<a class="navbar-brand" href="#"><img
+						src="/images/enilink-grayscale.png"></img></a>
+				</div>
+				<nav class="navbar-main collapse navbar-collapse" role="navigation">
+					<span data-lift="bs.menu"></span>
+				</nav>
 			</div>
-
-			<div class="collapse navbar-collapse" id="navigation">
-				<span data-lift="bs.menu"></span>
-			</div>
-
 		</div>
-	</nav>
+		<span data-lift="bs.submenu"></span>
+	</header>
 
-	<span data-lift="bs.submenu"></span>
+
 	<script data-lift="JS.bootstrap"></script>
 	<div class="container">
-		<div class="row" style="position: relative">
-			<div id="notification-area" class="span11"
+		<div style="position: relative">
+			<div id="notification-area"
 				style="margin: 0px 5px 10px 5px; max-height: 120px; overflow: auto;">
 				<div data-lift="Msgs?showAll=false">
 					<lift:error_msg class="alert alert-error"></lift:error_msg>
@@ -46,18 +46,16 @@
 			</div>
 		</div>
 
-		<div class="row">
-			<div class="span12">
-				<div id="content">The main content will get bound here</div>
-			</div>
+		<div role="main">
+			<div id="content">The main content will get bound here</div>
 		</div>
 
-		<hr></hr>
-
-		<footer>
-			<p>&copy; Fraunhofer IWU 2013</p>
-		</footer>
-		<!-- /container -->
+		<div>
+			<hr></hr>
+			<footer role="contentinfo">
+				<p>&copy; Fraunhofer IWU 2013</p>
+			</footer>
+		</div>
 	</div>
 </body>
 </html>

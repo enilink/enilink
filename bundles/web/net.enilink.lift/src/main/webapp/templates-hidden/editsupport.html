@@ -14,15 +14,30 @@
 			data-lift="head">
 		<script src="/classpath/orion/editable/editable-input-orion.js"
 			data-lift="head"></script>
+		<style>
+.editable-form-control,.editable-container.editable-inline,.editable-container.editable-inline>*
+	{
+	width: 100%;
+}
 
+.editable-input {
+	width: 83.3333%;
+}
+
+.editable-buttons {
+	margin-left: 0
+}
+</style>
 		<script type="text/javascript" data-lift="head">
-			$.fn.editableform.template = '<form class="form-inline editableform">'
-					+ '<div class="control-group">'
-					+ '<div><div class="editable-input"></div>'
-					+ '<div class="editable-lang input-prepend" style="display:none; margin-left: 10px;"><span class="add-on">@</span><input style="max-width:40px" type="text" placeholder="lang"></div>'
-					+ '<div class="editable-buttons"></div></div>'
-					+ '<div class="editable-error-block"></div>'
+			$.fn.editableform.template = '<form class="editableform" role="form">'
+					+ '<div class="row">'
+					+ '<div class="editable-input col-sm-10"></div>'
+					+ '<div class="col-sm-2">'
+					+ '<div class="editable-lang" style="display:none;"><div class="input-group" style="padding-bottom: 5px"><span class="input-group-addon">@</span><input class="form-control input-sm" style="max-width:40px" type="text" placeholder="lang"></div></div>'
+					+ '<div class="editable-buttons"></div>'
 					+ '</div>'
+					+ '</div>'
+					+ '<div class="editable-error-block"></div>'
 					+ '</form>';
 
 			(function() {
@@ -71,7 +86,7 @@
 					return {
 						type : "orion",
 						onblur : "ignore",
-						inputclass : "input-xxlarge",
+						inputclass : "editable-form-control",
 						mode : "inline",
 						toggle : "manual",
 						savenochange : true,
@@ -475,14 +490,14 @@
 </style>
 		<div id="buttons" class="btn-toolbar" style="display: none">
 			<div class="btn-group">
-				<button class="btn btn-mini button-edit" title="Edit">
-					<i class="icon-edit"></i>
+				<button class="btn btn-default btn-xs button-edit" title="Edit">
+					<i class="glyphicon glyphicon-edit"></i>
 				</button>
-				<button class="btn btn-mini button-remove" title="Remove">
-					<i class="icon-remove"></i>
+				<button class="btn btn-default btn-xs button-remove" title="Remove">
+					<i class="glyphicon glyphicon-remove"></i>
 				</button>
-				<button class="btn btn-mini button-show" title="Show RDF">
-					<i class="icon-eye-open"></i>
+				<button class="btn btn-default btn-xs button-show" title="Show RDF">
+					<i class="glyphicon glyphicon-eye-open"></i>
 				</button>
 			</div>
 		</div>

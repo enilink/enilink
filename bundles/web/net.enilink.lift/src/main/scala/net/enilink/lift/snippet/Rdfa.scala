@@ -210,7 +210,7 @@ class Rdfa extends Sparql with SparqlExtractor {
     // support for pagination of results
     var paginatedQuery: Box[String] = Empty
     var countQuery: String = null
-    var nodesWithPagination = (".pagination" #> ((ns: NodeSeq) => {
+    var nodesWithPagination = (".paginator" #> ((ns: NodeSeq) => {
       var bindingName = (ns \ "@data-for").text.stripPrefix("?")
       if (!bindingName.isEmpty) {
         countQuery = sparqlFromRdfa.getCountQuery(bindingName)
