@@ -35,7 +35,8 @@ div[lang]::before,span[lang]::before,div[lang]:before,span[lang]:before
 }
 
 .search-form input[type=text] {
-	min-width: 300px
+	/*width: 300px;*/
+	
 }
 
 .search-form {
