@@ -47,8 +47,8 @@
 											property : property
 										}
 									}, {
-										resource : queryParameter("resource"),
-										model : queryParameter("model")
+										resource : enilink.param("resource"),
+										model : enilink.param("model")
 									},
 											function(html) {
 												var content = $(html).find(
@@ -110,7 +110,7 @@
 						</div>
 						<div class="col-md-8">
 							<div class="union">
-								<div class="row asc" rel="?property" resource="?oResource"
+								<div class="row asc editable" rel="?property" resource="?oResource"
 									data-filter="!isLiteral(?oResource)" data-t="resourceValue">
 									<div class="col-md-12">
 										<a href="{app}/static/describe?model={model}&resource={}&inferred={inferred}"
@@ -119,7 +119,7 @@
 											class="glyphicon glyphicon-share-alt" style="opacity: 0.5"></i></span>
 									</div>
 								</div>
-								<div class="row asc" property="?property"
+								<div class="row asc editable" property="?property"
 									content="?oLiteral" data-if="?oLiteral"
 									data-filter="isLiteral(?oLiteral)" data-t="literalValue">
 									<div class="col-md-12">
