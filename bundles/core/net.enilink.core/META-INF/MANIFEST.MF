@@ -13,6 +13,7 @@ Require-Bundle: org.eclipse.core.runtime,
 Bundle-ActivationPolicy: lazy
 Import-Package: com.google.inject,
  com.google.inject.binder,
+ com.google.inject.name,
  com.google.inject.util,
  net.enilink.composition.properties.komma,
  org.aopalliance.intercept,

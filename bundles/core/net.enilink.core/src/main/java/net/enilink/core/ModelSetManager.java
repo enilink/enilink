@@ -1,7 +1,9 @@
 package net.enilink.core;
 
 import java.security.PrivilegedAction;
+import java.util.HashMap;
 import java.util.Locale;
+import java.util.Map;
 
 import javax.security.auth.Subject;
 
@@ -18,6 +20,7 @@ import net.enilink.komma.core.IProvider;
 import net.enilink.komma.core.IUnitOfWork;
 import net.enilink.komma.core.KommaModule;
 import net.enilink.komma.core.LinkedHashGraph;
+import net.enilink.komma.core.Properties;
 import net.enilink.komma.core.StatementPattern;
 import net.enilink.komma.core.URI;
 import net.enilink.komma.core.URIs;
@@ -49,6 +52,8 @@ import com.google.inject.AbstractModule;
 import com.google.inject.Guice;
 import com.google.inject.Injector;
 import com.google.inject.Module;
+import com.google.inject.Provides;
+import com.google.inject.name.Named;
 import com.google.inject.util.Modules;
 
 class ModelSetManager {
@@ -145,6 +150,14 @@ class ModelSetManager {
 			protected void configure() {
 				bind(UnitOfWork.class).toInstance(uow);
 				bind(IUnitOfWork.class).toInstance(uow);
+			}
+
+			@Provides
+			@Named("net.enilink.komma.properties")
+			Map<String, Object> provideProperties() {
+				Map<String, Object> properties = new HashMap<>();
+				properties.put(Properties.TIMEOUT, 20000);
+				return properties;
 			}
 		});
 	}
