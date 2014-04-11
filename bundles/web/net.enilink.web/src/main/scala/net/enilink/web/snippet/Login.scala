@@ -1,15 +1,21 @@
 package net.enilink.web.snippet
 
+import java.io.IOException
+import java.io.StringReader
+import java.io.StringWriter
+import java.util.Properties
+
 import scala.Array.canBuildFrom
 import scala.collection._
 import scala.collection.JavaConversions.mapAsJavaMap
 import scala.xml.Node
 import scala.xml.NodeSeq.seqToNodeSeq
 import scala.xml.Text
+
 import org.eclipse.core.runtime.Platform
+import org.eclipse.equinox.security.auth.ILoginContext
 import org.eclipse.equinox.security.auth.LoginContextFactory
-import net.enilink.security.callbacks.RealmCallback
-import net.enilink.security.callbacks.RedirectCallback
+
 import javax.security.auth.Subject
 import javax.security.auth.callback.Callback
 import javax.security.auth.callback.CallbackHandler
@@ -18,28 +24,26 @@ import javax.security.auth.callback.PasswordCallback
 import javax.security.auth.callback.TextInputCallback
 import javax.security.auth.callback.TextOutputCallback
 import javax.security.auth.login.LoginException
+import net.enilink.auth.AccountHelper
+import net.enilink.core.security.SecurityUtil
+import net.enilink.lift.util.Fields
+import net.enilink.lift.util.Globals
+import net.enilink.security.callbacks.RealmCallback
+import net.enilink.security.callbacks.RedirectCallback
+import net.enilink.security.callbacks.RegisterCallback
+import net.enilink.security.callbacks.ResponseCallback
 import net.liftweb.common.Box
 import net.liftweb.common.Box.box2Option
 import net.liftweb.common.Empty
 import net.liftweb.common.Full
 import net.liftweb.http.S
 import net.liftweb.http.SHtml
-import net.liftweb.http.js.JsCmds._
-import net.liftweb.util.Helpers.strToCssBindPromoter
-import net.liftweb.util.Helpers
-import net.enilink.security.callbacks.ResponseCallback
-import java.io.IOException
-import java.util.Properties
-import java.io.StringReader
-import java.io.StringWriter
-import net.liftweb.http.provider.HTTPCookie
-import net.enilink.security.callbacks.RegisterCallback
-import org.eclipse.equinox.security.auth.ILoginContextListener
-import java.security.PrivilegedAction
-import org.eclipse.equinox.security.auth.ILoginContext
 import net.liftweb.http.SessionVar
-import net.enilink.lift.util.Globals
-import net.enilink.core.security.SecurityUtil
+import net.liftweb.http.js.JsCmds._
+import net.liftweb.http.js.JsCmds
+import net.liftweb.http.provider.HTTPCookie
+import net.liftweb.util.Helpers
+import net.liftweb.util.Helpers.strToCssBindPromoter
 
 trait SubjectHelper {
   val SUBJECT_KEY = "javax.security.auth.subject";
@@ -76,6 +80,8 @@ class Login extends SubjectHelper {
 
   def isLinkIdentity = S.attr("mode").exists(_ == "link") && Globals.contextUser.vend != SecurityUtil.UNKNOWN_USER
   def loginMethods = if (S.attr("mode").exists(_ == "link")) LOGIN_METHODS.tail else LOGIN_METHODS
+
+  def getEntityManager = Globals.contextModelSet.vend.map(_.getMetaDataManager) openOrThrowException ("Unable to retrieve the model set")
 
   /**
    * Retrieve a HTTP param while omitting empty strings.
@@ -126,6 +132,32 @@ class Login extends SubjectHelper {
     S.addCookie(HTTPCookie("loginData", writer.toString).setMaxAge(3600 * 24 * 90 /* 3 months */ ))
   }
 
+  def validateUsername(name: String) = {
+    var valid = false;
+    if (name.length < 2) {
+      Fields.error("input-username", "The user name must have at least 2 characters.")
+    } else if (AccountHelper.hasUser(getEntityManager, name)) {
+      Fields.error("input-username", "A user with this name already exists.")
+    } else {
+      Fields.success("input-username")
+      valid = true
+    }
+    valid
+  }
+
+  def validatePasswords(pwd: String, confirmedPwd: String) = {
+    var valid = false;
+    if (pwd == null || pwd.length < 4) {
+      Fields.error("input-password", "The password must have at least 4 characters.")
+    } else if (pwd != confirmedPwd) {
+      Fields.error("input-password", "The passwords do not match.")
+    } else {
+      Fields.success("input-password")
+      valid = true
+    }
+    valid
+  }
+
   def render = {
     val isRegister = S.attr("mode").exists(_ == "register") && Globals.contextUser.vend == SecurityUtil.UNKNOWN_USER
 
@@ -134,8 +166,25 @@ class Login extends SubjectHelper {
       mParam => loginMethods.collectFirst { case m @ (_, name) if name == mParam => m }
     } getOrElse loginMethods(0)
     loginData.setProperty("method", currentMethod._2)
+    var loginWithEnilink = currentMethod._1 == "eniLINK"
 
+    val username = S.param("f-username")
+    val usernameValid = username map (validateUsername(_)) openOr false
     var form: Seq[Node] = Nil
+    if (isRegister) {
+      form ++= <div id="input-username" class="form-group"><label>Your new user name</label><input id="f-username" name="f-username" type="text" value={ username openOr "" } placeholder="&lt;username&gt;" class="form-control" onblur={
+        SHtml.onEvent(name => { validateUsername(name); JsCmds._Noop })._2.toJsCmd
+      }/>{ Fields.msgBox("input-username") }</div>;
+      if (loginWithEnilink) {
+        form ++= <div id="input-password" class="form-group">
+                   <label>Password</label><input id="f-password" name="f-password" type="password" value="" class="form-control"/>
+                   <label>Confirm the password</label><input id="f-password-confirmed" name="f-password-confirmed" type="password" value="" class="form-control"/>
+                   { Fields.msgBox("input-password") }
+                 </div>
+      } else {
+        form ++= <hr/>
+      }
+    }
     var buttons: Seq[Node] = <button class="btn btn-primary" type="submit">Sign { if (isRegister) "up" else "in" }</button>
 
     def hidden(name: String, value: String) { form ++= <input type="hidden" name={ name } value={ value }/> }
@@ -156,7 +205,7 @@ class Login extends SubjectHelper {
       // prevent transferring password back to client
       if (cb.isInstanceOf[PasswordCallback]) vbox = Empty
       if (hide) vbox.map(hidden(field, _)) else {
-        form ++= <label>{ prompt }</label><input id={ field } name={ field } type={ inputType } value={ vbox openOr "" } placeholder={ placeholder } class="form-control" />;
+        form ++= <label>{ prompt }</label><input id={ field } name={ field } type={ inputType } value={ vbox openOr "" } placeholder={ placeholder } class="form-control"/>;
         if (cb.isInstanceOf[TextInputCallback] && prompt.toLowerCase.contains("openid")) {
           form ++= <div><a href="javascript:void(0)" onclick={
             (SetValById(field, "https://www.google.com/accounts/o8/id") & Run("$('#login-form').submit()")).toJsCmd
@@ -165,9 +214,18 @@ class Login extends SubjectHelper {
       }
     }
 
+    if (isRegister && loginWithEnilink) {
+      val pwd :String = S.param("f-password") openOr null
+      val confirmedPwd = S.param("f-password-confirmed") openOr null
+      if (usernameValid && validatePasswords(pwd, confirmedPwd)) {
+        
+      }
+    }
+
     val session = S.session.get.httpSession.get
     val subject = getSubjectFromSession match {
       case Full(s) if !(isRegister || isLinkIdentity) => s // already logged in
+      case _ if isRegister && loginWithEnilink => null
       case _ => {
         var redirectTo: String = null
         var requiresInput = false
