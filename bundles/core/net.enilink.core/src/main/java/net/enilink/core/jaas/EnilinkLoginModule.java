@@ -1,8 +1,6 @@
 package net.enilink.core.jaas;
 
-import java.security.MessageDigest;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -24,14 +22,11 @@ import net.enilink.komma.core.IEntity;
 import net.enilink.komma.core.IEntityManager;
 import net.enilink.komma.core.IQuery;
 import net.enilink.komma.core.URI;
-import net.enilink.komma.core.URIs;
-import net.enilink.komma.em.concepts.IResource;
 import net.enilink.komma.model.IModelSet;
 import net.enilink.security.callbacks.RegisterCallback;
 import net.enilink.vocab.auth.AUTH;
 import net.enilink.vocab.rdfs.Resource;
 
-import org.apache.commons.codec.binary.Base64;
 import org.osgi.framework.ServiceReference;
 
 public class EnilinkLoginModule implements LoginModule {
@@ -93,10 +88,6 @@ public class EnilinkLoginModule implements LoginModule {
 			List<Callback> callbacks = new ArrayList<Callback>();
 			callbacks.add(new NameCallback("Username: ", "<name>"));
 			callbacks.add(new PasswordCallback("Password:", false));
-			boolean isRegister = isRegister();
-			if (isRegister) {
-				callbacks.add(new PasswordCallback("Confirm password:", false));
-			}
 			try {
 				callbackHandler.handle(callbacks.toArray(new Callback[callbacks
 						.size()]));
@@ -111,52 +102,17 @@ public class EnilinkLoginModule implements LoginModule {
 			String username = ((NameCallback) callbacks.get(0)).getName();
 			char[] password = ((PasswordCallback) callbacks.get(1))
 					.getPassword();
-			if (isRegister) {
-				char[] confirmedPassword = ((PasswordCallback) callbacks.get(2))
-						.getPassword();
-				if (!Arrays.equals(password, confirmedPassword)) {
-					throw new LoginException("Passwords do not match.");
-				}
-			}
-
-			String encodedPassword;
-			try {
-				MessageDigest md = MessageDigest.getInstance("SHA-1");
-				md.digest(new String(password).getBytes("UTF-8"));
-				encodedPassword = new String(new Base64().encode(md.digest()));
-			} catch (Exception e) {
-				throw new LoginException("Failed to encode the password: "
-						+ e.getMessage());
-			}
-
+			String encodedPassword = AccountHelper.encodePassword(new String(
+					password));
 			URI userId;
-
 			IEntityManager em = getEntityManager();
 			try {
-				if (isRegister) {
-					try {
-						IEntity user = AccountHelper.createUser(em, username);
-						user.as(IResource.class).addProperty(
-								URIs.createURI("urn:enilink:password"),
-								encodedPassword);
-						userId = user.getURI();
-					} catch (IllegalArgumentException iae) {
-						throw new LoginException(
-								"A user with this name already exists.");
-					}
-				} else {
-					userId = AccountHelper.getUserURI(username);
-					boolean found = em
-							.createQuery(
-									"ask { ?user <urn:enilink:password> ?password }")
-							.setParameter("user", userId)
-							.setParameter("password", encodedPassword)
-							.getBooleanResult();
-					if (!found) {
-						throw new LoginException(
-								"Unknown user or wrong password.");
-					}
+				IEntity user = AccountHelper.findUser(em, username,
+						encodedPassword);
+				if (user == null) {
+					throw new LoginException("Unknown user or wrong password.");
 				}
+				userId = user.getURI();
 			} finally {
 				releaseEntityManager();
 			}
