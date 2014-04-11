@@ -12,13 +12,16 @@ import net.enilink.lift.sitemap.Application
 import net.liftweb.builtin.snippet.Msg
 
 object Bs extends DispatchSnippet {
-  val msgAttrs = S.mapToAttrs(List("errorClass" -> "alert alert-error",
+  val alertAttrs = S.mapToAttrs(List("errorClass" -> "alert alert-danger",
     "warningClass" -> "alert", "noticeClass" -> "alert-info") toMap)
+  val feedbackAttrs = S.mapToAttrs(List("errorClass",
+    "warningClass", "noticeClass") map (_ -> "form-control-feedback") toMap)
 
   def dispatch: DispatchIt = {
     case "menu" => _ => menu
     case "submenu" => _ => submenu
-    case "alert" => ns => S.withAttrs(msgAttrs)(Msg.render(ns))
+    case "alert" => ns => S.withAttrs(alertAttrs)(Msg.render(ns))
+    case "feedback" => ns => S.withAttrs(feedbackAttrs)(Msg.render(ns))
   }
 
   private def isApplication(loc: Loc[_]) = loc.params.contains(Application)

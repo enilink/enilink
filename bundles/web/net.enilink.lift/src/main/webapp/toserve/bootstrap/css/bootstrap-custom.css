@@ -1,3 +1,7 @@
+#notification-area ul {
+	list-style: none outside none;
+}
+
 /** add language tags to literals */
 div[lang],span[lang] {
 	position: relative;

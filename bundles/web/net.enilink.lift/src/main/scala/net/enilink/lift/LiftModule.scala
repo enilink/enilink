@@ -106,7 +106,7 @@ class LiftModule extends Logger {
         case _ => Empty
       }
     })
-
+    
     // What is the function to test if a user is logged in?
     LiftRules.loggedInTest = Full(() => Globals.contextUser.vend != Globals.UNKNOWN_USER)
 
