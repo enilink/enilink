@@ -44,9 +44,6 @@ import net.enilink.vocab.rdfs.RDFS;
 
 import org.eclipse.core.resources.IProject;
 import org.eclipse.core.resources.ResourcesPlugin;
-import org.osgi.framework.BundleContext;
-import org.osgi.framework.InvalidSyntaxException;
-import org.osgi.framework.ServiceReference;
 
 import com.google.inject.AbstractModule;
 import com.google.inject.Guice;
@@ -62,45 +59,13 @@ class ModelSetManager {
 	static {
 		String repoType = System.getProperty("net.enilink.repository.type");
 		if (repoType == null) {
-			repoType = "owlim";
+			repoType = "memory";
 		}
 		REPOSITORY_TYPE = repoType.toLowerCase();
 	}
 
-	static IContextProvider contextProvider = new IContextProvider() {
-		@Override
-		public IContext get() {
-			try {
-				// get the first valid context from any
-				// registered session provider service
-				BundleContext bundleContext = Activator.getContext();
-				for (ServiceReference<IContextProvider> spRef : bundleContext
-						.getServiceReferences(IContextProvider.class, null)) {
-					IContext userCtx = bundleContext.getService(spRef).get();
-					bundleContext.ungetService(spRef);
-					if (userCtx != null) {
-						return userCtx;
-					}
-				}
-			} catch (InvalidSyntaxException ise) {
-				// ignore
-			}
-			return null;
-		}
-	};
-
-	static class ContextProviderModule extends AbstractModule {
-		@Override
-		protected void configure() {
-			bind(IContextProvider.class).toInstance(contextProvider);
-		}
-	}
-
 	private UnitOfWork uow = new UnitOfWork();
 	private IModelSet modelSet;
-
-	private ModelSetManager() {
-	}
 
 	protected void addServerInfo(URI modelSet, IGraph config) {
 		String serverUrl = System.getProperty("net.enilink.repository.server");
@@ -134,7 +99,7 @@ class ModelSetManager {
 					public Locale get() {
 						// return locale according to current context (RAP or
 						// Lift)
-						IContext context = contextProvider.get();
+						IContext context = ContextProviderModule.contextProvider.get();
 						return context != null ? context.getLocale() : Locale
 								.getDefault();
 					}
