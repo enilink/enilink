@@ -187,6 +187,9 @@ class LiftModule extends Logger {
                 case other: AnyRef => resource = Full(other)
                 case _ => // leave resource empty
               })
+              if (model.isEmpty) {
+                model = Globals.contextModel.vend
+              }
             } else if (resourceName.isDefined) {
               // a resource was passed as parameter, replace the global selection with this resource
               val bnode = "^(_:.*)".r
