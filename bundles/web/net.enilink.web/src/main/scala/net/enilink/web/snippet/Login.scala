@@ -1,18 +1,17 @@
 package net.enilink.web.snippet
 
 import java.io.IOException
-import java.io.StringReader
 import java.io.StringWriter
-import java.util.Properties
 
 import scala.Array.canBuildFrom
 import scala.collection._
 import scala.collection.JavaConversions.mapAsJavaMap
 import scala.xml.Node
+import scala.xml.NodeBuffer
+import scala.xml.NodeSeq
 import scala.xml.NodeSeq.seqToNodeSeq
 import scala.xml.Text
 
-import org.eclipse.core.runtime.Platform
 import org.eclipse.equinox.security.auth.ILoginContext
 import org.eclipse.equinox.security.auth.LoginContextFactory
 
@@ -24,9 +23,8 @@ import javax.security.auth.callback.PasswordCallback
 import javax.security.auth.callback.TextInputCallback
 import javax.security.auth.callback.TextOutputCallback
 import javax.security.auth.login.LoginException
-import net.enilink.auth.AccountHelper
 import net.enilink.core.security.SecurityUtil
-import net.enilink.lift.util.Fields
+import net.enilink.lift.util.EnilinkRules
 import net.enilink.lift.util.Globals
 import net.enilink.security.callbacks.RealmCallback
 import net.enilink.security.callbacks.RedirectCallback
@@ -39,57 +37,103 @@ import net.liftweb.common.Full
 import net.liftweb.http.S
 import net.liftweb.http.SHtml
 import net.liftweb.http.SessionVar
+import net.liftweb.http.Templates
+import net.liftweb.http.TransientRequestVar
 import net.liftweb.http.js.JsCmds._
 import net.liftweb.http.js.JsCmds
 import net.liftweb.http.provider.HTTPCookie
 import net.liftweb.util.Helpers
 import net.liftweb.util.Helpers.strToCssBindPromoter
 
-trait SubjectHelper {
-  val SUBJECT_KEY = "javax.security.auth.subject";
+class Login {
+  class DelegatingCallbackHandler extends CallbackHandler {
+    var delegate: CallbackHandler = _
+    def handle(callbacks: Array[Callback]) = delegate.handle(callbacks)
+  }
 
-  def getSubjectFromSession: Box[Subject] = S.session.get.httpSession.get.attribute(SUBJECT_KEY) match {
+  /**
+   * Captures a login context instance for storing it in a user session.
+   */
+  class State {
+    var referer: Box[String] = Empty
+    var method: String = _
+    var context: ILoginContext = _
+    var handler: DelegatingCallbackHandler = new DelegatingCallbackHandler
+    var params: Map[String, List[String]] = Map.empty
+  }
+
+  object loginState extends SessionVar[Box[State]](Empty)
+
+  object LoginDataHelpers {
+    import EnilinkRules.LOGIN_METHODS
+    import net.liftweb.json._
+
+    def loadLoginData = {
+      var loginData = new mutable.HashMap[String, Any]
+      // initialize login data from cookie
+      S.cookieValue("loginData").map {
+        v =>
+          parseOpt(Helpers.urlDecode(v)) match {
+            case Some(json: JObject) => loginData ++= json.values
+            case _ => // invalid data
+          }
+      }
+      loginData
+    }
+
+    def loginMethods = if (isLinkIdentity) LOGIN_METHODS.tail else LOGIN_METHODS
+  }
+
+  case class LoginData(props: mutable.Map[String, Any], currentMethod: (String, String)) {
+    implicit val formats = net.liftweb.json.DefaultFormats
+    import net.liftweb.json.JsonAST
+    import net.liftweb.json.Extraction._
+    import net.liftweb.json.Printer._
+    def save {
+      S.addCookie(HTTPCookie("loginData", Helpers.urlEncode(compact(JsonAST.render(decompose(props.toMap))))).setMaxAge(3600 * 24 * 90 /* 3 months */ ))
+    }
+  }
+
+  object loginDataVar extends TransientRequestVar[LoginData]({
+    val props = LoginDataHelpers.loadLoginData
+    val methods = LoginDataHelpers.loginMethods
+    var currentMethod = param("method").orElse(props.get("method")).flatMap {
+      mParam => methods.collectFirst { case m @ (_, name) if name == mParam => m }
+    } getOrElse methods(0)
+    if (!props.get("method").exists(_ == currentMethod._2)) {
+      // clear data if login method has been changed
+      props.clear
+    }
+    props("method") = currentMethod._2
+    LoginData(props, currentMethod)
+  })
+
+  val SUBJECT_KEY = "javax.security.auth.subject";
+  def getSubjectFromSession: Box[Subject] = S.session.flatMap(_.httpSession).flatMap(_.attribute(SUBJECT_KEY) match {
     case s: Subject => Full(s)
     case _ => Empty
-  }
-}
-
-class DelegatingCallbackHandler extends CallbackHandler {
-  var delegate: CallbackHandler = _
-  def handle(callbacks: Array[Callback]) = delegate.handle(callbacks)
-}
-
-/**
- * Captures a login context instance for storing it in a user session.
- */
-class State {
-  var referer: Box[String] = Empty
-  var method: String = _
-  var context: ILoginContext = _
-  var handler: DelegatingCallbackHandler = new DelegatingCallbackHandler
-}
-
-object loginState extends SessionVar[Box[State]](Empty)
-
-class Login extends SubjectHelper {
-  val JAAS_CONFIG_FILE = "/resources/jaas.conf";
-  val REQUIRE_LOGIN = false || "true"
-    .equalsIgnoreCase(System.getProperty("enilink.loginrequired"))
-
-  val LOGIN_METHODS = List(("eniLINK", "eniLINK"), ("IWU Share", "CMIS"), ("OpenID", "OpenID"))
+  })
+  def saveSubjectToSession(s: Subject) = S.session.flatMap(_.httpSession).foreach(_.setAttribute(SUBJECT_KEY, s))
 
   def isLinkIdentity = S.attr("mode").exists(_ == "link") && Globals.contextUser.vend != SecurityUtil.UNKNOWN_USER
-  def loginMethods = if (S.attr("mode").exists(_ == "link")) LOGIN_METHODS.tail else LOGIN_METHODS
 
   def getEntityManager = Globals.contextModelSet.vend.map(_.getMetaDataManager) openOrThrowException ("Unable to retrieve the model set")
 
   /**
+   * Retrieve a HTTP param from the login state or from the request
+   */
+  def param(name: String) = loginState.get.flatMap(_.params.get(name).flatMap(_.headOption)) or S.param(name)
+
+  /**
    * Retrieve a HTTP param while omitting empty strings.
    */
-  def value(name: String, loginData: Properties = null) = (S.param(name) match {
-    case Full(value) if value.length > 0 => Full(value)
+  def value(cb: Callback, name: String, values: Map[String, Any] = Map.empty) = (cb match {
+    // automatically login user after successful registration
+    case _ if !loginWithEnilink => Empty
+    case _: NameCallback => param("username").filter(_.length > 0)
+    case _: PasswordCallback => param("password").filter(_.length > 0)
     case _ => Empty
-  }) or (if (loginData != null) Box.legacyNullTest(loginData.getProperty(name)) else Empty)
+  }) or (param(name).filter(_.length > 0)) or values.get(name).map(_.toString)
 
   /**
    * Creates a menu for choosing the login method (OpenID, Kerberos, etc.).
@@ -104,7 +148,7 @@ class Login extends SubjectHelper {
         </a>
         <ul class="dropdown-menu">
           {
-            loginMethods.filter(_ != currentMethod).flatMap {
+            LoginDataHelpers.loginMethods.filter(_ != currentMethod).flatMap {
               case (label, name) =>
                 <li><a href="javascript:void(0)" onclick={
                   (SetValById("method", name) & Run("$('#login-form').submit()")).toJsCmd
@@ -116,121 +160,56 @@ class Login extends SubjectHelper {
     </div>
   }
 
-  def loadLoginData = {
-    val loginData = new Properties
-    // initialize login data from cookie
-    try {
-      S.cookieValue("loginData").map(v => loginData.load(new StringReader(v)))
-    } catch {
-      case e: IOException => // ignore
-    }
-    loginData
-  }
+  def hidden(name: String, value: String): NodeSeq = <input type="hidden" name={ name } value={ value }/>
 
-  def saveLoginData(loginData: Properties) {
-    val writer = new StringWriter; loginData.store(writer, "")
-    S.addCookie(HTTPCookie("loginData", writer.toString).setMaxAge(3600 * 24 * 90 /* 3 months */ ))
-  }
-
-  def validateUsername(name: String) = {
-    var valid = false;
-    if (name.length < 2) {
-      Fields.error("input-username", "The user name must have at least 2 characters.")
-    } else if (AccountHelper.hasUser(getEntityManager, name)) {
-      Fields.error("input-username", "A user with this name already exists.")
-    } else {
-      Fields.success("input-username")
-      valid = true
-    }
-    valid
-  }
-
-  def validatePasswords(pwd: String, confirmedPwd: String) = {
-    var valid = false;
-    if (pwd == null || pwd.length < 4) {
-      Fields.error("input-password", "The password must have at least 4 characters.")
-    } else if (pwd != confirmedPwd) {
-      Fields.error("input-password", "The passwords do not match.")
-    } else {
-      Fields.success("input-password")
-      valid = true
-    }
-    valid
-  }
-
-  def render = {
-    val isRegister = S.attr("mode").exists(_ == "register") && Globals.contextUser.vend == SecurityUtil.UNKNOWN_USER
-
-    val loginData = loadLoginData
-    var currentMethod = S.param("method").orElse(Box.legacyNullTest(loginData.getProperty("method"))).flatMap {
-      mParam => loginMethods.collectFirst { case m @ (_, name) if name == mParam => m }
-    } getOrElse loginMethods(0)
-    loginData.setProperty("method", currentMethod._2)
-    var loginWithEnilink = currentMethod._1 == "eniLINK"
-
-    val username = S.param("f-username")
-    val usernameValid = username map (validateUsername(_)) openOr false
-    var form: Seq[Node] = Nil
-    if (isRegister) {
-      form ++= <div id="input-username" class="form-group"><label>Your new user name</label><input id="f-username" name="f-username" type="text" value={ username openOr "" } placeholder="&lt;username&gt;" class="form-control" onblur={
-        SHtml.onEvent(name => { validateUsername(name); JsCmds._Noop })._2.toJsCmd
-      }/>{ Fields.msgBox("input-username") }</div>;
-      if (loginWithEnilink) {
-        form ++= <div id="input-password" class="form-group">
-                   <label>Password</label><input id="f-password" name="f-password" type="password" value="" class="form-control"/>
-                   <label>Confirm the password</label><input id="f-password-confirmed" name="f-password-confirmed" type="password" value="" class="form-control"/>
-                   { Fields.msgBox("input-password") }
-                 </div>
-      } else {
-        form ++= <hr/>
+  def handleUserCallback(cb: Callback, field: String, hide: Boolean, loginData: LoginData): NodeSeq = {
+    var vbox = value(cb, field, loginData.props)
+    vbox map { v =>
+      cb match {
+        case cb: TextInputCallback => cb.setText(v)
+        case cb: NameCallback => cb.setName(v)
+        case cb: PasswordCallback => cb.setPassword(v.toCharArray)
       }
     }
+    val (prompt, placeholder, inputType) = cb match {
+      case cb: TextInputCallback => (cb.getPrompt, cb.getDefaultText, "text")
+      case cb: NameCallback => (cb.getPrompt, cb.getDefaultName, "text")
+      case cb: PasswordCallback => (cb.getPrompt, "Password", "password")
+    }
+    // prevent transferring password back to client
+    if (cb.isInstanceOf[PasswordCallback]) vbox = Empty
+    if (hide) vbox.toList.flatMap(hidden(field, _)) else {
+      val form = <label>{ prompt }</label><input id={ field } name={ field } type={ inputType } value={ vbox openOr "" } placeholder={ placeholder } class="form-control"/>;
+      if (cb.isInstanceOf[TextInputCallback] && prompt.toLowerCase.contains("openid")) {
+        form ++= <div><a href="javascript:void(0)" onclick={
+          (SetValById(field, "https://www.google.com/accounts/o8/id") & Run("$('#login-form').submit()")).toJsCmd
+        }><span>Sign in with a Google Account</span></a></div>
+      }
+      form
+    }
+  }
+
+  def loginWithEnilink = loginDataVar.currentMethod._1 == "eniLINK"
+
+  def initializeForm: NodeSeq = Nil
+
+  def render = doRender(false)
+
+  def doRender(accountCreated: Boolean) = {
+    val isRegister = this.isInstanceOf[Register] && Globals.contextUser.vend == SecurityUtil.UNKNOWN_USER
+    val currentMethod = loginDataVar.currentMethod
+
+    var form: NodeSeq = if (accountCreated || isLinkIdentity) Nil else initializeForm
     var buttons: Seq[Node] = <button class="btn btn-primary" type="submit">Sign { if (isRegister) "up" else "in" }</button>
-
-    def hidden(name: String, value: String) { form ++= <input type="hidden" name={ name } value={ value }/> }
-    def handleUserCallback(cb: Callback, field: String, hide: Boolean) = {
-      var vbox = value(field, loginData)
-      vbox map { v =>
-        cb match {
-          case cb: TextInputCallback => cb.setText(v)
-          case cb: NameCallback => cb.setName(v)
-          case cb: PasswordCallback => cb.setPassword(v.toCharArray)
-        }
-      }
-      val (prompt, placeholder, inputType) = cb match {
-        case cb: TextInputCallback => (cb.getPrompt, cb.getDefaultText, "text")
-        case cb: NameCallback => (cb.getPrompt, cb.getDefaultName, "text")
-        case cb: PasswordCallback => (cb.getPrompt, "Password", "password")
-      }
-      // prevent transferring password back to client
-      if (cb.isInstanceOf[PasswordCallback]) vbox = Empty
-      if (hide) vbox.map(hidden(field, _)) else {
-        form ++= <label>{ prompt }</label><input id={ field } name={ field } type={ inputType } value={ vbox openOr "" } placeholder={ placeholder } class="form-control"/>;
-        if (cb.isInstanceOf[TextInputCallback] && prompt.toLowerCase.contains("openid")) {
-          form ++= <div><a href="javascript:void(0)" onclick={
-            (SetValById(field, "https://www.google.com/accounts/o8/id") & Run("$('#login-form').submit()")).toJsCmd
-          }><span>Sign in with a Google Account</span></a></div>
-        }
-      }
-    }
-
-    if (isRegister && loginWithEnilink) {
-      val pwd :String = S.param("f-password") openOr null
-      val confirmedPwd = S.param("f-password-confirmed") openOr null
-      if (usernameValid && validatePasswords(pwd, confirmedPwd)) {
-        
-      }
-    }
 
     val session = S.session.get.httpSession.get
     val subject = getSubjectFromSession match {
       case Full(s) if !(isRegister || isLinkIdentity) => s // already logged in
-      case _ if isRegister && loginWithEnilink => null
+      // in the process of creating an enilink account with username and password
+      case _ if isRegister && loginWithEnilink && !accountCreated => null
       case _ => {
         var redirectTo: String = null
         var requiresInput = false
-        val cfgUrl = Platform.getBundle("net.enilink.core")
-          .getResource(JAAS_CONFIG_FILE);
 
         // use login context from session or create a new one
         val state = loginState.get match {
@@ -239,12 +218,12 @@ class Login extends SubjectHelper {
             val state = new State
             state.referer = S.referer flatMap { r => if (r.startsWith(S.hostAndPath)) Full(r) else Empty }
             state.method = currentMethod._2
-            state.context = LoginContextFactory.createContext(state.method, cfgUrl, state.handler)
+            state.context = LoginContextFactory.createContext(state.method, EnilinkRules.JAAS_CONFIG_URL, state.handler)
             loginState.set(Full(state))
             state
           }
         }
-        val sCtx = state.context
+        val loginCtx = state.context
         // update handler, since the handle method is actually a closure over some variables of this snippet instance
         state.handler.delegate = new CallbackHandler {
           var stage = 0
@@ -255,9 +234,9 @@ class Login extends SubjectHelper {
                 cb match {
                   case (_: TextInputCallback | _: NameCallback) => {
                     val field = fieldName(index)
-                    value(fieldName(index)).map(loginData.setProperty(field, _)).isEmpty
+                    value(cb, fieldName(index)).map(loginDataVar.props.update(field, _)).isEmpty
                   }
-                  case (_: PasswordCallback) => value(fieldName(index)).isEmpty
+                  case (_: PasswordCallback) => value(cb, fieldName(index)).isEmpty
                   case _ => false
                 })
             }
@@ -268,34 +247,29 @@ class Login extends SubjectHelper {
                   case cb: TextOutputCallback => form ++= <div class={
                     "alert" + (cb.getMessageType match {
                       case TextOutputCallback.INFORMATION => " alert-info"
-                      case TextOutputCallback.ERROR => " alert-error"
+                      case TextOutputCallback.ERROR => " alert-danger"
                       case _ => ""
                     })
                   }>{ cb.getMessage }</div>
-                  case cb @ (_: TextInputCallback | _: NameCallback | _: PasswordCallback) => handleUserCallback(cb, name, !requiresInput)
+                  case cb @ (_: TextInputCallback | _: NameCallback | _: PasswordCallback) => form ++= handleUserCallback(cb, name, !requiresInput, loginDataVar)
                   // special callbacks introduced by enilink
                   case cb: RegisterCallback =>
-                    cb.setRegister(isRegister || isLinkIdentity)
+                    cb.setRegister(!accountCreated && (isRegister || isLinkIdentity))
                   case cb: RedirectCallback =>
                     requiresInput = true
                     redirectTo = cb.getRedirectTo
+                    state.params = S.request.map(_._params) openOr Map.empty
                   case cb: RealmCallback =>
                     cb.setContextUrl(S.hostAndPath)
-                    var params = List(("method", currentMethod._2)) ++ S.param("mode").map(("mode", _)) ++
-                      // TODO maybe store these values in the session
-                      // append field values as parameters
-                      S.request.map(_._params.collect {
-                        case (k, v :: Nil) if k.startsWith("f-" + currentMethod._2) => (k, v)
-                      } toList).openOr(Nil)
-                    cb.setApplicationUrl(Helpers.appendParams(S.hostAndPath + S.uri, params))
+                    cb.setApplicationUrl(S.hostAndPath + S.uri)
                   case cb: ResponseCallback =>
                     val params = S.request.map(_._params.map(e => (e._1, e._2.toArray))) openOr Map.empty
                     cb.setResponseParameters(params)
                     // add parameters for fields as hidden inputs
-                    S.request.map(_._params.foreach {
-                      case (k, v :: Nil) if k.startsWith("f-") => hidden(k, v)
+                    state.params foreach {
+                      case (k, v :: Nil) if k.startsWith("f-") => form ++= hidden(k, v)
                       case _ =>
-                    })
+                    }
                   case _ => // ignore unknown callback
                 }
             }
@@ -305,15 +279,18 @@ class Login extends SubjectHelper {
         }
 
         try {
-          sCtx.login
-          session.setAttribute(SUBJECT_KEY, sCtx.getSubject)
-          loginState.remove
+          loginCtx.login
+          try {
+            saveSubjectToSession(loginCtx.getSubject)
+          } finally {
+            loginState.remove
+          }
           // redirect to origin if login is successful
           if (!isRegister) S.redirectTo(state.referer openOr "/")
-          sCtx.getSubject
+          loginCtx.getSubject
         } catch {
           case e: LoginException if requiresInput =>
-            if (redirectTo != null) { saveLoginData(loginData); S.redirectTo(redirectTo) }; null // user interaction required
+            if (redirectTo != null) { loginDataVar.save; S.redirectTo(redirectTo) }; null // user interaction required
           case e: LoginException => {
             var cause = e
             // required for Equinox security to retrieve the
@@ -322,21 +299,21 @@ class Login extends SubjectHelper {
               cause = cause.getCause.asInstanceOf[LoginException]
             }
 
-            form = <div class="alert alert-error"><div><strong>Login failed</strong></div>{ cause.getMessage }</div>
+            form = <div class="alert alert-danger"><div><strong>Login failed</strong></div>{ cause.getMessage }</div>
             buttons = <button class="btn btn-primary" type="submit">Retry</button>
             null
           }
         }
       }
     }
-    if (subject != null) {
+    if (subject != null && Globals.contextUser.vend != Globals.UNKNOWN_USER) {
       if (isRegister) S.redirectTo(S.hostAndPath + "/static/profile")
       form ++= <div class="alert alert-success"><strong>You are logged in.</strong></div>
       buttons = SHtml.button("Logout", () => session.removeAttribute(SUBJECT_KEY), ("class", "btn btn-primary"))
     } else {
       form = createMethodButtons(currentMethod) ++ form
     }
-    saveLoginData(loginData)
+    loginDataVar.save
     var selectors = "form [action]" #> (S.contextPath + S.uri) &
       "#fields *" #> form &
       "#buttons *" #> buttons
@@ -345,6 +322,6 @@ class Login extends SubjectHelper {
     } else if (isLinkIdentity) {
       selectors &= "#login-form-label *" #> <xml:group><h2>Link other identity</h2>Select an identity provider.</xml:group>
     }
-    selectors
+    "*" #> Templates("templates-hidden" :: "loginform" :: Nil).map(ns => selectors(ns))
   }
 }

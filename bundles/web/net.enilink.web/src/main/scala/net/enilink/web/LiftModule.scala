@@ -25,6 +25,7 @@ import net.liftweb.sitemap.LocPath.stringToLocPath
 import net.liftweb.sitemap.Menu
 import net.liftweb.sitemap.Menu.Menuable.toMenu
 import net.liftweb.sitemap.SiteMap
+import scala.xml.Text
 
 /**
  * A class that's instantiated early and run.  It allows the application
@@ -52,8 +53,8 @@ class LiftModule {
     SiteMap.sitemapMutator { Map.empty }(SiteMap.addMenusAtEndMutator(entries))
   }
 
-  def logout() { 
-    S.session.map(_.httpSession.map(_.removeAttribute("javax.security.auth.subject"))) 
+  def logout() {
+    S.session.map(_.httpSession.map(_.removeAttribute("javax.security.auth.subject")))
     Globals.contextUser.session.remove
   }
 
