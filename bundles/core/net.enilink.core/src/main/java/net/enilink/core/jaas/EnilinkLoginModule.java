@@ -16,16 +16,12 @@ import javax.security.auth.spi.LoginModule;
 
 import net.enilink.auth.AccountHelper;
 import net.enilink.auth.UserPrincipal;
-import net.enilink.commons.iterator.IExtendedIterator;
 import net.enilink.core.Activator;
 import net.enilink.komma.core.IEntity;
 import net.enilink.komma.core.IEntityManager;
-import net.enilink.komma.core.IQuery;
 import net.enilink.komma.core.URI;
 import net.enilink.komma.model.IModelSet;
 import net.enilink.security.callbacks.RegisterCallback;
-import net.enilink.vocab.auth.AUTH;
-import net.enilink.vocab.rdfs.Resource;
 
 import org.osgi.framework.ServiceReference;
 
@@ -135,31 +131,10 @@ public class EnilinkLoginModule implements LoginModule {
 						userId = principals.next().getId();
 					}
 					if (userId == null) {
-						StringBuilder querySb = new StringBuilder(
-								"select ?user where {\n");
-						for (int i = 0; i < externalIds.size(); i++) {
-							querySb.append("\t{ ?user ?externalIdProp ?id")
-									.append(i).append(" }\n");
-							if (i < externalIds.size() - 1) {
-								querySb.append("\tunion\n");
-							}
-						}
-						querySb.append("\tfilter isIRI(?user)\n");
-						querySb.append("} limit 1");
-
-						IQuery<?> query = getEntityManager().createQuery(
-								querySb.toString());
-						int i = 0;
-						for (Iterator<URI> it = externalIds.iterator(); it
-								.hasNext(); i++) {
-							query.setParameter("id" + i, it.next());
-						}
-						query.setParameter("externalIdProp",
-								AUTH.PROPERTY_EXTERNALID);
-						IExtendedIterator<Resource> result = query
-								.evaluate(Resource.class);
-						if (result.hasNext()) {
-							userId = result.next().getURI();
+						IEntity user = AccountHelper.findUser(
+								getEntityManager(), externalIds);
+						if (user != null) {
+							userId = user.getURI();
 						}
 					}
 					boolean isRegister = isRegister();
