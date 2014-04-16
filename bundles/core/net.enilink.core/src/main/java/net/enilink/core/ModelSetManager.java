@@ -59,7 +59,7 @@ class ModelSetManager {
 	static {
 		String repoType = System.getProperty("net.enilink.repository.type");
 		if (repoType == null) {
-			repoType = "owlim";
+			repoType = "memory";
 		}
 		REPOSITORY_TYPE = repoType.toLowerCase();
 	}
