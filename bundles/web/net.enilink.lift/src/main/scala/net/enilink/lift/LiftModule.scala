@@ -74,7 +74,7 @@ class LiftModule extends Logger {
       Subject.getSubject(AccessController.getContext()) match {
         case s: Subject =>
           val userPrincipals = s.getPrincipals(classOf[UserPrincipal])
-          if (!userPrincipals.isEmpty) userPrincipals.iterator.next.asInstanceOf[UserPrincipal].getId else Globals.UNKNOWN_USER
+          if (!userPrincipals.isEmpty) userPrincipals.iterator.next.getId else Globals.UNKNOWN_USER
         case _ => Globals.UNKNOWN_USER
       }
     })
