@@ -31,6 +31,7 @@ import net.enilink.komma.model.IModelSet
 import org.osgi.util.tracker.ServiceTracker
 import net.enilink.lift.Activator
 import org.osgi.framework.FrameworkUtil
+import net.enilink.lift.sitemap.Menus
 
 /**
  * A registry for global variables which are shared throughout the application.
@@ -40,7 +41,8 @@ object Globals extends Factory {
   modelSetTracker.open
 
   implicit val time = new FactoryMaker(Helpers.now _) {}
-  implicit val application = new FactoryMaker(() => Empty: Box[Loc[_]]) {}
+
+  implicit val application = new FactoryMaker(() => Empty: Box[Application]) {}
   application.default.set(() => {
     for (
       loc <- S.location or {
@@ -51,7 +53,10 @@ object Globals extends Factory {
           case _ => Empty
         }
       };
-      app <- loc.breadCrumbs.find(_.params.contains(Application))
+      app <- loc.breadCrumbs.find(_.currentValue match {
+        case Full(appValue: Application) => true
+        case _ => false
+      }).flatMap(_.currentValue.asInstanceOf[Box[Application]])
     ) yield {
       // cache app in request var
       application.request.set(Full(app))
@@ -63,7 +68,7 @@ object Globals extends Factory {
     S.getRequestHeader("X-Forwarded-For") match {
       // this is a virtual host hence application is at "/"
       case Full(_) => "/"
-      case _ => application.vend.dmap("/")(_.link.uriList.mkString("/", "/", "") match {
+      case _ => application.vend.dmap("/")(_.path.mkString("/", "/", "") match {
         case "/" => "/"
         case other => other + "/"
       })

@@ -23,14 +23,14 @@ import net.liftweb.util.Props
 object TemplateHelpers {
   type RenderResult = (NodeSeq, Box[String])
 
-  def appFor(path: List[String]): Box[Loc[_]] = {
+  def appFor(path: List[String]): Box[Application] = {
     // try to determine current application based on the given template path
     if (S.location.isEmpty && path.length > 1) {
       for (
         req <- S.request;
         newReq = req.withNewPath(ParsePath(path(0) :: Nil, "", true, false));
         loc <- LiftRules.siteMap.flatMap(_.findLoc(newReq));
-        app <- loc.breadCrumbs.find(_.params.contains(Application))
+        app <- loc.breadCrumbs.find(_.currentValue.exists(_.isInstanceOf[Application])).flatMap(_.currentValue.map(_.asInstanceOf[Application]))
       ) yield app
     } else Globals.application.vend
   }

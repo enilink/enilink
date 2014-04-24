@@ -3291,7 +3291,7 @@
         s = this.subject.value.toString(),
         p = this.property.value.toString();
       e[s] = {};
-      e[s][p] = this.object.dump();
+      e[s][p] = [this.object.dump()];
       return e;
     },
 

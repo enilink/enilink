@@ -119,7 +119,7 @@ class VarBinder(val e: Elem, val attr: String, val name: String) extends RdfAttr
     var attributes = attrs
     val rdfValue = bindings.get(name)
     var currentCtx = ctx
-    if (rdfValue != null) currentCtx = changeContext(currentCtx, attr, rdfValue)
+    if (rdfValue != null || keepNode) currentCtx = changeContext(currentCtx, attr, rdfValue)
     val attValue = rdfValue match {
       case ref: IReference => shortRef(ctx, e, attr, ref)
       case literal: ILiteral if !clearAttribute => {

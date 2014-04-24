@@ -59,10 +59,9 @@ class Rdf extends DispatchSnippet with RDFaTemplates {
   def dispatch: DispatchIt = {
     case method => CurrentContext.value match {
       case Full(c) => {
-        (if (S.attr("for").exists(_ == "predicate")) c.predicate else c.subject) match {
-          case null => ClearNodes
-          case other => execMethod(other, method)
-        }
+        val target = if (S.attr("for").exists(_ == "predicate")) c.predicate else c.subject
+        // target may also be null
+        execMethod(target, method)
       }
       // no current RDF context
       case _ => method match {
@@ -97,16 +96,16 @@ class Rdf extends DispatchSnippet with RDFaTemplates {
       case "pname" => ModelUtil.getPName(target)
       case "name" => target match {
         case ref: IReference if ref.getURI != null => ref.getURI.localPart
-        case _ => target.toString
+        case _ => String.valueOf(target)
       }
-      case "ref" => target.toString
+      case "ref" => String.valueOf(target)
       case "!label" => toLabel(target, true)
       case "label" => toLabel(target)
       case "manchester" => toManchester(target)
       case "get-url" => target match {
         case ref: IReference if ref.getURI != null && ref.getURI.scheme == "blobs" =>
           S.contextPath + "/files/" + ref.getURI.opaquePart
-        case _ => target.toString
+        case _ => String.valueOf(target)
       }
     }
     (ns: NodeSeq) =>
@@ -120,15 +119,15 @@ class Rdf extends DispatchSnippet with RDFaTemplates {
             case m if runMethod.isDefinedAt(m) => runMethod(m)
             case _ => ""
           }
-          
+
           val origText = if (attrValue.isEmpty) "{}" else attrValue.text
-          
+
           // encode if attribute is used as URL
           val encode = replaceAttr.get.toLowerCase match {
             case "href" | "src" if origText != "{}" => Helpers.urlEncode _
             case _ => (v: String) => v
           }
-          
+
           val newAttrValue = "\\{([^}]*)\\}".r.replaceAllIn(origText, m => m.group(1) match {
             case "" => encode(value)
             case "model" => {

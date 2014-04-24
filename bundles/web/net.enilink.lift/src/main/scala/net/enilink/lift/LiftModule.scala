@@ -52,7 +52,7 @@ class LiftModule extends Logger {
   class InMemoryCache(templatesCount: Int) extends TemplateCache[(Locale, List[String]), NodeSeq] {
     private val cache: LRU[(List[String], (Locale, List[String])), NodeSeq] = new LRU(templatesCount)
 
-    private def withApp(key: T) = (Globals.application.vend.dmap(Nil: List[String])(_.link.uriList), key)
+    private def withApp(key: T) = (Globals.application.vend.dmap(Nil: List[String])(_.path), key)
 
     def get(key: T): Box[NodeSeq] = cache.synchronized {
       cache.get(withApp(key))

@@ -46,7 +46,7 @@ import net.liftweb.util.LiftFlowOfControlException
 import java.util.UUID
 import net.enilink.komma.core.URI
 
-case class ProposeInput(rdf: JValue, query: String, index: Int)
+case class ProposeInput(rdf: JValue, query: String, index: Option[Int])
 case class GetValueInput(rdf: JValue)
 case class SetValueInput(rdf: JValue, value: JValue, template: Option[String], what: Option[String])
 
@@ -58,11 +58,12 @@ class JsonCallHandler {
   val model: Box[IModel] = Globals.contextModel.vend
   val path = S.request map (_.path)
 
-  class EditingHelper extends PropertyEditingHelper(PropertyEditingHelper.Type.VALUE) {
+  class EditingHelper(editType: PropertyEditingHelper.Type) extends PropertyEditingHelper(editType) {
     override def getStatement(element: AnyRef) = {
       val stmt = element.asInstanceOf[IStatement]
       val em = model.get.getManager
-      new Statement(em.find(stmt.getSubject), em.find(stmt.getPredicate), stmt.getObject)
+      val p = stmt.getPredicate
+      new Statement(em.find(stmt.getSubject), if (p == null) null else em.find(p), stmt.getObject)
     }
 
     override def getEditingDomain = model.get.getModelSet.adapters.getAdapter(classOf[IEditingDomainProvider]) match {
@@ -95,7 +96,7 @@ class JsonCallHandler {
     }
   }
 
-  def createHelper = new EditingHelper
+  def createHelper(editProperty: Boolean = false) = new EditingHelper(if (editProperty) PropertyEditingHelper.Type.PROPERTY else PropertyEditingHelper.Type.VALUE)
 
   def apply: PartialFunction[JValue, Any] = {
     case JsonCommand("removeResource", _, JString(resource)) => {
@@ -153,10 +154,10 @@ class JsonCallHandler {
       val proposals = for (
         ProposeInput(rdf, query, index) <- params.extractOpt[ProposeInput];
         stmt <- statements(rdf).headOption;
-        proposalSupport <- Option(createHelper.getProposalSupport(stmt));
+        proposalSupport <- Option(createHelper(stmt.getPredicate == null).getProposalSupport(stmt));
         proposalProvider <- Option(proposalSupport.getProposalProvider)
       ) yield {
-        proposalProvider.getProposals(query, index) map { p =>
+        proposalProvider.getProposals(query, index getOrElse query.length) map { p =>
           val o = ("label", p.getLabel) ~ ("content", p.getContent) ~ ("description", p.getDescription) ~
             ("cursorPosition", p.getCursorPosition) ~ ("insert", p.isInsert)
           p match {
@@ -172,7 +173,7 @@ class JsonCallHandler {
     case JsonCommand("getValue", _, params) => {
       params.extractOpt[GetValueInput] flatMap {
         case GetValueInput(rdf) => statements(rdf) match {
-          case stmt :: _ => Option(createHelper.getValue(stmt))
+          case stmt :: _ => Option(createHelper().getValue(stmt))
           case _ => None
         }
         case _ => None
@@ -185,7 +186,7 @@ class JsonCallHandler {
         model <- model ?~ "No active model found"
       ) {
         val em = model.getManager
-        val helper = createHelper
+        val helper = createHelper()
         val editingDomain = helper.getEditingDomain
         try {
           em.getTransaction.begin
@@ -217,7 +218,7 @@ class JsonCallHandler {
         case SetValueInput(rdf, value, template, templatePath) =>
           statements(rdf) match {
             case stmt :: _ => {
-              val cmdResult = createHelper.setValue(stmt, value match {
+              val cmdResult = createHelper().setValue(stmt, value match {
                 case JString(s) => s.trim
                 // also allow RDF/JSON encoded values
                 case _ => valueFromJSON(value)
@@ -319,24 +320,32 @@ class JsonCallHandler {
     }
   }
 
+  val NULL_URI = URIs.createURI("urn:null")
+
   /**
    * Parses RDF/JSON, RDF/XML and Turtle.
    */
-  def statements(rdf: JValue): Seq[IStatement] = rdf match {
-    case rdfJson: JObject => statementsFromJSON(rdfJson)
-    case JString(rdfStr) =>
-      val stmts = new ListBuffer[IStatement]
-      ModelUtil.readData(new ByteArrayInputStream(rdfStr.getBytes("UTF-8")), "", null, true, new IDataVisitor[Unit]() {
-        override def visitBegin {}
-        override def visitEnd {}
-        override def visitStatement(stmt: IStatement) = stmts += stmt
-      })
-      stmts.toSeq
-    case _ => Nil
+  def statements(rdf: JValue): Seq[IStatement] = {
+    def unwrapNull[T >: Null](v: T): T = if (v == NULL_URI) null else v
+
+    (rdf match {
+      case rdfJson: JObject => statementsFromJSON(rdfJson)
+      case JString(rdfStr) =>
+        val stmts = new ListBuffer[IStatement]
+        ModelUtil.readData(new ByteArrayInputStream(rdfStr.getBytes("UTF-8")), "", null, true, new IDataVisitor[Unit]() {
+          override def visitBegin {}
+          override def visitEnd {}
+          override def visitStatement(stmt: IStatement) = stmts += stmt
+        })
+        stmts.toSeq
+      case _ => Nil
+    }) map {
+      stmt => new Statement(unwrapNull(stmt.getSubject), unwrapNull(stmt.getPredicate), unwrapNull(stmt.getObject))
+    }
   }
 
   /** Replace blank nodes with prefix "new" by new blank nodes generated by an entity manager. */
-  def renameNewNodes(stmts: Seq[IStatement], em: IEntityManager, baseURI : URI, replacements: mutable.Map[String, IReference] = new mutable.HashMap) = {
+  def renameNewNodes(stmts: Seq[IStatement], em: IEntityManager, baseURI: URI, replacements: mutable.Map[String, IReference] = new mutable.HashMap) = {
     def replace[T](node: T): T = (node match {
       case ref: IReference if ref.getURI == null && ref.toString.startsWith("_:new-") => replacements.getOrElseUpdate(ref.toString, em.createReference)
       case ref: IReference if ref.getURI != null && "new".equals(ref.getURI.scheme) => replacements.getOrElseUpdate(ref.toString, baseURI.appendLocalPart(ref.getURI.opaquePart + UUID.randomUUID))

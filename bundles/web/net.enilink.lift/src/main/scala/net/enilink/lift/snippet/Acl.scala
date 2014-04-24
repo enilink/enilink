@@ -26,22 +26,24 @@ object Acl {
   def render(ns: NodeSeq): NodeSeq = {
     var bindingVar = (ns \ "@data-for").text
     if (!bindingVar.isEmpty) {
-      <span xmlns:acl={ ACL.NAMESPACE } xmlns:rdf={ RDF.NAMESPACE } class="exists union clearable">
-        <!-- user either owns the target resource -->
-        <span about={ bindingVar } rel="acl:owner" resource="?currentUser"/>
-        <!-- or has at least read access to it -->
-        <span typeof="acl:Authorization">
-          <span class="union">
-            <span rel="acl:accessTo" resource={ bindingVar }/>
-            <span rel="acl:accessToClass">
-              <span rev="rdf:type" resource={ bindingVar }/>
+      <span prefix={ "acl: " + ACL.NAMESPACE + " rdf: " + RDF.NAMESPACE } class="clearable">
+        <span class="exists union" data-filter="bound(?currentUser)">
+          <!-- user either owns the target resource -->
+          <span about={ bindingVar } rel="acl:owner" resource="?currentUser"/>
+          <!-- or has at least read access to it -->
+          <span about="?">
+            <span class="union">
+              <span rel="acl:accessTo" resource={ bindingVar }/>
+              <span rel="acl:accessToClass">
+                <span rev="rdf:type" resource={ bindingVar }/>
+              </span>
             </span>
-          </span>
-          <span rel="acl:mode" resource="acl:Read"/>
-          <span class="union">
-            <span rel="acl:agent" resource="?currentUser"/>
-            <span rel="acl:agentClass">
-              <span rev="rdf:type" resource="?agent"/>
+            <span rel="acl:mode" resource="acl:Read"/>
+            <span class="union">
+              <span rel="acl:agent" resource="?currentUser"/>
+              <span rel="acl:agentClass">
+                <span rev="rdf:type" resource="?agent"/>
+              </span>
             </span>
           </span>
         </span>

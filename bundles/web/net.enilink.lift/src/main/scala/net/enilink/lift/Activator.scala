@@ -89,7 +89,7 @@ class Activator extends BundleActivator with Loggable {
   def initLift {
     // allow duplicate link names
     SiteMap.enforceUniqueLinks = false
-    
+
     // set context path
     LiftRules.calculateContextPath = () => Empty
 
@@ -247,20 +247,28 @@ class Activator extends BundleActivator with Loggable {
       def list(s: String) = s.stripPrefix("/").split("/").toList
       lazy val baseResourceLocation = list(ResourceServer.baseResourceLocation)
       val resourcePath = list(s)
-      val places = if (resourcePath.startsWith(baseResourceLocation)) {
+      val places = if (resourcePath.startsWith("star" :: Nil)) {
+        // star stands for any application
+        (Globals.application.vend match {
+          // /star/some/resource => [application path]/some/resource
+          case Full(app) if app.path.headOption.exists(_.nonEmpty) => List(str(app.path ++ resourcePath.tail))
+          case _ => Nil
+          // /star/some/resource => /some/resource
+        }) ++ List(str(resourcePath.tail))
+      } else if (resourcePath.startsWith(baseResourceLocation)) {
         val suffix = resourcePath.drop(1)
         // lookup possible appPath in sitemap
-        val appPath = LiftRules.siteMap.flatMap(_.findLoc(suffix.head))
-          .filter(_.params.contains(Application)).map(_.link.uriList) openOr Nil
+        val appPath = LiftRules.siteMap.flatMap(_.findLoc(suffix.head).collectFirst( _.currentValue match {
+          case Full(app : Application) => app.path
+        })) openOr Nil
         if (appPath.nonEmpty && suffix.startsWith(appPath))
           // /toserve/[application path]/some/resource => /toserve/some/resource
           List(s, str(baseResourceLocation ++ suffix.drop(appPath.length)))
         else List(s)
       } else Globals.application.vend match {
-        case Full(app) if app.link.uriList.headOption.exists(_.nonEmpty) =>
+        case Full(app) if app.path.headOption.exists(_.nonEmpty) =>
           // search alternative places
-          val resourcePath = list(s)
-          val appPath = app.link.uriList
+          val appPath = app.path
           if (resourcePath.startsWith(appPath))
             // /[application path]/some/resource => /some/resource
             List(s, str(resourcePath.drop(appPath.length)))

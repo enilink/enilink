@@ -10,6 +10,8 @@ import net.liftweb.common.Full
 import net.liftweb.sitemap.Loc
 import net.enilink.lift.sitemap.Application
 import net.liftweb.builtin.snippet.Msg
+import net.enilink.lift.util.Globals
+import net.enilink.lift.sitemap.HideIfInactive
 
 object Bs extends DispatchSnippet {
   val alertAttrs = S.mapToAttrs(List("errorClass" -> "alert alert-danger",
@@ -24,7 +26,7 @@ object Bs extends DispatchSnippet {
     case "feedback" => ns => S.withAttrs(feedbackAttrs)(Msg.render(ns))
   }
 
-  private def isApplication(loc: Loc[_]) = loc.params.contains(Application)
+  private def hidden(loc: Loc[_], path: List[Loc[_]]) = loc.hidden || loc.params.contains(HideIfInactive) && !path.contains(loc)
 
   private def menuEntries = {
     val result =
@@ -35,13 +37,17 @@ object Bs extends DispatchSnippet {
           case Full(loc) => loc.breadCrumbs
           case _ => Nil
         };
-        app = path.find(isApplication) getOrElse null
+        app = Globals.application.vend getOrElse null
       } yield sm.kids.flatMap {
         // create only items for current application
         kid =>
-          if (kid.loc.hidden) Nil else if (isApplication(kid.loc)) {
-            if (kid.loc != app) Nil else kid.kids.flatMap(_.makeMenuItem(path))
-          } else kid.makeMenuItem(path)
+          if (hidden(kid.loc, path)) Nil else kid.loc.currentValue match {
+            case Full(someApp: Application) => if (someApp == app) {
+              // skip application root locations
+              if (kid.loc.link.uriList == app.path) kid.kids.flatMap(_.makeMenuItem(path)) else kid.makeMenuItem(path)
+            } else Nil
+            case _ => kid.makeMenuItem(path)
+          }
       }) openOr Nil
     result
   }
@@ -70,9 +76,9 @@ object Bs extends DispatchSnippet {
               } else {
                 <a href={ item.uri }>
                   { item.text }
-                  <span style="background-color:transparent" data-target={ "#menu" + i } class="dropdown-toggle" data-toggle="dropdown">
+                  <div style="background-color:transparent; display: inline; padding: 10px 3px; margin: -5px 0" data-target={ "#menu" + i } class="dropdown-toggle" data-toggle="dropdown">
                     <b class="caret"></b>
-                  </span>
+                  </div>
                 </a>
               }
             }
