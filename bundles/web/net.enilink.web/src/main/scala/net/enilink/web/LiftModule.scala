@@ -1,16 +1,15 @@
 package net.enilink.web
 
 import net.enilink.lift.sitemap.Application
+import net.enilink.lift.sitemap.Menus
 import net.enilink.lift.util.Globals
 import net.enilink.web.rest.ELSRest
 import net.enilink.web.rest.ModelsRest
 import net.liftweb.common.Full
-import net.liftweb.common.StringFunc.strToStringFunc
 import net.liftweb.http.GetRequest
 import net.liftweb.http.LiftRules
 import net.liftweb.http.LiftRulesMocker.toLiftRules
 import net.liftweb.http.ParsePath
-import net.liftweb.http.RedirectResponse
 import net.liftweb.http.Req
 import net.liftweb.http.RewriteRequest
 import net.liftweb.http.RewriteResponse
@@ -18,44 +17,36 @@ import net.liftweb.http.S
 import net.liftweb.http.auth.AuthRole
 import net.liftweb.http.auth.HttpBasicAuthentication
 import net.liftweb.http.auth.userRoles
-import net.liftweb.sitemap.Loc._
 import net.liftweb.sitemap.Loc
+import net.liftweb.sitemap.Loc.Hidden
+import net.liftweb.sitemap.Loc.Link
 import net.liftweb.sitemap.Loc.LinkText.strToLinkText
 import net.liftweb.sitemap.LocPath.stringToLocPath
 import net.liftweb.sitemap.Menu
 import net.liftweb.sitemap.Menu.Menuable.toMenu
 import net.liftweb.sitemap.SiteMap
-import scala.xml.Text
+import net.enilink.lift.sitemap.HideIfInactive
+import net.enilink.lift.sitemap.KeepQueryParameters
+import net.enilink.lift.sitemap.AddAppMenusAfter
 
 /**
  * A class that's instantiated early and run.  It allows the application
  * to modify lift's environment
  */
 class LiftModule {
-  object Right extends MenuCssClass("pull-right")
-
   def sitemapMutator: SiteMap => SiteMap = {
-    def profileText = Globals.contextUser.vend.getURI.localPart
-
-    val entries = List[Menu](Menu.i("enilink") / "" >> Application submenus (
+    implicit val app = ""
+    val entries = List[Menu](Menus.application("enilink", List(""), List(AddAppMenusAfter), List(
       Menu("enilink.Home", S ? "Home") / "index",
       Menu("enilink.Vocabulary", S ? "Vocabulary") / "vocab",
-      Menu("enilink.Login", S ? "Login") / "login" >> Right >> If(() => !S.loggedIn_?, S.?("logged.in")),
-      Menu("enilink.SignUp", S ? "Sign up") / "register" >> Right >> Hidden,
-      Menu("enilink.Profile", profileText) / "static" / "profile" >> Right >> If(() => S.loggedIn_?, S.?("must.be.logged.in"))
-      submenus (Menu("enilink.Logout", S ? "Logout") / "logout" >> EarlyResponse(() => { logout; Full(RedirectResponse("/")) })),
       // /upload for uploading of files
       Menu("enilink.Upload", S ? "Upload") / "upload" >> Hidden,
       // /static path to be visible
       Menu(Loc("Static", Link(List("static"), true, "/static/index"),
-        "Static Content", Hidden))))
+        "Static Content", Hidden))) ++ Menus.userMenus)) ++
+      Menus.globalMenus("describe", "describe", "describe" :: Nil, HideIfInactive, KeepQueryParameters())
 
-    SiteMap.sitemapMutator { Map.empty }(SiteMap.addMenusAtEndMutator(entries))
-  }
-
-  def logout() {
-    S.session.map(_.httpSession.map(_.removeAttribute("javax.security.auth.subject")))
-    Globals.contextUser.session.remove
+    Menus.sitemapMutator(entries)
   }
 
   def boot {

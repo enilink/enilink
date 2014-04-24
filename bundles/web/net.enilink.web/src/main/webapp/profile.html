@@ -10,8 +10,7 @@
 	rdfs: http://www.w3.org/2000/01/rdf-schema#
 	foaf: http://xmlns.com/foaf/0.1/">
 	<div id="main" data-lift="surround?with=default;at=content">
-		<div about="?currentUser" data-lift="rdfa?target=meta"
-			class="row">
+		<div about="?currentUser" data-lift="rdfa?target=meta">
 			<h3>
 				Profile <span data-if="?nick"> of </span><span property="foaf:nick"
 					class="optional" content="?nick" data-lift="rdf.label"></span>
@@ -20,7 +19,7 @@
 				<div class="row">
 					<div class="col-md-5">Name</div>
 					<div class="col-md-7">
-						<span property="foaf:name" data-lift="rdf.label"></span>
+						<span property="foaf:name" data-lift="rdf.label" class="editable keep"></span>
 					</div>
 				</div>
 				<div class="row optional">
