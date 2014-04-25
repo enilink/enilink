@@ -59,38 +59,48 @@
 
 				$(".add-property").click(function() {
 					var self = $(this).closest("li[about]");
-					var property = self.resourceAttr("about");
-					/*$("#properties").find(
-							'[data-add][data-property="'
-									+ property + '"]')*/
+					var property = self.resourceAttr("about").value.toString();
 					addProperty(property, self.xmlns());
 				});
 
-
 			function installTypeahead() {
 					var self = $(this);
-					self.typeahead(
-							{
-								minLength : 2
-							},
-							{
-								source : function(query, cb) {
-									var subject = self.closest("[about]")
-											.resourceAttr("about");
-									var stmt = $.rdf.triple(subject,
-											"<urn:null>", "<urn:null>").dump();
-									enilink.propose({
-										rdf : stmt,
-										query : query
-									}, cb);
-								},
-								displayKey : function(v) {
-									return v.content;
-								}
-							}).on("typeahead:autocompleted typeahead:selected",
-							function(evt, proposal) {
-								addProperty(proposal.resource, self.xmlns());
-							});
+					self
+							.typeahead(
+									{
+										minLength : 2
+									},
+									{
+										source : function(query, cb) {
+											var subject = self.closest(
+													"[about]").resourceAttr(
+													"about");
+											var stmt = $.rdf.triple(subject,
+													"<urn:null>", "<urn:null>")
+													.dump();
+											enilink.propose({
+												rdf : stmt,
+												query : query
+											}, cb);
+										},
+										displayKey : function(v) {
+											return v.content;
+										},
+										templates : {
+											suggestion : function(v) {
+												var style = v.perfectMatch ? ' style="font-weight: bold;"'
+														: '';
+												return "<p" + style + ">"
+														+ v.label + "</p>";
+											}
+										}
+									})
+							.on(
+									"typeahead:autocompleted typeahead:selected",
+									function(evt, proposal) {
+										addProperty(proposal.resource, self
+												.xmlns());
+									});
 				}
 				$('input.input-property').not('.tt-input, .tt-hint').each(
 						installTypeahead);
@@ -107,23 +117,24 @@
 					</p>
 				</div>
 				<section style="margin-bottom: 5px">
-					<div class="dropdown pull-left" data-if="?relProperty" class="optional" style="margin-right: 15px">
+					<div class="dropdown pull-left" data-if="?relProperty" style="margin-right: 15px">
 						<a class="dropdown-toggle" id="dLabel" role="button"
 							data-toggle="dropdown" href="#"><span data-lift="loc.properties"></span> <b class="caret"></b>
 						</a>
 						<!-- query relevant properties -->
-						<div class="union clearable">
-							<div data-bind="rdfs:comment as ?relProperty"></div>
-							<div data-bind="rdfs:label as ?relProperty"></div>
-							<div rel="rdf:type" class="clearable">
-								<div rel="rdfs:subClassOf">
-									<div rel="owl:onProperty" resource="?relProperty"></div>
+						<div class="optional clearable">
+							<div class="union">
+								<div data-bind="rdfs:comment as ?relProperty"></div>
+								<div data-bind="rdfs:label as ?relProperty"></div>
+								<div rel="rdf:type" class="clearable">
+									<div rel="rdfs:subClassOf">
+										<div rel="owl:onProperty" resource="?relProperty"></div>
+									</div>
 								</div>
 							</div>
+							<!-- filter existing properties -->
+							<div rel="?relProperty" resource="?" class="clearable not-exists"></div>
 						</div>
-						<!-- filter existing properties -->
-						<div rel="?relProperty" resource="?dummy"
-							class="clearable not-exists"></div>
 						<ul class="dropdown-menu" role="menu" aria-labelledby="dLabel">
 							<li about="?relProperty" class="asc"><a href="javascript://"
 								class="add-property"><span about="?relProperty"
