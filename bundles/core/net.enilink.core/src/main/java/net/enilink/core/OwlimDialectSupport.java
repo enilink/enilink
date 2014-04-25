@@ -11,6 +11,7 @@ import net.enilink.komma.model.IModelSet;
 import net.enilink.komma.core.IDialect;
 import net.enilink.komma.core.QueryFragment;
 import net.enilink.komma.core.SparqlStandardDialect;
+import net.enilink.komma.core.URIs;
 
 /**
  * Implements OWLIM specific SPARQL extensions.
@@ -30,8 +31,9 @@ public abstract class OwlimDialectSupport implements IModelSet,
 					continue;
 				}
 				patternsAsURI.append(
-						pattern.replaceAll("[*?<>]", "").trim()
-								.replaceAll("\\s+", ":")).append(":");
+						URIs.encodeOpaquePart(pattern.replaceAll("[*?<>]", "")
+								.trim().replaceAll("\\s+", ":"), true)).append(
+						":");
 			}
 			StringBuilder sb = new StringBuilder();
 			if (patternsAsURI.length() > 0) {
