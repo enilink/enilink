@@ -62,45 +62,49 @@
 					var property = self.resourceAttr("about").value.toString();
 					addProperty(property, self.xmlns());
 				});
-
+			
 			function installTypeahead() {
 					var self = $(this);
-					self
-							.typeahead(
-									{
-										minLength : 2
-									},
-									{
-										source : function(query, cb) {
-											var subject = self.closest(
-													"[about]").resourceAttr(
-													"about");
-											var stmt = $.rdf.triple(subject,
-													"<urn:null>", "<urn:null>")
-													.dump();
-											enilink.propose({
-												rdf : stmt,
-												query : query
-											}, cb);
-										},
-										displayKey : function(v) {
-											return v.content;
-										},
-										templates : {
-											suggestion : function(v) {
-												var style = v.perfectMatch ? ' style="font-weight: bold;"'
-														: '';
-												return "<p" + style + ">"
-														+ v.label + "</p>";
-											}
+					var typeahead = self.typeahead(
+							{
+								minLength : 2
+							},
+							{
+								source : function(query, cb) {
+									var subject = self.closest("[about]")
+											.resourceAttr("about");
+									var stmt = $.rdf.triple(subject,
+											"<urn:null>", "<urn:null>").dump();
+									if (query.charAt(0) == '<') {
+										query = query.slice(1);
+									}
+									enilink.propose({
+										rdf : stmt,
+										query : query
+									}, cb);
+								},
+								displayKey : function(v) {
+									return v.content;
+								},
+								templates : {
+									suggestion : function(v) {
+										var t = $('<p />').css("white-space",
+												"nowrap").text(v.label);
+										if (v.perfectMatch) {
+											t.css("font-weight", "bold");
 										}
-									})
-							.on(
-									"typeahead:autocompleted typeahead:selected",
-									function(evt, proposal) {
-										addProperty(proposal.resource, self
-												.xmlns());
-									});
+										t
+										return $("<span />").append(t);
+									}
+								}
+							}).on("typeahead:autocompleted typeahead:selected",
+							function(evt, proposal) {
+								if (proposal.resource) {
+									addProperty(proposal.resource, self.xmlns());
+								} else if (proposal.content.match(/[:]$/)) {
+									// TODO trigger update of typeahead for given namespace
+								}
+							});
 				}
 				$('input.input-property').not('.tt-input, .tt-hint').each(
 						installTypeahead);
