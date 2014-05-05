@@ -106,7 +106,7 @@ class LiftModule extends Logger {
         case _ => Empty
       }
     })
-    
+
     // What is the function to test if a user is logged in?
     LiftRules.loggedInTest = Full(() => Globals.contextUser.vend != Globals.UNKNOWN_USER)
 
@@ -190,14 +190,15 @@ class LiftModule extends Logger {
               if (model.isEmpty) {
                 model = Globals.contextModel.vend
               }
-            } else if (resourceName.isDefined) {
+            }
+            if (resource.isEmpty && resourceName.isDefined) {
               // a resource was passed as parameter, replace the global selection with this resource
               val bnode = "^(_:.*)".r
               resourceName.get match {
-                case bnode(id) => resource = Full(model.get.resolve(new BlankNode(id)))
+                case bnode(id) => resource = model.map(_.resolve(new BlankNode(id)))
                 case _ => try {
                   val resourceUri = URIs.createURI(resourceName.get)
-                  resource = Full(model.get.resolve(resourceUri))
+                  resource = model.map(_.resolve(resourceUri))
                 } catch {
                   case e: Exception =>
                 }
