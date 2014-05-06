@@ -45,6 +45,7 @@ import net.liftweb.util.JsonCommand
 import net.liftweb.util.LiftFlowOfControlException
 import java.util.UUID
 import net.enilink.komma.core.URI
+import net.enilink.lift.util.CurrentContext
 
 case class ProposeInput(rdf: JValue, query: String, index: Option[Int])
 case class GetValueInput(rdf: JValue)
@@ -262,7 +263,7 @@ class JsonCallHandler {
                       if (params.isEmpty) params = resultValue flatMap { value =>
                         vars.collectFirst { case v if v.n != "this" => v } map { v => (v.toString, value) }
                       } toMap
-                      val renderResult = Globals.contextResource.doWith(Full(model.get.getManager.find(stmt.getSubject))) {
+                      val renderResult = CurrentContext.withSubject(model.get.getManager.find(stmt.getSubject)) {
                         QueryParams.doWith(params) { TemplateHelpers.withAppFor(p)(TemplateHelpers.render(wrappedTemplate)) }
                       }
                       renderResult match {

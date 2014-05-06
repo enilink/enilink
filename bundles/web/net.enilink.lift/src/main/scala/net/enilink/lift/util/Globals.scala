@@ -86,21 +86,6 @@ object Globals extends Factory {
 
   implicit val contextModel = new FactoryMaker(() => Empty: Box[IModel]) {}
 
-  implicit val contextResource = new FactoryMaker(() => {
-    Platform.getExtensionRegistry.getExtensionPoint("net.enilink.lift.selectionProviders").getConfigurationElements.flatMap {
-      element =>
-        if ("selectionProvider" == element.getName) {
-          val selectionProvider = element.createExecutableExtension("class").asInstanceOf[SelectionProvider]
-          List(selectionProvider.getSelection)
-        } else {
-          Nil
-        }
-    } match {
-      case Array(first, _*) => Full(first)
-      case _ => Empty
-    }
-  }: Box[AnyRef]) {}
-
   implicit val contextUser = new FactoryMaker(() => UNKNOWN_USER: IReference) {}
 
   implicit val UNKNOWN_USER: URI = SecurityUtil.UNKNOWN_USER

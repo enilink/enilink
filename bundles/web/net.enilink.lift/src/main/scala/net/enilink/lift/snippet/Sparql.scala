@@ -8,6 +8,7 @@ import scala.xml.NodeSeq.seqToNodeSeq
 import scala.xml.UnprefixedAttribute
 import net.enilink.komma.core._
 import net.enilink.lift.rdfa.template.RDFaTemplates
+import net.enilink.lift.util.CurrentContext
 import net.enilink.lift.util.Globals
 import net.liftweb.common.Full
 import net.liftweb.http.PageName
@@ -23,6 +24,8 @@ import net.liftweb.util.Helpers._
 import net.liftweb.builtin.snippet.Embed
 import net.enilink.lift.util.TemplateHelpers
 import net.liftweb.common.Empty
+import net.liftweb.common.Box
+import net.enilink.lift.util.RdfContext
 
 /**
  * Global SPARQL parameters that can be shared between different snippets.
@@ -71,16 +74,27 @@ trait SparqlHelper {
    * returns a function that can be used to execute some code with this
    * captured context.
    */
-  def captureRdfContext[S]: (=> S) => S = {
+  def captureRdfContext[S](ns: NodeSeq): (=> S) => S = {
     val isMetaQuery = (S.attr("target") openOr null) == "meta"
-    CurrentContext.value match {
-      case Full(c) if !isMetaQuery => (f) => CurrentContext.withValue(Full(c)) { f }
-      case _ =>
-        val target = if (isMetaQuery) Globals.contextModelSet.vend else Globals.contextResource.vend
-        target match {
-          case Full(resource) => (f) => CurrentContext.withValue(Full(new RdfContext(resource, null))) { f }
-          case _ => (f) => f
+    val modelName: Box[String] = (ns \ "@data-model").headOption.map(_.text)
+    val model = modelName.flatMap { name =>
+      Globals.contextModelSet.vend.flatMap { ms =>
+        // try to get the model from the model set
+        try {
+          Box.legacyNullTest(ms.getModel(URIs.createURI(name), false))
+        } catch {
+          case e: Exception => Empty
         }
+      }
+    }
+    val (target, targetModel) = if (isMetaQuery) (Globals.contextModelSet.vend, Empty) else {
+      val ctxResource = CurrentContext.value.flatMap { case RdfContext(s: IReference, _, _) => Full(s) case _ => Empty }
+      val theModel = model or Globals.contextModel.vend
+      (theModel.map(m => ctxResource.map(m.resolve(_)) openOr m.getOntology), theModel)
+    }
+    target match {
+      case Full(t) => (f) => Globals.contextModel.doWith(targetModel) { CurrentContext.withSubject(t) { f } }
+      case _ => (f) => f
     }
   }
 }
@@ -96,7 +110,7 @@ class Sparql extends SparqlHelper with RDFaTemplates {
     def distinguishInferred(ns: NodeSeq): Boolean = {
       ns.foldLeft(false) { (distInf, n) => distInf | (n \ "@data-if").text == "inferred" | distinguishInferred(n.child) }
     }
-    val distInferred = includeInferred && distinguishInferred(n)
+    val queryAsserted = includeInferred && S.attr("queryAsserted", _ != "false", true) && distinguishInferred(n)
 
     def renderResults = {
       def toBindings(firstBinding: String, row: Any) = row match {
@@ -119,12 +133,12 @@ class Sparql extends SparqlHelper with RDFaTemplates {
               case r: ITupleResult[_] =>
                 val firstBinding = r.getBindingNames.get(0)
                 val allTuples = r.map { row => (toBindings(firstBinding, row), includeInferred) }
-                var toRender = (if (distInferred) {
+                var toRender = (if (queryAsserted) {
                   // query explicit statements and prepend them to the results
                   withParameters(em.createQuery(sparql, false), params)
                     .bindResultType(null: String, classOf[IValue]).evaluate.asInstanceOf[ITupleResult[_]]
                     .map { row => (toBindings(firstBinding, row), false) } ++ allTuples
-                } else allTuples)                
+                } else allTuples)
                 // ensure at least one template iteration with empty binding set if no results where found
                 if (!toRender.hasNext) toRender = List((new LinkedHashBindings[Object], false)).toIterator
                 val transformers = (".query *" #> sparql) & ClearClearable
@@ -137,7 +151,7 @@ class Sparql extends SparqlHelper with RDFaTemplates {
         case _ => n
       }
     }
-    captureRdfContext(renderResults)
+    captureRdfContext(n)(renderResults)
   }
 
   def toSparql(n: NodeSeq, em: IEntityManager): (NodeSeq, String, Map[String, _]) = {
