@@ -13,4 +13,9 @@ public interface AUTH {
 	public static final URI PROPERTY_EXTERNALID = NAMESPACE_URI
 			.appendLocalPart("externalId");
 
+	/**
+	 * An (encoded) password for this agent.
+	 */
+	public static final URI PROPERTY_PASSWORD = NAMESPACE_URI
+			.appendLocalPart("password");
 }

@@ -83,8 +83,7 @@ public class AccountHelper {
 		user.addProperty(FOAF.PROPERTY_NICK, username);
 		user.addProperty(FOAF.PROPERTY_MBOX, getMailboxURI(emailAddress));
 		if (encodedPassword != null) {
-			user.addProperty(URIs.createURI("urn:enilink:password"),
-					encodedPassword);
+			user.addProperty(AUTH.PROPERTY_PASSWORD, encodedPassword);
 		}
 		return user;
 	}
@@ -127,7 +126,8 @@ public class AccountHelper {
 		URI userId = getUserURI(username);
 		try (IExtendedIterator<IEntity> users = em
 				.createQuery(
-						"select ?user where { ?user <urn:enilink:password> ?password filter isIRI(?user) }")
+						"select ?user where { ?user ?property ?password filter isIRI(?user) }")
+				.setParameter("property", AUTH.PROPERTY_PASSWORD)
 				.setParameter("user", userId)
 				.setParameter("password", encodedPassword)
 				.evaluate(IEntity.class)) {
@@ -189,7 +189,7 @@ public class AccountHelper {
 		List<URI> externalIds = new ArrayList<URI>();
 		for (Principal principal : subject.getPrincipals()) {
 			if (!(principal instanceof Group || principal instanceof UserPrincipal)) {
-				URI externalId = URIs.createURI("urn:jaas:principal:"
+				URI externalId = URIs.createURI("enilink:jaas:principal:"
 						+ principal.getClass().getName() + ":"
 						+ URIs.encodeOpaquePart(principal.toString(), false));
 				externalIds.add(externalId);
