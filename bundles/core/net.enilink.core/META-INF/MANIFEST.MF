@@ -19,7 +19,9 @@ Import-Package: com.google.inject,
  org.aopalliance.intercept,
  org.apache.commons.codec.binary,
  org.eclipse.core.resources,
+ org.junit;version="4.11.0",
  org.slf4j
 Export-Package: net.enilink.core,
  net.enilink.core.blobs,
  net.enilink.core.security
+Bundle-RequiredExecutionEnvironment: JavaSE-1.7
