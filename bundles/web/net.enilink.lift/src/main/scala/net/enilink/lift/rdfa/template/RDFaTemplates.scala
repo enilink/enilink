@@ -7,8 +7,8 @@ import scala.xml.NodeSeq
 import scala.xml.UnprefixedAttribute
 import net.enilink.komma.core.IBindings
 import net.enilink.komma.core.IReference
-import net.enilink.lift.snippet.CurrentContext
-import net.enilink.lift.snippet.RdfContext
+import net.enilink.lift.util.CurrentContext
+import net.enilink.lift.util.RdfContext
 import net.liftweb.common.Full
 import net.liftweb.http.PageName
 import net.liftweb.http.S
@@ -17,7 +17,6 @@ import net.liftweb.util.Helpers.strToSuperArrowAssoc
 import net.enilink.lift.rdfa.RDFaUtils
 import net.enilink.komma.core.ILiteral
 import scala.xml.Null
-import net.enilink.lift.snippet.RdfContext
 import net.enilink.komma.core.URI
 import net.enilink.komma.core.IEntity
 import net.enilink.komma.core.URIs
@@ -176,21 +175,24 @@ object TemplateNode extends RDFaUtils {
           meta.value.text match {
             // remove nodes of type <span data-if="inferred">This data is inferred or explicit.</span>
             // if we are currently processing explicit bindings
-            case "inferred" if meta.key == "data-if" => Some(new IfInferredBinder(meta.key))
-            case "inferred" if meta.key == "data-unless" => Some(new UnlessInferredBinder(meta.key))
+            case "inferred" => meta.key match {
+              case "data-if" => Some(new IfInferredBinder(meta.key))
+              case "data-unless" => Some(new UnlessInferredBinder(meta.key))
+              case _ => None
+            }
             // fill variables for nodes of type <span about="?someVar">Data about some subject.</span>
             case variable(v) => if (!ignoreAttributes.contains(meta.key)) Some(new VarBinder(e, meta.key, v)) else None
-            case iriStr if !iriStr.isEmpty => meta.key match {
+            case str if !str.isEmpty => meta.key match {
               case RDFaRelAttribute() | RDFaResourceAttribute() =>
                 try {
-                  URIs.createURI(iriStr) match {
+                  URIs.createURI(str) match {
                     // skip href attributes with values like "javascript:void(0)"
                     case iri if meta.key.equalsIgnoreCase("href") && iri.scheme == "javascript" => None
                     case iri if !iri.isRelative => Some(new IriBinder(e, meta.key, iri))
                     case _ => None
                   }
                 } catch {
-                  case iae: IllegalArgumentException => None // ignore, iriStr is an invalid IRI
+                  case iae: IllegalArgumentException => None // ignore, str is an invalid IRI
                 }
               case _ => None
             }

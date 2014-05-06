@@ -5,11 +5,20 @@
 					.each(
 							function() {
 								var self = $(this);
+								var sourceFunc = eval("("
+										+ self.attr("data-source") + ")");
+								var timeoutID;
 								self.typeahead({
 									minLength : 2
 								}, {
-									source : eval("("
-											+ self.attr("data-source") + ")"),
+									source : function(query, cb) {
+										if (timeoutID) {
+											clearTimeout(timeoutID);
+										}
+										timeoutID = setTimeout(function() {
+											sourceFunc(query, cb);
+										}, 1000);
+									},
 									displayKey : function(v) {
 										return v;
 									}

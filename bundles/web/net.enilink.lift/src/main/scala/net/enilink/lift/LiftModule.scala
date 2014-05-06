@@ -40,6 +40,9 @@ import net.liftweb.util.Vendor.funcToVender
 import net.liftweb.util.Vendor.valToVender
 import net.liftweb.http.NoticeType
 import net.enilink.komma.core.URIs
+import net.enilink.komma.model.IModelAware
+import net.enilink.lift.util.RdfContext
+import net.enilink.lift.util.CurrentContext
 
 /**
  * A class that's instantiated early and run.  It allows the application
@@ -148,6 +151,7 @@ class LiftModule extends Logger {
     }
 
     // Make a unit of work span the whole HTTP request
+    val bnode = "^(_:.*)".r
     S.addAround(new LoanWrapper {
       private object DepthCnt extends DynoVar[Boolean]
 
@@ -158,70 +162,43 @@ class LiftModule extends Logger {
         val modelName = S.param("model")
 
         Globals.contextModelSet.vend.map { modelSet =>
-          var targetModelSet = modelSet
           var unitsOfWork: Seq[IUnitOfWork] = Nil
           // start a unit of work for the current model set
-          var uow = targetModelSet.getUnitOfWork
+          val uow = modelSet.getUnitOfWork
           unitsOfWork = unitsOfWork ++ List(uow)
           uow.begin
           try {
-            var model: Box[IModel] = Empty
-            if (modelName.isDefined) {
+            val model = modelName.flatMap { name =>
               // try to get the model from the model set
               try {
-                val modelUri = URIs.createURI(modelName.get)
-                model = Box.legacyNullTest(targetModelSet.getModel(modelUri, false))
+                val modelUri = URIs.createURI(name)
+                Box.legacyNullTest(modelSet.getModel(modelUri, false))
               } catch {
-                case e: Exception => error(e)
+                case e: Exception => error(e); Empty
               }
-            }
+            } or Globals.contextModel.vend
 
-            var resource: Box[AnyRef] = Empty
-            if (model.isEmpty) {
-              // try to get the model from the global selection (e.g. from a RAP instance)
-              Globals.contextResource.vend.map(_ match {
-                case selected: IObject => {
-                  resource = Full(selected)
-                  model = Full(selected.getModel)
-                }
-                case other: AnyRef => resource = Full(other)
-                case _ => // leave resource empty
-              })
-              if (model.isEmpty) {
-                model = Globals.contextModel.vend
-              }
-            }
-            if (resource.isEmpty && resourceName.isDefined) {
+            val rdfContext = resourceName.flatMap {
               // a resource was passed as parameter, replace the global selection with this resource
-              val bnode = "^(_:.*)".r
-              resourceName.get match {
-                case bnode(id) => resource = model.map(_.resolve(new BlankNode(id)))
-                case _ => try {
-                  val resourceUri = URIs.createURI(resourceName.get)
-                  resource = model.map(_.resolve(resourceUri))
-                } catch {
-                  case e: Exception =>
-                }
+              case bnode(id) => model.map(_.resolve(new BlankNode(id)))
+              case other => try {
+                model.map(_.resolve(URIs.createURI(other)))
+              } catch {
+                case e: Exception => Empty
               }
-            }
-            if (resource.isDefined) {
-              Globals.contextResource.request.set(resource)
-            }
-            // fallback - use corresponding ontology as resource
-            if (model.isDefined && resource.isEmpty) {
-              resource = Full(model.get.getOntology)
-            }
-            if (model.isDefined) {
-              Globals.contextModel.request.set(model)
-              if (modelSet != model.get.getModelSet) {
-                targetModelSet = model.get.getModelSet
-                var uow = targetModelSet.getUnitOfWork
+            } map (RdfContext(_, null))
+
+            if (model.isDefined) Globals.contextModel.request.set(model)
+            model.foreach { m =>
+              if (modelSet != m.getModelSet) {
+                var uow = m.getModelSet.getUnitOfWork
                 unitsOfWork = unitsOfWork ++ List(uow)
                 uow.begin
               }
             }
-            Globals.contextResource.doWith(resource) {
-              Globals.contextModel.doWith(model) {
+
+            Globals.contextModel.doWith(model) {
+              CurrentContext.withValue(rdfContext) {
                 S.session.flatMap(_.httpSession.map(_.attribute("javax.security.auth.subject")) match {
                   case Full(s: Subject) => Full(Subject.doAs(s, new PrivilegedAction[T] {
                     override def run = f

@@ -36,24 +36,8 @@ import java.text.DateFormat
 import java.sql.Time
 import java.util.Locale
 import net.liftweb.http.LiftRules
-
-class RdfContext(val subject: Any, val predicate: Any, val prefix: NamespaceBinding = TopScope) {
-  override def equals(that: Any): Boolean = that match {
-    case other: RdfContext => subject == other.subject && predicate == other.predicate && prefix == other.prefix
-    case _ => false
-  }
-  override def hashCode = (if (subject != null) subject.hashCode else 0) + (if (predicate != null) predicate.hashCode else 0) + prefix.hashCode
-
-  override def toString = {
-    "(s = " + subject + ", p = " + predicate + ", prefix = " + prefix + ")"
-  }
-
-  def copy(subject: Any = this.subject, predicate: Any = this.predicate, prefix: NamespaceBinding = this.prefix) = {
-    new RdfContext(subject, predicate, prefix)
-  }
-}
-
-object CurrentContext extends DynamicVariable[Box[RdfContext]](Empty)
+import net.enilink.lift.util.CurrentContext
+import net.enilink.lift.util.RdfContext
 
 class Rdf extends DispatchSnippet with RDFaTemplates {
   def dispatch: DispatchIt = {
@@ -132,11 +116,7 @@ class Rdf extends DispatchSnippet with RDFaTemplates {
             case "" => encode(value)
             case "model" => {
               // insert current model into the attribute
-              val modelName = Globals.contextModel.vend.map(_.toString) or Globals.contextResource.vend.map {
-                case o: IObject => o.getModel.toString
-                case _ => ""
-              } openOr ""
-              encode(modelName)
+              encode(Globals.contextModel.vend.map(_.toString) openOr "")
             }
             case "app" => Globals.applicationPath.vend.stripSuffix("/")
             case other => S.param(other).dmap("")(encode(_))
@@ -163,9 +143,7 @@ class Rdf extends DispatchSnippet with RDFaTemplates {
       }
   }
 
-  def withChangedContext(s: Any)(n: NodeSeq): NodeSeq = {
-    CurrentContext.withValue(Full(new RdfContext(s, null))) {
-      S.session.get.processSurroundAndInclude(PageName.get, n)
-    }
+  def withChangedContext(s: Any)(n: NodeSeq): NodeSeq = CurrentContext.withSubject(s) {
+    S.session.get.processSurroundAndInclude(PageName.get, n)
   }
 }

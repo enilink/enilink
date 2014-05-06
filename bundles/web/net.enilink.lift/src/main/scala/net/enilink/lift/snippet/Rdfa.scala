@@ -31,6 +31,7 @@ import net.liftweb.http.AjaxContext
 import net.enilink.komma.core.IEntity
 import scala.collection.JavaConversions._
 import net.enilink.komma.core.URI
+import net.enilink.lift.util.CurrentContext
 import net.enilink.lift.util.TemplateHelpers
 import net.liftweb.http.js.JsCmds
 import net.liftweb.http.js.JsCmd
@@ -73,7 +74,7 @@ object Search extends SparqlHelper with SparqlExtractor {
       }).flatMap(_.split(splitRegex)).filter(_.toLowerCase.contains(query))
     }
     val origParams = QueryParams.get
-    val runWithContext: (=> Any) => Any = captureRdfContext
+    val runWithContext: (=> Any) => Any = captureRdfContext(ns)
     S.fmapFunc(S.contextFuncBuilder(SFuncHolder({ query: String =>
       runWithContext {
         lazy val default = JsonResponse(JArray(List(JString(query))))
@@ -92,7 +93,7 @@ object Search extends SparqlHelper with SparqlExtractor {
                 val results = withParameters(em.createQuery(sparql), queryParams).evaluate
                 results.iterator.flatMap(toTokens(query.toLowerCase, _))
               }
-              JsonResponse(JArray(JString(query) :: keywords.toSet[String].map(JString(_)).toList))
+              JsonResponse(JArray(keywords.toSet[String].map(JString(_)).toList))
             }
             case _ => default
           }

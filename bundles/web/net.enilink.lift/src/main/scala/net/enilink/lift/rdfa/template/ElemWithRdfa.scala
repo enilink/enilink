@@ -2,7 +2,7 @@ package net.enilink.lift.rdfa.template
 import scala.xml.MetaData
 import scala.xml.Elem
 import scala.xml.NamespaceBinding
-import net.enilink.lift.snippet.RdfContext
+import net.enilink.lift.util.RdfContext
 
 object ElemWithRdfa {
   def unapplySeq(n: xml.Node) = n match {
