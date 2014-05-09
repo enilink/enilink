@@ -62,6 +62,7 @@
 			
 			function installTypeahead() {
 					var self = $(this);
+					var model = self.closest("[data-model]").attr("data-model");
 					var timeoutID;
 					self.typeahead(
 							{
@@ -72,7 +73,7 @@
 									if (timeoutID) {
 										clearTimeout(timeoutID);
 									}
-									timeoutID = window.setTimeout(function() {									
+									timeoutID = window.setTimeout(function() {
 										var subject = self.closest("[about]")
 												.resourceAttr("about");
 										var stmt = $.rdf.triple(subject,
@@ -80,7 +81,7 @@
 										if (query.charAt(0) == '<') {
 											query = query.slice(1);
 										}
-										enilink.propose({
+										enilink.rdf(model).propose({
 											rdf : stmt,
 											query : query
 										}, cb);
@@ -153,7 +154,7 @@
 					</div>
 					<div style="display: inline-block; vertical-align: bottom"><form class="form-inline"><input class="form-control input-sm input-property" type="text" placeholder="Add..." autocomplete="off"></input></form></div>
 				</section>
-				<section id="properties">
+				<section id="properties" class="optional">
 					<!-- sort by property -->
 					<div class="clearable asc" about="?property"></div>
 
