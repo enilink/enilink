@@ -1170,7 +1170,7 @@
     blankNodeSeed = databankSeed = new Date().getTime() % 1000,
     blankNodeID = function () {
       blankNodeSeed += 1;
-      return 'new' + blankNodeSeed.toString(16);
+      return 'new-' + blankNodeSeed.toString(16);
     },
 
     databankID = function () {

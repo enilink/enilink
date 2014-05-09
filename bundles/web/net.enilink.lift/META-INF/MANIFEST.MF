@@ -19,7 +19,8 @@ Export-Package: net.enilink.lift,
  net.liftweb.osgi
 Bundle-ClassPath: .
 Bundle-Activator: net.enilink.lift.Activator
-Import-Package: com.google.inject,
+Import-Package: com.google.common.base;version="17.0.0",
+ com.google.inject,
  javax.servlet;version="2.6.0",
  javax.servlet.http;version="2.6.0",
  javax.servlet.resources;version="2.6.0",

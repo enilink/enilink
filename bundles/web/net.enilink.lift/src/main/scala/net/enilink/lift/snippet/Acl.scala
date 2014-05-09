@@ -16,7 +16,7 @@ import net.liftweb.util.Helpers.strToCssBindPromoter
 import net.liftweb.http.Templates
 import net.liftweb.common.Full
 import net.liftweb.http.S
-import net.enilink.vocab.acl.ACL
+import net.enilink.vocab.acl.WEBACL
 import net.enilink.vocab.rdf.RDF
 
 /**
@@ -26,7 +26,7 @@ object Acl {
   def render(ns: NodeSeq): NodeSeq = {
     var bindingVar = (ns \ "@data-for").text
     if (!bindingVar.isEmpty) {
-      <span prefix={ "acl: " + ACL.NAMESPACE + " rdf: " + RDF.NAMESPACE } class="clearable">
+      <span prefix={ "acl: " + WEBACL.NAMESPACE + " rdf: " + RDF.NAMESPACE } class="clearable">
         <span class="exists union" data-filter="bound(?currentUser)">
           <!-- user either owns the target resource -->
           <span about={ bindingVar } rel="acl:owner" resource="?currentUser"/>

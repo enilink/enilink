@@ -56,7 +56,9 @@ class JsonCallHandler {
 
   val (call, jsCmd) = AjaxHelpers.createJsonFunc(this.apply)
 
-  val model: Box[IModel] = Globals.contextModel.vend
+  val initialModel: Box[IModel] = Globals.contextModel.vend
+  def model = Globals.contextModel.vend or initialModel
+
   val path = S.request map (_.path)
 
   class EditingHelper(editType: PropertyEditingHelper.Type) extends PropertyEditingHelper(editType) {
@@ -116,7 +118,7 @@ class JsonCallHandler {
     case JsonCommand("updateTriples", _, params) => {
       import scala.collection.JavaConversions._
       var success = false
-      var subject: Option[String] = None
+      var replacements: mutable.Map[String, IReference] = null
       for (
         model <- model ?~ "No active model found"
       ) {
@@ -126,13 +128,8 @@ class JsonCallHandler {
           (params \ "add") match {
             case JNothing =>
             case add: JValue => {
-              val replacements = new mutable.HashMap[String, IReference]
+              replacements = new mutable.HashMap[String, IReference]
               val stmts = renameNewNodes(statements(add), em, model.getURI, replacements)
-              (params \ "subject") match {
-                // return the mapped subject as a result
-                case JString(s) => subject = replacements.get(s).map(_.toString) orElse Some(s)
-                case _ =>
-              }
               em.add(stmts)
             }
           }
@@ -148,7 +145,10 @@ class JsonCallHandler {
           case e: Exception => if (em.getTransaction.isActive) em.getTransaction.rollback
         }
       }
-      if (success) subject.map(s => JString(s.toString())).getOrElse(JBool(true)) else JBool(false)
+      if (success) {
+        import net.liftweb.json.Extraction._
+        if (replacements != null) decompose(replacements.map { case (k, v) => (k, v.toString) }.toMap) else JBool(true)
+      } else JBool(false)
     }
     case JsonCommand("propose", _, params) => {
       import net.liftweb.json.JsonDSL._
@@ -362,19 +362,29 @@ class JsonCallHandler {
 
 class Edit extends DispatchSnippet {
   val dispatch = Map("render" -> buildFuncs _)
+
+  def modelParam = JsRaw("model !== undefined ? { model : model } : undefined")
+
   def buildFuncs(in: NodeSeq): NodeSeq = {
     val handler = new JsonCallHandler
     Script(handler.jsCmd &
-      SetExp(JsVar("enilink"), Call("$.extend", JsRaw("window.enilink || {}"), //
+      SetExp(JsVar("enilink"), JsRaw("window.enilink || {}")) & //
+      SetExp(JsVar("enilink.rdf"), Call("$.extend", JsRaw("window.enilink.rdf || {}"),
         JsObj(
-          ("blankNode", AnonFunc("callback", handler.call("blankNode", JsRaw("{}"), JsVar("callback")))), //
-          ("removeResource", AnonFunc("resource, callback", handler.call("removeResource", JsVar("resource"), JsVar("callback")))), //
-          ("updateTriples", AnonFunc("add, remove, callback",
-            handler.call("updateTriples", JsRaw("(add.add !== undefined || add.remove !== undefined) ? add : { 'add' : add, 'remove' : remove }"), JsRaw("typeof remove === 'function' ? remove : callback")))), //
-          ("getValue", AnonFunc("rdf, callback", handler.call("getValue", JsRaw("{ 'rdf' : rdf }"), JsVar("callback")))), //
-          ("setValue", AnonFunc("data, callback", handler.call("setValue", JsVar("data"), JsVar("callback")))), //
-          ("removeValue", AnonFunc("rdf, callback", handler.call("removeValue", JsVar("rdf"), JsVar("callback")))), //
-          ("propose", AnonFunc("data, callback", handler.call("propose", JsVar("data"), JsVar("callback"))) //
+          ("blankNode", AnonFunc("callback, model", handler.call("blankNode", JsRaw("{}"), JsVar("callback"), modelParam))), //
+          ("removeResource", AnonFunc("resource, callback, model", handler.call("removeResource", JsVar("resource"), JsVar("callback"), modelParam))), //
+          ("updateTriples", AnonFunc("add, remove, callback, model",
+            JsRaw("""var params;
+if (add && (add.add !== undefined || add.remove !== undefined)) {
+	params = add;	model = callback;	callback = remove;
+} else {
+	params = { 'add' : add, 'remove' : remove };
+}
+""") & handler.call("updateTriples", JsRaw("params"), JsRaw("callback"), modelParam))), //
+          ("getValue", AnonFunc("rdf, callback, model", handler.call("getValue", JsRaw("{ 'rdf' : rdf }"), JsVar("callback"), modelParam))), //
+          ("setValue", AnonFunc("data, callback, model", handler.call("setValue", JsVar("data"), JsVar("callback"), modelParam))), //
+          ("removeValue", AnonFunc("rdf, callback, model", handler.call("removeValue", JsVar("rdf"), JsVar("callback"), modelParam))), //
+          ("propose", AnonFunc("data, callback, model", handler.call("propose", JsVar("data"), JsVar("callback"), modelParam)) //
           )))))
   }
 }
