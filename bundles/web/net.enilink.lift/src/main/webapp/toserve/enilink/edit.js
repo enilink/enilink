@@ -11,7 +11,6 @@ enilink = $.extend(window.enilink || {}, {
 			return function() {
 				// append model to args and call original method
 				[].push.call(arguments, model);
-				console.log(arguments);
 				return orig.apply(null, arguments);
 			};
 		}

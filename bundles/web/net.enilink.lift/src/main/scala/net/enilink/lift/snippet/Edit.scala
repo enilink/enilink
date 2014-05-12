@@ -249,7 +249,7 @@ class JsonCallHandler {
                             case other => other
                           }
                         }
-                      }.getArcs(wrappedTemplate, model.get.getURI.toString).flatMap {
+                      }.getArcs(wrappedTemplate, S.request.map(r => r.hostAndPath + r.uri) openOr "http://unknown/").flatMap {
                         // TODO support reverse relationships
                         case (Variable("this", _), rel, objVar: Variable) => (
                           rel match {

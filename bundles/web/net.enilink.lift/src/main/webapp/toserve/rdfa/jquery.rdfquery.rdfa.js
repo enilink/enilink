@@ -942,8 +942,8 @@
     } else if (prefix) {
     	if (ns === undefined) {
     	  // handle as IRI
-      	  ns = "";
-    	}   
+    	  return $.uri(curie);
+    	}
 //        throw "Malformed CURIE: No namespace binding for " + prefix + " in CURIE " + curie;
     } else {
       if (opts.charcase === 'lower') {

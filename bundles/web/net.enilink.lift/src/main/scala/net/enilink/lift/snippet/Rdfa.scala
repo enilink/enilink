@@ -160,7 +160,7 @@ object Search extends SparqlHelper with SparqlExtractor {
 trait SparqlExtractor {
   def extractSparql(n: NodeSeq): SparqlFromRDFa = {
     val nodesWithAcl = (".acl" #> Acl.render _).apply(n)
-    SparqlFromRDFa(nodesWithAcl.headOption.map(_.asInstanceOf[Elem]) getOrElse <div></div>, S.request.map(r => r.hostAndPath + r.uri + "#") openOr "urn:")
+    SparqlFromRDFa(nodesWithAcl.headOption.map(_.asInstanceOf[Elem]) getOrElse <div></div>, S.request.map(r => r.hostAndPath + r.uri) openOr "http://unknown/")
   }
 }
 
