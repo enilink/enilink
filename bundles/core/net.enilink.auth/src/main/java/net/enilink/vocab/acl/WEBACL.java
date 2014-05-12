@@ -3,14 +3,14 @@ package net.enilink.vocab.acl;
 import net.enilink.komma.core.URIs;
 import net.enilink.komma.core.URI;
 
-public interface ACL {
+public interface WEBACL {
 	public static final String NAMESPACE = "http://www.w3.org/ns/auth/acl#";
 	public static final URI NAMESPACE_URI = URIs.createURI(NAMESPACE);
 
 	/**
 	 * Superclass of all access modes.
 	 */
-	public static final URI TYPE_ACCESS = NAMESPACE_URI
+	public static final URI MODE_ACCESS = NAMESPACE_URI
 			.appendLocalPart("Access");
 
 	/**
@@ -18,7 +18,7 @@ public interface ACL {
 	 * 
 	 * append to the contents without deleting existing data
 	 */
-	public static final URI TYPE_APPEND = NAMESPACE_URI
+	public static final URI MODE_APPEND = NAMESPACE_URI
 			.appendLocalPart("Append");
 
 	/**
@@ -26,21 +26,21 @@ public interface ACL {
 	 * 
 	 * overwrite the contents (including deleting it, or modifying part of it)
 	 */
-	public static final URI TYPE_WRITE = NAMESPACE_URI.appendLocalPart("Write");
+	public static final URI MODE_WRITE = NAMESPACE_URI.appendLocalPart("Write");
 
 	/**
 	 * Read mode.
 	 * 
 	 * read the contents (including querying it, etc)
 	 */
-	public static final URI TYPE_READ = NAMESPACE_URI.appendLocalPart("Read");
+	public static final URI MODE_READ = NAMESPACE_URI.appendLocalPart("Read");
 
 	/**
 	 * Control mode.
 	 * 
 	 * set the Access Control List for a resource
 	 */
-	public static final URI TYPE_CONTROL = NAMESPACE_URI
+	public static final URI MODE_CONTROL = NAMESPACE_URI
 			.appendLocalPart("Control");
 
 	/**
