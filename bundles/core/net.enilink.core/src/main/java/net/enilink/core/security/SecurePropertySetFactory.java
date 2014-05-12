@@ -3,7 +3,7 @@ package net.enilink.core.security;
 import java.lang.annotation.Annotation;
 import java.util.List;
 
-import net.enilink.vocab.acl.ACL;
+import net.enilink.vocab.acl.WEBACL;
 
 import net.enilink.composition.properties.PropertySet;
 import net.enilink.composition.properties.annotations.Type;
@@ -42,7 +42,7 @@ public class SecurePropertySetFactory extends KommaPropertySetFactory {
 					URI userId = SecurityUtil.getUser();
 					if (userId != null) {
 						query = "prefix acl: <"
-								+ ACL.NAMESPACE
+								+ WEBACL.NAMESPACE
 								+ "> "
 								+ "SELECT DISTINCT ?o WHERE { ?s ?p ?o . "
 								+ "{ ?o acl:owner ?agent } union {" //
@@ -52,7 +52,7 @@ public class SecurePropertySetFactory extends KommaPropertySetFactory {
 						return super
 								.createElementsQuery(query, filterPattern,
 										limit).setParameter("agent", userId)
-								.setParameter("mode", ACL.TYPE_READ);
+								.setParameter("mode", WEBACL.MODE_READ);
 					}
 					return super.createElementsQuery(query, filterPattern,
 							limit);

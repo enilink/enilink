@@ -16,19 +16,32 @@ import org.eclipse.core.runtime.jobs.JobChangeAdapter;
 
 import net.enilink.komma.core.URI;
 import net.enilink.komma.core.URIs;
+import net.enilink.vocab.acl.WEBACL;
 
 /**
  * Helper class to get current user from the execution context.
  */
 public class SecurityUtil {
 	public static final URI UNKNOWN_USER = URIs
-			.createURI("urn:enilink:anonymous");
+			.createURI("enilink:user:anonymous");
 
-	public static final URI SYSTEM_USER = URIs.createURI("urn:enilink:system");
+	public static final URI SYSTEM_USER = URIs.createURI("enilink:user:system");
+
+	public static final URI USERS_MODEL = URIs.createURI("enilink:model:users");
 
 	public static final Subject SYSTEM_USER_SUBJECT = new Subject(true,
 			Collections.singleton(new UserPrincipal(SYSTEM_USER)),
 			Collections.emptySet(), Collections.emptySet());
+
+	public static final String QUERY_ACLMODE = "prefix acl: <"
+			+ WEBACL.NAMESPACE
+			+ "> "
+			+ "select ?mode where { " //
+			+ "{ ?target acl:owner ?agent . bind (acl:Control as ?mode) } union {"
+			+ "{ ?acl acl:accessTo ?target } union { ?target a [ rdfs:subClassOf* ?class ] . ?acl acl:accessToClass ?class } . "
+			+ "{ ?acl acl:agent ?agent } union { ?agent a [ rdfs:subClassOf* ?agentClass ] . ?acl acl:agentClass ?agentClass } . "
+			+ "?acl acl:mode ?mode }" + //
+			"}";
 
 	private static final QualifiedName JOB_CONTEXT = new QualifiedName(
 			"net.enilink.core.security", "Context");

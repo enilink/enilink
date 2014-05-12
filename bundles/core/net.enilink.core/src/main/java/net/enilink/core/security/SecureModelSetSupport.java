@@ -1,26 +1,39 @@
 package net.enilink.core.security;
 
 import java.util.Collection;
+import java.util.Set;
 
-import net.enilink.vocab.acl.ACL;
-
-import org.aopalliance.intercept.MethodInvocation;
 import net.enilink.composition.annotations.ParameterTypes;
 import net.enilink.composition.cache.annotations.Cacheable;
 import net.enilink.composition.traits.Behaviour;
+import net.enilink.komma.core.IReference;
+import net.enilink.komma.dm.IDataManager;
+import net.enilink.komma.em.ThreadLocalDataManager;
+import net.enilink.komma.model.IModelSet;
+import net.enilink.vocab.acl.ENILINKACL;
+import net.enilink.vocab.acl.WEBACL;
+
+import org.aopalliance.intercept.MethodInvocation;
 
 import com.google.inject.AbstractModule;
+import com.google.inject.Inject;
 import com.google.inject.Module;
 import com.google.inject.Provides;
 import com.google.inject.Singleton;
 import com.google.inject.util.Modules;
 
-import net.enilink.komma.dm.IDataManager;
-import net.enilink.komma.model.IModelSet;
-import net.enilink.komma.core.IReference;
-
 public abstract class SecureModelSetSupport implements ISecureModelSet,
 		Behaviour<ISecureModelSet> {
+	static class SecureThreadLocalDataManager extends ThreadLocalDataManager {
+		@Inject
+		ISecureModelSet modelSet;
+
+		@Override
+		protected IDataManager initialValue() {
+			return new SecureDataManager(modelSet, super.initialValue());
+		}
+	}
+
 	/**
 	 * Ensures that an ACL aware data manager is used to access the models.
 	 */
@@ -38,8 +51,9 @@ public abstract class SecureModelSetSupport implements ISecureModelSet,
 
 					@Override
 					protected void configure() {
-						bind(IDataManager.class).to(SecureDataManager.class)
-								.in(Singleton.class);
+						bind(IDataManager.class).to(
+								SecureThreadLocalDataManager.class).in(
+								Singleton.class);
 					}
 
 					@Provides
@@ -51,31 +65,49 @@ public abstract class SecureModelSetSupport implements ISecureModelSet,
 		modules.add(compoundModule);
 	}
 
-	protected boolean hasAclMode(IReference model, IReference user,
-			IReference mode) {
-		return getMetaDataManager().findRestricted(model, ISecureEntity.class)
-				.hasAclMode(user, mode);
-	}
-
 	@Override
 	@Cacheable
-	public boolean isReadableBy(IReference model, IReference user) {
+	public boolean isReadableBy(IReference model, IReference agent) {
 		if (model == null
 				|| model.equals(((IModelSet.Internal) getBehaviourDelegate())
 						.getDefaultGraph())) {
 			return true;
 		}
-		return hasAclMode(model, user, ACL.TYPE_READ);
+		ISecureEntity secureEntity = getMetaDataManager().findRestricted(model,
+				ISecureEntity.class);
+		if (agent.equals(secureEntity.getAclOwner())) {
+			return true;
+		}
+		Set<IReference> modes = secureEntity.getAclModes(agent);
+		return modes.contains(WEBACL.MODE_READ)
+				|| modes.contains(ENILINKACL.MODE_RESTRICTED)
+				|| modes.contains(WEBACL.MODE_CONTROL);
 	}
 
 	@Override
 	@Cacheable
-	public boolean isWritableBy(IReference model, IReference user) {
+	public IReference writeModeFor(IReference model, IReference agent) {
 		if (model == null
 				|| model.equals(((IModelSet.Internal) getBehaviourDelegate())
 						.getDefaultGraph())) {
-			return false;
+			return null;
 		}
-		return hasAclMode(model, user, ACL.TYPE_WRITE);
+		ISecureEntity secureEntity = getMetaDataManager().findRestricted(model,
+				ISecureEntity.class);
+		if (agent.equals(secureEntity.getAclOwner())) {
+			return WEBACL.MODE_CONTROL;
+		}
+		Set<IReference> modes = secureEntity.getAclModes(agent);
+		IReference mode = null;
+		if (modes.contains(WEBACL.MODE_CONTROL)) {
+			mode = WEBACL.MODE_CONTROL;
+		} else if (modes.contains(WEBACL.MODE_WRITE)) {
+			mode = WEBACL.MODE_WRITE;
+		} else if (modes.contains(ENILINKACL.MODE_RESTRICTED)) {
+			mode = ENILINKACL.MODE_RESTRICTED;
+		} else if (modes.contains(WEBACL.MODE_APPEND)) {
+			mode = WEBACL.MODE_APPEND;
+		}
+		return mode;
 	}
 }

@@ -35,12 +35,14 @@ import net.enilink.komma.model.base.IURIMapRule;
 import net.enilink.komma.model.base.SimpleURIMapRule;
 import net.enilink.komma.workbench.IProjectModelSet;
 import net.enilink.komma.workbench.ProjectModelSetSupport;
-import net.enilink.vocab.acl.ACL;
+import net.enilink.vocab.acl.ENILINKACL;
+import net.enilink.vocab.acl.WEBACL;
 import net.enilink.vocab.acl.Authorization;
 import net.enilink.vocab.foaf.Agent;
 import net.enilink.vocab.foaf.FOAF;
 import net.enilink.vocab.rdf.RDF;
 import net.enilink.vocab.rdfs.RDFS;
+import net.enilink.vocab.rdfs.Resource;
 
 import org.eclipse.core.resources.IProject;
 import org.eclipse.core.resources.ResourcesPlugin;
@@ -99,7 +101,8 @@ class ModelSetManager {
 					public Locale get() {
 						// return locale according to current context (RAP or
 						// Lift)
-						IContext context = ContextProviderModule.contextProvider.get();
+						IContext context = ContextProviderModule.contextProvider
+								.get();
 						return context != null ? context.getLocale() : Locale
 								.getDefault();
 					}
@@ -228,11 +231,26 @@ class ModelSetManager {
 						// "RemoteModelSet" //
 						),
 				MODELS.NAMESPACE_URI.appendLocalPart("ProjectModelSet"));
-
 		return modelSet;
 	}
 
 	protected void createModels(final IModelSet modelSet) {
+		// create default users model
+		modelSet.createModel(SecurityUtil.USERS_MODEL);
+		// set ACL mode "RESTRICTED" for users model
+		IEntityManager em = modelSet.getMetaDataManager();
+		Authorization auth = em.createNamed(
+				URIs.createURI("urn:auth:usersModelRestricted"),
+				Authorization.class);
+		auth.setAclAccessTo(em.find(SecurityUtil.USERS_MODEL, Resource.class));
+		auth.setAclAgentClass(em.find(FOAF.TYPE_AGENT,
+				net.enilink.vocab.rdfs.Class.class));
+		auth.getAclMode().clear();
+		auth.getAclMode().add(
+				em.find(ENILINKACL.MODE_RESTRICTED,
+						net.enilink.vocab.rdfs.Class.class));
+
+		// add application specific models from the workspace
 		if (modelSet instanceof IProjectModelSet) {
 			IProject project = ResourcesPlugin.getWorkspace().getRoot()
 					.getProject("models");
@@ -281,6 +299,12 @@ class ModelSetManager {
 										.createURI("urn:enilink:metadata"));
 								modelSet = createModelSet(metaDataModel);
 							}
+							// register globally readable models
+							modelSet.getModule().addReadableGraph(
+									SecurityUtil.USERS_MODEL);
+							// register some namespace
+							modelSet.getModule().addNamespace("foaf",
+									FOAF.NAMESPACE_URI);
 							if (isMemoryRepo
 									|| "all".equals(System
 											.getProperty("net.enilink.acl.anonymous"))) {
@@ -296,15 +320,15 @@ class ModelSetManager {
 										SecurityUtil.UNKNOWN_USER, Agent.class));
 								auth.getAclMode()
 										.add(em.find(
-												ACL.TYPE_READ,
+												WEBACL.MODE_READ,
 												net.enilink.vocab.rdfs.Class.class));
 								auth.getAclMode()
 										.add(em.find(
-												ACL.TYPE_WRITE,
+												WEBACL.MODE_WRITE,
 												net.enilink.vocab.rdfs.Class.class));
 								auth.getAclMode()
 										.add(em.find(
-												ACL.TYPE_CONTROL,
+												WEBACL.MODE_CONTROL,
 												net.enilink.vocab.rdfs.Class.class));
 							}
 							modelSet.getMetaDataManager().createNamed(

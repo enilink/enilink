@@ -137,8 +137,8 @@ public abstract class SessionModelSetSupport implements IModelSet.Internal,
 				URI user = SecurityUtil.getUser();
 				if (user != null
 						&& model.getModelSet() instanceof ISecureModelSet
-						&& !((ISecureModelSet) model.getModelSet())
-								.isWritableBy((IReference) model, user)) {
+						&& ((ISecureModelSet) model.getModelSet())
+								.writeModeFor((IReference) model, user) == null) {
 					return true;
 				}
 				return super.isReadOnly(model);
