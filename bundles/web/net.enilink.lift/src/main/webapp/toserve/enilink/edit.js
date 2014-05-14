@@ -76,6 +76,8 @@ enilink = $.extend(window.enilink || {}, {
 			type : "orion",
 			onblur : "ignore",
 			inputclass : "editable-form-control",
+			emptyclass : "",
+			emptytext : "",
 			mode : "inline",
 			toggle : "manual",
 			savenochange : true,
@@ -148,8 +150,8 @@ enilink = $.extend(window.enilink || {}, {
 		// global deferred to allow the execution of
 		// functions after doAdd finished
 		var resultDeferred = new $.Deferred;
-		var triples = target.rdf().databank.triples();
 		var value = null;
+		var triples = target.rdf().databank.triples();
 		if (triples.length && triples[0].object.type == "literal") {
 			// TODO implement real localized formatting
 			value = triples[0].object.value + "";

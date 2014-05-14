@@ -26,6 +26,9 @@ import scala.xml.Node
 import net.enilink.lift.rdfa.RDFaUtils
 import net.enilink.lift.rdfa.RDFaHelpers
 
+import BinderHelpers._
+import scala.xml.Text
+
 sealed trait Operation {
   def merge(other: Operation): Operation = other match {
     case Keep => this
@@ -56,8 +59,6 @@ object BinderHelpers {
     }
   }
 }
-
-import BinderHelpers._
 trait Binder {
   type Result = (MetaData, RdfContext, Operation)
 
@@ -135,7 +136,11 @@ class VarBinder(val e: Elem, val attr: String, val name: String) extends RdfAttr
     }
 
     if (attValue == null) {
-      if (attr == "data-unless" || keepNode) attributes = attributes.remove(attr) else attributes = null
+      if (keepNode) {
+        attributes = attributes.append(new UnprefixedAttribute("data-" + attr.stripPrefix("data-") + "-empty", "", Null))
+          .append(new UnprefixedAttribute(attr, "", Null))
+      } else if (attr == "data-unless") attributes = attributes.remove(attr)
+      else attributes = null
     } else if (clearAttribute) attributes = attributes.remove(attr)
     else if (attr == "data-unless") { attributes = null }
     else attributes = attributes.append(new UnprefixedAttribute(attr, attValue.toString, Null))

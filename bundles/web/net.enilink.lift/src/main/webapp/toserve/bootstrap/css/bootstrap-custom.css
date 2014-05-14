@@ -16,6 +16,17 @@ div[lang]::before,span[lang]::before,div[lang]:before,span[lang]:before
 	opacity: 0.5;
 }
 
+[content=""]::after {
+	/* Non-breaking space */
+	content: "\00a0"
+}
+
+[data-content-empty]::after {
+	content: "Empty";
+	color: firebrick;
+	font-style: italic;
+}
+
 .subnav {
 	margin-top: -20px;
 }

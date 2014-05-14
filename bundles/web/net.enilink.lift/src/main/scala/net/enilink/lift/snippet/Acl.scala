@@ -38,7 +38,11 @@ object Acl {
                 <span rev="rdf:type" resource={ bindingVar }/>
               </span>
             </span>
-            <span rel="acl:mode" resource="acl:Read"/>
+            <span rel="acl:mode" class="union">
+              <span resource="acl:Read"/>
+              <span resource="acl:Control"/>
+              <span resource="http://enilink.net/vocab/acl#Restricted"/>
+            </span>
             <span class="union">
               <span rel="acl:agent" resource="?currentUser"/>
               <span rel="acl:agentClass">

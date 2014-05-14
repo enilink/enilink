@@ -38,6 +38,7 @@ import java.util.Locale
 import net.liftweb.http.LiftRules
 import net.enilink.lift.util.CurrentContext
 import net.enilink.lift.util.RdfContext
+import net.liftweb.util.PassThru
 
 class Rdf extends DispatchSnippet with RDFaTemplates {
   def dispatch: DispatchIt = {
@@ -125,7 +126,7 @@ class Rdf extends DispatchSnippet with RDFaTemplates {
           attributes = attributes.remove(replaceAttr.get)
           attributes = attributes.append(new UnprefixedAttribute(replaceAttr.get, newAttrValue, attributes))
           n.asInstanceOf[Elem].copy(attributes = attributes)
-        } else {
+        } else if (target != null) {
           val selector = if (n.attributes.isEmpty || n.attributes.size == 1 && n.attribute("data-t").isDefined) "*" else "* *"
           (method match {
             case m if runMethod.isDefinedAt(m) => selector #> runMethod(m)
@@ -133,12 +134,14 @@ class Rdf extends DispatchSnippet with RDFaTemplates {
               case Full(meth) => meth.invoke(target) match {
                 case i: java.lang.Iterable[_] => selector #> i.map(withChangedContext _)
                 case i: Iterable[_] => selector #> i.map(withChangedContext _)
-                case null => ClearNodes
+                case null => PassThru
                 case o @ _ => selector #> o.toString
               }
               case _ => ClearNodes
             }
           })(n)
+        } else {
+          n
         }
       }
   }
