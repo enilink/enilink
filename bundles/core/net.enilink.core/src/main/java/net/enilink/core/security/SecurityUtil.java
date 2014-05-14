@@ -8,30 +8,26 @@ import java.util.Set;
 import javax.security.auth.Subject;
 
 import net.enilink.auth.UserPrincipal;
+import net.enilink.komma.core.URI;
+import net.enilink.komma.core.URIs;
+import net.enilink.vocab.acl.WEBACL;
 
 import org.eclipse.core.runtime.QualifiedName;
 import org.eclipse.core.runtime.jobs.IJobChangeEvent;
 import org.eclipse.core.runtime.jobs.Job;
 import org.eclipse.core.runtime.jobs.JobChangeAdapter;
 
-import net.enilink.komma.core.URI;
-import net.enilink.komma.core.URIs;
-import net.enilink.vocab.acl.WEBACL;
-
 /**
  * Helper class to get current user from the execution context.
  */
 public class SecurityUtil {
-	public static final URI UNKNOWN_USER = URIs
-			.createURI("enilink:user:anonymous");
+	public static final URI UNKNOWN_USER = usernameToUri("anonymous");
 
-	public static final URI SYSTEM_USER = URIs.createURI("enilink:user:system");
+	public static final URI SYSTEM_USER = usernameToUri("system");
 
 	public static final URI USERS_MODEL = URIs.createURI("enilink:model:users");
 
-	public static final Subject SYSTEM_USER_SUBJECT = new Subject(true,
-			Collections.singleton(new UserPrincipal(SYSTEM_USER)),
-			Collections.emptySet(), Collections.emptySet());
+	public static final Subject SYSTEM_USER_SUBJECT = subjectForUser(SYSTEM_USER);
 
 	public static final String QUERY_ACLMODE = "prefix acl: <"
 			+ WEBACL.NAMESPACE
@@ -67,9 +63,37 @@ public class SecurityUtil {
 	}
 
 	/**
-	 * Returns the current user or <code>null</code>.
+	 * Create a subject for the given user URI.
 	 * 
-	 * @return The id of the current user or <code>null</code>.
+	 * @param user
+	 *            The user's URI.
+	 * 
+	 * @return A subject for the given user
+	 */
+	public static Subject subjectForUser(URI user) {
+		return new Subject(true,
+				Collections.singleton(new UserPrincipal(user)),
+				Collections.emptySet(), Collections.emptySet());
+	}
+
+	/**
+	 * Returns a default URI for the given user name.
+	 * 
+	 * @param username
+	 *            The user name
+	 * @return A URI for the user
+	 */
+	public static URI usernameToUri(String username) {
+		return URIs.createURI("enilink:user:" + username);
+	}
+
+	/**
+	 * Returns the current user.
+	 * 
+	 * If the current user is unknown then {@link SecurityUtil#UNKNOWN_USER} is
+	 * returned.
+	 * 
+	 * @return The id of the current user or {@link SecurityUtil#UNKNOWN_USER}.
 	 */
 	public static URI getUser() {
 		Subject s = null;
