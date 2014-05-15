@@ -458,6 +458,63 @@ public class SecureModelSetTest {
 				});
 	}
 
+	@Test
+	public void testControlAcls() throws Exception {
+		final URI bobsClass = URIs.createURI("resource:bobs-class");
+		final URI carlsClass = URIs.createURI("resource:carls-class");
+		Subject.doAs(SecurityUtil.subjectForUser(bob),
+				new PrivilegedAction<Void>() {
+					@Override
+					public Void run() {
+						IEntityManager em = model1.getManager();
+
+						// create Bob's class
+						em.createNamed(bobsClass, Class.class);
+
+						// create Carl's class
+						em.createNamed(carlsClass, Class.class);
+						// carl may control the carlsClass resource
+						createAcl(model1.getManager(), carl, carlsClass,
+								WEBACL.MODE_CONTROL);
+
+						return null;
+					}
+				});
+
+		Subject.doAs(SecurityUtil.subjectForUser(carl),
+				new PrivilegedAction<Void>() {
+					@Override
+					public Void run() {
+						IEntityManager em = model1.getManager();
+
+						// add ACL to bobsClass should fail
+						try {
+							em.getTransaction().begin();
+							createAcl(em, alice, bobsClass, WEBACL.MODE_WRITE);
+							em.getTransaction().commit();
+							exceptionExpected();
+						} catch (Exception e) {
+						} finally {
+							if (em.getTransaction().isActive()) {
+								em.getTransaction().rollback();
+							}
+						}
+
+						// add ACL to carlsClass should work
+						try {
+							em.getTransaction().begin();
+							createAcl(em, alice, carlsClass, WEBACL.MODE_WRITE);
+							em.getTransaction().commit();
+						} finally {
+							if (em.getTransaction().isActive()) {
+								em.getTransaction().rollback();
+							}
+						}
+						return null;
+					}
+				});
+	}
+
 	Authorization createAclForClass(IEntityManager em, IReference agent,
 			IReference targetClass, IReference mode) {
 		Authorization auth = em.create(Authorization.class);

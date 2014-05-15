@@ -33,6 +33,11 @@ import net.enilink.vocab.acl.WEBACL;
  * Data manager for an {@link ISecureModelSet}.
  */
 public class SecureDataManager extends DelegatingDataManager {
+	class OperationInfo {
+		final Map<Set<IReference>, SecureAdd> secureAddMap = new HashMap<>();
+		final Map<Set<IReference>, SecureRemove> secureRemoveMap = new HashMap<>();
+	}
+
 	class SecureAdd extends SecureStmts<IStatement> {
 		final IReference[] readContexts;
 
@@ -60,24 +65,24 @@ public class SecureDataManager extends DelegatingDataManager {
 
 	abstract class SecureStmts<S extends IStatementPattern> extends
 			NiceIterator<S> {
-		// immediately capture the current user
-		final URI userId = SecurityUtil.getUser();
-
 		final Map<IReference, Iterable<S>> blockedStmts = new HashMap<>();
-
-		final IReference[] contexts;
-
-		S next;
-
-		IExtendedIterator<S> stmts = WrappedIterator.emptyIterator();
-
-		final Set<IReference> writableResources = new HashSet<>();
 
 		final Queue<S> checkedStmts = new LinkedList<>();
 
-		final Set<IReference> requiredModes;
+		final IReference[] contexts;
 
 		final boolean isAdd;
+
+		S next;
+
+		final Set<IReference> requiredModes;
+
+		IExtendedIterator<S> stmts = WrappedIterator.emptyIterator();
+
+		// immediately capture the current user
+		final URI userId = SecurityUtil.getUser();
+
+		final Set<IReference> writableResources = new HashSet<>();
 
 		SecureStmts(Set<IReference> requiredModes, IReference[] addContexts,
 				boolean isAdd) {
@@ -119,40 +124,6 @@ public class SecureDataManager extends DelegatingDataManager {
 			}
 		}
 
-		/**
-		 * Tests if a reference chain exists from a writable named resource to
-		 * the given resource
-		 * 
-		 * writable(r1) -> b1 -> b2 -> resource
-		 */
-		boolean reachableByWritableChain(IReference resource) {
-			Set<IReference> seen = new HashSet<>();
-			Queue<IReference> chain = new LinkedList<>();
-			chain.add(resource);
-			seen.add(resource);
-			while (!chain.isEmpty()) {
-				IReference r = chain.remove();
-				try (IExtendedIterator<IStatement> stmts = match(null, null, r,
-						false, contexts)) {
-					for (IStatement stmt : stmts) {
-						IReference s = stmt.getSubject();
-						if (isWritable(s)) {
-							// also mark all resources on the path as writable
-							writableResources.addAll(seen);
-							return true;
-						} else if (s.getURI() == null) {
-							if (seen.add(s)) {
-								chain.add(s);
-							}
-						} else {
-							return false;
-						}
-					}
-				}
-			}
-			return false;
-		}
-
 		void commit() {
 			// add potentially blocked statements
 			handleStatements();
@@ -172,6 +143,11 @@ public class SecureDataManager extends DelegatingDataManager {
 					if (isWritable(resource)
 							|| reachableByWritableChain(resource)) {
 						unlock(resource);
+					} else if (!isAdd
+							&& !hasMatch(resource, null, null, false, contexts)) {
+						// no statements exists about the resource, so don't
+						// care
+						blockedStmts.remove(resource);
 					} else {
 						throw new KommaException("Changing the resource "
 								+ resource + " is not allowed.");
@@ -197,10 +173,14 @@ public class SecureDataManager extends DelegatingDataManager {
 				while (next == null && stmts.hasNext()) {
 					S stmt = stmts.next();
 					IReference s = stmt.getSubject();
-					if (s == null) {
+					if (!isAdd && (s == null ||
+					// required for special check in case of ACLs
+							stmt.getObject() == null
+									&& WEBACL.PROPERTY_ACCESSTO.equals(stmt
+											.getPredicate()))) {
 						// retrieve concrete statements for remove operations
 						stmts = WrappedIterator.create(
-								(Iterator<S>) match(null, stmt.getPredicate(),
+								(Iterator<S>) match(s, stmt.getPredicate(),
 										(IValue) stmt.getObject(), false,
 										contexts).toList().iterator()).andThen(
 								stmts);
@@ -237,29 +217,17 @@ public class SecureDataManager extends DelegatingDataManager {
 
 		}
 
-		protected boolean isWritable(S stmt) {
-			IValue o = (IValue) stmt.getObject();
-			if (isAdd) {
-				if (o instanceof IReference
-						&& ((IReference) o).getURI() == null
-						&& !writableResources.contains(o)) {
-					// check if the blank node is referenced somewhere in the
-					// store
-					if (hasMatch(null, null, o, false, contexts)) {
-						// test if a persistent chain exists from a writable
-						// resource
-						if (!reachableByWritableChain((IReference) o)) {
-							throw new KommaException(
-									"Write access to blank node has been denied: "
-											+ o);
-						}
-					}
+		protected Set<IReference> aclModes(IReference resource) {
+			IDataManagerQuery<?> aclQuery = createQuery(
+					SecurityUtil.QUERY_ACLMODE, "base:", false, contexts);
+			aclQuery.setParameter("target", resource).setParameter("user",
+					userId);
+			return aclQuery.evaluate().mapWith(new IMap<Object, IReference>() {
+				@Override
+				public IReference map(Object value) {
+					return (IReference) ((IBindings<?>) value).get("mode");
 				}
-			}
-			// TODO check authorizations
-			// WEBACL.PROPERTY_ACCESSTO
-			// WEBACL.PROPERTY_ACCESSTOCLASS
-			return isWritable(stmt.getSubject());
+			}).toSet();
 		}
 
 		protected boolean isWritable(IReference resource) {
@@ -283,14 +251,7 @@ public class SecureDataManager extends DelegatingDataManager {
 					SecurityUtil.QUERY_ACLMODE, "base:", false, contexts);
 			aclQuery.setParameter("target", resource).setParameter("user",
 					userId);
-			Set<?> modes = aclQuery.evaluate()
-					.mapWith(new IMap<Object, IReference>() {
-						@Override
-						public IReference map(Object value) {
-							return (IReference) ((IBindings<?>) value)
-									.get("mode");
-						}
-					}).toSet();
+			Set<?> modes = aclModes(resource);
 			for (IReference mode : requiredModes) {
 				if (modes.contains(mode)) {
 					writableResources.add(resource);
@@ -298,6 +259,53 @@ public class SecureDataManager extends DelegatingDataManager {
 				}
 			}
 			return false;
+		}
+
+		protected boolean isWritable(S stmt) {
+			IValue o = (IValue) stmt.getObject();
+			if (isAdd) {
+				if (o instanceof IReference
+						&& ((IReference) o).getURI() == null
+						&& !writableResources.contains(o)) {
+					// check if the blank node is referenced somewhere in the
+					// store
+					if (hasMatch(null, null, o, false, contexts)) {
+						// test if a persistent chain exists from a writable
+						// resource
+						if (!reachableByWritableChain((IReference) o)) {
+							throw new KommaException(
+									"Write access to blank node has been denied: "
+											+ o);
+						}
+					}
+				}
+			}
+			// restrict the modification of ACLs
+			IReference p = stmt.getPredicate();
+			if (isAdd && WEBACL.PROPERTY_ACCESSTOCLASS.equals(p)) {
+				throw new KommaException(
+						"Adding access contraints for classes of resources is not allowed.");
+			} else if (WEBACL.PROPERTY_ACCESSTO.equals(p)) {
+				if (o instanceof IReference
+						&& (userId.equals(o) || aclModes((IReference) o)
+								.contains(WEBACL.MODE_CONTROL))) {
+					if (stmt.getSubject().getURI() == null
+							&& !hasMatch(null, null, stmt.getSubject(), false,
+									contexts)) {
+						// if ACL is a blank node and not referenced by any
+						// other resource then it is directly writable,
+						// else the normal access rules are also used for the
+						// ACL resource
+						writableResources.add(stmt.getSubject());
+						return true;
+					}
+				} else {
+					throw new KommaException(
+							"Modifying access constraint of the resource " + o
+									+ " has been denied.");
+				}
+			}
+			return isWritable(stmt.getSubject());
 		}
 
 		@Override
@@ -308,6 +316,40 @@ public class SecureDataManager extends DelegatingDataManager {
 			}
 			next = null;
 			return result;
+		}
+
+		/**
+		 * Tests if a reference chain exists from a writable named resource to
+		 * the given resource
+		 * 
+		 * writable(r1) -> b1 -> b2 -> resource
+		 */
+		boolean reachableByWritableChain(IReference resource) {
+			Set<IReference> seen = new HashSet<>();
+			Queue<IReference> chain = new LinkedList<>();
+			chain.add(resource);
+			seen.add(resource);
+			while (!chain.isEmpty()) {
+				IReference r = chain.remove();
+				try (IExtendedIterator<IStatement> stmts = match(null, null, r,
+						false, contexts)) {
+					for (IStatement stmt : stmts) {
+						IReference s = stmt.getSubject();
+						if (isWritable(s)) {
+							// also mark all resources on the path as writable
+							writableResources.addAll(seen);
+							return true;
+						} else if (s.getURI() == null) {
+							if (seen.add(s)) {
+								chain.add(s);
+							}
+						} else {
+							return false;
+						}
+					}
+				}
+			}
+			return false;
 		}
 
 		void unlock(IReference resource) {
@@ -339,11 +381,9 @@ public class SecureDataManager extends DelegatingDataManager {
 
 	protected ISecureModelSet modelSet;
 
-	final Map<Set<IReference>, SecureAdd> secureAddMap = new HashMap<>();
-
-	final Map<Set<IReference>, SecureRemove> secureRemoveMap = new HashMap<>();
-
 	protected SecureTransaction secureTransaction;
+
+	final Map<IReference, OperationInfo> userToOperationInfo = new HashMap<>();
 
 	public SecureDataManager(ISecureModelSet modelSet, IDataManager delegate) {
 		this.modelSet = modelSet;
@@ -386,12 +426,13 @@ public class SecureDataManager extends DelegatingDataManager {
 			IReference[] contexts, Set<IReference> modes) {
 		boolean restrictedMode = assertModes(contexts, modes);
 		if (restrictedMode) {
+			OperationInfo opInfo = operationInfoForUser(SecurityUtil.getUser());
 			Set<IReference> key = new HashSet<>(Arrays.asList(contexts));
-			SecureAdd secureAdd = secureAddMap.get(key);
+			SecureAdd secureAdd = opInfo.secureAddMap.get(key);
 			if (secureAdd == null) {
 				secureAdd = new SecureAdd(readContexts, contexts);
 				if (super.getTransaction().isActive()) {
-					secureAddMap.put(key, secureAdd);
+					opInfo.secureAddMap.put(key, secureAdd);
 				}
 			}
 			return secureAdd;
@@ -438,12 +479,13 @@ public class SecureDataManager extends DelegatingDataManager {
 			Set<IReference> modes) {
 		boolean restrictedMode = assertModes(contexts, modes);
 		if (restrictedMode) {
+			OperationInfo opInfo = operationInfoForUser(SecurityUtil.getUser());
 			Set<IReference> key = new HashSet<>(Arrays.asList(contexts));
-			SecureRemove secureRemove = secureRemoveMap.get(key);
+			SecureRemove secureRemove = opInfo.secureRemoveMap.get(key);
 			if (secureRemove == null) {
 				secureRemove = new SecureRemove(contexts);
 				if (super.getTransaction().isActive()) {
-					secureRemoveMap.put(key, secureRemove);
+					opInfo.secureRemoveMap.put(key, secureRemove);
 				}
 			}
 			return secureRemove;
@@ -475,27 +517,31 @@ public class SecureDataManager extends DelegatingDataManager {
 			secureTransaction = new SecureTransaction(super.getTransaction()) {
 				@Override
 				public void commit() {
-					if (!secureAddMap.isEmpty()) {
-						for (Map.Entry<?, SecureAdd> entry : secureAddMap
-								.entrySet()) {
-							entry.getValue().commit();
+					try {
+						for (OperationInfo opInfo : userToOperationInfo
+								.values()) {
+							if (!opInfo.secureRemoveMap.isEmpty()) {
+								for (Map.Entry<?, SecureRemove> entry : opInfo.secureRemoveMap
+										.entrySet()) {
+									entry.getValue().commit();
+								}
+							}
+							if (!opInfo.secureAddMap.isEmpty()) {
+								for (Map.Entry<?, SecureAdd> entry : opInfo.secureAddMap
+										.entrySet()) {
+									entry.getValue().commit();
+								}
+							}
 						}
-						secureAddMap.clear();
-					}
-					if (!secureRemoveMap.isEmpty()) {
-						for (Map.Entry<?, SecureRemove> entry : secureRemoveMap
-								.entrySet()) {
-							entry.getValue().commit();
-						}
-						secureRemoveMap.clear();
+					} finally {
+						userToOperationInfo.clear();
 					}
 					super.commit();
 				}
 
 				@Override
 				public void rollback() {
-					secureAddMap.clear();
-					secureRemoveMap.clear();
+					userToOperationInfo.clear();
 					super.rollback();
 				}
 			};
@@ -516,6 +562,15 @@ public class SecureDataManager extends DelegatingDataManager {
 			IReference... contexts) {
 		return super.match(subject, predicate, object, includeInferred,
 				assertReadable(contexts));
+	}
+
+	OperationInfo operationInfoForUser(IReference user) {
+		OperationInfo opInfo = userToOperationInfo.get(user);
+		if (opInfo == null) {
+			opInfo = new OperationInfo();
+			userToOperationInfo.put(user, opInfo);
+		}
+		return opInfo;
 	}
 
 	@Override
