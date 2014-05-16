@@ -2,9 +2,11 @@ package net.enilink.core.security;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
+import java.util.LinkedHashMap;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
@@ -33,191 +35,89 @@ import net.enilink.vocab.acl.WEBACL;
  * Data manager for an {@link ISecureModelSet}.
  */
 public class SecureDataManager extends DelegatingDataManager {
-	class OperationInfo {
-		final Map<Set<IReference>, SecureAdd> secureAddMap = new HashMap<>();
-		final Map<Set<IReference>, SecureRemove> secureRemoveMap = new HashMap<>();
-	}
-
-	class SecureAdd extends SecureStmts<IStatement> {
-		final IReference[] readContexts;
-
-		SecureAdd(IReference[] readContexts, IReference[] addContexts) {
-			super(writeModes, addContexts, true);
-			this.readContexts = readContexts;
+	static class AddOp extends Op {
+		AddOp(IStatement stmt) {
+			super(stmt);
 		}
 
 		@Override
-		void handleStatements() {
-			SecureDataManager.super.add(this, readContexts, contexts);
+		boolean isAdd() {
+			return true;
 		}
 	}
 
-	class SecureRemove extends SecureStmts<IStatementPattern> {
-		SecureRemove(IReference[] contexts) {
-			super(removeModes, contexts, false);
+	static abstract class Op {
+		final IStatementPattern stmt;
+
+		Op(IStatementPattern stmt) {
+			this.stmt = stmt;
+		}
+
+		abstract boolean isAdd();
+	}
+
+	static class RemoveOp extends Op {
+		RemoveOp(IStatementPattern stmt) {
+			super(stmt);
 		}
 
 		@Override
-		void handleStatements() {
-			SecureDataManager.super.remove(this, contexts);
+		boolean isAdd() {
+			return false;
 		}
 	}
 
-	abstract class SecureStmts<S extends IStatementPattern> extends
-			NiceIterator<S> {
-		final Map<IReference, Iterable<S>> blockedStmts = new HashMap<>();
+	class SecureOps {
+		class StmtIterator<S extends IStatementPattern> extends NiceIterator<S> {
+			final boolean isAdd;
+			S stmt;
 
-		final Queue<S> checkedStmts = new LinkedList<>();
+			StmtIterator(boolean isAdd) {
+				this.isAdd = isAdd;
+			}
+
+			@SuppressWarnings("unchecked")
+			@Override
+			public boolean hasNext() {
+				if (stmt == null && loadNextOp() && nextOp.isAdd() == isAdd) {
+					stmt = (S) nextOp.stmt;
+					nextOp = null;
+				}
+				return stmt != null;
+			}
+
+			@Override
+			public S next() {
+				if (stmt == null) {
+					noElements("No more statements available.");
+				}
+				S next = stmt;
+				stmt = null;
+				return next;
+			}
+		}
+
+		final Map<IReference, Collection<Op>> blockedOps = new HashMap<>();
+
+		final Queue<Op> checkedOps = new LinkedList<>();
 
 		final IReference[] contexts;
 
-		final boolean isAdd;
+		Op nextOp;
 
-		S next;
+		IExtendedIterator<Op> ops = WrappedIterator.emptyIterator();
 
-		final Set<IReference> requiredModes;
-
-		IExtendedIterator<S> stmts = WrappedIterator.emptyIterator();
+		final Map<IReference, WriteMode> resourceModes = new HashMap<>();
 
 		// immediately capture the current user
 		final URI userId = SecurityUtil.getUser();
 
-		final Set<IReference> writableResources = new HashSet<>();
-
-		SecureStmts(Set<IReference> requiredModes, IReference[] addContexts,
-				boolean isAdd) {
-			this.requiredModes = requiredModes;
-			this.contexts = addContexts;
-			this.isAdd = isAdd;
+		// TODO also respect readContexts for add operations
+		SecureOps(IReference[] contexts) {
+			this.contexts = contexts;
 		}
 
-		void addStatements(Iterator<? extends S> stmts) {
-			this.stmts = this.stmts.andThen(stmts);
-		}
-
-		/**
-		 * Enqueues a statement that is blocked on its subject.
-		 * 
-		 * @param stmt
-		 *            The statement
-		 */
-		@SuppressWarnings("unchecked")
-		void block(S stmt) {
-			IReference s = stmt.getSubject();
-			Iterable<S> blocked = blockedStmts.get(s);
-			if (blocked != null) {
-				if (blocked instanceof List<?>) {
-					((List<S>) blocked).add(stmt);
-				} else {
-					List<S> list = new ArrayList<>(2);
-					list.add((S) blocked);
-					list.add(stmt);
-					blockedStmts.put(s, list);
-				}
-			} else if (s instanceof Iterable<?>) {
-				// optimize storing of single statements
-				blockedStmts.put(s, (Iterable<S>) stmt);
-			} else {
-				List<S> list = new ArrayList<>(1);
-				list.add(stmt);
-				blockedStmts.put(s, list);
-			}
-		}
-
-		void commit() {
-			// add potentially blocked statements
-			handleStatements();
-			while (!blockedStmts.isEmpty()) {
-				// find root nodes
-				Set<IReference> roots = new HashSet<>(blockedStmts.keySet());
-				for (Iterable<S> stmtList : blockedStmts.values()) {
-					for (S stmt : stmtList) {
-						Object o = stmt.getObject();
-						if (o instanceof IReference
-								&& (!stmt.getSubject().equals(o))) {
-							roots.remove(o);
-						}
-					}
-				}
-				for (IReference resource : roots) {
-					if (isWritable(resource)
-							|| reachableByWritableChain(resource)) {
-						unlock(resource);
-					} else if (!isAdd
-							&& !hasMatch(resource, null, null, false, contexts)) {
-						// no statements exists about the resource, so don't
-						// care
-						blockedStmts.remove(resource);
-					} else {
-						throw new KommaException("Changing the resource "
-								+ resource + " is not allowed.");
-					}
-				}
-				handleStatements();
-			}
-			if (!blockedStmts.isEmpty()) {
-				throw new KommaException(
-						"Some statements violate the security constraints.");
-			}
-		}
-
-		abstract void handleStatements();
-
-		@SuppressWarnings("unchecked")
-		@Override
-		public boolean hasNext() {
-			if (next == null) {
-				if (!checkedStmts.isEmpty()) {
-					next = checkedStmts.remove();
-				}
-				while (next == null && stmts.hasNext()) {
-					S stmt = stmts.next();
-					IReference s = stmt.getSubject();
-					if (!isAdd && (s == null ||
-					// required for special check in case of ACLs
-							stmt.getObject() == null
-									&& WEBACL.PROPERTY_ACCESSTO.equals(stmt
-											.getPredicate()))) {
-						// retrieve concrete statements for remove operations
-						stmts = WrappedIterator.create(
-								(Iterator<S>) match(s, stmt.getPredicate(),
-										(IValue) stmt.getObject(), false,
-										contexts).toList().iterator()).andThen(
-								stmts);
-						continue;
-					}
-					if (isWritable(stmt)) {
-						next = stmt;
-					} else if (s.getURI() == null) {
-						block(stmt);
-					} else {
-						throw new KommaException(
-								"Modification is denied for resource: " + s);
-					}
-				}
-				if (next != null) {
-					Object o = next.getObject();
-					if (o == null) {
-						// retrieve concrete statements for remove operations
-						for (IStatement stmt : match(next.getSubject(),
-								next.getPredicate(), null, false, contexts)) {
-							o = stmt.getObject();
-							if (o instanceof IReference) {
-								unlock((IReference) o);
-							}
-						}
-					} else if (o instanceof IReference) {
-						unlock((IReference) o);
-					}
-				}
-				return next != null;
-			} else {
-				return true;
-			}
-
-		}
-
-		protected Set<IReference> aclModes(IReference resource) {
+		Set<IReference> aclModes(IReference resource) {
 			IDataManagerQuery<?> aclQuery = createQuery(
 					SecurityUtil.QUERY_ACLMODE, "base:", false, contexts);
 			aclQuery.setParameter("target", resource).setParameter("user",
@@ -230,49 +130,241 @@ public class SecureDataManager extends DelegatingDataManager {
 			}).toSet();
 		}
 
-		protected boolean isWritable(IReference resource) {
-			if (writableResources.contains(resource)) {
+		void addStatements(Iterator<? extends IStatement> stmts) {
+			this.ops = this.ops.andThen(WrappedIterator.create(stmts).mapWith(
+					new IMap<IStatement, Op>() {
+						@Override
+						public Op map(IStatement stmt) {
+							return new AddOp(stmt);
+						}
+					}));
+		}
+
+		/**
+		 * Enqueues a statement that is blocked on its subject.
+		 * 
+		 * @param stmt
+		 *            The statement
+		 */
+		void block(Op op) {
+			IReference s = op.stmt.getSubject();
+			Collection<Op> blocked = blockedOps.get(s);
+			if (blocked == null) {
+				blocked = new ArrayList<>(2);
+				blockedOps.put(s, blocked);
+			}
+			blocked.add(op);
+		}
+
+		void execute() {
+			// add potentially blocked statements
+			flushOperations();
+			while (!blockedOps.isEmpty()) {
+				// find root nodes
+				Set<IReference> roots = new HashSet<>(blockedOps.keySet());
+				for (Iterable<Op> opList : blockedOps.values()) {
+					for (Op op : opList) {
+						IStatementPattern stmt = op.stmt;
+						Object o = stmt.getObject();
+						if (o instanceof IReference
+								&& (!stmt.getSubject().equals(o))) {
+							roots.remove(o);
+						}
+					}
+				}
+				for (IReference resource : roots) {
+					WriteMode writeMode = writeMode(resource);
+					if (writeMode == WriteMode.NONE) {
+						writeMode = writeModeFromChain(resource);
+					}
+					if (writeMode != WriteMode.NONE) {
+						unlock(resource, writeMode);
+						continue;
+					}
+					// test if all blocked operations where remove
+					// operations
+					boolean onlyRemove = true;
+					for (Op op : blockedOps.remove(resource)) {
+						if (op.isAdd()) {
+							onlyRemove = false;
+							break;
+						}
+					}
+					if (onlyRemove
+							&& !hasMatch(resource, null, null, false, contexts)) {
+						// no statements exists about the resource, so don't
+						// care
+					} else {
+						throw new KommaException("Changing the resource "
+								+ resource + " is not allowed.");
+					}
+				}
+				flushOperations();
+			}
+			if (!blockedOps.isEmpty()) {
+				throw new KommaException(
+						"Some statements violate the security constraints.");
+			}
+		}
+
+		void flushOperations() {
+			while (loadNextOp()) {
+				if (nextOp.isAdd()) {
+					SecureDataManager.super.add(new StmtIterator<IStatement>(
+							true), contexts, contexts);
+				} else {
+					SecureDataManager.super.remove(new StmtIterator<>(false),
+							contexts);
+				}
+			}
+		}
+
+		boolean loadNextOp() {
+			if (nextOp == null) {
+				if (!checkedOps.isEmpty()) {
+					nextOp = checkedOps.remove();
+				}
+				WriteMode writeMode = WriteMode.NONE;
+				while (nextOp == null && ops.hasNext()) {
+					Op op = ops.next();
+					boolean isAdd = op.isAdd();
+					IStatementPattern stmt = op.stmt;
+					IReference s = stmt.getSubject();
+					if (!isAdd && (s == null ||
+					// required for special check in case of ACLs
+							stmt.getObject() == null
+									&& WEBACL.PROPERTY_ACCESSTO.equals(stmt
+											.getPredicate()))) {
+						// retrieve concrete statements for remove
+						// operations
+						ops = WrappedIterator
+								.create(match(s, stmt.getPredicate(),
+										(IValue) stmt.getObject(), false,
+										contexts).toList().iterator())
+								.mapWith(new IMap<IStatement, Op>() {
+									@Override
+									public Op map(IStatement stmt) {
+										return new RemoveOp(stmt);
+									}
+								}).andThen(ops);
+						continue;
+					}
+					writeMode = writeMode(op);
+					if (isAdd && writeMode != WriteMode.NONE
+							|| writeMode == WriteMode.MODIFY) {
+						nextOp = op;
+					} else if (s.getURI() == null) {
+						block(op);
+					} else {
+						throw new KommaException(
+								"Modification is denied for resource: " + s);
+					}
+				}
+				if (nextOp != null) {
+					Object o = nextOp.stmt.getObject();
+					if (o == null) {
+						// retrieve concrete statements for remove
+						// operations
+						for (IStatement stmt : match(nextOp.stmt.getSubject(),
+								nextOp.stmt.getPredicate(), null, false,
+								contexts)) {
+							o = stmt.getObject();
+							if (o instanceof IReference) {
+								unlock((IReference) o, writeMode);
+							}
+						}
+					} else if (o instanceof IReference) {
+						unlock((IReference) o, writeMode);
+					}
+				}
+				return nextOp != null;
+			} else {
 				return true;
 			}
+
+		}
+
+		void removeStatements(Iterator<? extends IStatementPattern> stmts) {
+			this.ops = this.ops.andThen(WrappedIterator.create(stmts).mapWith(
+					new IMap<IStatementPattern, Op>() {
+						@Override
+						public Op map(IStatementPattern stmt) {
+							return new RemoveOp(stmt);
+						}
+					}));
+		}
+
+		void setModes(Collection<IReference> elements, WriteMode mode) {
+			for (IReference elem : elements) {
+				resourceModes.put(elem, mode);
+			}
+		}
+
+		void unlock(IReference resource, WriteMode writeMode) {
 			if (resource.getURI() == null) {
-				// ACLs are not used for blank nodes
-				return false;
+				resourceModes.put(resource, writeMode);
+				Iterable<Op> blocked = blockedOps.remove(resource);
+				if (blocked != null) {
+					for (Op op : blocked) {
+						checkedOps.add(op);
+						Object o = op.stmt.getObject();
+						if (o instanceof IReference) {
+							resourceModes.put((IReference) o, writeMode);
+						}
+					}
+				}
+			}
+		}
+
+		WriteMode writeMode(IReference resource) {
+			WriteMode writeMode = resourceModes.get(resource);
+			if (writeMode != null) {
+				return writeMode;
+			}
+			if (resource.getURI() == null) {
+				// ACLs for blank nodes are computed on commit
+				return WriteMode.NONE;
 			}
 			if (SecurityUtil.SYSTEM_USER.equals(userId)) {
 				// the system has always sufficient access rights
-				return true;
+				return WriteMode.MODIFY;
 			}
 			if (resource.equals(userId)) {
 				// users may always change their own data
 				// Is this correct?
-				return true;
+				return WriteMode.MODIFY;
 			}
 			IDataManagerQuery<?> aclQuery = createQuery(
 					SecurityUtil.QUERY_ACLMODE, "base:", false, contexts);
 			aclQuery.setParameter("target", resource).setParameter("user",
 					userId);
 			Set<?> modes = aclModes(resource);
-			for (IReference mode : requiredModes) {
-				if (modes.contains(mode)) {
-					writableResources.add(resource);
-					return true;
-				}
+			if (modes.contains(WEBACL.MODE_CONTROL)
+					|| modes.contains(WEBACL.MODE_WRITE)) {
+				writeMode = WriteMode.MODIFY;
+			} else if (modes.contains(WEBACL.MODE_APPEND)) {
+				writeMode = WriteMode.MODIFY;
+			} else {
+				writeMode = WriteMode.NONE;
 			}
-			return false;
+			resourceModes.put(resource, writeMode);
+			return writeMode;
 		}
 
-		protected boolean isWritable(S stmt) {
+		WriteMode writeMode(Op op) {
+			IStatementPattern stmt = op.stmt;
+			boolean isAdd = op.isAdd();
 			IValue o = (IValue) stmt.getObject();
 			if (isAdd) {
 				if (o instanceof IReference
 						&& ((IReference) o).getURI() == null
-						&& !writableResources.contains(o)) {
+						&& !resourceModes.containsKey(o)) {
 					// check if the blank node is referenced somewhere in the
 					// store
 					if (hasMatch(null, null, o, false, contexts)) {
 						// test if a persistent chain exists from a writable
 						// resource
-						if (!reachableByWritableChain((IReference) o)) {
+						if (writeModeFromChain((IReference) o) == WriteMode.NONE) {
 							throw new KommaException(
 									"Write access to blank node has been denied: "
 											+ o);
@@ -296,8 +388,8 @@ public class SecureDataManager extends DelegatingDataManager {
 						// other resource then it is directly writable,
 						// else the normal access rules are also used for the
 						// ACL resource
-						writableResources.add(stmt.getSubject());
-						return true;
+						resourceModes.put(stmt.getSubject(), WriteMode.MODIFY);
+						return WriteMode.MODIFY;
 					}
 				} else {
 					throw new KommaException(
@@ -305,17 +397,7 @@ public class SecureDataManager extends DelegatingDataManager {
 									+ " has been denied.");
 				}
 			}
-			return isWritable(stmt.getSubject());
-		}
-
-		@Override
-		public S next() {
-			S result = next;
-			if (result == null) {
-				noElements("No statements are available.");
-			}
-			next = null;
-			return result;
+			return writeMode(stmt.getSubject());
 		}
 
 		/**
@@ -324,7 +406,7 @@ public class SecureDataManager extends DelegatingDataManager {
 		 * 
 		 * writable(r1) -> b1 -> b2 -> resource
 		 */
-		boolean reachableByWritableChain(IReference resource) {
+		WriteMode writeModeFromChain(IReference resource) {
 			Set<IReference> seen = new HashSet<>();
 			Queue<IReference> chain = new LinkedList<>();
 			chain.add(resource);
@@ -335,38 +417,37 @@ public class SecureDataManager extends DelegatingDataManager {
 						false, contexts)) {
 					for (IStatement stmt : stmts) {
 						IReference s = stmt.getSubject();
-						if (isWritable(s)) {
-							// also mark all resources on the path as writable
-							writableResources.addAll(seen);
-							return true;
-						} else if (s.getURI() == null) {
+						boolean isBlank = s.getURI() == null;
+						WriteMode mode;
+						if (isBlank) {
+							mode = resourceModes.get(s);
+						} else {
+							mode = writeMode(s);
+						}
+						if (mode == null && isBlank) {
+							// mode is unknown for the given blank node
+							// keep on searching for a known mode
 							if (seen.add(s)) {
 								chain.add(s);
 							}
 						} else {
-							return false;
+							setModes(seen, mode);
+							return mode;
 						}
 					}
 				}
 			}
-			return false;
+			setModes(seen, WriteMode.NONE);
+			return WriteMode.NONE;
 		}
+	};
 
-		void unlock(IReference resource) {
-			if (resource.getURI() == null) {
-				writableResources.add(resource);
-				Iterable<S> blocked = blockedStmts.remove(resource);
-				if (blocked != null) {
-					for (S stmt : blocked) {
-						checkedStmts.add(stmt);
-						Object o = stmt.getObject();
-						if (o instanceof IReference) {
-							writableResources.add((IReference) o);
-						}
-					}
-				}
-			}
-		}
+	static class SecureOpsInfo {
+		Map<Set<IReference>, SecureOps> contextsToOps = new LinkedHashMap<>();
+	}
+
+	static enum WriteMode {
+		ADD, MODIFY, NONE
 	}
 
 	final static Set<IReference> removeModes = new HashSet<IReference>(
@@ -383,7 +464,7 @@ public class SecureDataManager extends DelegatingDataManager {
 
 	protected SecureTransaction secureTransaction;
 
-	final Map<IReference, OperationInfo> userToOperationInfo = new HashMap<>();
+	final Map<IReference, SecureOpsInfo> userToOperations = new HashMap<>();
 
 	public SecureDataManager(ISecureModelSet modelSet, IDataManager delegate) {
 		this.modelSet = modelSet;
@@ -393,15 +474,14 @@ public class SecureDataManager extends DelegatingDataManager {
 	@Override
 	public IDataManager add(Iterable<? extends IStatement> statements,
 			IReference... contexts) {
-		SecureStmts<IStatement> secureAdd = assertAddable(contexts, contexts,
-				writeModes);
-		if (secureAdd != null) {
-			secureAdd.addStatements(statements.iterator());
-			statements = secureAdd;
+		SecureOps secureOps = assertModes(contexts, contexts, writeModes);
+		if (secureOps != null) {
+			secureOps.addStatements(statements.iterator());
+		} else {
+			super.add(statements, contexts);
 		}
-		super.add(statements, contexts);
-		if (secureAdd != null && !secureTransaction.isActive()) {
-			secureAdd.commit();
+		if (secureOps != null && !secureTransaction.isActive()) {
+			secureOps.execute();
 		}
 		return this;
 	}
@@ -409,38 +489,20 @@ public class SecureDataManager extends DelegatingDataManager {
 	@Override
 	public IDataManager add(Iterable<? extends IStatement> statements,
 			IReference[] readContexts, IReference... addContexts) {
-		SecureStmts<IStatement> secureAdd = assertAddable(readContexts,
-				addContexts, writeModes);
-		if (secureAdd != null) {
-			secureAdd.addStatements(statements.iterator());
-			statements = secureAdd;
+		SecureOps secureOps = assertModes(readContexts, addContexts, writeModes);
+		if (secureOps != null) {
+			secureOps.addStatements(statements.iterator());
+		} else {
+			super.add(statements, assertReadable(readContexts), addContexts);
 		}
-		super.add(statements, assertReadable(readContexts), addContexts);
-		if (secureAdd != null && !secureTransaction.isActive()) {
-			secureAdd.commit();
+		if (secureOps != null && !secureTransaction.isActive()) {
+			secureOps.execute();
 		}
 		return this;
 	}
 
-	protected SecureAdd assertAddable(IReference[] readContexts,
+	protected SecureOps assertModes(IReference[] readContexts,
 			IReference[] contexts, Set<IReference> modes) {
-		boolean restrictedMode = assertModes(contexts, modes);
-		if (restrictedMode) {
-			OperationInfo opInfo = operationInfoForUser(SecurityUtil.getUser());
-			Set<IReference> key = new HashSet<>(Arrays.asList(contexts));
-			SecureAdd secureAdd = opInfo.secureAddMap.get(key);
-			if (secureAdd == null) {
-				secureAdd = new SecureAdd(readContexts, contexts);
-				if (super.getTransaction().isActive()) {
-					opInfo.secureAddMap.put(key, secureAdd);
-				}
-			}
-			return secureAdd;
-		}
-		return null;
-	}
-
-	protected boolean assertModes(IReference[] contexts, Set<IReference> modes) {
 		URI userId = SecurityUtil.getUser();
 		boolean restrictedMode = false;
 		if (contexts.length == 0) {
@@ -456,7 +518,16 @@ public class SecureDataManager extends DelegatingDataManager {
 						+ " has been denied.");
 			}
 		}
-		return restrictedMode;
+		if (restrictedMode) {
+			SecureOps secureOps;
+			if (super.getTransaction().isActive()) {
+				secureOps = secureOps(SecurityUtil.getUser(), contexts);
+			} else {
+				secureOps = new SecureOps(contexts);
+			}
+			return secureOps;
+		}
+		return null;
 	}
 
 	protected IReference[] assertReadable(IReference... contexts) {
@@ -473,24 +544,6 @@ public class SecureDataManager extends DelegatingDataManager {
 					"Reading without a dataset has been denied.");
 		}
 		return accessibleCtxs.toArray(new IReference[accessibleCtxs.size()]);
-	}
-
-	protected SecureRemove assertRemovable(IReference[] contexts,
-			Set<IReference> modes) {
-		boolean restrictedMode = assertModes(contexts, modes);
-		if (restrictedMode) {
-			OperationInfo opInfo = operationInfoForUser(SecurityUtil.getUser());
-			Set<IReference> key = new HashSet<>(Arrays.asList(contexts));
-			SecureRemove secureRemove = opInfo.secureRemoveMap.get(key);
-			if (secureRemove == null) {
-				secureRemove = new SecureRemove(contexts);
-				if (super.getTransaction().isActive()) {
-					opInfo.secureRemoveMap.put(key, secureRemove);
-				}
-			}
-			return secureRemove;
-		}
-		return null;
 	}
 
 	@Override
@@ -518,30 +571,23 @@ public class SecureDataManager extends DelegatingDataManager {
 				@Override
 				public void commit() {
 					try {
-						for (OperationInfo opInfo : userToOperationInfo
-								.values()) {
-							if (!opInfo.secureRemoveMap.isEmpty()) {
-								for (Map.Entry<?, SecureRemove> entry : opInfo.secureRemoveMap
+						for (SecureOpsInfo opInfo : userToOperations.values()) {
+							if (!opInfo.contextsToOps.isEmpty()) {
+								for (Map.Entry<?, SecureOps> entry : opInfo.contextsToOps
 										.entrySet()) {
-									entry.getValue().commit();
-								}
-							}
-							if (!opInfo.secureAddMap.isEmpty()) {
-								for (Map.Entry<?, SecureAdd> entry : opInfo.secureAddMap
-										.entrySet()) {
-									entry.getValue().commit();
+									entry.getValue().execute();
 								}
 							}
 						}
 					} finally {
-						userToOperationInfo.clear();
+						userToOperations.clear();
 					}
 					super.commit();
 				}
 
 				@Override
 				public void rollback() {
-					userToOperationInfo.clear();
+					userToOperations.clear();
 					super.rollback();
 				}
 			};
@@ -564,28 +610,34 @@ public class SecureDataManager extends DelegatingDataManager {
 				assertReadable(contexts));
 	}
 
-	OperationInfo operationInfoForUser(IReference user) {
-		OperationInfo opInfo = userToOperationInfo.get(user);
-		if (opInfo == null) {
-			opInfo = new OperationInfo();
-			userToOperationInfo.put(user, opInfo);
-		}
-		return opInfo;
-	}
-
 	@Override
 	public IDataManager remove(
 			Iterable<? extends IStatementPattern> statements,
 			IReference... contexts) {
-		SecureRemove secureRemove = assertRemovable(contexts, removeModes);
-		if (secureRemove != null) {
-			secureRemove.addStatements(statements.iterator());
-			statements = secureRemove;
+		SecureOps secureOps = assertModes(contexts, contexts, removeModes);
+		if (secureOps != null) {
+			secureOps.removeStatements(statements.iterator());
+		} else {
+			super.remove(statements, contexts);
 		}
-		super.remove(statements, contexts);
-		if (secureRemove != null && !secureTransaction.isActive()) {
-			secureRemove.commit();
+		if (secureOps != null && !secureTransaction.isActive()) {
+			secureOps.execute();
 		}
 		return this;
+	}
+
+	SecureOps secureOps(IReference user, IReference[] contexts) {
+		SecureOpsInfo opsInfo = userToOperations.get(user);
+		if (opsInfo == null) {
+			opsInfo = new SecureOpsInfo();
+			userToOperations.put(user, opsInfo);
+		}
+		Set<IReference> key = new HashSet<>(Arrays.asList(contexts));
+		SecureOps ops = opsInfo.contextsToOps.get(key);
+		if (ops == null) {
+			ops = new SecureOps(contexts);
+			opsInfo.contextsToOps.put(key, ops);
+		}
+		return ops;
 	}
 }
