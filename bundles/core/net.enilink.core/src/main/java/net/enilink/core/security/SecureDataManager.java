@@ -35,6 +35,9 @@ import net.enilink.vocab.acl.WEBACL;
  * Data manager for an {@link ISecureModelSet}.
  */
 public class SecureDataManager extends DelegatingDataManager {
+	/**
+	 * Adds a statement.
+	 */
 	static class AddOp extends Op {
 		AddOp(IStatement stmt) {
 			super(stmt);
@@ -46,6 +49,9 @@ public class SecureDataManager extends DelegatingDataManager {
 		}
 	}
 
+	/**
+	 * An operation that adds or removes a statement or statement pattern.
+	 */
 	static abstract class Op {
 		final IStatementPattern stmt;
 
@@ -56,6 +62,9 @@ public class SecureDataManager extends DelegatingDataManager {
 		abstract boolean isAdd();
 	}
 
+	/**
+	 * Removes a statement pattern.
+	 */
 	static class RemoveOp extends Op {
 		RemoveOp(IStatementPattern stmt) {
 			super(stmt);
@@ -67,7 +76,15 @@ public class SecureDataManager extends DelegatingDataManager {
 		}
 	}
 
+	/**
+	 * Encapsulates a set of add and remove operations for a certain user and
+	 * given contexts.
+	 */
 	class SecureOps {
+		/**
+		 * Feeds a set of statements or statement patterns into an
+		 * {@link IDataManager}'s add and remove methods.
+		 */
 		class StmtIterator<S extends IStatementPattern> extends NiceIterator<S> {
 			final boolean isAdd;
 			S stmt;
@@ -97,8 +114,15 @@ public class SecureDataManager extends DelegatingDataManager {
 			}
 		}
 
+		/**
+		 * Operations that are blocked until the access mode of their
+		 * subject-resource is known.
+		 */
 		final Map<IReference, Collection<Op>> blockedOps = new HashMap<>();
 
+		/**
+		 * Queue of operations that are valid for execution.
+		 */
 		final Queue<Op> checkedOps = new LinkedList<>();
 
 		final IReference[] contexts;
@@ -117,6 +141,14 @@ public class SecureDataManager extends DelegatingDataManager {
 			this.contexts = contexts;
 		}
 
+		/**
+		 * Executes a SPARQL query to retrieve the current ACL modes for the
+		 * given <code>resource</code>.
+		 * 
+		 * @param resource
+		 *            The resource for which the ACL modes should be retrieved
+		 * @return A set of ACL modes
+		 */
 		Set<IReference> aclModes(IReference resource) {
 			IDataManagerQuery<?> aclQuery = createQuery(
 					SecurityUtil.QUERY_ACLMODE, "base:", false, contexts);
@@ -130,6 +162,12 @@ public class SecureDataManager extends DelegatingDataManager {
 			}).toSet();
 		}
 
+		/**
+		 * Add statements which should be inserted.
+		 * 
+		 * @param stmts
+		 *            The statements to be inserted
+		 */
 		void addStatements(Iterator<? extends IStatement> stmts) {
 			this.ops = this.ops.andThen(WrappedIterator.create(stmts).mapWith(
 					new IMap<IStatement, Op>() {
@@ -156,6 +194,12 @@ public class SecureDataManager extends DelegatingDataManager {
 			blocked.add(op);
 		}
 
+		/**
+		 * Writes immediately writable statements to the underlying data
+		 * manager. Then the function computes root nodes for which the write
+		 * modes are computed. These write modes are transitively propagated to
+		 * dependent nodes (spreading activation).
+		 */
 		void execute() {
 			// add potentially blocked statements
 			flushOperations();
@@ -207,6 +251,9 @@ public class SecureDataManager extends DelegatingDataManager {
 			}
 		}
 
+		/**
+		 * Writes some statements to the underlying data manager.
+		 */
 		void flushOperations() {
 			while (loadNextOp()) {
 				if (nextOp.isAdd()) {
@@ -219,6 +266,12 @@ public class SecureDataManager extends DelegatingDataManager {
 			}
 		}
 
+		/**
+		 * Computes the next immediately executable operation.
+		 * 
+		 * @return <code>true</code> if some operation can be executed, else
+		 *         <code>false</code>.
+		 */
 		boolean loadNextOp() {
 			if (nextOp == null) {
 				if (!checkedOps.isEmpty()) {
@@ -284,6 +337,12 @@ public class SecureDataManager extends DelegatingDataManager {
 
 		}
 
+		/**
+		 * Add statements which should be removed.
+		 * 
+		 * @param stmts
+		 *            The statement patterns to be removed
+		 */
 		void removeStatements(Iterator<? extends IStatementPattern> stmts) {
 			this.ops = this.ops.andThen(WrappedIterator.create(stmts).mapWith(
 					new IMap<IStatementPattern, Op>() {
@@ -300,12 +359,25 @@ public class SecureDataManager extends DelegatingDataManager {
 			}
 		}
 
+		/**
+		 * Unlocks a resource with the given write mode.
+		 * 
+		 * This enqueues the corresponding statements for addition or removal.
+		 * 
+		 */
 		void unlock(IReference resource, WriteMode writeMode) {
 			if (resource.getURI() == null) {
 				resourceModes.put(resource, writeMode);
 				Iterable<Op> blocked = blockedOps.remove(resource);
 				if (blocked != null) {
 					for (Op op : blocked) {
+						// test if write mode is sufficient for remove
+						// operations
+						if (!op.isAdd() && writeMode != WriteMode.MODIFY) {
+							throw new KommaException(
+									"Insufficient access rights for execution a remove operation with the pattern: "
+											+ op.stmt);
+						}
 						checkedOps.add(op);
 						Object o = op.stmt.getObject();
 						if (o instanceof IReference) {
@@ -316,6 +388,18 @@ public class SecureDataManager extends DelegatingDataManager {
 			}
 		}
 
+		/**
+		 * Determine the write mode for the given resource.
+		 * 
+		 * If the given resource is a blank node then only the cached values are
+		 * used. Otherwise a query is executed against the underlying data
+		 * manager.
+		 * 
+		 * @param resource
+		 *            The resource for which the write mode should be
+		 *            determined.
+		 * @return The write mode for the given resource
+		 */
 		WriteMode writeMode(IReference resource) {
 			WriteMode writeMode = resourceModes.get(resource);
 			if (writeMode != null) {
@@ -351,6 +435,17 @@ public class SecureDataManager extends DelegatingDataManager {
 			return writeMode;
 		}
 
+		/**
+		 * Determines the write mode for a given operation.
+		 * 
+		 * This method inspects the statement to prevent illegal references to
+		 * foreign blank nodes and to control the modification of ACLs.
+		 * 
+		 * @param op
+		 *            The operation for which the write mode should be
+		 *            determined
+		 * @return The write mode for the given operation
+		 */
 		WriteMode writeMode(Op op) {
 			IStatementPattern stmt = op.stmt;
 			boolean isAdd = op.isAdd();
@@ -401,8 +496,8 @@ public class SecureDataManager extends DelegatingDataManager {
 		}
 
 		/**
-		 * Tests if a reference chain exists from a writable named resource to
-		 * the given resource
+		 * Computes the write mode for a given resource by using a chain of
+		 * blank nodes to some writable named resource.
 		 * 
 		 * writable(r1) -> b1 -> b2 -> resource
 		 */
