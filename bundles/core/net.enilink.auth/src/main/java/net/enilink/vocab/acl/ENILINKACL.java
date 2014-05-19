@@ -22,6 +22,6 @@ public interface ENILINKACL {
 	 * Used for models as access mode where reading is allowed but writing is
 	 * restricted by embedded ACL constraints.
 	 */
-	public static final URI MODE_RESTRICTED = NAMESPACE_URI
-			.appendLocalPart("Restricted");
+	public static final URI MODE_WRITERESTRICTED = NAMESPACE_URI
+			.appendLocalPart("WriteRestricted");
 }
