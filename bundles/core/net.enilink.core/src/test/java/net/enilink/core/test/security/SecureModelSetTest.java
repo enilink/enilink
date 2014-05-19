@@ -103,7 +103,7 @@ public class SecureModelSetTest {
 		createAcl(modelSet.getMetaDataManager(), bob, model1.getURI(),
 				WEBACL.MODE_READ);
 		createAcl(modelSet.getMetaDataManager(), carl, model1.getURI(),
-				ENILINKACL.MODE_RESTRICTED);
+				ENILINKACL.MODE_WRITERESTRICTED);
 		createAcl(modelSet.getMetaDataManager(), carl, model2.getURI(),
 				WEBACL.MODE_WRITE);
 	}

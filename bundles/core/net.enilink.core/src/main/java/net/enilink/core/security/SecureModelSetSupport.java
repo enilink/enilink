@@ -80,7 +80,7 @@ public abstract class SecureModelSetSupport implements ISecureModelSet,
 		}
 		Set<IReference> modes = secureEntity.getAclModes(agent);
 		return modes.contains(WEBACL.MODE_READ)
-				|| modes.contains(ENILINKACL.MODE_RESTRICTED)
+				|| modes.contains(ENILINKACL.MODE_WRITERESTRICTED)
 				|| modes.contains(WEBACL.MODE_CONTROL);
 	}
 
@@ -103,8 +103,8 @@ public abstract class SecureModelSetSupport implements ISecureModelSet,
 			mode = WEBACL.MODE_CONTROL;
 		} else if (modes.contains(WEBACL.MODE_WRITE)) {
 			mode = WEBACL.MODE_WRITE;
-		} else if (modes.contains(ENILINKACL.MODE_RESTRICTED)) {
-			mode = ENILINKACL.MODE_RESTRICTED;
+		} else if (modes.contains(ENILINKACL.MODE_WRITERESTRICTED)) {
+			mode = ENILINKACL.MODE_WRITERESTRICTED;
 		} else if (modes.contains(WEBACL.MODE_APPEND)) {
 			mode = WEBACL.MODE_APPEND;
 		}

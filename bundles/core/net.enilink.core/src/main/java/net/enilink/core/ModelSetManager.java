@@ -247,7 +247,7 @@ class ModelSetManager {
 				net.enilink.vocab.rdfs.Class.class));
 		auth.getAclMode().clear();
 		auth.getAclMode().add(
-				em.find(ENILINKACL.MODE_RESTRICTED,
+				em.find(ENILINKACL.MODE_WRITERESTRICTED,
 						net.enilink.vocab.rdfs.Class.class));
 
 		// add application specific models from the workspace

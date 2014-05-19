@@ -7,6 +7,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
@@ -53,6 +54,7 @@ public class SecureDataManager extends DelegatingDataManager {
 	 * An operation that adds or removes a statement or statement pattern.
 	 */
 	static abstract class Op {
+		WriteMode mode = WriteMode.NONE;
 		final IStatementPattern stmt;
 
 		Op(IStatementPattern stmt) {
@@ -274,10 +276,11 @@ public class SecureDataManager extends DelegatingDataManager {
 		 */
 		boolean loadNextOp() {
 			if (nextOp == null) {
+				WriteMode writeMode = WriteMode.NONE;
 				if (!checkedOps.isEmpty()) {
 					nextOp = checkedOps.remove();
+					writeMode = nextOp.mode;
 				}
-				WriteMode writeMode = WriteMode.NONE;
 				while (nextOp == null && ops.hasNext()) {
 					Op op = ops.next();
 					boolean isAdd = op.isAdd();
@@ -378,6 +381,7 @@ public class SecureDataManager extends DelegatingDataManager {
 									"Insufficient access rights for execution a remove operation with the pattern: "
 											+ op.stmt);
 						}
+						op.mode = writeMode;
 						checkedOps.add(op);
 						Object o = op.stmt.getObject();
 						if (o instanceof IReference) {
@@ -526,6 +530,9 @@ public class SecureDataManager extends DelegatingDataManager {
 								chain.add(s);
 							}
 						} else {
+							if (mode == null) {
+								mode = WriteMode.NONE;
+							}
 							setModes(seen, mode);
 							return mode;
 						}
@@ -547,11 +554,11 @@ public class SecureDataManager extends DelegatingDataManager {
 
 	final static Set<IReference> removeModes = new HashSet<IReference>(
 			Arrays.asList(WEBACL.MODE_WRITE, WEBACL.MODE_CONTROL,
-					ENILINKACL.MODE_RESTRICTED));
+					ENILINKACL.MODE_WRITERESTRICTED));
 
 	final static Set<IReference> writeModes = new HashSet<IReference>(
 			Arrays.asList(WEBACL.MODE_WRITE, WEBACL.MODE_CONTROL,
-					WEBACL.MODE_APPEND, ENILINKACL.MODE_RESTRICTED));
+					WEBACL.MODE_APPEND, ENILINKACL.MODE_WRITERESTRICTED));
 
 	final IDataManager delegate;
 
@@ -607,7 +614,8 @@ public class SecureDataManager extends DelegatingDataManager {
 		for (IReference ctx : contexts) {
 			IReference actualMode = modelSet.writeModeFor(ctx, userId);
 			if (actualMode != null && modes.contains(actualMode)) {
-				restrictedMode |= ENILINKACL.MODE_RESTRICTED.equals(actualMode);
+				restrictedMode |= ENILINKACL.MODE_WRITERESTRICTED
+						.equals(actualMode);
 			} else {
 				throw new KommaException("Accessing the context " + ctx
 						+ " has been denied.");
