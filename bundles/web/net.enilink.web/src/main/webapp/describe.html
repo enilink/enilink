@@ -114,23 +114,56 @@
 							});
 				}
 				$('input.input-property').not('.tt-input, .tt-hint').each(
-						installTypeahead);
+						installTypeahead);				
+			});
+			
+			$(function() {
+				$("[data-tab]").each(function() {
+					var self = $(this);
+					self.css("cursor", "pointer");
+					self.click(function() {
+						var li = self.closest("li");
+						var active = li.closest("ul").find(".active");
+						active.removeClass("active");
+						li.addClass("active");
+						$(active.find("a").attr("data-tab")).hide();
+						$(self.attr("data-tab")).show();
+					});
+				});
 			});
 		</script>
-		<div data-lift="rdfa">
+		<style>
+#tabs>li>a {
+	padding: 5px 10px;
+}
+
+#tabs>li {
+	float:none;
+	display: inline-block;
+	vertical-align: bottom;
+}
+
+#tabs {
+	margin-bottom: 20px;
+}
+</style>
+		<ul id="tabs" class="nav nav-tabs">
+			<li style="margin-right: 25px;"><h3>
+					<span data-lift="rdf.label"></span> <small>&lt;<span
+						data-lift="rdf.ref"></span>&gt;
+					</small>
+				</h3></li>
+			<li class="active"><a data-tab="#properties-tab"><span
+					data-lift="loc.properties"></span></a></li>
+			<li><a data-tab="#acl-tab">ACL</a></li>
+		</ul>
+		<div id="properties-tab" data-lift="rdfa">
 			<div about="?this">
-				<div>
-					<h3>
-						<span data-lift="rdf.label"></span>
-					</h3>
-					<p>
-						&lt;<span data-lift="rdf.ref"></span>&gt;
-					</p>
-				</div>
 				<section style="margin-bottom: 5px;">
+					<div style="display: inline-block; vertical-align: bottom"><form class="form-inline"><input class="form-control input-sm input-property" type="text" placeholder="Add..." autocomplete="off"></input></form></div>
 					<div class="dropdown" data-if="?relProperty" style="margin-right: 15px; display: inline-block; vertical-align: bottom">
 						<a class="dropdown-toggle" id="dLabel" role="button"
-							data-toggle="dropdown" href="#"><span data-lift="loc.properties"></span> <b class="caret"></b>
+							data-toggle="dropdown" href="#"><b class="caret"></b>
 						</a>
 						<!-- query relevant properties -->
 						<div class="optional clearable">
@@ -152,23 +185,22 @@
 									data-lift="rdf.label"></span></a></li>
 						</ul>
 					</div>
-					<div style="display: inline-block; vertical-align: bottom"><form class="form-inline"><input class="form-control input-sm input-property" type="text" placeholder="Add..." autocomplete="off"></input></form></div>
 				</section>
 				<section id="properties" class="optional">
 					<!-- sort by property -->
 					<div class="clearable asc" about="?property"></div>
 
 					<div class="row" data-clear-rel="?property" data-t="property">
-						<div class="col-md-4" style="font-weight: bold">
+						<div class="col-sm-4" style="font-weight: bold">
 							<a href="{app}/describe?model={model}&resource={}&inferred={inferred}"
 								data-lift="rdf.ref?for=predicate&to=href"><span
 								data-lift="rdf.!label?for=predicate"></span></a>
 						</div>
-						<div class="col-md-8">
+						<div class="col-sm-8">
 							<div class="union">
 								<div class="row asc editable" rel="?property" resource="?oResource"
 									data-filter="!isLiteral(?oResource)" data-t="resourceValue">
-									<div class="col-md-12">
+									<div class="col-sm-12">
 										<a href="{app}/describe?model={model}&resource={}&inferred={inferred}"
 											data-lift="rdf.ref?to=href"><span
 											data-lift="rdf.label"></span></a> <span data-if="inferred"><i
@@ -178,7 +210,7 @@
 								<div class="row asc editable" property="?property"
 									content="?oLiteral" data-if="?oLiteral"
 									data-filter="isLiteral(?oLiteral)" data-t="literalValue">
-									<div class="col-md-12">
+									<div class="col-sm-12">
 										<span data-lift="rdf.label" style="white-space: pre-wrap;"></span> <span data-if="inferred"><i
 											class="glyphicon glyphicon-share-alt" style="opacity: 0.5"></i></span>
 									</div>
@@ -206,16 +238,16 @@
 					<!-- div class="clearable asc" about="?invProperty"></div>
 
 					<div class="row" data-clear-rel="?invProperty">
-						<div class="col-md-3" style="font-weight: bold">
+						<div class="col-sm-3" style="font-weight: bold">
 							<i class="glyphicon glyphicon-arrow-left"></i> <a
 								href="{app}/describe?model={model}&resource={}"
 								data-lift="rdf.ref?for=predicate&to=href"><span
 								data-lift="rdf.label?for=predicate"></span></a>
 						</div>
-						<div class="col-md-9 union">
+						<div class="col-sm-9 union">
 							<div class="row asc" rev="?invProperty"
 								resource="?invResource">
-								<div class="col-md-12">
+								<div class="col-sm-12">
 									<a href="{app}/describe?model={model}&resource={}"
 										data-lift="rdf.ref?to=href"><span data-lift="rdf.label"></span></a>
 									<span data-if="inferred"><i class="glyphicon glyphicon-share-alt"
@@ -241,6 +273,79 @@
 							data-lift="rdf.ref?to=href"><span data-lift="rdf.label"></span></a></li>
 					</ul>
 				</section>
+			</div>
+		</div>
+		<div id="acl-tab" style="display: none">
+			<style data-lift="head">
+.acl-widget {
+	padding: 5px 10px;
+	margin-bottom: 10px
+}
+
+.acl-widget h4 {
+	padding-bottom: 5px;
+}
+
+.acl-append {
+	background-color: #DFF0D8;
+}
+
+.acl-append h4 {
+	color: #3C763D;
+	border-bottom: 1px solid #3C763D
+}
+
+.acl-write {
+	background-color: #D9EDF7;
+}
+
+.acl-write h4 {
+	color: #31708F;
+	border-bottom: 1px solid #31708F
+}
+
+.acl-control {
+	background-color: #F2DEDE;
+}
+
+.acl-control h4 {
+	color: #A94442;
+	border-bottom: 1px solid #A94442
+}
+</style>
+			<div data-lift="rdfa" prefix="acl: http://www.w3.org/ns/auth/acl#">
+				<div class="row">
+					<div class="col-sm-4">
+						<div class="acl-widget acl-append">
+							<div data-embed="acl-widget">
+								<lift:bind-at name="acl.modeName">Append</lift:bind-at>
+								<lift:bind-at name="acl.mode">
+									<span resource="acl:Append"></span>
+								</lift:bind-at>
+							</div>
+						</div>
+					</div>
+					<div class="col-sm-4">
+						<div class="acl-widget acl-write">
+							<div data-embed="acl-widget">
+								<lift:bind-at name="acl.modeName">Write</lift:bind-at>
+								<lift:bind-at name="acl.mode">
+									<span resource="acl:Write"></span>
+								</lift:bind-at>
+							</div>
+						</div>
+					</div>
+					<div class="col-sm-4">
+						<div class="acl-widget acl-control">
+							<div data-embed="acl-widget">
+								<lift:bind-at name="acl.modeName">Control</lift:bind-at>
+								<lift:bind-at name="acl.mode">
+									<span resource="acl:Control"></span>
+								</lift:bind-at>
+							</div>
+						</div>
+					</div>
+				</div>
 			</div>
 		</div>
 
