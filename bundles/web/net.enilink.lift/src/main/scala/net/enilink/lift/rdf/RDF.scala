@@ -31,7 +31,7 @@ case class Variable(val n: String, val qual: Option[Int]) extends Reference {
     case Some(x) => Symbol(n + "_" + x)
   }
 
-  override def toString() = sym.name
+  override def toString() = "?" + sym.name
 }
 
 trait RDFGraphParts {

@@ -66,6 +66,8 @@ private class RDFaToSparqlParser(e: xml.Elem, base: String)(implicit s: Scope = 
   def indent { indentation = indentation + 1 }
   def dedent { indentation = indentation - 1 }
 
+  var withinFilter = 0
+
   var resultElem: xml.Elem = _
   var resultQuery: String = _
 
@@ -166,10 +168,12 @@ private class RDFaToSparqlParser(e: xml.Elem, base: String)(implicit s: Scope = 
       (e, Stream.empty)
     } else {
       var close = 0
+      var closeFilter = 0
       def addBlock(block: String) { addLine(block + " {"); indent; close += 1 }
+      def addFilter(block: String) { addBlock(block); withinFilter += 1; closeFilter += 1 }
       if (hasCssClass(e, "optional")) addBlock("optional")
-      if (hasCssClass(e, "exists")) addBlock("filter exists")
-      if (hasCssClass(e, "not-exists")) addBlock("filter not exists")
+      if (hasCssClass(e, "exists")) addFilter("filter exists")
+      if (hasCssClass(e, "not-exists")) addFilter("filter not exists")
       nonempty(e, "data-pattern") foreach { p =>
         val pTrimmed = p.trim
         if (pTrimmed.endsWith(".") || pTrimmed.endsWith("}")) addLine(p) else addLine(p + " . ")
@@ -178,6 +182,7 @@ private class RDFaToSparqlParser(e: xml.Elem, base: String)(implicit s: Scope = 
       val result = super.walk(e, base, subj1, obj1, pending1f, pending1r, lang1)
       nonempty(e, "data-filter") foreach { filter => addLine("filter (" + filter + ")") }
       while (close > 0) { dedent; addLine("}"); close -= 1 }
+      withinFilter -= closeFilter
       if (thisStack.top.elem eq e) thisStack.pop
       result
     }
@@ -213,7 +218,7 @@ private class RDFaToSparqlParser(e: xml.Elem, base: String)(implicit s: Scope = 
       case TypedLiteral(lex, dt) => "\"" + lex + "\"^^" + toString(dt)
       case XmlLiteral(content) => "\"" + content + "\"^^" + toString(Label(Vocabulary.XMLLiteral))
       case Label(uri) => "<" + uri + ">"
-      case v: Variable => "?" + v
+      case v: Variable => v.toString
     }
   }
 
@@ -276,13 +281,14 @@ private class RDFaToSparqlParser(e: xml.Elem, base: String)(implicit s: Scope = 
       //        case v: Variable => select(v)
       //        case other => other
       //      })
-      case "?" => Some(fresh("v"))
+      case "?" => Some(select(fresh("v")))
       case _ => Some(select(Variable(name.substring(1), None)))
     }
   }
 
   def select[V <: Variable](v: V): V = {
-    selectVars.add(v)
+    // only select variable if we are not in a "filter exists" or "filter not exists" block
+    if (withinFilter == 0) selectVars.add(v)
     v
   }
 }

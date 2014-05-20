@@ -156,6 +156,21 @@
       }
       return this;
     },
+    
+    /**
+     * Returns the local-part of this URI,
+     * which is either the fragment, the last segment or
+     * the component after the last occurrence of ':'.
+     * 
+     * @returns String
+     */
+    localPart: function() {
+    	if (this.fragment !== undefined) {
+    		return this.fragment;
+    	}
+    	var m = /\/([^/]+)$|:([^:]+)$/.exec(this.path);
+    	return m[1] ? m[1] : m[2];
+    },
   
     /**
      * Resolves a relative URI relative to this URI

@@ -186,7 +186,7 @@ class LiftModule extends Logger {
               } catch {
                 case e: Exception => Empty
               }
-            } map (RdfContext(_, null))
+            } or model.map(_.getOntology) map (RdfContext(_, null))
 
             if (model.isDefined) Globals.contextModel.request.set(model)
             model.foreach { m =>

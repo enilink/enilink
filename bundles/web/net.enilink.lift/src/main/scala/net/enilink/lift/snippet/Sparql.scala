@@ -201,7 +201,7 @@ class Sparql extends SparqlHelper with RDFaTemplates {
           e.attribute("data-embed") match {
             case Some(what) =>
               S.withAttrs(S.mapToAttrs(List("what" -> what.text) toMap)) {
-                val embedded = withTemplateNames(Embed.render(e))
+                val embedded = withTemplateNames(Embed.render(e.child))
                 // allows to specify a template name
                 (e.attribute("data-template") match {
                   case Some(tname) => find(embedded, tname.text) toSeq

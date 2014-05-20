@@ -81,7 +81,6 @@ object Search extends SparqlHelper with SparqlExtractor {
         CurrentContext.value match {
           case Full(rdfCtx) => rdfCtx.subject match {
             case entity: IEntity => {
-              println("Searching in " + entity)
               val em = entity.getEntityManager
               val keywords = bindingNames.flatMap { bindingName =>
                 // add search patterns to template

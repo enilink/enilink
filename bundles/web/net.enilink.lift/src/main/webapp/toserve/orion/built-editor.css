@@ -1,12 +1,12 @@
 .textview {
 	background-color: white;
-	font-family: "Consolas", "Monaco", "Vera Mono", "monospace";
+	font-family: "Consolas", "Monaco", "Vera Mono", monospace;
 	font-size: 10pt;
 	min-width: 50px;
 	min-height: 50px;
 }
 .textviewScroll {
-	padding: 1px 2px;
+	padding: 5px 2px 2px 2px;
 }
 .textviewContent {
   cursor: auto;
@@ -52,7 +52,7 @@
 	padding: 0px;
 }
 .textviewTooltip {
-	font-family: "Consolas", "Monaco", "Vera Mono", "monospace";
+	font-family: "Consolas", "Monaco", "Vera Mono", monospace;
 	font-size: 10pt;
 	background-color: InfoBackground;
 	color: InfoText;
@@ -79,26 +79,78 @@
 .tooltipTheme .annotationLine.currentLine {
 	background-color: transparent !important;
 }
+.textViewFind {
+	background-color: #ddd;
+	position: absolute;
+	top: -50px;
+	right: -1000px;
+	border: 1px solid #aaa;
+	border-top: 0;
+	border-bottom-right-radius: 4px;
+	border-bottom-left-radius: 4px;
+	padding: 2px;
+	z-index: 100;
+}
+.textViewFind.show {
+	top: 0;
+	right: 40px;
+	transition: top 0.3s ease-out;
+	-ms-transition: top 0.3s ease-out;
+	-moz-transition: top 0.3s ease-out;
+	-webkit-transition: top 0.3s ease-out;
+	-o-transition: top 0.3s ease-out;
+}
+.textViewFindButton {
+	margin-right: 1px;
+	margin-left: 0;
+}
+.textViewFindButton:first-child {
+	margin-left: 5px;
+}
+.textViewFindButton:last-child {
+	margin-right: 5px;
+}
+.textViewFindButton.checked {
+	color: blue;
+	text-decoration: underline;
+}
+.textViewReplaceInput {
+}
+.textViewFindInput {
+}
+.textViewFindCloseButton {
+	width: 16px;
+	height: 16px;
+	border-width: 0;
+	background-color: transparent;
+	vertical-align: baseline;
+	background-position: center;
+	background-repeat: no-repeat;
+	background-image: url(data:image/gif;base64,R0lGODlhEAAQAJEAAAAAAP///4CAgP///yH5BAEAAAMALAAAAAAQABAAAAIdnI+py+1vhECSyTluu9px+HkctnSdUh0pxLYuVAAAOw==);
+}
 .contentassist {
-	font-size:10pt;
-	font-family: "Consolas", "Monaco", "Vera Mono", "monospace";
+	font-size:9pt;
 	display: none;
 	background-color: white;
 	position: fixed;
 	top: 100px;
 	left: 100px;
-	border: 1px solid #DDD;
 	z-index:100;
 	cursor: default;
-	overflow: auto;
 	min-width: 70px;
-	min-height: 50px;
 	max-width: 350px;
-	max-height: 150px;
+	max-height: 170px;
+	overflow: hidden;
 	white-space: nowrap;
+	border-radius: 5px;
+	box-shadow: rgba(0, 0, 0, 0.3) 2px 2px 10px;
+	line-height: 18px;
 }
 .contentassist:focus {
-	border: 1px solid #666;
+	outline: none;
+}
+.contentassist:hover {
+	overflow-y: auto;
 }
 .contentassist .proposal-emphasis {
 	font-weight: normal;
@@ -109,156 +161,188 @@
     border-top: 1px solid rgba(0, 0, 0, 0.1);
     border-bottom: 1px solid rgba(255, 255, 255, 0.3);
 }
+.contentassist .proposal-noemphasis-keyword {
+	background-color: aliceblue;
+	color: #CC4C07;
+	font-weight: bold;
+}
 .contentassist .proposal-noemphasis {
 	background-color: aliceblue;
 	font-weight: lighter;
+	color: black;
+}
+.contentassist .proposal-noemphasis-title-keywords {
+	background-color: aliceblue;
 	color: grey;
 }
-.contentassist .proposal-hr {
-	
-	border: 0;
-    height: 0;
-    border-top: 1px solid rgba(0, 0, 0, 0.1);
-    border-bottom: 1px solid rgba(255, 255, 255, 0.3);
+.contentassist .proposal-noemphasis-title {
+	background-color: aliceblue;
+	color: grey;
+	padding-top: 5px;
+}
+.contentassist .proposal-noemphasis-title::before {
+	content: "- ";
+}
+.contentassist .proposal-noemphasis-title::after {
+	content: " -";
 }
 .contentassist .proposal-default {
 	
 }
-.contentassist .selected {
-	
-	background-color: #FEC;
-}
-.contentassist>div {
-	padding: 1px 3px 0 3px;
-}
-.contentassist>div:hover {
-	background-color: #EAF2FE;
-}
-.token_singleline_comment {
-	color: #3C802C;
-}
-.token_multiline_comment {
-	color: #3C802C;
-}
-.token_doc_comment {
-	color: #00008F;
-}
-a.token_singleline_comment, a.token_multiline_comment, a.token_doc_comment {
-	text-decoration: underline;
-}
-.token_doc_html_markup {
-	color: #7F7F9F;
-}
-.token_doc_tag {
-	color: #7F9FBF;
-}
-.token_task_tag {
-	color: #7F9FBF;
-}
-.token_string {
-	color: #446fbd;
-}
-.token_number {
-	color: blue;
-}
-.token_keyword {
-	color: #CC4C07;
+.contentassist .proposal-name {
 	font-weight: bold;
 }
-.token_space {
-	
-	background-image: url("data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAYAAABytg0kAAAAAXNSR0IArs4c6QAAABVJREFUCNdj3L17938GBgYGJgYoAAAxOAM004kASgAAAABJRU5ErkJggg==");
-	background-repeat: no-repeat;
-	background-position: center center;
+.contentassist > div:hover {
+	background-color: #fab467; 
+	background: linear-gradient(#fabb76, #e1a25c);
+	border-radius: 3px;
 }
-.token_tab {
-	
-	background-image: url("data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAYAAAAFCAYAAABmWJ3mAAAAAXNSR0IArs4c6QAAABtJREFUCNdj2L17938GKEBmYwgQJ0m8IAMDAwDemh/hgxuOkwAAAABJRU5ErkJggg==");
-	background-repeat: no-repeat;
-	background-position: left center;
+.contentassist>div.proposal-hr:hover {
+	background-color: white; 
+	background: none;
 }
-.line_caret {
-	background-color: #EAF2FE;
+.contentassist .selected {
+	background-color: rgb(48, 135, 179); 
+	background: linear-gradient(rgb(60, 150, 190), rgb(30, 120, 160));
+	border-radius: 3px;
+	color: white;
+}
+.contentassist .cloneProposal {
+	box-shadow: rgba(0, 0, 0, 0.9) 2px 2px 8px;
+	position: fixed;
+	z-index: 1000; 
+}
+.contentassist>div {
+	padding: 1px 3px 1px 5px;
+}
+.cloneWrapper {
+	display: block;
+	overflow: visible;
+	z-index: 1000; 
+}
+.contentassist.cloneWrapper:hover {
+	overflow: visible;
+}
+.comment.block.documentation, .comment-block-documentation {
+	color: #00008F;
 }
 .comment {
 	color: #3C802C;
 }
-.comment-block-documentation {
-	color: #00008F;
+.constant.character.entity, .constant-character-entity {
+	font-style: normal;
 }
 .constant {
-	font-style: italic;
 	color: blue;
 }
-.constant-character-entity {
-	font-style: normal;
+.entity.name.function, .entity.name.type, .entity-name-function, .entity-name-type {
+	font-weight: bold;
+}
+.entity.name, .entity-name-tag {
+	color: #CC4C07;
+}
+.entity.other.attribute.name, .entity-other-attribute-name {
+	color: #3C802C;
 }
 .entity {
 	color: #3f7f7f;
 }
-.entity-name-function, .entity-name-type {
-	font-weight: bold;
-}
-.invalid-illegal {
+.invalid.illegal, .invalid-illegal {
 	color: white;
 	background-color: red;
 }
-.invalid-deprecated {
+.invalid.deprecated, .invalid-deprecated {
 	text-decoration: line-through;
 }
 .invalid {
 	color: red;
 	font-weight: bold;
 }
-.keyword-control {
-	color: #7F0055;
-	font-weight: bold;
+.keyword.other.documentation.markup {
+	color: #7F7F9F;
 }
-.keyword-operator {
+.keyword.other.documentation {
+	color: #7F9FBF;
+}
+.keyword.operator, .keyword-operator {
 	color: #ddd;
 }
-.markup-heading {
+.keyword {
+	color: #CC4C07;
 	font-weight: bold;
 }
-.markup-quote {
+.markup.bold {
+	font-weight: bold;
+}
+.markup.heading, .markup-heading {
+	color: blue;
+}
+.markup.italic {
 	font-style: italic;
 }
-.meta-tag {
+.markup.list {
+	color: #CC4C07;
+}
+.markup.other.separator {
+	color: #00008F;
+}
+.markup.other.strikethrough {
+	text-decoration: line-through;
+}
+.markup.other.table {
+	color: #3C802C;
+}
+.markup.quote, .markup-quote {
+	color: #446fbd;
+}
+.markup.raw {
+	font-family: monospace
+}
+.markup.underline.link {
+	text-decoration: underline;
+}
+.meta.annotation.currentLine {
+	background-color: #EAF2FE;
+}
+.meta.tag {
 	color: #3f7f7f;
+}
+.punctuation.definition.comment, .punctuation-definition-comment {
+	color: #3f5fbf;
+}
+.punctuation.definition.string, .punctuation-definition-string {
+	color: blue;
+}
+.punctuation.separator.space {
+	
+	background-image: url("data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAYAAABytg0kAAAAAXNSR0IArs4c6QAAABVJREFUCNdj3L17938GBgYGJgYoAAAxOAM004kASgAAAABJRU5ErkJggg==");
+	background-repeat: no-repeat;
+	background-position: center center;
+}
+.punctuation.separator.tab {
+	
+	background-image: url("data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAYAAAAFCAYAAABmWJ3mAAAAAXNSR0IArs4c6QAAABtJREFUCNdj2L17938GKEBmYwgQJ0m8IAMDAwDemh/hgxuOkwAAAABJRU5ErkJggg==");
+	background-repeat: no-repeat;
+	background-position: left center;
 }
 .storage {
 	color: #7F0055;
 }
 .string {
-	color: blue;
+	color: #446fbd;
 }
 .support {
 	color: #21439c;
 }
-.variable {
-	color: #0000c0;
-}
-.variable-parameter {
+.variable.parameter, .variable-parameter {
 	color: black;
 }
-.variable-language {
+.variable.language, .variable-language {
 	color: #7F0055;
 	font-weight: bold;
 }
-.entity-name-tag  {
-	color: #CC4C07;
-}
-.entity-other-attribute-name {
-	color: #3C802C;
-}
-.punctuation-definition-comment {
-	color: #3f5fbf;
-}
-.punctuation-definition-string {
-	color: blue;
-}
-.string-quoted {
-	color: #2a00ff;
+.variable {
+	color: #0000c0;
 }
 .cm-meta { color: #00008F; }
 .cm-keyword { font-weight: bold; color: #7F0055; }
@@ -407,32 +491,32 @@ a.token_singleline_comment, a.token_multiline_comment, a.token_doc_comment {
 	width: 8px;
 }
 .annotationOverview.task {
-	background-color: lightgreen;
-	border: 1px solid green;
+	background-color: #93bb7a;
+	border: 1px solid #79aa59;
 }
 .annotationOverview.breakpoint {
 	background-color: lightblue;
 	border: 1px solid blue;
 }
 .annotationOverview.bookmark {
-	background-color: yellow;
-	border: 1px solid orange;
+	background-color: #84b3cf;
+	border: 1px solid #9cc2d8;
 }
 .annotationOverview.error {
-	background-color: lightcoral;
-	border: 1px solid darkred;
+	background-color: #EFA1A7;
+	border: 1px solid #ec8a91;
 }
 .annotationOverview.warning {
-	background-color: Gold;
-	border: 1px solid black;
+	background-color: #fce1a9;
+	border: 1px solid #face70;
 }
 .annotationOverview.currentBracket {
 	background-color: lightgray;
 	border: 1px solid red;
 }
 .annotationOverview.matchingBracket {
-	background-color: lightgray;
-	border: 1px solid red;
+	background-color: #ff7f7f;
+	border: 1px solid #ff3232;
 }
 .annotationOverview.currentLine {
 	background-color: #EAF2FE;
@@ -440,11 +524,11 @@ a.token_singleline_comment, a.token_multiline_comment, a.token_doc_comment {
 }
 .annotationOverview.matchingSearch {
 	background-color: #C3E1FF;
-	border: 1px solid black;
+	border: 1px solid #afcae5;
 }
 .annotationOverview.currentSearch {
 	background-color: #53D1FF;
-	border: 1px solid black;
+	border: 1px solid #42a7cc;
 }
 .annotationOverview.readOccurrence {
 	background-color: lightgray;

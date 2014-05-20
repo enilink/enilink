@@ -1,9 +1,9 @@
 $.fn.editableform.template = '<form class="editableform" role="form">'
-		+ '<div class="row">'
-		+ '<div class="editable-input col-sm-10"></div>'
-		+ '<div class="col-sm-2">'
-		+ '<div class="editable-lang" style="display:none;"><div class="input-group" style="padding-bottom: 5px"><span class="input-group-addon">@</span><input class="form-control input-sm" style="max-width:40px" type="text" placeholder="lang"></div></div>'
-		+ '<div class="editable-buttons"></div>' + '</div>' + '</div>'
+		+ '<div class="container-fluid"><div class="row">'
+		+ '<div class="col-sm-9"><div class="editable-input"></div></div>'
+		+ '<div class="col-sm-3">'
+		+ '<div class="editable-lang" style="display:none;"><div class="input-group"><span class="input-group-addon">@</span><input class="form-control input-sm" style="max-width:40px" type="text" placeholder="lang"></div></div>'
+		+ '<div class="editable-buttons"></div></div></div></div>'
 		+ '<div class="editable-error-block"></div>' + '</form>';
 enilink = $.extend(window.enilink || {}, {
 	rdf : function(model) {

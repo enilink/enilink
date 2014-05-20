@@ -1,6 +1,26 @@
 /* orion editor */ 
 /*******************************************************************************
  * @license
+ * Copyright (c) 2014 IBM Corporation and others.
+ * All rights reserved. This program and the accompanying materials are made 
+ * available under the terms of the Eclipse Public License v1.0 
+ * (http://www.eclipse.org/legal/epl-v10.html), and the Eclipse Distribution 
+ * License v1.0 (http://www.eclipse.org/org/documents/edl-v10.html). 
+ *
+ * Contributors:
+ *     IBM Corporation - initial API and implementation
+ *******************************************************************************/
+/*global define */
+
+define("orion/editor/config", [ //$NON-NLS-0$
+], function() {
+	return {
+		languages: {}
+	};
+});
+
+/*******************************************************************************
+ * @license
  * Copyright (c) 2013 IBM Corporation and others.
  * All rights reserved. This program and the accompanying materials are made 
  * available under the terms of the Eclipse Public License v1.0 
@@ -226,6 +246,7 @@ define("orion/editor/shim", [], function() { //$NON-NLS-0$
 
     define('i18n',['module'], function (module) {
         var masterConfig = module.config ? module.config() : {};
+        masterConfig = masterConfig || {};
 
         return {
             version: '2.0.1+',
@@ -340,7 +361,9 @@ define('orion/editor/i18n',{
 				onLoad(languages);
 			});
 		} else {
-			onLoad({});
+			parentRequire(["orion/editor/config"], function(config) { //$NON-NLS-0$
+				onLoad((config && config.languages) || {});
+			});
 		}
 	}
 });
@@ -533,9 +556,22 @@ define('orion/editor/nls/root/messages',{
 	"vip": "Paste After Char or Line", //$NON-NLS-1$ //$NON-NLS-0$
 	"viP": "Paste Before Char or Line", //$NON-NLS-1$ //$NON-NLS-0$
 	"viStar": "Search Word Under Cursor", //$NON-NLS-1$ //$NON-NLS-0$
+	
+	"next": "Next", //$NON-NLS-1$ //$NON-NLS-0$
+	"previous": "Previous", //$NON-NLS-1$ //$NON-NLS-0$
+	"replace": "Replace", //$NON-NLS-1$ //$NON-NLS-0$
+	"replaceAll": "Replace All", //$NON-NLS-1$ //$NON-NLS-0$
+	"findWith": "Find With", //$NON-NLS-1$ //$NON-NLS-0$
+	"replaceWith": "Replace With", //$NON-NLS-1$ //$NON-NLS-0$
+	"caseInsensitive": "Aa", //$NON-NLS-1$ //$NON-NLS-0$
+	"regex": "/.*/", //$NON-NLS-1$ //$NON-NLS-0$
+	"wholeWord": "\\b", //$NON-NLS-1$ //$NON-NLS-0$
+	"caseInsensitiveTooltip": "Toggle Case Insensitive", //$NON-NLS-1$ //$NON-NLS-0$
+	"regexTooltip": "Toogle Regex", //$NON-NLS-1$ //$NON-NLS-0$
+	"wholeWordTooltip": "Toggle Whole Word", //$NON-NLS-1$ //$NON-NLS-0$
+	"closeTooltip": "Close", //$NON-NLS-1$ //$NON-NLS-0$
 
-
-	"replaceAll": "Replacing all...", //$NON-NLS-1$ //$NON-NLS-0$
+	"replacingAll": "Replacing all...", //$NON-NLS-1$ //$NON-NLS-0$
 	"replacedMatches": "Replaced ${0} matches", //$NON-NLS-1$ //$NON-NLS-0$
 	"nothingReplaced": "Nothing replaced", //$NON-NLS-1$ //$NON-NLS-0$
 	"notFound": "Not found" //$NON-NLS-1$ //$NON-NLS-0$
@@ -806,6 +842,8 @@ define('orion/util',[],function() {
 	var isMac = navigator.platform.indexOf("Mac") !== -1; //$NON-NLS-0$
 	var isWindows = navigator.platform.indexOf("Win") !== -1; //$NON-NLS-0$
 	var isLinux = navigator.platform.indexOf("Linux") !== -1; //$NON-NLS-0$
+	var isTouch = "ontouchstart" in document.createElement("input"); //$NON-NLS-1$ //$NON-NLS-0$
+	
 	var platformDelimiter = isWindows ? "\r\n" : "\n"; //$NON-NLS-1$ //$NON-NLS-0$
 
 	function formatMessage(msg) {
@@ -842,7 +880,10 @@ define('orion/util',[],function() {
 		isMac: isMac,
 		isWindows: isWindows,
 		isLinux: isLinux,
-		
+
+		/** Capabilities */
+		isTouch: isTouch,
+
 		platformDelimiter: platformDelimiter
 	};
 });
@@ -893,6 +934,11 @@ define("orion/editor/textModel", ['orion/editor/eventTarget', 'orion/regex', 'or
 	}
 
 	TextModel.prototype = /** @lends orion.editor.TextModel.prototype */ {
+		/**
+		 * Destroys this text model.
+		 */
+		destroy: function() {
+		},
 		/**
 		 * @class This object describes the options to use while finding occurrences of a string in a text model.
 		 * @name orion.editor.FindOptions
@@ -2111,7 +2157,25 @@ define("orion/editor/textTheme", //$NON-NLS-0$
 			if (settings.background) {		
 				result.push("\tbackground-color: " + settings.background + ";"); //$NON-NLS-1$ //$NON-NLS-0$
 			}
+			
 			result.push("}"); //$NON-NLS-0$
+			
+			result.push("." + themeClass + " .textviewLeftRuler {"); //$NON-NLS-1$ //$NON-NLS-0$
+			
+			if(settings.leftRuler){
+				result.push("\tborder-right: 1px solid " + settings.leftRuler + ";"); //$NON-NLS-1$ //$NON-NLS-0$
+			}
+			
+			result.push("}"); //$NON-NLS-0$
+			
+			result.push("." + themeClass + " .textviewRightRuler {"); //$NON-NLS-1$ //$NON-NLS-0$
+			
+			if(settings.rightRuler){
+				result.push("\tborder-left: 1px solid " + settings.rightRuler + ";"); //$NON-NLS-1$ //$NON-NLS-0$
+			}
+			
+			result.push("}"); //$NON-NLS-0$
+			
 			
 			function defineRule(className, value, isBackground) {
 				if (value) {
@@ -2133,20 +2197,19 @@ define("orion/editor/textTheme", //$NON-NLS-0$
 			//From annotations.css
 			defineRule("annotationLine.currentLine", settings.currentLine, true); //$NON-NLS-0$
 			
-			//From default-theme.css
+			//From textstyler.css
 			defineRule("entity-name-tag", settings.keyword, false); //$NON-NLS-0$
 			defineRule("entity-other-attribute-name", settings.attribute, false); //$NON-NLS-0$
 			defineRule("string-quoted", settings.string, false); //$NON-NLS-0$
-			
-			//From textstyler.css
-			defineRule("line_caret", settings.currentLine, true); //$NON-NLS-0$
-			defineRule("token_keyword", settings.keyword, false); //$NON-NLS-0$
-			defineRule("token_string", settings.string, false); //$NON-NLS-0$
-			defineRule("token_singleline_comment", settings.comment, false); //$NON-NLS-0$
-			defineRule("token_multiline_comment", settings.comment, false); //$NON-NLS-0$
-			defineRule("token_doc_comment", settings.comment, false); //$NON-NLS-0$
-			defineRule("token_doc_html_markup", settings.comment, false); //$NON-NLS-0$
-			
+			defineRule("meta.annotation.currentLine", settings.currentLine, true); //$NON-NLS-0$
+			defineRule("keyword", settings.keyword, false); //$NON-NLS-0$
+			defineRule("string", settings.string, false); //$NON-NLS-0$\
+			defineRule("constant", settings.constant, false); //$NON-NLS-0$
+			defineRule("comment", settings.comment, false); //$NON-NLS-0$
+			defineRule("comment.block.documentation", settings.comment, false); //$NON-NLS-0$
+			defineRule("keyword.other.documentation.markup", settings.comment, false); //$NON-NLS-0$
+			defineRule("keyword.other.documentation.markup", settings.comment, false); //$NON-NLS-0$
+
 			return result.join("\n"); //$NON-NLS-0$
 		},
 		/**
@@ -2264,16 +2327,83 @@ define("orion/editor/util", [], function() { //$NON-NLS-0$
 		return topNode === node || (topNode.compareDocumentPosition(node) & 16) !== 0;
 	}
 
+	/**
+	 * @class
+	 * @private
+	 * @name orion.editor.Animation
+	 * @description Creates an animation.
+	 * @param {Object} options Options controlling the animation.
+	 * @param {Array} options.curve Array of 2 values giving the start and end points for the animation.
+	 * @param {Number} [options.duration=350] Duration of the animation, in milliseconds.
+	 * @param {Function} [options.easing]
+	 * @param {Function} [options.onAnimate]
+	 * @param {Function} [options.onEnd]
+	 * @param {Number} [options.rate=20] The time between frames, in milliseconds.
+	 */
+	var Animation = /** @ignore */ (function() {
+		function Animation(options) {
+			this.options = options;
+		}
+		/**
+		 * Plays this animation.
+		 * @function
+		 * @memberOf orion.editor.Animation.prototype
+		 * @name play
+		 */
+		Animation.prototype.play = function() {
+			var duration = (typeof this.options.duration === "number") ? this.options.duration : 350, //$NON-NLS-0$
+			    rate = (typeof this.options.rate === "number") ? this.options.rate : 20, //$NON-NLS-0$
+			    easing = this.options.easing || this.defaultEasing,
+			    onAnimate = this.options.onAnimate || function() {},
+			    start = this.options.curve[0],
+			    end = this.options.curve[1],
+			    range = (end - start),
+			    startedAt = -1,
+				propertyValue,
+				self = this;
+
+			function onFrame() {
+				startedAt = (startedAt === -1) ? new Date().getTime() : startedAt;
+				var now = new Date().getTime(),
+				    percentDone = (now - startedAt) / duration;
+				if (percentDone < 1) {
+					var eased = easing(percentDone);
+					propertyValue = start + (eased * range);
+					onAnimate(propertyValue);
+				} else {
+					onAnimate(end);
+					self.stop();
+				}
+			}
+			this.interval = this.options.window.setInterval(onFrame, rate);
+		};
+		/**
+		 * Stops this animation.
+		 * @function
+		 * @memberOf orion.editor.Animation.prototype
+		 */
+		Animation.prototype.stop = function() {
+			this.options.window.clearInterval(this.interval);
+		    var onEnd = this.options.onEnd || function () {};
+			onEnd();
+		};
+		Animation.prototype.defaultEasing = function(x) {
+			return Math.sin(x * (Math.PI / 2));
+		};
+		return Animation;
+	}());
+
 	return {
 		contains: contains,
 		addEventListener: addEventListener,
-		removeEventListener: removeEventListener
+		removeEventListener: removeEventListener,
+		Animation: Animation
 	};
 });
 
 /*******************************************************************************
  * @license
- * Copyright (c) 2010, 2013 IBM Corporation and others.
+ * Copyright (c) 2010, 2014 IBM Corporation and others.
  * All rights reserved. This program and the accompanying materials are made 
  * available under the terms of the Eclipse Public License v1.0 
  * (http://www.eclipse.org/legal/epl-v10.html), and the Eclipse Distribution 
@@ -2285,7 +2415,7 @@ define("orion/editor/util", [], function() { //$NON-NLS-0$
  *		Mihai Sucan (Mozilla Foundation) - fix for Bug#334583 Bug#348471 Bug#349485 Bug#350595 Bug#360726 Bug#361180 Bug#362835 Bug#362428 Bug#362286 Bug#354270 Bug#361474 Bug#363945 Bug#366312 Bug#370584
  ******************************************************************************/
 
-/*global define document*/
+/*global define */
 
 define("orion/editor/textView", [ //$NON-NLS-0$
 	'i18n!orion/editor/nls/messages', //$NON-NLS-0$
@@ -2480,72 +2610,51 @@ define("orion/editor/textView", [ //$NON-NLS-0$
 		}
 		return trim;
 	}
-	
-	/**
-	 * @class
-	 * @private
-	 * @name orion.editor.Animation
-	 * @description Creates an animation.
-	 * @param {Object} options Options controlling the animation.
-	 * @param {Array} options.curve Array of 2 values giving the start and end points for the animation.
-	 * @param {Number} [options.duration=350] Duration of the animation, in milliseconds.
-	 * @param {Function} [options.easing]
-	 * @param {Function} [options.onAnimate]
-	 * @param {Function} [options.onEnd]
-	 * @param {Number} [options.rate=20] The time between frames, in milliseconds.
-	 */
-	var Animation = /** @ignore */ (function() {
-		function Animation(options) {
-			this.options = options;
-		}
-		/**
-		 * Plays this animation.
-		 * @function
-		 * @memberOf orion.editor.Animation.prototype
-		 * @name play
-		 */
-		Animation.prototype.play = function() {
-			var duration = (typeof this.options.duration === "number") ? this.options.duration : 350, //$NON-NLS-0$
-			    rate = (typeof this.options.rate === "number") ? this.options.rate : 20, //$NON-NLS-0$
-			    easing = this.options.easing || this.defaultEasing,
-			    onAnimate = this.options.onAnimate || function() {},
-			    start = this.options.curve[0],
-			    end = this.options.curve[1],
-			    range = (end - start),
-			    startedAt = -1,
-				propertyValue,
-				self = this;
-
-			function onFrame() {
-				startedAt = (startedAt === -1) ? new Date().getTime() : startedAt;
-				var now = new Date().getTime(),
-				    percentDone = (now - startedAt) / duration;
-				if (percentDone < 1) {
-					var eased = easing(percentDone);
-					propertyValue = start + (eased * range);
-					onAnimate(propertyValue);
-				} else {
-					onAnimate(end);
-					self.stop();
+	/** @private */
+	function DOMReady(document, parent, className, callback) {
+		className = "_" + className + "DOMReady"; //$NON-NLS-1$ //$NON-NLS-0$
+		parent.className = parent.className ? parent.className + " " + className : className; //$NON-NLS-0$
+		parent.__DOMReady = callback;
+		var id = className + "Style"; //$NON-NLS-0$
+		if (document.getElementById(id)) { return; }
+		var animationName = className + "Animation"; //$NON-NLS-0$
+		function insertListener(event) {
+			if (event.animationName === animationName) {
+				var target = event.target;
+				if (typeof target.__DOMReady === "function") { //$NON-NLS-0$
+					getWindow(document).setTimeout(function() {
+						target.__DOMReady();
+					}, 0);
 				}
 			}
-			this.interval = this.options.window.setInterval(onFrame, rate);
-		};
-		/**
-		 * Stops this animation.
-		 * @function
-		 * @memberOf orion.editor.Animation.prototype
-		 */
-		Animation.prototype.stop = function() {
-			this.options.window.clearInterval(this.interval);
-		    var onEnd = this.options.onEnd || function () {};
-			onEnd();
-		};
-		Animation.prototype.defaultEasing = function(x) {
-			return Math.sin(x * (Math.PI / 2));
-		};
-		return Animation;
-	}());
+		}
+		function template(className, animationName) {
+			var props = ["", "-webkit-", "-moz-", "-ms-", "-o-"]; //$NON-NLS-3$ //$NON-NLS-2$ //$NON-NLS-1$ //$NON-NLS-0$
+			var frames = "", classRule = "body ." + className + " {\n"; //$NON-NLS-1$ //$NON-NLS-0$
+			for (var i=0; i<props.length; i++) {
+				frames +=
+				"@" + props[i] + "keyframes " + animationName + " {\n" + //$NON-NLS-2$ //$NON-NLS-1$ //$NON-NLS-0$
+				"from { opacity: 0.99; }\n" + //$NON-NLS-0$
+				"to { opacity: 1; }\n" + //$NON-NLS-0$
+				"}\n"; //$NON-NLS-0$
+				classRule +=
+				props[i] + "animation-duration: 0.001s;\n" + //$NON-NLS-0$
+				props[i] + "animation-name: " + animationName + ";\n"; //$NON-NLS-1$ //$NON-NLS-0$
+			}
+			classRule += "}"; //$NON-NLS-0$
+			return frames + classRule;
+		}
+		addHandler(document, "animationstart", insertListener, false); //$NON-NLS-0$
+		addHandler(document, "MSAnimationStart", insertListener, false);  //$NON-NLS-0$
+		addHandler(document, "webkitAnimationStart", insertListener, false); //$NON-NLS-0$
+		var style = document.createElement("style"); //$NON-NLS-0$
+		style.id = id;
+		var head = document.getElementsByTagName("head")[0] || document.documentElement; //$NON-NLS-0$
+		style.appendChild(document.createTextNode(template(className, animationName)));
+		head.insertBefore(style, head.firstChild);
+	}
+	
+	var Animation = textUtil.Animation;
 	
 	/** 
 	 * Constructs a new Selection object.
@@ -2671,10 +2780,9 @@ define("orion/editor/textView", [ //$NON-NLS-0$
 			var lineText = model.getLine(lineIndex);
 			var lineStart = model.getLineStart(lineIndex);
 			var e = {type:"LineStyle", textView: view, lineIndex: lineIndex, lineText: lineText, lineStart: lineStart}; //$NON-NLS-0$
-			if (lineText.length < 2000) {
-				view.onLineStyle(e);
-			}
-			var lineDiv = div || util.createElement(parent.ownerDocument, "div"); //$NON-NLS-0$
+			view.onLineStyle(e);
+			var document = parent.ownerDocument;
+			var lineDiv = div || util.createElement(document, "div"); //$NON-NLS-0$
 			if (!div || !compare(div.viewStyle, e.style)) {
 				applyStyle(e.style, lineDiv, div);
 				if (div) { div._trim = null; }
@@ -2682,6 +2790,13 @@ define("orion/editor/textView", [ //$NON-NLS-0$
 				lineDiv.setAttribute("role", "presentation"); //$NON-NLS-1$ //$NON-NLS-0$
 			}
 			lineDiv.lineIndex = lineIndex;
+			
+			if (div && lineDiv.viewLineText === lineText && compare(e.ranges, lineDiv.viewRanges)) {
+				return lineDiv;
+			}
+			lineDiv.viewRanges = e.ranges;
+			lineDiv.viewLineText = lineText;
+			
 			var ranges = [];
 			var data = {tabOffset: 0, ranges: ranges};
 			this._createRanges(e.ranges, lineText, 0, lineText.length, lineStart, data);
@@ -2703,89 +2818,94 @@ define("orion/editor/textView", [ //$NON-NLS-0$
 				*/
 				c = "\uFEFF"; //$NON-NLS-0$
 			}
-			if (util.isWebkit) {
-				/*
-				* Feature in WekKit. Adding a regular white space to the line will
-				* cause the longest line in the view to wrap even though "pre" is set.
-				* The fix is to use the zero-width space character (\u200B) instead.
-				* Note: Do not use \u200C because it causes br elements to be inserted on
-				* blank lines while typing chinese or dictation on Mac.
-				* Note: Do not use \uFEFF because in old version of Chrome this character 
-				* shows a glyph;
-				*/
-				c = "\u200B"; //$NON-NLS-0$
-			}
 			var range = {text: c, style: view._metrics.largestFontStyle, ignoreChars: 1};
 			if (ranges.length === 0 || !ranges[ranges.length - 1].style || ranges[ranges.length - 1].style.tagName !== "div") { //$NON-NLS-0$
 				ranges.push(range);
 			} else {
 				ranges.splice(ranges.length - 1, 0, range);
 			}
-			
-			var span, style, oldSpan, oldStyle, text, oldText, end = 0, oldEnd = 0, next;
-			var changeCount, changeStart;
-			if (div) {
-				var modelChangedEvent = div.modelChangedEvent;
-				if (modelChangedEvent) {
-					if (modelChangedEvent.removedLineCount === 0 && modelChangedEvent.addedLineCount === 0) {
-						changeStart = modelChangedEvent.start - lineStart;
-						changeCount = modelChangedEvent.addedCharCount - modelChangedEvent.removedCharCount;
-					} else {
-						changeStart = -1;
-					}
-					div.modelChangedEvent = undefined;
-				}
-				oldSpan = div.firstChild;
-			}
-			for (var i = 0; i < ranges.length; i++) {
-				range = ranges[i];
-				text = range.text;
-				end += text.length;
-				style = range.style;
-				if (oldSpan) {
-					oldText = oldSpan.firstChild.data;
-					oldStyle = oldSpan.viewStyle;
-					if (oldText === text && compare(style, oldStyle)) {
-						oldEnd += oldText.length;
-						oldSpan._rectsCache = undefined;
-						span = oldSpan = oldSpan.nextSibling;
-						continue;
-					} else {
-						while (oldSpan) {
-							if (changeStart !== -1) {
-								var spanEnd = end;
-								if (spanEnd >= changeStart) {
-									spanEnd -= changeCount;
-								}
-								var t = oldSpan.firstChild.data;
-								var length = t ? t.length : 0;
-								if (oldEnd + length > spanEnd) { break; }
-								oldEnd += length;
-							}
-							next = oldSpan.nextSibling;
-							lineDiv.removeChild(oldSpan);
-							oldSpan = next;
-						}
-					}
-				}
-				span = this._createSpan(lineDiv, text, style, range.ignoreChars);
-				if (oldSpan) {
-					lineDiv.insertBefore(span, oldSpan);
-				} else {
-					lineDiv.appendChild(span);
-				}
+		
+			var span, style, oldSpan, oldStyle, text, oldText, end = 0, oldEnd = 0, next, i;
+			if (util.isFirefox && lineText.length > 2000) {
 				if (div) {
+					lineDiv.innerHTML = "";
 					div.lineWidth = undefined;
 				}
-			}
-			if (div) {
-				var tmp = span ? span.nextSibling : null;
-				while (tmp) {
-					next = tmp.nextSibling;
-					div.removeChild(tmp);
-					tmp = next;
+				var frag = document.createDocumentFragment();
+				for (i = 0; i < ranges.length; i++) {
+					range = ranges[i];
+					text = range.text;
+					style = range.style;
+					span = this._createSpan(lineDiv, text, style, range.ignoreChars);
+					frag.appendChild(span);
 				}
+				lineDiv.appendChild(frag);
 			} else {
+				var changeCount, changeStart;
+				if (div) {
+					var modelChangedEvent = div.modelChangedEvent;
+					if (modelChangedEvent) {
+						if (modelChangedEvent.removedLineCount === 0 && modelChangedEvent.addedLineCount === 0) {
+							changeStart = modelChangedEvent.start - lineStart;
+							changeCount = modelChangedEvent.addedCharCount - modelChangedEvent.removedCharCount;
+						} else {
+							changeStart = -1;
+						}
+						div.modelChangedEvent = undefined;
+					}
+					oldSpan = div.firstChild;
+				}
+				for (i = 0; i < ranges.length; i++) {
+					range = ranges[i];
+					text = range.text;
+					end += text.length;
+					style = range.style;
+					if (oldSpan) {
+						oldText = oldSpan.firstChild.data;
+						oldStyle = oldSpan.viewStyle;
+						if (oldText === text && compare(style, oldStyle)) {
+							oldEnd += oldText.length;
+							oldSpan._rectsCache = undefined;
+							span = oldSpan = oldSpan.nextSibling;
+							continue;
+						} else {
+							while (oldSpan) {
+								if (changeStart !== -1) {
+									var spanEnd = end;
+									if (spanEnd >= changeStart) {
+										spanEnd -= changeCount;
+									}
+									var t = oldSpan.firstChild.data;
+									var length = t ? t.length : 0;
+									if (oldEnd + length > spanEnd) { break; }
+									oldEnd += length;
+								}
+								next = oldSpan.nextSibling;
+								lineDiv.removeChild(oldSpan);
+								oldSpan = next;
+							}
+						}
+					}
+					span = this._createSpan(lineDiv, text, style, range.ignoreChars);
+					if (oldSpan) {
+						lineDiv.insertBefore(span, oldSpan);
+					} else {
+						lineDiv.appendChild(span);
+					}
+					if (div) {
+						div.lineWidth = undefined;
+					}
+				}
+				if (div) {
+					var tmp = span ? span.nextSibling : null;
+					while (tmp) {
+						next = tmp.nextSibling;
+						div.removeChild(tmp);
+						tmp = next;
+					}
+				}
+			}
+			if (!lineDiv.parentNode) {
 				parent.appendChild(lineDiv);
 			}
 			return lineDiv;
@@ -2863,20 +2983,19 @@ define("orion/editor/textView", [ //$NON-NLS-0$
 				tagName = style.tagName.toLowerCase();
 			}
 			var isLink = tagName === "a"; //$NON-NLS-0$
-			if (isLink) { parent.hasLink = true; }
+			if (isLink) { this.hasLink = true; }
 			if (isLink && !view._linksVisible) {
 				tagName = "span"; //$NON-NLS-0$
 			}
 			var document = parent.ownerDocument;
 			var child = util.createElement(parent.ownerDocument, tagName);
+			child.appendChild(document.createTextNode(style && style.text ? style.text : text));
 			if (style && style.html) {
 				child.innerHTML = style.html;
 				child.ignore = true;
 			} else if (style && style.node) {
 				child.appendChild(style.node);
 				child.ignore = true;
-			} else {
-				child.appendChild(document.createTextNode(style && style.text ? style.text : text));
 			}
 			applyStyle(style, child);
 			if (tagName === "a") { //$NON-NLS-0$
@@ -2906,17 +3025,9 @@ define("orion/editor/textView", [ //$NON-NLS-0$
 			var result = null;
 			if (offset < model.getLineEnd(lineIndex)) {
 				var lineOffset = model.getLineStart(lineIndex);
-				var lineChild = child.firstChild;
-				while (lineChild) {
-					if (lineChild.ignore) {
-						lineChild = lineChild.nextSibling;
-						continue;
-					}
+				this.forEach(function(lineChild) {
 					var textNode = lineChild.firstChild;
-					var nodeLength = textNode.length; 
-					if (lineChild.ignoreChars) {
-						nodeLength -= lineChild.ignoreChars;
-					}
+					var nodeLength = this._nodeLength(lineChild); 
 					if (lineOffset + nodeLength > offset) {
 						var index = offset - lineOffset;
 						var range;
@@ -2976,11 +3087,11 @@ define("orion/editor/textView", [ //$NON-NLS-0$
 							result.top = result.top * yFactor;
 							result.bottom = result.bottom * yFactor;
 						}
-						break;
+						return false;
 					}
 					lineOffset += nodeLength;
-					lineChild = lineChild.nextSibling;
-				}
+					return true;
+				});
 			}
 			var rect = this.getBoundingClientRect();
 			if (!result) {
@@ -3005,6 +3116,19 @@ define("orion/editor/textView", [ //$NON-NLS-0$
 			}
 			return result;
 		},
+		forEach: function(callback) {
+			var child = this._ensureCreated();
+			var lineChild = child.firstChild;
+			while (lineChild) {
+				var next = lineChild.nextSibling;
+				if (!lineChild.ignore) {
+					if (!callback.call(this, lineChild)) {
+						break;
+					}
+				}
+				lineChild = next;
+			}
+		},
 		/** @private */
 		_getClientRects: function(element, parentRect) {
 			var rects, newRects, rect, i;
@@ -3027,21 +3151,16 @@ define("orion/editor/textView", [ //$NON-NLS-0$
 			}
 			return newRects;
 		},
-		/** @private */
 		getClientRects: function(lineIndex) {
 			if (!this.view._wrapMode) { return [this.getBoundingClientRect()]; }
 			var child = this._ensureCreated();
 			//TODO [perf] cache rects
 			var result = [];
-			var lineChild = child.firstChild, i, r, parentRect = child.getBoundingClientRect();
-			while (lineChild) {
-				if (lineChild.ignore) {
-					lineChild = lineChild.nextSibling;
-					continue;
-				}
+			var parentRect = child.getBoundingClientRect();
+			this.forEach(function(lineChild) {
 				var rects = this._getClientRects(lineChild, parentRect);
-				for (i = 0; i < rects.length; i++) {
-					var rect = rects[i], j;
+				for (var i = 0; i < rects.length; i++) {
+					var rect = rects[i], j, r;
 					if (rect.top === rect.bottom) { continue; }
 					var center = rect.top + (rect.bottom - rect.top) / 2;
 					for (j = 0; j < result.length; j++) {
@@ -3059,8 +3178,8 @@ define("orion/editor/textView", [ //$NON-NLS-0$
 						if (rect.bottom > r.bottom) { r.bottom = rect.bottom; }
 					}
 				}
-				lineChild = lineChild.nextSibling;
-			}
+				return true;
+			});
 			if (lineIndex !== undefined) {
 				return result[lineIndex];
 			}
@@ -3110,10 +3229,100 @@ define("orion/editor/textView", [ //$NON-NLS-0$
 		/** @private */
 		getLineStart: function (lineIndex) {
 			if (!this.view._wrapMode || lineIndex === 0) {
-				return this.view._model.getLineStart(lineIndex);
+				return this.view._model.getLineStart(this.lineIndex);
 			}
 			var rects = this.getClientRects();
 			return this.getOffset(rects[lineIndex].left + 1, rects[lineIndex].top + 1);
+		},
+		_nodeLength: function(lineChild) {
+			if (!lineChild || lineChild.ignore) return 0;
+			var length = lineChild.firstChild.length; 
+			if (lineChild.ignoreChars) {
+				length -= lineChild.ignoreChars;
+			}
+			return length;
+		},
+		getModelOffset: function(node, offset) {
+			if (!node) { return 0; }
+			var lineOffset = 0;
+			this.forEach(function(lineChild) {
+				var textNode = lineChild.firstChild;
+				if (textNode === node) {
+					if (lineChild.ignoreChars) { lineOffset -= lineChild.ignoreChars; }
+					lineOffset += offset;
+					return false;
+				}
+				if (lineChild.ignoreChars) { lineOffset -= lineChild.ignoreChars; }
+				lineOffset += textNode.data.length;
+				return true;
+			});
+			return Math.max(0, lineOffset) + this.view._model.getLineStart(this.lineIndex);
+		},
+		getNodeOffset: function(modelOffset) {
+			var offset = 0;
+			var lineNode, lineNodeOffset;
+			var model = this.view._model;
+			var lineStart = model.getLineStart(this.lineIndex);
+			var lineOffset = modelOffset - lineStart;
+			var end = model.getLineEnd(this.lineIndex) - lineStart;
+			this.forEach(function(lineChild) {
+				var node = lineChild.firstChild;
+				var nodeLength = this._nodeLength(lineChild);
+				if (nodeLength + offset > lineOffset || offset + nodeLength >= end) {
+					lineNode = node;
+					lineNodeOffset = lineOffset - offset;
+					if (lineChild.ignoreChars && nodeLength > 0 && lineNodeOffset === nodeLength) {
+						lineNodeOffset += lineChild.ignoreChars; 
+					}
+					return false;
+				}
+				offset += nodeLength;
+				return true;
+			});
+			return {node: lineNode, offset: lineNodeOffset};
+		},
+		getText: function(offsetNode) {
+			var text = "", offset = 0;
+			this.forEach(function(lineChild) {
+				var textNode;
+				if (lineChild.ignoreChars) {
+					textNode = lineChild.lastChild;
+					var ignored = 0, childText = [], childOffset = -1;
+					while (textNode) {
+						var data = textNode.data;
+						if (data) {
+							for (var i = data.length - 1; i >= 0; i--) {
+								var ch = data.substring(i, i + 1);
+								if (ignored < lineChild.ignoreChars && (ch === " " || ch === "\uFEFF")) { //$NON-NLS-1$ //$NON-NLS-0$
+									ignored++;
+								} else {
+									childText.push(ch === "\u00A0" ? "\t" : ch); //$NON-NLS-1$ //$NON-NLS-0$
+								}
+							}
+						}
+						if (offsetNode === textNode) {
+							childOffset = childText.length;
+						}
+						textNode = textNode.previousSibling;
+					}
+					childText = childText.reverse().join("");
+					if (childOffset !== -1) {
+						offset = text.length + childText.length - childOffset;
+					}
+					text += childText;
+				} else {
+					textNode = lineChild.firstChild;
+					while (textNode) {
+						if (offsetNode === textNode) {
+							offset = text.length;
+						}
+						text += textNode.data;
+						textNode = textNode.nextSibling;
+					}
+				}
+				return true;
+			});
+			return {text: text, offset: offset};
 		},
 		/** @private */
 		getOffset: function(x, y) {
@@ -3126,7 +3335,148 @@ define("orion/editor/textView", [ //$NON-NLS-0$
 				return lineStart;
 			}
 			var child = this._ensureCreated();
-			var lineRect = this.getBoundingClientRect(), rects, rect;
+			var lineRect = this.getBoundingClientRect();
+			
+			var self = this;
+			function hitChild(lineChild, offset, rect) {
+				var textNode = lineChild.firstChild;
+				var nodeLength = self._nodeLength(lineChild);
+				var document = child.ownerDocument;
+				var window = getWindow(document);
+				var xFactor = util.isIE ? window.screen.logicalXDPI / window.screen.deviceXDPI : 1;
+				var yFactor = util.isIE ? window.screen.logicalYDPI / window.screen.deviceYDPI : 1;
+				var rangeLeft, rangeTop, rangeRight, rangeBottom;
+				var range, start, end;
+				var rl = rect.left + lineRect.left, fixIE8, rects;
+				if (util.isIE || view._isRangeRects) {
+					range = view._isRangeRects ? document.createRange() : document.body.createTextRange();
+					var high = nodeLength;
+					var low = -1;
+					while ((high - low) > 1) {
+						var mid = Math.floor((high + low) / 2);
+						start = low + 1;
+						end = mid === nodeLength - 1 && lineChild.ignoreChars ? textNode.length : mid + 1;
+						/*
+						* Bug in IE8. TextRange.getClientRects() and TextRange.getBoundingClientRect() fails
+						* if the line child is not the first element in the line and if the start offset is 0. 
+						* The fix is to use Node.getClientRects() left edge instead.
+						*/
+						fixIE8 = start === 0 && util.isIE === 8;
+						if (view._isRangeRects) {
+							range.setStart(textNode, start);
+							range.setEnd(textNode, end);
+						} else {
+							if (fixIE8) { start = 1; } 
+							range.moveToElementText(lineChild);
+							range.move("character", start); //$NON-NLS-0$
+							range.moveEnd("character", end - start); //$NON-NLS-0$
+						}
+						rects = range.getClientRects();
+						var found = false;
+						for (var k = 0; k < rects.length; k++) {
+							rect = rects[k];
+							rangeLeft = (fixIE8 ? rl : rect.left) * xFactor - lineRect.left;
+							rangeRight = rect.right * xFactor - lineRect.left;
+							rangeTop = rect.top * yFactor - lineRect.top;
+							rangeBottom = rect.bottom * yFactor - lineRect.top;
+							if (rangeLeft <= x && x < rangeRight && (!view._wrapMode || (rangeTop <= y && y < rangeBottom))) {
+								found = true;
+								break;
+							}
+						}
+						if (found) {
+							high = mid;
+						} else {
+							low = mid;
+						}
+					}
+					offset += high;
+					start = high;
+					end = high === nodeLength - 1 && lineChild.ignoreChars ? textNode.length : Math.min(high + 1, textNode.length);
+					if (view._isRangeRects) {
+						range.setStart(textNode, start);
+						range.setEnd(textNode, end);
+					} else {
+						range.moveToElementText(lineChild);
+						range.move("character", start); //$NON-NLS-0$
+						range.moveEnd("character", end - start); //$NON-NLS-0$
+					}
+					rects = range.getClientRects();
+					var trailing = false;
+					if (rects.length > 0) {
+						rect = rects[0];
+						rangeLeft = (fixIE8 ? rl : rect.left) * xFactor - lineRect.left;
+						rangeRight = rect.right * xFactor - lineRect.left;
+						//TODO test for character trailing (wrong for bidi)
+						trailing = x > (rangeLeft + (rangeRight - rangeLeft) / 2);
+					}
+					// Handle Unicode surrogates
+					var offsetInLine = offset - lineStart;
+					var lineText = model.getLine(lineIndex);
+					var c = lineText.charCodeAt(offsetInLine);
+					if (0xD800 <= c && c <= 0xDBFF && trailing) {
+						if (offsetInLine < lineText.length) {
+							c = lineText.charCodeAt(offsetInLine + 1);
+							if (0xDC00 <= c && c <= 0xDFFF) {
+								offset += 1;
+							}
+						}
+					} else if (0xDC00 <= c && c <= 0xDFFF && !trailing) {
+						if (offsetInLine > 0) {
+							c = lineText.charCodeAt(offsetInLine - 1);
+							if (0xD800 <= c && c <= 0xDBFF) {
+								offset -= 1;
+							}
+						}
+					}
+					if (trailing) {
+						offset++;
+					}
+				} else {
+					var newText = [];
+					for (var q = 0; q < nodeLength; q++) {
+						newText.push("<span>"); //$NON-NLS-0$
+						if (q === nodeLength - 1) {
+							newText.push(textNode.data.substring(q));
+						} else {
+							newText.push(textNode.data.substring(q, q + 1));
+						}
+						newText.push("</span>"); //$NON-NLS-0$
+					}
+					lineChild.innerHTML = newText.join("");
+					var rangeChild = lineChild.firstChild;
+					while (rangeChild) {
+						rect = rangeChild.getBoundingClientRect();
+						rangeLeft = rect.left - lineRect.left;
+						rangeRight = rect.right - lineRect.left;
+						if (rangeLeft <= x && x < rangeRight) {
+							//TODO test for character trailing (wrong for bidi)
+							if (x > rangeLeft + (rangeRight - rangeLeft) / 2) {
+								offset++;
+							}
+							break;
+						}
+						offset++;
+						rangeChild = rangeChild.nextSibling;
+					}
+					if (!self._createdDiv) {
+						lineChild.innerHTML = "";
+						lineChild.appendChild(textNode);
+						/*
+						 * Removing the element node that holds the selection start or end
+						 * causes the selection to be lost. The fix is to detect this case
+						 * and restore the selection. 
+						 */
+						var s = view._getSelection();
+						if ((offset <= s.start && s.start < offset + nodeLength) || (offset <= s.end && s.end < offset + nodeLength)) {
+							view._updateDOMSelection();
+						}
+					}
+				}
+				return offset;
+			}
+			
+			var rects, rect;
 			if (view._wrapMode) {
 				rects = this.getClientRects();
 				if (y < rects[0].top) {
@@ -3144,161 +3494,70 @@ define("orion/editor/textView", [ //$NON-NLS-0$
 				if (x < 0) { x = 0; }
 				if (x > (lineRect.right - lineRect.left)) { x = lineRect.right - lineRect.left; }
 			}
-			var document = child.ownerDocument;
-			var window = getWindow(document);
-			var xFactor = util.isIE ? window.screen.logicalXDPI / window.screen.deviceXDPI : 1;
-			var yFactor = util.isIE ? window.screen.logicalYDPI / window.screen.deviceYDPI : 1;
-			var offset = lineStart;
-			var lineChild = child.firstChild;
-			done:
-			while (lineChild) {
-				if (lineChild.ignore) {
-					lineChild = lineChild.nextSibling;
-					continue;
-				}
-				var textNode = lineChild.firstChild;
-				var nodeLength = textNode.length;
-				if (lineChild.ignoreChars) {
-					nodeLength -= lineChild.ignoreChars;
-				}
-				var rangeLeft, rangeTop, rangeRight, rangeBottom;
-				rects = this._getClientRects(lineChild, lineRect);
+			
+			function hitRects(child) {
+				if (child.ignore) return null;
+				var rects = self._getClientRects(child, lineRect);
 				for (var j = 0; j < rects.length; j++) {
-					rect = rects[j];
+					var rect = rects[j];
 					if (rect.left <= x && x < rect.right && (!view._wrapMode || (rect.top <= y && y < rect.bottom))) {
-						var range, start, end;
-						var rl = rect.left + lineRect.left, fixIE8;
-						if (util.isIE || view._isRangeRects) {
-							range = view._isRangeRects ? document.createRange() : document.body.createTextRange();
-							var high = nodeLength;
-							var low = -1;
-							while ((high - low) > 1) {
-								var mid = Math.floor((high + low) / 2);
-								start = low + 1;
-								end = mid === nodeLength - 1 && lineChild.ignoreChars ? textNode.length : mid + 1;
-								/*
-								* Bug in IE8. TextRange.getClientRects() and TextRange.getBoundingClientRect() fails
-								* if the line child is not the first element in the line and if the start offset is 0. 
-								* The fix is to use Node.getClientRects() left edge instead.
-								*/
-								fixIE8 = start === 0 && util.isIE === 8;
-								if (view._isRangeRects) {
-									range.setStart(textNode, start);
-									range.setEnd(textNode, end);
-								} else {
-									if (fixIE8) { start = 1; } 
-									range.moveToElementText(lineChild);
-									range.move("character", start); //$NON-NLS-0$
-									range.moveEnd("character", end - start); //$NON-NLS-0$
-								}
-								rects = range.getClientRects();
-								var found = false;
-								for (var k = 0; k < rects.length; k++) {
-									rect = rects[k];
-									rangeLeft = (fixIE8 ? rl : rect.left) * xFactor - lineRect.left;
-									rangeRight = rect.right * xFactor - lineRect.left;
-									rangeTop = rect.top * yFactor - lineRect.top;
-									rangeBottom = rect.bottom * yFactor - lineRect.top;
-									if (rangeLeft <= x && x < rangeRight && (!view._wrapMode || (rangeTop <= y && y < rangeBottom))) {
-										found = true;
-										break;
-									}
-								}
-								if (found) {
-									high = mid;
-								} else {
-									low = mid;
-								}
-							}
-							offset += high;
-							start = high;
-							end = high === nodeLength - 1 && lineChild.ignoreChars ? textNode.length : Math.min(high + 1, textNode.length);
-							if (view._isRangeRects) {
-								range.setStart(textNode, start);
-								range.setEnd(textNode, end);
-							} else {
-								range.moveToElementText(lineChild);
-								range.move("character", start); //$NON-NLS-0$
-								range.moveEnd("character", end - start); //$NON-NLS-0$
-							}
-							rects = range.getClientRects();
-							var trailing = false;
-							if (rects.length > 0) {
-								rect = rects[0];
-								rangeLeft = (fixIE8 ? rl : rect.left) * xFactor - lineRect.left;
-								rangeRight = rect.right * xFactor - lineRect.left;
-								//TODO test for character trailing (wrong for bidi)
-								trailing = x > (rangeLeft + (rangeRight - rangeLeft) / 2);
-							}
-							// Handle Unicode surrogates
-							var offsetInLine = offset - lineStart;
-							var lineText = model.getLine(lineIndex);
-							var c = lineText.charCodeAt(offsetInLine);
-							if (0xD800 <= c && c <= 0xDBFF && trailing) {
-								if (offsetInLine < lineText.length) {
-									c = lineText.charCodeAt(offsetInLine + 1);
-									if (0xDC00 <= c && c <= 0xDFFF) {
-										offset += 1;
-									}
-								}
-							} else if (0xDC00 <= c && c <= 0xDFFF && !trailing) {
-								if (offsetInLine > 0) {
-									c = lineText.charCodeAt(offsetInLine - 1);
-									if (0xD800 <= c && c <= 0xDBFF) {
-										offset -= 1;
-									}
-								}
-							}
-							if (trailing) {
-								offset++;
-							}
-						} else {
-							var newText = [];
-							for (var q = 0; q < nodeLength; q++) {
-								newText.push("<span>"); //$NON-NLS-0$
-								if (q === nodeLength - 1) {
-									newText.push(textNode.data.substring(q));
-								} else {
-									newText.push(textNode.data.substring(q, q + 1));
-								}
-								newText.push("</span>"); //$NON-NLS-0$
-							}
-							lineChild.innerHTML = newText.join("");
-							var rangeChild = lineChild.firstChild;
-							while (rangeChild) {
-								rect = rangeChild.getBoundingClientRect();
-								rangeLeft = rect.left - lineRect.left;
-								rangeRight = rect.right - lineRect.left;
-								if (rangeLeft <= x && x < rangeRight) {
-									//TODO test for character trailing (wrong for bidi)
-									if (x > rangeLeft + (rangeRight - rangeLeft) / 2) {
-										offset++;
-									}
-									break;
-								}
-								offset++;
-								rangeChild = rangeChild.nextSibling;
-							}
-							if (!this._createdDiv) {
-								lineChild.innerHTML = "";
-								lineChild.appendChild(textNode);
-								/*
-								 * Removing the element node that holds the selection start or end
-								 * causes the selection to be lost. The fix is to detect this case
-								 * and restore the selection. 
-								 */
-								var s = view._getSelection();
-								if ((offset <= s.start && s.start < offset + nodeLength) || (offset <= s.end && s.end < offset + nodeLength)) {
-									view._updateDOMSelection();
-								}
-							}
-						}
-						break done;
+						return rect;
 					}
 				}
-				offset += nodeLength;
-				lineChild = lineChild.nextSibling;
+				return null;
 			}
+			
+			var offset, lineChild;
+			if (this._lastHitChild && this._lastHitChild.parentNode) {
+				// Search last hit child first, then search around the last hit child
+				offset = this._lastHitOffset;
+				lineChild = this._lastHitChild;
+				rect = hitRects(lineChild);
+				if (!rect ) {
+					var previousOffset = offset, nextOffset = offset + this._nodeLength(lineChild);
+					var previousChild = lineChild.previousSibling, nextChild = lineChild.nextSibling;
+					while (previousChild || nextChild) {
+						if (previousChild) {
+							previousOffset -= this._nodeLength(previousChild);
+							if (rect = hitRects(previousChild)) {
+								lineChild = previousChild;
+								offset = previousOffset;
+								break;
+							}
+							previousChild = previousChild.previousSibling;
+						}
+						if (nextChild) {
+							if (rect = hitRects(nextChild)) {
+								lineChild = nextChild;
+								offset = nextOffset;
+								break;
+							}
+							nextOffset += this._nodeLength(nextChild);
+							nextChild = nextChild.nextSibling;
+						}
+					}
+				}
+			} else {
+				// Start searching from the beginning of the line
+				offset = lineStart;
+				this.forEach(function(c) {
+					lineChild = c;
+					if (rect = hitRects(lineChild)) {
+						return false;
+					}
+					offset += this._nodeLength(lineChild);
+					return true;
+				});
+			}
+			
+			if (lineChild && rect) {
+				// Cache the last hit child
+				this._lastHitChild = lineChild;
+				this._lastHitOffset = offset;
+
+				offset = hitChild(lineChild, offset, rect);
+			}
+
 			return Math.min(lineEnd, Math.max(lineStart, offset));
 		},
 		/** @private */
@@ -3428,6 +3687,8 @@ define("orion/editor/textView", [ //$NON-NLS-0$
 			var lineIndex = this.lineIndex;
 			var result = 0, range, length;
 			var lineOffset = model.getLineStart(lineIndex);
+			var lineText = model.getLine(lineIndex);
+			var lineStart = model.getLineStart(lineIndex);
 			var document = child.ownerDocument;
 			var lineChild;
 			var step = data.count < 0 ? -1 : 1;
@@ -3449,15 +3710,19 @@ define("orion/editor/textView", [ //$NON-NLS-0$
 			} else {
 				lineChild = child.firstChild;
 				while (lineChild) {
-					var textNode = lineChild.firstChild;
-					var nodeLength = textNode.length;
-					if (lineChild.ignoreChars) {
-						nodeLength -= lineChild.ignoreChars;
-					}
+					var nodeLength = this._nodeLength(lineChild);
 					if (lineOffset + nodeLength > offset) {
 						range = document.body.createTextRange();
 						if (offset === lineOffset && data.count < 0) {
-							range.moveToElementText(lineChild.previousSibling);
+							var temp = lineChild.previousSibling;
+							// skip empty nodes
+							while (temp) {
+								if (temp.firstChild && temp.firstChild.length) {
+									break;
+								}
+								temp = temp.previousSibling;
+							}
+							range.moveToElementText(temp ? temp : lineChild.previousSibling);
 						} else {
 							range.moveToElementText(lineChild);
 							range.collapse();
@@ -3472,8 +3737,32 @@ define("orion/editor/textView", [ //$NON-NLS-0$
 					lineChild = lineChild.nextSibling;
 				}
 			}
+			var offsetInLine = result - lineStart;
+			c = lineText.charCodeAt(offsetInLine);
+			// Handle Unicode surrogates
+			if (0xDC00 <= c && c <= 0xDFFF) {
+				if (offsetInLine > 0) {
+					c = lineText.charCodeAt(offsetInLine - 1);
+					if (0xD800 <= c && c <= 0xDBFF) {
+						offsetInLine += step;
+					}
+				}
+			}
+			result = offsetInLine + lineStart;
 			data.count -= step;
 			return result;
+		},
+		updateLinks: function() {
+			var child = this._ensureCreated();
+			if (!this.hasLink) { return; }
+			var self = this;
+			this.forEach(function(span) {
+				var style = span.viewStyle;
+				if (style && style.tagName && style.tagName.toLowerCase() === "a") { //$NON-NLS-0$
+					child.replaceChild(self._createSpan(child, span.firstChild.data, style), span);
+				}
+				return true;
+			});
 		},
 		/** @private */
 		destroy: function() {
@@ -3676,6 +3965,9 @@ define("orion/editor/textView", [ //$NON-NLS-0$
 			this.onDestroy(e);
 
 			this._parent = null;
+			if (this._model && this._model.destroy) {
+				this._model.destroy();
+			}
 			this._model = null;
 			this._theme = null;
 			this._selection = null;
@@ -4004,7 +4296,7 @@ define("orion/editor/textView", [ //$NON-NLS-0$
         /**
 		 * Returns the specified view options.
 		 * <p>
-		 * The returned value is either a <code>orion.editor.TextViewOptions</code> or an option value. An option value is returned when only one string paremeter
+		 * The returned value is either a <code>orion.editor.TextViewOptions</code> or an option value. An option value is returned when only one string parameter
 		 * is specified. A <code>orion.editor.TextViewOptions</code> is returned when there are no paremeters, or the parameters are a list of options names or a
 		 * <code>orion.editor.TextViewOptions</code>. All view options are returned when there no paremeters.
 		 * </p>
@@ -4078,6 +4370,19 @@ define("orion/editor/textView", [ //$NON-NLS-0$
 		 */
 		getLineAtOffset: function(offset) {
 			this.getModel().getLineAtOffset(offset);
+		},
+		/**
+		 * @name getLineStart
+		 * @description Compute the editor start offset of the given line number
+		 * @function
+		 * @public
+		 * @memberof orion.editor.TextView
+		 * @param {Number} line The line number in the editor
+		 * @returns {Number} Returns the start offset of the given line number in the editor.
+		 * @since 5.0
+		 */
+		getLineStart: function(line) {
+			this.getModel().getLineStart(line);
 		},
 		/**
 		 * Get the view rulers.
@@ -4748,10 +5053,12 @@ define("orion/editor/textView", [ //$NON-NLS-0$
 		 * Sets the caret offset relative to the start of the document.
 		 *
 		 * @param {Number} caret the caret offset relative to the start of the document.
-		 * @param {Boolean|Number} [show=true] if <code>true</code>, the view will scroll the minimum amount necessary to show the caret location. If
+		 * @param {Boolean|Number|orion.editor.TextViewShowOptions} [show=true]
+		 * 					if <code>true</code>, the view will scroll the minimum amount necessary to show the caret location. If
 		 *					<code>show</code> is a <code>Number</code>, the view will scroll the minimum amount necessary to show the caret location plus a
 		 *					percentage of the client area height. The parameter is clamped to the [0,1] range.  In either case, the view will only scroll
-		 *					if the new caret location is visible already.
+		 *					if the new caret location is not visible already.  The <code>show</code> parameter can also be a <code>orion.editor.TextViewShowOptions</code> object. See
+		 * 					{@link orion.editor.TextViewShowOptions} for further information in how the options can be used to control the scrolling behavior.
 		 * @param {Function} [callback] if callback is specified and <code>scrollAnimation</code> is not zero, view scrolling is animated and
 		 *					the callback is called when the animation is done. Otherwise, callback is callback right away.
 		 *
@@ -4869,6 +5176,43 @@ define("orion/editor/textView", [ //$NON-NLS-0$
 			}
 		},
 		/**
+		 * @class This object describes the selection show options.
+		 * <p>
+		 * <b>See:</b><br/>
+		 * {@link orion.editor.TextView#setSelection}
+		 * {@link orion.editor.TextView#setCaretOffset}	 
+		 * {@link orion.editor.TextView#showSelection}	 
+		 * </p>		 
+		 * @name orion.editor.TextViewShowOptions
+		 *
+		 * @property {String} viewAnchor the view anchor.  The view anchor can be one of these values:
+		 * <p>
+		 * <ul>
+		 *   <li>"top" - align the selection to the top of the view client area.</li>
+		 *   <li>"bottom" - align the selection to the bottom of the view client area.</li>
+		 *   <li>"center" - align the selection to the center of the view client area.</li>
+		 *   <li> by default - align the selection to the top or bottom of the client area depending on whether the caret is above or below the client area respectively. </li>
+		 * </ul>
+		 * </p>
+		 * @property {Number} [viewAnchorOffset=0] an offset from the view anchor. The offset is a percentage of the client area height and it is clamped to [0-1] range.
+		 * @property {String} [selectionAnchor=caret] the selection anchor. The seleciton anchor can be one of these values:
+		 * <p>
+		 * <ul>
+		 *   <li>"top" - align the top of the selection to the view anchor.</li>
+		 *   <li>"bottom" - align the bottom of the selection to the view anchor.</li>
+		 *   <li>"center" - align the center of the selection to the view anchor.</li>
+		 *   <li> by default - align the top or bottom of the selection to the view anchor depending on whether the caret is at the start or end of the selection. </li>
+		 * </ul>
+		 * </p>
+		 * @property {String} [scrollPolicy] the scroll policy. The scroll policy can be one of these values:
+		 * <p>
+		 * <ul>
+		 *   <li>"always" - always scroll vertically to the desired pixel offset even if the caret is already visible.</li>
+		 *   <li> by default - only scroll if the caret is not visible. </li>
+		 * </ul>
+		 * </p>
+		 */
+		/**
 		 * Sets the text view selection.
 		 * <p>
 		 * The selection is defined by a start and end character offset relative to the
@@ -4885,10 +5229,12 @@ define("orion/editor/textView", [ //$NON-NLS-0$
 		 * 
 		 * @param {Number} start the start offset of the selection
 		 * @param {Number} end the end offset of the selection
-		 * @param {Boolean|Number} [show=true] if <code>true</code>, the view will scroll the minimum amount necessary to show the caret location. If
+		 * @param {Boolean|Number|orion.editor.TextViewShowOptions} [show=true]
+		 * 					if <code>true</code>, the view will scroll the minimum amount necessary to show the caret location. If
 		 *					<code>show</code> is a <code>Number</code>, the view will scroll the minimum amount necessary to show the caret location plus a
 		 *					percentage of the client area height. The parameter is clamped to the [0,1] range.  In either case, the view will only scroll
-		 *					if the new caret location is visible already.
+		 *					if the new caret location is not visible already.  The <code>show</code> parameter can also be a <code>orion.editor.TextViewShowOptions</code> object. See
+		 * 					{@link orion.editor.TextViewShowOptions} for further information in how the options can be used to control the scrolling behavior.
 		 * @param {Function} [callback] if callback is specified and <code>scrollAnimation</code> is not zero, view scrolling is animated and
 		 *					the callback is called when the animation is done. Otherwise, callback is callback right away.
 		 *
@@ -4934,14 +5280,14 @@ define("orion/editor/textView", [ //$NON-NLS-0$
 			this._modifyContent({text: text, start: start, end: end, _code: true}, !reset);
 			if (reset) {
 				this._columnX = -1;
-				this._setSelection(new Selection (0, 0, false), true);
+				this._setSelection(new Selection(0, 0, false), true);
 				
 				/*
 				* Bug in Firefox.  For some reason, the caret does not show after the
 				* view is refreshed.  The fix is to toggle the contentEditable state and
 				* force the clientDiv to loose and receive focus if it is focused.
 				*/
-				if (util.isFirefox) {
+				if (util.isFirefox < 13) {
 					this._fixCaret();
 				}
 			}
@@ -4983,17 +5329,26 @@ define("orion/editor/textView", [ //$NON-NLS-0$
 		/**
 		 * Scrolls the selection into view if needed.
 		 *
+ 		 * @param {Number|orion.editor.TextViewShowOptions} [show=0]
+		 * 					If <code>show</code> is a <code>Number</code>, the view will scroll the minimum amount necessary to show the caret location plus a
+		 *					percentage of the client area height. The parameter is clamped to the [0,1] range.  The view will only scroll
+		 *					if the new caret location is not visible already.  The <code>show</code> parameter can also be a <code>orion.editor.TextViewShowOptions</code> object. See
+		 * 					{@link orion.editor.TextViewShowOptions} for further information in how the options can be used to control the scrolling behavior.
+		 * @param {Function} [callback] if callback is specified and <code>scrollAnimation</code> is not zero, view scrolling is animated and
+		 *					the callback is called when the animation is done. Otherwise, callback is callback right away.
+		 *
 		 * @returns {Boolean} true if the view was scrolled.
 		 *
 		 * @see orion.editor.TextView#getSelection
 		 * @see orion.editor.TextView#setSelection
+		 * @see orion.editor.TextView#setCaretOffset
 		 */
-		showSelection: function() {
-			return this._showCaret(true);
+		showSelection: function(show, callback) {
+			return this._showCaret(show ? false : true, callback, show);
 		},
 		update: function(styleChanged, sync) {
 			if (!this._clientDiv) { return; }
-			if (styleChanged) {
+			if (styleChanged || this._metrics.invalid) {
 				this._updateStyle();
 			}
 			if (sync === undefined || sync) {
@@ -5005,8 +5360,9 @@ define("orion/editor/textView", [ //$NON-NLS-0$
 		
 		/**************************************** Event handlers *********************************/
 		_handleRootMouseDown: function (e) {
+			this._cancelCheckSelection();
 			if (this._ignoreEvent(e)) { return; }
-			if (util.isFirefox && e.which === 1) {
+			if (util.isFirefox < 13 && e.which === 1) {
 				this._clientDiv.contentEditable = false;
 				(this._overlayDiv || this._clientDiv).draggable = true;
 				this._ignoreBlur = true;
@@ -5019,6 +5375,9 @@ define("orion/editor/textView", [ //$NON-NLS-0$
 			var temp = e.target ? e.target : e.srcElement;
 			while (temp) {
 				if (topNode === temp) {
+					return;
+				}
+				if (temp.className && temp.className.indexOf("textViewFind") !== -1) { //$NON-NLS-0$
 					return;
 				}
 				temp = temp.parentNode;
@@ -5040,7 +5399,7 @@ define("orion/editor/textView", [ //$NON-NLS-0$
 		},
 		_handleRootMouseUp: function (e) {
 			if (this._ignoreEvent(e)) { return; }
-			if (util.isFirefox && e.which === 1) {
+			if (util.isFirefox < 13 && e.which === 1) {
 				this._clientDiv.contentEditable = true;
 				(this._overlayDiv || this._clientDiv).draggable = false;
 				
@@ -5056,7 +5415,9 @@ define("orion/editor/textView", [ //$NON-NLS-0$
 			}
 		},
 		_handleBlur: function (e) {
+			this._cancelCheckSelection();
 			if (this._ignoreBlur) { return; }
+			this._commitIME();
 			this._hasFocus = false;
 			/*
 			* Bug in IE 8 and earlier. For some reason when text is deselected
@@ -5110,6 +5471,18 @@ define("orion/editor/textView", [ //$NON-NLS-0$
 				this.onBlur({type: "Blur"}); //$NON-NLS-0$
 			}
 		},
+		_handleCompositionStart: function (e) {
+			if (this._ignoreEvent(e)) { return; }
+			this._startIME();
+			if (this._mutationObserver) {
+				this._mutationObserver.disconnect();
+				this._mutationObserver = null;
+			}
+		},
+		_handleCompositionEnd: function (e) {
+			if (this._ignoreEvent(e)) { return; }
+			this._commitIME(e.data);
+		},
 		_handleContextMenu: function (e) {
 			if (this._ignoreEvent(e)) { return; }
 			if (util.isIE && this._lastMouseButton === 3) {
@@ -5132,9 +5505,16 @@ define("orion/editor/textView", [ //$NON-NLS-0$
 			if (preventDefault) {
 				if (e.preventDefault) { e.preventDefault(); }
 				return false;
+			} else {
+				this._contextMenuOpen = true;
+				if (util.isFirefox) {
+					this._checkSelectionChange = true;
+					this._pollSelectionChange(true);
+				}
 			}
 		},
 		_handleCopy: function (e) {
+			this._cancelCheckSelection();
 			if (this._ignoreEvent(e)) { return; }
 			if (this._ignoreCopy) { return; }
 			if (this._doCopy(e)) {
@@ -5143,6 +5523,7 @@ define("orion/editor/textView", [ //$NON-NLS-0$
 			}
 		},
 		_handleCut: function (e) {
+			this._cancelCheckSelection();
 			if (this._ignoreEvent(e)) { return; }
 			if (this._doCut(e)) {
 				if (e.preventDefault) { e.preventDefault(); }
@@ -5164,7 +5545,7 @@ define("orion/editor/textView", [ //$NON-NLS-0$
 		},
 		_handleDragStart: function (e) {
 			if (this._ignoreEvent(e)) { return; }
-			if (util.isFirefox) {
+			if (util.isFirefox < 13) {
 				var self = this;
 				var window = this._getWindow();
 				window.setTimeout(function() {
@@ -5195,7 +5576,7 @@ define("orion/editor/textView", [ //$NON-NLS-0$
 			if (this.isListening("DragEnd")) { //$NON-NLS-0$
 				this.onDragEnd(this._createMouseEvent("DragEnd", e)); //$NON-NLS-0$
 			}
-			if (util.isFirefox) {
+			if (util.isFirefox < 13) {
 				this._fixCaret();
 				/*
 				* Bug in Firefox.  For some reason, Firefox stops showing the caret when the 
@@ -5288,6 +5669,7 @@ define("orion/editor/textView", [ //$NON-NLS-0$
 			}
 		},
 		_handleKeyDown: function (e) {
+			this._cancelCheckSelection();
 			if (this._ignoreEvent(e)) {	return;	}
 			if (this.isListening("KeyDown")) { //$NON-NLS-0$
 				var keyEvent = this._createKeyEvent("KeyDown", e); //$NON-NLS-0$
@@ -5627,6 +6009,8 @@ define("orion/editor/textView", [ //$NON-NLS-0$
 			this._lastMouseMoveY = e.clientY;
 			this._setLinksVisible(changed && !this._isMouseDown && (util.isMac ? e.metaKey : e.ctrlKey));
 
+			this._checkOverlayScroll();
+
 			/*
 			* Feature in IE8 and older, the sequence of events in the IE8 event model
 			* for a doule-click is:
@@ -5748,17 +6132,17 @@ define("orion/editor/textView", [ //$NON-NLS-0$
 				* mouse down and ungrab on mouse move when the button 1 is not set.
 				*/
 				if (this._isW3CEvents) { this._setGrab(null); }
-
-				/*
-				* Note that there cases when Firefox sets the DOM selection in mouse up.
-				* This happens for example after a cancelled drag operation.
-				*
-				* Note that on Chrome and IE, the caret stops blicking if mouse up is
-				* prevented.
-				*/
-				if (util.isFirefox) {
-					e.preventDefault();
-				}
+			}
+			/*
+			* Note that there cases when Firefox sets the DOM selection in mouse up.
+			* This happens for example after a cancelled drag operation.
+			*
+			* Note that on Chrome and IE, the caret stops blicking if mouse up is
+			* prevented.
+			*/
+			if (left && util.isFirefox) {
+				this._updateDOMSelection();
+				e.preventDefault();
 			}
 		},
 		_handleMouseWheel: function (e) {
@@ -5768,17 +6152,27 @@ define("orion/editor/textView", [ //$NON-NLS-0$
 			if (util.isIE || util.isOpera) {
 				pixelY = (-e.wheelDelta / 40) * lineHeight;
 			} else if (util.isFirefox) {
-				var pixel;
-				if (util.isMac) {
-					pixel = e.detail * 3;
+				var limit = 256;
+				if (e.type === "wheel") { //$NON-NLS-0$
+					if (e.deltaMode) { // page or line
+						pixelX = Math.max(-limit, Math.min(limit, e.deltaX)) * lineHeight;
+						pixelY = Math.max(-limit, Math.min(limit, e.deltaY)) * lineHeight;
+					} else {
+						pixelX = e.deltaX;
+						pixelY = e.deltaY;
+					}
 				} else {
-					var limit = 256;
-					pixel = Math.max(-limit, Math.min(limit, e.detail)) * lineHeight;
-				}
-				if (e.axis === e.HORIZONTAL_AXIS) {
-					pixelX = pixel;
-				} else {
-					pixelY = pixel;
+					var pixel;
+					if (util.isMac) {
+						pixel = e.detail * 3;
+					} else {
+						pixel = Math.max(-limit, Math.min(limit, e.detail)) * lineHeight;
+					}
+					if (e.axis === e.HORIZONTAL_AXIS) {
+						pixelX = pixel;
+					} else {
+						pixelY = pixel;
+					}
 				}
 			} else {
 				//Webkit
@@ -5832,7 +6226,7 @@ define("orion/editor/textView", [ //$NON-NLS-0$
 			* Note: Using a timer is not a solution, because the timeout needs to
 			* be at least as long as the gesture (which is too long).
 			*/
-			if (util.isSafari) {
+			if (util.isSafari || (util.isChrome && util.isMac)) {
 				var lineDiv = e.target;
 				while (lineDiv && lineDiv.lineIndex === undefined) {
 					lineDiv = lineDiv.parentNode;
@@ -5848,6 +6242,7 @@ define("orion/editor/textView", [ //$NON-NLS-0$
 			}
 		},
 		_handlePaste: function (e) {
+			this._cancelCheckSelection();
 			if (this._ignoreEvent(e)) { return; }
 			if (this._ignorePaste) { return; }
 			if (this._doPaste(e)) {
@@ -5955,6 +6350,7 @@ define("orion/editor/textView", [ //$NON-NLS-0$
 			}
 		},
 		_handleScroll: function () {
+			this._lastScrollTime = new Date().getTime();
 			var scroll = this._getScroll(false);
 			var oldX = this._hScroll;
 			var oldY = this._vScroll;
@@ -5972,6 +6368,12 @@ define("orion/editor/textView", [ //$NON-NLS-0$
 			}
 		},
 		_handleSelectStart: function (e) {
+			var menuOpen = this._contextMenuOpen;
+			this._contextMenuOpen = false;
+			if (menuOpen) {
+				this._checkSelectionChange = true;
+				return;
+			}
 			if (this._ignoreSelect) {
 				if (e && e.preventDefault) { e.preventDefault(); }
 				return false;
@@ -5985,33 +6387,74 @@ define("orion/editor/textView", [ //$NON-NLS-0$
 			} else {
 				lineNode = node.parentNode.parentNode;
 			}
-			var lineOffset = 0;
-			var lineIndex = lineNode.lineIndex;
-			if (node.tagName !== "DIV") { //$NON-NLS-0$
-				var child = lineNode.firstChild;
-				while (child) {
-					var textNode = child.firstChild;
-					if (textNode === node) {
-						if (child.ignoreChars) { lineOffset -= child.ignoreChars; }
-						lineOffset += offset;
-						break;
-					}
-					if (child.ignoreChars) { lineOffset -= child.ignoreChars; }
-					lineOffset += textNode.data.length;
-					child = child.nextSibling;
-				}
+			if (!lineNode._line) {
+				return 0;
 			}
-			return Math.max(0, lineOffset) + this._model.getLineStart(lineIndex);
+			return lineNode._line.getModelOffset (node, offset);
 		},
 		_updateSelectionFromDOM: function() {
+			if (!(util.isOS || util.isAndroid || this._checkSelectionChange)) {
+				return false;
+			}
 			var window = this._getWindow();
 			var selection = window.getSelection();
 			var start = this._getModelOffset(selection.anchorNode, selection.anchorOffset);
 			var end = this._getModelOffset(selection.focusNode, selection.focusOffset);
-			if (start === undefined || end === undefined) {
-			    return;
+			var sel = this._getSelection();
+			if (start === undefined || end === undefined || (sel.start === start && sel.end === end)) {
+			    return false;
 			}
+			
+			if (this._checkSelectionChange) {
+				var firstLine = this._getLineNext();
+				var lastLine = this._getLinePrevious();
+				
+				// Selection is unchanged and bigger than the visible buffer region
+				if (selection.anchorNode === firstLine.firstChild.firstChild && selection.anchorOffset === 0 &&
+					selection.focusNode === lastLine.firstChild.firstChild && selection.focusOffset === 0)
+				{
+					return false;
+				}
+				
+				// Detect select all
+				if (
+				(selection.anchorNode === firstLine.firstChild.firstChild && selection.anchorOffset === 0 && selection.focusNode === lastLine.lastChild.firstChild)
+				|| (selection.anchorNode === this._clientDiv && selection.focusNode === this._clientDiv)
+				) {
+					start = 0;
+					end = this.getModel().getCharCount();
+				}
+			}
+			
 			this._setSelection(new Selection(start, end), false, false);
+			this._checkSelectionChange = false;
+			return true;
+		},
+		_cancelCheckSelection: function() {
+			if (this._checkSelectionChange) {
+				this._checkSelectionChange = false;
+				this._cancelPollSelectionChange();
+			}
+		},
+		_cancelPollSelectionChange: function() {
+			if (this._selPollTimer) {
+				var window = this._getWindow();
+				window.clearTimeout(this._selPollTimer);
+				this._selPollTimer = null; 
+			}
+		},
+		_pollSelectionChange: function(retryPoll) {
+			var that = this;
+			var window = this._getWindow();
+			this._cancelPollSelectionChange();
+			this._selPollTimer = window.setTimeout(function() {
+				that._selPollTimer = null; 
+				if (!that._clientDiv) { return; }
+				var changed = that._updateSelectionFromDOM();
+				if (!changed && retryPoll) {
+					that._pollSelectionChange(retryPoll);
+				}
+			}, 100);
 		},
 		_handleSelectionChange: function (e) {
 			if (this._imeOffset !== -1) {
@@ -6024,16 +6467,7 @@ define("orion/editor/textView", [ //$NON-NLS-0$
 			 * sending the event to the application.
 			 */
 			if (util.isAndroid) {
-				var window = this._getWindow();
-				if (this._selTimer) {
-					window.clearTimeout(this._selTimer);
-				}
-				var that = this;
-				this._selTimer = window.setTimeout(function() {
-					if (!that._clientDiv) { return; }
-					that._selTimer = null; 
-					that._updateSelectionFromDOM();
-				}, 250);
+				this._pollSelectionChange();
 			} else {
 				this._updateSelectionFromDOM();
 			}
@@ -6085,7 +6519,9 @@ define("orion/editor/textView", [ //$NON-NLS-0$
 					start += lineStart;
 					end += lineStart;
 					
-					this._modifyContent({text: deltaText, start: start, end: end, _ignoreDOMSelection: true}, true);
+					this._ignoreQueueUpdate = util.isSafari;
+					this._modifyContent({text: deltaText, start: start, end: end, _ignoreDOMSelection: true, _ignoreDOMSelection1: util.isChrome}, true);
+					this._ignoreQueueUpdate = false;
 				}
 			} else {
 				this._doContent(e.data);
@@ -6289,7 +6725,7 @@ define("orion/editor/textView", [ //$NON-NLS-0$
 					line.destroy();
 				}
 			}
-			this._modifyContent({text: text, start: selection.start, end: selection.end, _ignoreDOMSelection: true}, true);
+			return this._modifyContent({text: text, start: selection.start, end: selection.end, _ignoreDOMSelection: true}, true);
 		},
 		_doCopy: function (e) {
 			var selection = this._getSelection();
@@ -6871,7 +7307,7 @@ define("orion/editor/textView", [ //$NON-NLS-0$
 					div1 = util.createElement(document, "div"); //$NON-NLS-0$
 					div1.style.position = "fixed"; //$NON-NLS-0$
 					div1.style.left = "-1000px"; //$NON-NLS-0$
-					div1.innerHTML = new Array(this._wrapOffset + 1).join(" "); //$NON-NLS-0$
+					div1.innerHTML = new Array(this._wrapOffset + 1 + (util.isWebkit ? 0 : 1)).join(" "); //$NON-NLS-0$
 					parent.appendChild(div1);
 					rect1 = div1.getBoundingClientRect();
 					wrapWidth = Math.ceil(rect1.right - rect1.left);
@@ -6909,24 +7345,32 @@ define("orion/editor/textView", [ //$NON-NLS-0$
 			this._setSelection(selection, true);
 			return true;
 		},
-		_commitIME: function () {
+		_commitIME: function (insertText) {
 			if (this._imeOffset === -1) { return; }
-			// make the state of the IME match the state the view expects it be in
-			// when the view commits the text and IME also need to be committed
-			// this can be accomplished by changing the focus around
-			this._scrollDiv.focus();
-			this._clientDiv.focus();
-			
 			var model = this._model;
 			var lineIndex = model.getLineAtOffset(this._imeOffset);
 			var lineStart = model.getLineStart(lineIndex);
-			var newText = this._getDOMText(this._getLineNode(lineIndex)).text;
-			var oldText = model.getLine(lineIndex);
-			var start = this._imeOffset - lineStart;
-			var end = start + newText.length - oldText.length;
-			if (start !== end) {
-				var insertText = newText.substring(start, end);
-				this._doContent(insertText);
+			var line = this._getLineNode(lineIndex);
+			if (!insertText) {
+				// make the state of the IME match the state the view expects it be in
+				// when the view commits the text and IME also need to be committed
+				// this can be accomplished by changing the focus around
+				this._scrollDiv.focus();
+				this._clientDiv.focus();
+				
+				var newText = this._getDOMText(line).text;
+				var oldText = model.getLine(lineIndex);
+				var start = this._imeOffset - lineStart;
+				var end = start + newText.length - oldText.length;
+				if (start !== end) {
+					insertText = newText.substring(start, end);
+				}
+			}
+			if (insertText) {
+				if (!this._doContent(insertText) && !util.isWebkit) {
+					line.lineRemoved = true;
+					this._queueUpdate();
+				}
 			}
 			this._imeOffset = -1;
 		},
@@ -6997,7 +7441,7 @@ define("orion/editor/textView", [ //$NON-NLS-0$
 				"toggleWrapMode": {defaultHandler: function(data) {return self._doWrapMode();}, actionDescription: {name: messages.toggleWrapMode}} //$NON-NLS-0$
 			};
 		},
-		_createRulerParent: function(className) {
+		_createRulerParent: function(document, className) {
 			var div = util.createElement(document, "div"); //$NON-NLS-0$
 			div.className = className;
 			div.tabIndex = -1;
@@ -7055,7 +7499,7 @@ define("orion/editor/textView", [ //$NON-NLS-0$
 			rootDiv.setAttribute("role", "application"); //$NON-NLS-1$ //$NON-NLS-0$
 			parent.appendChild(rootDiv);
 			
-			var leftDiv = this._createRulerParent("textviewLeftRuler"); //$NON-NLS-0$
+			var leftDiv = this._createRulerParent(document, "textviewLeftRuler"); //$NON-NLS-0$
 			this._leftDiv = leftDiv;
 
 			var viewDiv = util.createElement(document, "div"); //$NON-NLS-0$
@@ -7069,13 +7513,9 @@ define("orion/editor/textView", [ //$NON-NLS-0$
 			viewDiv.style.margin = "0px"; //$NON-NLS-0$
 			viewDiv.style.outline = "none"; //$NON-NLS-0$
 			viewDiv.style.background = "transparent"; //$NON-NLS-0$
-			if (util.isMac && util.isWebkit) {
-				viewDiv.style.pointerEvents = "none"; //$NON-NLS-0$
-				viewDiv.style.zIndex = "2"; //$NON-NLS-0$
-			}
 			rootDiv.appendChild(viewDiv);
 			
-			var rightDiv = this._createRulerParent("textviewRightRuler"); //$NON-NLS-0$
+			var rightDiv = this._createRulerParent(document, "textviewRightRuler"); //$NON-NLS-0$
 			this._rightDiv = rightDiv;
 			rightDiv.style.right = "0px"; //$NON-NLS-0$
 				
@@ -7086,7 +7526,7 @@ define("orion/editor/textView", [ //$NON-NLS-0$
 			scrollDiv.style.padding = "0px"; //$NON-NLS-0$
 			viewDiv.appendChild(scrollDiv);
 			
-			var marginDiv = this._marginDiv = this._createRulerParent("textviewMarginRuler"); //$NON-NLS-0$
+			var marginDiv = this._marginDiv = this._createRulerParent(document, "textviewMarginRuler"); //$NON-NLS-0$
 			marginDiv.style.zIndex = "4"; //$NON-NLS-0$
 			
 			if (!util.isIE && !util.isIOS) {
@@ -7188,6 +7628,18 @@ define("orion/editor/textView", [ //$NON-NLS-0$
 				this._createRuler(rulers[i]);
 			}
 			this._update();
+			// Detect when the parent is attached to the DOM or display
+			var self = this;
+			function checkDOMReady() {
+				if (!self._rootDiv) { return; }
+				self.update(true);
+				if (self._metrics.invalid) {
+					self._getWindow().setTimeout(function() {
+						checkDOMReady();
+					}, 100);
+				}
+			}
+			DOMReady(document, rootDiv, "textview", checkDOMReady); //$NON-NLS-0$
 		},
 		_defaultOptions: function() {
 			return {
@@ -7418,52 +7870,7 @@ define("orion/editor/textView", [ //$NON-NLS-0$
 			return "";
 		},
 		_getDOMText: function(child, offsetNode) {
-			var lineChild = child.firstChild;
-			var text = "", offset = 0;
-			while (lineChild) {
-				var textNode;
-				if (lineChild.ignore) {
-					lineChild = lineChild.nextSibling;
-					continue;
-				}
-				if (lineChild.ignoreChars) {
-					textNode = lineChild.lastChild;
-					var ignored = 0, childText = [], childOffset = -1;
-					while (textNode) {
-						var data = textNode.data;
-						if (data) {
-							for (var i = data.length - 1; i >= 0; i--) {
-								var ch = data.substring(i, i + 1);
-								if (ignored < lineChild.ignoreChars && (ch === " " || ch === "\u200B" || ch === "\uFEFF")) { //$NON-NLS-2$ //$NON-NLS-1$ //$NON-NLS-0$
-									ignored++;
-								} else {
-									childText.push(ch === "\u00A0" ? "\t" : ch); //$NON-NLS-1$ //$NON-NLS-0$
-								}
-							}
-						}
-						if (offsetNode === textNode) {
-							childOffset = childText.length;
-						}
-						textNode = textNode.previousSibling;
-					}
-					childText = childText.reverse().join("");
-					if (childOffset !== -1) {
-						offset = text.length + childText.length - childOffset;
-					}
-					text += childText;
-				} else {
-					textNode = lineChild.firstChild;
-					while (textNode) {
-						if (offsetNode === textNode) {
-							offset = text.length;
-						}
-						text += textNode.data;
-						textNode = textNode.nextSibling;
-					}
-				}
-				lineChild = lineChild.nextSibling;
-			}
-			return {text: text, offset: offset};
+			return child._line.getText(offsetNode);
 		},
 		_getTextFromElement: function(element) {
 			var document = element.ownerDocument;
@@ -7529,14 +7936,14 @@ define("orion/editor/textView", [ //$NON-NLS-0$
 		},
 		_getLineNext: function (lineNode) {
 			var node = lineNode ? lineNode.nextSibling : this._clientDiv.firstChild;
-			while (node && node.lineIndex === -1) {
+			while (node && (node.lineIndex === -1 || !node._line)) {
 				node = node.nextSibling;
 			}
 			return node;
 		},
 		_getLinePrevious: function (lineNode) {
 			var node = lineNode ? lineNode.previousSibling : this._clientDiv.lastChild;
-			while (node && node.lineIndex === -1) {
+			while (node && (node.lineIndex === -1 || !node._line)) {
 				node = node.previousSibling;
 			}
 			return node;
@@ -7659,8 +8066,8 @@ define("orion/editor/textView", [ //$NON-NLS-0$
 			handlers.push({target: clientDiv, type: "copy", handler: function(e) { return self._handleCopy(e ? e : window.event);}}); //$NON-NLS-0$
 			handlers.push({target: clientDiv, type: "cut", handler: function(e) { return self._handleCut(e ? e : window.event);}}); //$NON-NLS-0$
 			handlers.push({target: clientDiv, type: "paste", handler: function(e) { return self._handlePaste(e ? e : window.event);}}); //$NON-NLS-0$
+			handlers.push({target: document, type: "selectionchange", handler: function(e) { return self._handleSelectionChange(e ? e : window.event); }}); //$NON-NLS-0$
 			if (util.isIOS || util.isAndroid) {
-				handlers.push({target: document, type: "selectionchange", handler: function(e) { return self._handleSelectionChange(e ? e : window.event); }}); //$NON-NLS-0$
 				handlers.push({target: clientDiv, type: "touchstart", handler: function(e) { return self._handleTouchStart(e ? e : window.event); }}); //$NON-NLS-0$
 				handlers.push({target: clientDiv, type: "touchmove", handler: function(e) { return self._handleTouchMove(e ? e : window.event); }}); //$NON-NLS-0$
 				handlers.push({target: clientDiv, type: "touchend", handler: function(e) { return self._handleTouchEnd(e ? e : window.event); }}); //$NON-NLS-0$
@@ -7680,9 +8087,9 @@ define("orion/editor/textView", [ //$NON-NLS-0$
 				handlers.push({target: topNode, type: "dragover", handler: function(e) { return self._handleDragOver(e ? e : window.event);}}); //$NON-NLS-0$
 				handlers.push({target: topNode, type: "dragleave", handler: function(e) { return self._handleDragLeave(e ? e : window.event);}}); //$NON-NLS-0$
 				handlers.push({target: topNode, type: "drop", handler: function(e) { return self._handleDrop(e ? e : window.event);}}); //$NON-NLS-0$
-				handlers.push({target: this._clientDiv, type: util.isFirefox ? "DOMMouseScroll" : "mousewheel", handler: function(e) { return self._handleMouseWheel(e ? e : window.event); }}); //$NON-NLS-1$ //$NON-NLS-0$
+				handlers.push({target: this._clientDiv, type: util.isFirefox > 26 ? "wheel" : util.isFirefox ? "DOMMouseScroll" : "mousewheel", handler: function(e) { return self._handleMouseWheel(e ? e : window.event); }}); //$NON-NLS-2$ //$NON-NLS-1$ //$NON-NLS-0$
 				if (this._clipDiv) {
-					handlers.push({target: this._clipDiv, type: util.isFirefox ? "DOMMouseScroll" : "mousewheel", handler: function(e) { return self._handleMouseWheel(e ? e : window.event); }}); //$NON-NLS-1$ //$NON-NLS-0$
+					handlers.push({target: this._clipDiv, type: util.isFirefox > 26 ? "wheel" : util.isFirefox ? "DOMMouseScroll" : "mousewheel", handler: function(e) { return self._handleMouseWheel(e ? e : window.event); }}); //$NON-NLS-2$ //$NON-NLS-1$ //$NON-NLS-0$
 				}
 				if (util.isFirefox && (!util.isWindows || util.isFirefox >= 15)) {
 					var MutationObserver = window.MutationObserver || window.MozMutationObserver;
@@ -7692,6 +8099,10 @@ define("orion/editor/textView", [ //$NON-NLS-0$
 					} else {
 						handlers.push({target: this._clientDiv, type: "DOMCharacterDataModified", handler: function (e) { return self._handleDataModified(e ? e : window.event); }}); //$NON-NLS-0$
 					}
+				}
+				if ((util.isFirefox && (!util.isWindows || util.isFirefox >= 15)) || util.isIE) {
+					handlers.push({target: this._clientDiv, type: "compositionstart", handler: function (e) { return self._handleCompositionStart(e ? e : window.event); }}); //$NON-NLS-0$
+					handlers.push({target: this._clientDiv, type: "compositionend", handler: function (e) { return self._handleCompositionEnd(e ? e : window.event); }}); //$NON-NLS-0$
 				}
 				if (this._overlayDiv) {
 					handlers.push({target: this._overlayDiv, type: "mousedown", handler: function(e) { return self._handleMouseDown(e ? e : window.event);}}); //$NON-NLS-0$
@@ -7720,7 +8131,7 @@ define("orion/editor/textView", [ //$NON-NLS-0$
 			if (util.isIE) {
 				handlers.push({target: div, type: "selectstart", handler: function() {return false;}}); //$NON-NLS-0$
 			}
-			handlers.push({target: div, type: util.isFirefox ? "DOMMouseScroll" : "mousewheel", handler: function(e) { return self._handleMouseWheel(e ? e : window.event); }}); //$NON-NLS-1$ //$NON-NLS-0$
+			handlers.push({target: div, type: util.isFirefox > 26 ? "wheel" : util.isFirefox ? "DOMMouseScroll" : "mousewheel", handler: function(e) { return self._handleMouseWheel(e ? e : window.event); }}); //$NON-NLS-2$ //$NON-NLS-1$ //$NON-NLS-0$
 			handlers.push({target: div, type: "click", handler: function(e) { self._handleRulerEvent(e ? e : window.event); }}); //$NON-NLS-0$
 			handlers.push({target: div, type: "dblclick", handler: function(e) { self._handleRulerEvent(e ? e : window.event); }}); //$NON-NLS-0$
 			handlers.push({target: div, type: "mousemove", handler: function(e) { self._handleRulerEvent(e ? e : window.event); }}); //$NON-NLS-0$
@@ -7760,7 +8171,7 @@ define("orion/editor/textView", [ //$NON-NLS-0$
 			}
 			this._keyModes = [];
 			this._rulers = [];
-			this._selection = new Selection (0, 0, false);
+			this._selection = new Selection(0, 0, false);
 			this._linksVisible = false;
 			this._redrawCount = 0;
 			this._maxLineWidth = 0;
@@ -7803,14 +8214,41 @@ define("orion/editor/textView", [ //$NON-NLS-0$
 			this._createActions();
 			this._createView();
 		},
+		_checkOverlayScroll: function() {
+			if (util.isMac && util.isWebkit) {
+				if (!this._metrics.invalid && this._metrics.scrollWidth === 0) {
+					var viewDiv = this._viewDiv;
+					var overlay = this._isOverOverlayScroll();
+					if (overlay.vertical || overlay.horizontal) {
+						viewDiv.style.pointerEvents = ""; //$NON-NLS-0$
+					} else {
+						viewDiv.style.pointerEvents = "none"; //$NON-NLS-0$
+					}
+				}
+			}	
+		},
+		_isOverOverlayScroll: function() {
+			var scrollShowing = new Date().getTime() - this._lastScrollTime < 200;
+			if (!scrollShowing) {
+				return {};
+			}
+			var rect = this._viewDiv.getBoundingClientRect();
+			var x = this._lastMouseMoveX;
+			var y = this._lastMouseMoveY;
+			var overlayScrollWidth = 15;
+			return {
+				vertical: rect.top <= y && y < rect.bottom && rect.right - overlayScrollWidth <= x && x < rect.right,
+				horizontal: rect.bottom - overlayScrollWidth <= y && y < rect.bottom && rect.left <= x && x < rect.right
+			};
+		},
 		_modifyContent: function(e, updateCaret) {
 			if (this._readonly && !e._code) {
-				return;
+				return false;
 			}
 			e.type = "Verify"; //$NON-NLS-0$
 			this.onVerify(e);
 
-			if (e.text === null || e.text === undefined) { return; }
+			if (e.text === null || e.text === undefined) { return false; }
 			
 			var model = this._model;
 			try {
@@ -7819,13 +8257,19 @@ define("orion/editor/textView", [ //$NON-NLS-0$
 			} finally {
 				if (e._ignoreDOMSelection) { this._ignoreDOMSelection = false; }
 			}
-			
+
 			if (updateCaret) {
 				var selection = this._getSelection ();
 				selection.setCaret(e.start + e.text.length);
-				this._setSelection(selection, true);
+				try {
+					if (e._ignoreDOMSelection1) { this._ignoreDOMSelection = true; }
+					this._setSelection(selection, true);
+				} finally {
+					if (e._ignoreDOMSelection1) { this._ignoreDOMSelection = false; }
+				}
 			}
 			this.onModify({type: "Modify"}); //$NON-NLS-0$
+			return true;
 		},
 		_onModelChanged: function(modelChangedEvent) {
 			modelChangedEvent.type = "ModelChanged"; //$NON-NLS-0$
@@ -7930,7 +8374,7 @@ define("orion/editor/textView", [ //$NON-NLS-0$
 			this._topIndexY = 0;
 			this._variableLineHeight = false;
 			this._resetLineHeight();
-			this._setSelection(new Selection (0, 0, false), false, false);
+			this._setSelection(new Selection(0, 0, false), false, false);
 			if (this._viewDiv) {
 				this._viewDiv.scrollLeft = 0;
 				this._viewDiv.scrollTop = 0;
@@ -7947,14 +8391,8 @@ define("orion/editor/textView", [ //$NON-NLS-0$
 				* view is refreshed.  The fix is to toggle the contentEditable state and
 				* force the clientDiv to loose and receive focus if it is focused.
 				*/
-				if (util.isFirefox) {
-					this._ignoreFocus = false;
-					var hasFocus = this._hasFocus;
-					if (hasFocus) { clientDiv.blur(); }
-					clientDiv.contentEditable = false;
-					clientDiv.contentEditable = true;
-					if (hasFocus) { clientDiv.focus(); }
-					this._ignoreFocus = false;
+				if (util.isFirefox < 13) {
+					this._fixCaret ();
 				}
 			}
 		},
@@ -8019,7 +8457,11 @@ define("orion/editor/textView", [ //$NON-NLS-0$
 			if (clipboardData) {
 				clipboardText = [];
 				convertDelimiter(text, function(t) {clipboardText.push(t);}, function() {clipboardText.push(util.platformDelimiter);});
-				if (clipboardData.setData(util.isIE ? "Text" : "text/plain", clipboardText.join(""))) { //$NON-NLS-1$ //$NON-NLS-0$
+				/*
+				* Note that setData() succeeds on Firefox 22 and greater, but the return value is not a boolean like IE and Chrome.
+				*/
+				var success = clipboardData.setData(util.isIE ? "Text" : "text/plain", clipboardText.join("")); //$NON-NLS-1$ //$NON-NLS-0$
+				if (success || util.isFirefox > 21) {
 					return true;
 				}
 			}
@@ -8072,59 +8514,9 @@ define("orion/editor/textView", [ //$NON-NLS-0$
 			return true;
 		},
 		_setDOMSelection: function (startNode, startOffset, endNode, endOffset, startCaret) {
-			var startLineNode, startLineOffset, endLineNode, endLineOffset;
-			var offset = 0;
-			var lineChild = startNode.firstChild;
-			var node, nodeLength, model = this._model;
-			var startLineEnd = model.getLine(startNode.lineIndex).length;
-			while (lineChild) {
-				if (lineChild.ignore) {
-					lineChild = lineChild.nextSibling;
-					continue;
-				}
-				node = lineChild.firstChild;
-				nodeLength = node.length;
-				if (lineChild.ignoreChars) {
-					nodeLength -= lineChild.ignoreChars;
-				}
-				if (offset + nodeLength > startOffset || offset + nodeLength >= startLineEnd) {
-					startLineNode = node;
-					startLineOffset = startOffset - offset;
-					if (lineChild.ignoreChars && nodeLength > 0 && startLineOffset === nodeLength) {
-						startLineOffset += lineChild.ignoreChars; 
-					}
-					break;
-				}
-				offset += nodeLength;
-				lineChild = lineChild.nextSibling;
-			}
-			offset = 0;
-			lineChild = endNode.firstChild;
-			var endLineEnd = this._model.getLine(endNode.lineIndex).length;
-			while (lineChild) {
-				if (lineChild.ignore) {
-					lineChild = lineChild.nextSibling;
-					continue;
-				}
-				node = lineChild.firstChild;
-				nodeLength = node.length;
-				if (lineChild.ignoreChars) {
-					nodeLength -= lineChild.ignoreChars;
-				}
-				if (nodeLength + offset > endOffset || offset + nodeLength >= endLineEnd) {
-					endLineNode = node;
-					endLineOffset = endOffset - offset;
-					if (lineChild.ignoreChars && nodeLength > 0 && endLineOffset === nodeLength) {
-						endLineOffset += lineChild.ignoreChars; 
-					}
-					break;
-				}
-				offset += nodeLength;
-				lineChild = lineChild.nextSibling;
-			}
-			
-			this._setDOMFullSelection(startNode, startOffset, startLineEnd, endNode, endOffset, endLineEnd);
-
+			this._setDOMFullSelection(startNode, startOffset, endNode, endOffset);
+			var start = startNode._line.getNodeOffset(startOffset);
+			var end = endNode._line.getNodeOffset(endOffset);
 			var range;
 			var window = this._getWindow();
 			var document = this._parent.ownerDocument;
@@ -8132,18 +8524,18 @@ define("orion/editor/textView", [ //$NON-NLS-0$
 				//W3C
 				var sel = window.getSelection();
 				range = document.createRange();
-				range.setStart(startLineNode, startLineOffset);
-				range.setEnd(endLineNode, endLineOffset);
+				range.setStart(start.node, start.offset);
+				range.setEnd(end.node, end.offset);
 				if (this._hasFocus && (
-					sel.anchorNode !== startLineNode || sel.anchorOffset !== startLineOffset ||
-					sel.focusNode !== endLineNode || sel.focusOffset !== endLineOffset ||
-					sel.anchorNode !== endLineNode || sel.anchorOffset !== endLineOffset ||
-					sel.focusNode !== startLineNode || sel.focusOffset !== startLineOffset))
+					sel.anchorNode !== start.node || sel.anchorOffset !== start.offset ||
+					sel.focusNode !== end.node || sel.focusOffset !== end.offset ||
+					sel.anchorNode !== end.node || sel.anchorOffset !== end.offset ||
+					sel.focusNode !== start.node || sel.focusOffset !== start.offset))
 				{
-					this._anchorNode = startLineNode;
-					this._anchorOffset = startLineOffset;
-					this._focusNode = endLineNode;
-					this._focusOffset = endLineOffset;
+					this._anchorNode = start.node;
+					this._anchorOffset = start.offset;
+					this._focusNode = end.node;
+					this._focusOffset = end.offset;
 					this._ignoreSelect = false;
 					if (sel.rangeCount > 0) { sel.removeAllRanges(); }
 					sel.addRange(range);
@@ -8152,11 +8544,11 @@ define("orion/editor/textView", [ //$NON-NLS-0$
 				if (this._cursorDiv) {
 					range = document.createRange();
 					if (startCaret) {
-						range.setStart(startLineNode, startLineOffset);
-						range.setEnd(startLineNode, startLineOffset);
+						range.setStart(start.node, start.offset);
+						range.setEnd(start.node, start.offset);
 					} else {
-						range.setStart(endLineNode, endLineOffset);
-						range.setEnd(endLineNode, endLineOffset);
+						range.setStart(end.node, end.offset);
+						range.setEnd(end.node, end.offset);
 					}
 					var rect = range.getClientRects()[0];
 					var cursorParent = this._cursorDiv.parentNode;
@@ -8181,18 +8573,18 @@ define("orion/editor/textView", [ //$NON-NLS-0$
 				body.removeChild(child);
 				
 				range = body.createTextRange();
-				range.moveToElementText(startLineNode.parentNode);
-				range.moveStart("character", startLineOffset); //$NON-NLS-0$
+				range.moveToElementText(start.node.parentNode);
+				range.moveStart("character", start.offset); //$NON-NLS-0$
 				var endRange = body.createTextRange();
-				endRange.moveToElementText(endLineNode.parentNode);
-				endRange.moveStart("character", endLineOffset); //$NON-NLS-0$
+				endRange.moveToElementText(end.node.parentNode);
+				endRange.moveStart("character", end.offset); //$NON-NLS-0$
 				range.setEndPoint("EndToStart", endRange); //$NON-NLS-0$
 				this._ignoreSelect = false;
 				range.select();
 				this._ignoreSelect = true;
 			}
 		},
-		_setDOMFullSelection: function(startNode, startOffset, startLineEnd, endNode, endOffset, endLineEnd) {
+		_setDOMFullSelection: function(startNode, startOffset, endNode, endOffset) {
 			if (!this._selDiv1) { return; }
 			var selDiv = this._selDiv1;
 			selDiv.style.width = "0px"; //$NON-NLS-0$
@@ -8204,7 +8596,6 @@ define("orion/editor/textView", [ //$NON-NLS-0$
 			selDiv.style.width = "0px"; //$NON-NLS-0$
 			selDiv.style.height = "0px"; //$NON-NLS-0$
 			if (startNode === endNode && startOffset === endOffset) { return; }
-			var model = this._model;
 			var viewPad = this._getViewPadding();
 			var clientRect = this._clientDiv.getBoundingClientRect();
 			var viewRect = this._viewDiv.getBoundingClientRect();
@@ -8224,10 +8615,10 @@ define("orion/editor/textView", [ //$NON-NLS-0$
 			}
 			this._ignoreDOMSelection = true;
 			var startLine = new TextLine(this, startNode.lineIndex, startNode);
-			var startRect = startLine.getBoundingClientRect(model.getLineStart(startNode.lineIndex) + startOffset, false);
+			var startRect = startLine.getBoundingClientRect(startOffset, false);
 			var l = startRect.left;
 			var endLine = new TextLine(this, endNode.lineIndex, endNode);
-			var endRect = endLine.getBoundingClientRect(model.getLineStart(endNode.lineIndex) + endOffset, false);
+			var endRect = endLine.getBoundingClientRect(endOffset, false);
 			var r = endRect.left;
 			this._ignoreDOMSelection = false;
 			var sel1Div = this._selDiv1;
@@ -8293,21 +8684,7 @@ define("orion/editor/textView", [ //$NON-NLS-0$
 			}
 			var line = this._getLineNext();
 			while (line) {
-				if (line.hasLink) {
-					var lineChild = line.firstChild;
-					while (lineChild) {
-						if (lineChild.ignore) {
-							lineChild = lineChild.nextSibling;
-							continue;
-						}
-						var next = lineChild.nextSibling;
-						var style = lineChild.viewStyle;
-						if (style && style.tagName && style.tagName.toLowerCase() === "a") { //$NON-NLS-0$
-							line.replaceChild(line._line._createSpan(line, lineChild.firstChild.data, style), lineChild);
-						}
-						lineChild = next;
-					}
-				}
+				line._line.updateLinks();
 				line = this._getLineNext(line);
 			}
 			this._updateDOMSelection();
@@ -8507,7 +8884,8 @@ define("orion/editor/textView", [ //$NON-NLS-0$
 		_updateBlockCursorVisible: function () {
 			if (this._blockCursorVisible || this._overwriteMode) {
 				if (!this._cursorDiv) {
-					var cursorDiv = util.createElement(document, "div"); //$NON-NLS-0$
+					var viewDiv = this._viewDiv;
+					var cursorDiv = util.createElement(viewDiv.ownerDocument, "div"); //$NON-NLS-0$
 					cursorDiv.className = "textviewBlockCursor"; //$NON-NLS-0$
 					this._cursorDiv = cursorDiv;
 					cursorDiv.tabIndex = -1;
@@ -8516,7 +8894,7 @@ define("orion/editor/textView", [ //$NON-NLS-0$
 					cursorDiv.style.position = "absolute"; //$NON-NLS-0$
 					cursorDiv.style.pointerEvents = "none"; //$NON-NLS-0$
 					cursorDiv.innerHTML = "&nbsp;"; //$NON-NLS-0$
-					this._viewDiv.appendChild(cursorDiv);
+					viewDiv.appendChild(cursorDiv);
 					this._updateDOMSelection();
 				}
 			} else {
@@ -8604,14 +8982,17 @@ define("orion/editor/textView", [ //$NON-NLS-0$
 			}
 			this._resetLineHeight();
 		},
-		_showCaret: function (allSelection, callback, scrollAlign, pageScroll) {
+		_showCaret: function (allSelection, callback, showOptions, pageScroll) {
 			if (!this._clientDiv) { return; }
+			if (this._redrawCount > 0) { return; }
+			if (this._ignoreDOMSelection) { return; }
 			var model = this._model;
 			var selection = this._getSelection();
 			var scroll = this._getScroll();
 			var caret = selection.getCaret();
 			var start = selection.start;
 			var end = selection.end;
+			var startLine = model.getLineAtOffset(start);
 			var endLine = model.getLineAtOffset(end);
 			var endInclusive = Math.max(Math.max(start, model.getLineStart(endLine)), end - 1);
 			var clientWidth = this._getClientWidth();
@@ -8622,19 +9003,24 @@ define("orion/editor/textView", [ //$NON-NLS-0$
 			var right = bounds.right;
 			var top = bounds.top;
 			var bottom = bounds.bottom;
-			if (allSelection && !selection.isEmpty()) {
+			var selectionHeight = 0;
+			var hasShowOptions = typeof showOptions === "object"; //$NON-NLS-0$
+			if ((allSelection || hasShowOptions) && !selection.isEmpty()) {
 				bounds = this._getBoundsAtOffset(caret === end ? start : endInclusive);
-				if (bounds.top === top) {
-					if (caret === start) {
-						right = left + Math.min(bounds.right - left, clientWidth);
+				selectionHeight = (bounds.bottom > bottom ? bounds.bottom : bottom) - (bounds.top < top ? bounds.top : top);
+				if (allSelection) {
+					if (bounds.top === top) {
+						if (caret === start) {
+							right = left + Math.min(bounds.right - left, clientWidth);
+						} else {
+							left = right - Math.min(right - bounds.left, clientWidth);
+						}
 					} else {
-						left = right - Math.min(right - bounds.left, clientWidth);
-					}
-				} else {
-					if (caret === start) {
-						bottom = top + Math.min(bounds.bottom - top, clientHeight);
-					} else {
-						top = bottom - Math.min(bottom - bounds.top, clientHeight);
+						if (caret === start) {
+							bottom = top + Math.min(bounds.bottom - top, clientHeight);
+						} else {
+							top = bottom - Math.min(bottom - bounds.top, clientHeight);
+						}
 					}
 				}
 			}
@@ -8662,11 +9048,41 @@ define("orion/editor/textView", [ //$NON-NLS-0$
 					}
 				}
 			}
-			if (pixelX !== 0 || pixelY !== 0) {
-				if (pixelY !== 0 && typeof scrollAlign === "number") { //$NON-NLS-0$
-					if (scrollAlign < 0) { scrollAlign = 0; }
-					if (scrollAlign > 1) { scrollAlign = 1; }
-					pixelY += Math.floor(pixelY > 0 ? scrollAlign * clientHeight : -scrollAlign * clientHeight);
+			var alwaysScroll = hasShowOptions && showOptions.scrollPolicy === "always"; //$NON-NLS-0$
+			if (pixelX !== 0 || pixelY !== 0 || alwaysScroll) {
+				if (hasShowOptions) {
+					var flag = pixelY > 0;
+					if (pixelY === 0) {
+						pixelY = top - scroll.y;
+					}
+					var viewAnchor = showOptions.viewAnchor;
+					var selectionAnchor = showOptions.selectionAnchor;
+					var viewAnchorOffset = Math.min(Math.max(0, showOptions.viewAnchorOffset || 0));
+//					var selectionAnchorOffset = Math.min(Math.max(0, showOptions.selectionAnchorOffset || 0));
+					if (viewAnchor === "top") { //$NON-NLS-0$
+						pixelY += Math.floor(flag ? (1 - viewAnchorOffset) * clientHeight : -viewAnchorOffset * clientHeight);
+					} else if (viewAnchor === "bottom") { //$NON-NLS-0$
+						pixelY += Math.floor(flag ? viewAnchorOffset * clientHeight : -(1 - viewAnchorOffset) * clientHeight);
+					} else if (viewAnchor === "center") { //$NON-NLS-0$
+						pixelY += Math.floor(flag ? clientHeight / 2 + viewAnchorOffset * clientHeight : clientHeight / 2  - (1 - viewAnchorOffset) * clientHeight);
+					} else { // caret is the default
+						pixelY += Math.floor(flag ? viewAnchorOffset * clientHeight : -viewAnchorOffset * clientHeight);
+					}
+					if (startLine !== endLine) {
+						if (selectionAnchor === "top" && caret !== start) { //$NON-NLS-0$
+							pixelY += Math.floor(-selectionHeight);
+						} else if (selectionAnchor === "bottom" && caret !== end) { //$NON-NLS-0$
+							pixelY += Math.floor(selectionHeight);
+						} else if (selectionAnchor === "center") { //$NON-NLS-0$
+							pixelY += Math.floor(selectionHeight / 2);
+						} else {
+							// caret is the default
+						}
+					}
+				} else if (pixelY !== 0 && typeof showOptions === "number") { //$NON-NLS-0$
+					if (showOptions < 0) { showOptions = 0; }
+					if (showOptions > 1) { showOptions = 1; }
+					pixelY += Math.floor(pixelY > 0 ? showOptions * clientHeight : -showOptions * clientHeight);
 				}
 				this._scrollViewAnimated(pixelX, pixelY, callback);
 				/*
@@ -8730,24 +9146,24 @@ define("orion/editor/textView", [ //$NON-NLS-0$
 			var topNode, bottomNode, topOffset, bottomOffset;
 			if (startLine < firstNode.lineIndex) {
 				topNode = firstNode;
-				topOffset = 0;
+				topOffset = model.getLineStart(firstNode.lineIndex);
 			} else if (startLine > lastNode.lineIndex) {
 				topNode = lastNode;
-				topOffset = 0;
+				topOffset = model.getLineStart(lastNode.lineIndex);
 			} else {
 				topNode = this._getLineNode(startLine);
-				topOffset = selection.start - model.getLineStart(startLine);
+				topOffset = selection.start;
 			}
 
 			if (endLine < firstNode.lineIndex) {
 				bottomNode = firstNode;
-				bottomOffset = 0;
+				bottomOffset = model.getLineStart(firstNode.lineIndex);
 			} else if (endLine > lastNode.lineIndex) {
 				bottomNode = lastNode;
-				bottomOffset = 0;
+				bottomOffset = model.getLineStart(lastNode.lineIndex);
 			} else {
 				bottomNode = this._getLineNode(endLine);
-				bottomOffset = selection.end - model.getLineStart(endLine);
+				bottomOffset = selection.end;
 			}
 			this._setDOMSelection(topNode, topOffset, bottomNode, bottomOffset, selection.caret);
 		},
@@ -9280,6 +9696,7 @@ define("orion/editor/textView", [ //$NON-NLS-0$
 				styleText += "\n.textview ::-moz-selection {background: " + this._highlightRGB + ";}"; //$NON-NLS-1$ //$NON-NLS-0$
 			}
 			if (styleText) {
+				var document = this._clientDiv.ownerDocument;
 				var node = document.getElementById("_textviewStyle"); //$NON-NLS-0$
 				if (!node) {
 					node = util.createElement(document, "style"); //$NON-NLS-0$
@@ -9298,12 +9715,26 @@ define("orion/editor/textView", [ //$NON-NLS-0$
 				this._rootDiv.style.lineHeight = "normal"; //$NON-NLS-0$
 			}
 			var metrics = this._metrics = this._calculateMetrics();
+			if (this._variableLineHeight) {
+				this._variableLineHeight = false;
+				this._resetLineHeight();
+			}
 			if (util.isIE) {
 				this._rootDiv.style.lineHeight = (metrics.lineHeight - (metrics.lineTrim.top + metrics.lineTrim.bottom)) + "px"; //$NON-NLS-0$
 			} else {
 				this._rootDiv.style.lineHeight = "normal"; //$NON-NLS-0$
 			}
 			this._updateStyleSheet();
+			if (util.isMac && util.isWebkit) {
+				var viewDiv = this._viewDiv;
+				if (!metrics.invalid && metrics.scrollWidth === 0) {
+					viewDiv.style.pointerEvents = "none"; //$NON-NLS-0$
+					viewDiv.style.zIndex = "2"; //$NON-NLS-0$
+				} else {
+					viewDiv.style.pointerEvents = ""; //$NON-NLS-0$
+					viewDiv.style.zIndex = ""; //$NON-NLS-0$
+				}
+			}
 			if (!init) {
 				this.redraw();
 				this._resetLineWidth();
@@ -9372,11 +9803,32 @@ define("orion/editor/projectionTextModel", ['orion/editor/textModel', 'orion/edi
 	 * @borrows orion.editor.EventTarget#dispatchEvent as #dispatchEvent
 	 */
 	function ProjectionTextModel(baseModel) {
-		this._model = baseModel;	/* Base Model */
+		this._model = baseModel;
 		this._projections = [];
+		var self = this;
+		this._listener = {
+			onChanged: function(e) {
+				self._onChanged(e);
+			},
+			onChanging: function(e) {
+				self._onChanging(e);
+			}
+		};
+		baseModel.addEventListener("postChanged", this._listener.onChanged); //$NON-NLS-0$
+		baseModel.addEventListener("preChanging", this._listener.onChanging); //$NON-NLS-0$
 	}
 
 	ProjectionTextModel.prototype = /** @lends orion.editor.ProjectionTextModel.prototype */ {
+		/**
+		 * Destroys this projection text model.
+		 */
+		destroy: function() {
+			if (this._model) {
+				this._model.removeEventListener("postChanged", this._listener.onChanged); //$NON-NLS-0$
+				this._model.removeEventListener("preChanging", this._listener.onChanging); //$NON-NLS-0$
+				this._model = null;
+			}
+		},
 		/**
 		 * Adds a projection range to the model.
 		 * <p>
@@ -9487,7 +9939,6 @@ define("orion/editor/projectionTextModel", ['orion/editor/textModel', 'orion/edi
 		 * @see orion.editor.ProjectionTextModel#addProjection
 		 */
 		removeProjection: function(projection) {
-			//TODO remove listeners from model
 			var i, delta = 0;
 			for (i = 0; i < this._projections.length; i++) {
 				var p = this._projections[i];
@@ -9720,33 +10171,92 @@ define("orion/editor/projectionTextModel", ['orion/editor/textModel', 'orion/edi
 			return result.join("");
 		},
 		/** @ignore */
-		_onChanging: function(text, start, removedCharCount, addedCharCount, removedLineCount, addedLineCount) {
-			var model = this._model, projections = this._projections, i, projection, delta = 0, lineDelta;
-			var end = start + removedCharCount;
-			for (; i < projections.length; i++) {
+		_onChanged: function(modelChangedEvent) {
+			var change = this._change;
+			var start = change.baseStart, end = change.baseEnd, i;
+			var projection, projections = this._projections;
+			for (i = 0; i < projections.length; i++) {
 				projection = projections[i];
-				if (projection.start > start) { break; }
-				delta += projection._model.getCharCount() - (projection.end - projection.start);
+				if (projection.end > start) { break; }
 			}
-			/*TODO add stuff saved by setText*/
-			var mapStart = start + delta, rangeStart = i;
-			for (; i < projections.length; i++) {
+			var rangeStart = i;
+			for (i = 0; i < projections.length; i++) {
 				projection = projections[i];
-				if (projection.start > end) { break; }
-				delta += projection._model.getCharCount() - (projection.end - projection.start);
-				lineDelta += projection._model.getLineCount() - 1 - projection._lineCount;
+				if (projection.start >= end) { break; }
 			}
-			/*TODO add stuff saved by setText*/
-			var mapEnd = end + delta, rangeEnd = i;
-			this.onChanging(mapStart, mapEnd - mapStart, addedCharCount/*TODO add stuff saved by setText*/, removedLineCount + lineDelta/*TODO add stuff saved by setText*/, addedLineCount/*TODO add stuff saved by setText*/);
-			projections.splice(projections, rangeEnd - rangeStart);
-			var count = text.length - (mapEnd - mapStart);
-			for (; i < projections.length; i++) {
+			var rangeEnd = i;
+			var model = this._model;
+			var changeCount = change.baseText.length - (end - start);
+			for (i = rangeEnd; i < projections.length; i++) {
 				projection = projections[i];
-				projection.start += count;
-				projection.end += count;
+				projection.start += changeCount;
+				projection.end += changeCount;
 				projection._lineIndex = model.getLineAtOffset(projection.start);
 			}
+			var removed = projections.splice(rangeStart, rangeEnd - rangeStart);
+			for (i = 0; i < removed.length; i++) {
+				if (removed[i].annotation) {
+					removed[i].annotation._expand();
+				}
+			}
+			var modelChangedEvent1 = {
+				type: "Changed", //$NON-NLS-0$
+				start: change.start,
+				removedCharCount: change.removedCharCount,
+				addedCharCount: change.addedCharCount,
+				removedLineCount: change.removedLineCount,
+				addedLineCount: change.addedLineCount
+			};
+			this.onChanged(modelChangedEvent1);
+			this._change = undefined;
+		},
+		_onChanging: function(modelChangingEvent) {
+			var hasChange = !!this._change;
+			var change = this._change || {};
+			var start = modelChangingEvent.start, end = start + modelChangingEvent.removedCharCount;
+			change.baseStart = start;
+			change.baseEnd = end;
+			change.baseText = modelChangingEvent.text;
+			change.addedLineCount = modelChangingEvent.addedLineCount;
+			if (!hasChange) {
+				this._change = change;
+				change.text = modelChangingEvent.text;
+				var projections = this._projections, delta, i, projection;
+				function mapOffset(offset) {
+					for (i = 0, delta = 0; i < projections.length; i++) {
+						projection = projections[i];
+						if (projection.start > offset) { break; }
+						if (projection.end > offset) { return -1; }
+						delta += projection._model.getCharCount() - (projection.end - projection.start);
+					}
+					return offset + delta;
+				}
+				change.start = mapOffset(start);
+				if (change.start === -1) {
+					change.text = this._model.getText(projection.start, start) + change.text;
+					change.addedLineCount += this._model.getLineAtOffset(start) - this._model.getLineAtOffset(projection.start);
+					change.start = projection.start + delta;
+				}
+				change.end = mapOffset(end);
+				if (change.end === -1) {
+					change.text += this._model.getText(end, projection.end);
+					change.addedLineCount += this._model.getLineAtOffset(projection.end) - this._model.getLineAtOffset(end);
+					change.end = projection.start + delta;
+				}
+			}
+			change.addedCharCount = change.text.length;
+			change.removedCharCount = change.end - change.start;
+			change.removedLineCount = this.getLineAtOffset(change.end) - this.getLineAtOffset(change.start);
+			var modelChangingEvent1 = {
+				type: "Changing", //$NON-NLS-0$
+				text: change.text,
+				start: change.start,
+				removedCharCount: change.removedCharCount,
+				addedCharCount: change.addedCharCount,
+				removedLineCount: change.removedLineCount,
+				addedLineCount: change.addedLineCount
+			};
+			this.onChanging(modelChangingEvent1);
 		},
 		/**
 		 * @see orion.editor.TextModel#onChanging
@@ -9770,130 +10280,58 @@ define("orion/editor/projectionTextModel", ['orion/editor/textModel', 'orion/edi
 		 * @see orion.editor.TextModel#setText
 		 */
 		setText: function(text, start, end) {
-			if (text === undefined) { text = ""; }
-			if (start === undefined) { start = 0; }
-			var eventStart = start, eventEnd = end;
-			var model = this._model, projections = this._projections;
-			var delta = 0, lineDelta = 0, i, projection, charCount, startProjection, endProjection, startLineDelta = 0;
-			for (i = 0; i < projections.length; i++) {
-				projection = projections[i];
-				if (projection.start > start - delta) { break; }
-				charCount = projection._model.getCharCount();
-				if (projection.start + charCount > start - delta) {
-					if (end !== undefined && projection.start + charCount > end - delta) {
-						projection._model.setText(text, start - (projection.start + delta), end - (projection.start + delta));
-						//TODO events - special case
-						return;
-					} else {
-						startLineDelta = projection._model.getLineCount() - 1 - projection._model.getLineAtOffset(start - (projection.start + delta));
-						startProjection = {
-							projection: projection,
-							start: start - (projection.start + delta)
-						};
-						start = projection.end + delta + charCount - (projection.end - projection.start);
-					}
-				}
-				lineDelta += projection._model.getLineCount() - 1 - projection._lineCount;
-				delta += charCount - (projection.end - projection.start);
-			}
-			var mapStart = start - delta, rangeStart = i, startLine = model.getLineAtOffset(mapStart) + lineDelta - startLineDelta;
-			if (end !== undefined) {
-				for (; i < projections.length; i++) {
+			this._change = {
+				text: text || "",
+				start: start || 0,
+				end: end === undefined ? this.getCharCount() : end
+			};
+			var projections = this._projections, delta, i, projection;
+			function mapOffset(offset) {
+				for (i = 0, delta = 0; i < projections.length; i++) {
 					projection = projections[i];
-					if (projection.start > end - delta) { break; }
-					charCount = projection._model.getCharCount();
-					if (projection.start + charCount > end - delta) {
-						lineDelta += projection._model.getLineAtOffset(end - (projection.start + delta));
-						charCount = end - (projection.start + delta);
-						end = projection.end + delta;
-						endProjection = {
-							projection: projection,
-							end: charCount
-						};
-						break;
+					if (projection.start > offset - delta) { break; }
+					var charCount = projection._model.getCharCount();
+					if (projection.start + charCount > offset - delta) {
+						return -1;
 					}
-					lineDelta += projection._model.getLineCount() - 1 - projection._lineCount;
 					delta += charCount - (projection.end - projection.start);
 				}
+				return offset - delta;
+			}
+			var startProjection, endProjection;
+			var mapStart = mapOffset(this._change.start);
+			if (mapStart === -1) {
+				startProjection = {
+					projection: projection,
+					start: this._change.start - (projection.start + delta)
+				};
+				mapStart = projection.end;
+			}
+			var mapEnd = mapOffset(this._change.end);
+			if (mapEnd === -1) {
+				endProjection = {
+					projection: projection,
+					end: this._change.end - (projection.start + delta)
+				};
+				mapEnd = projection.start;
+			}
+			if (startProjection && endProjection && startProjection.projection === endProjection.projection) {
+				//TODO events - special case - change is completely inside of a projection
+				projection._model.setText(this._change.text, startProjection.start, endProjection.end);
 			} else {
-				for (; i < projections.length; i++) {
-					projection = projections[i];
-					lineDelta += projection._model.getLineCount() - 1 - projection._lineCount;
-					delta += projection._model.getCharCount() - (projection.end - projection.start);
+				this._model.setText(this._change.text, mapStart, mapEnd);
+				if (startProjection) {
+					projection = startProjection.projection;
+					projection._model.setText("", startProjection.start);
+				}		
+				if (endProjection) {
+					projection = endProjection.projection;
+					projection._model.setText("", 0, endProjection.end);
+					projection.start = projection.end;
+					projection._lineCount = 0;
 				}
-				end = eventEnd = model.getCharCount() + delta;
 			}
-			var mapEnd = end - delta, rangeEnd = i, endLine = model.getLineAtOffset(mapEnd) + lineDelta;
-			
-			//events
-			var removedCharCount = eventEnd - eventStart;
-			var removedLineCount = endLine - startLine;
-			var addedCharCount = text.length;
-			var addedLineCount = 0;
-			var cr = 0, lf = 0, index = 0;
-			while (true) {
-				if (cr !== -1 && cr <= index) { cr = text.indexOf("\r", index); } //$NON-NLS-0$
-				if (lf !== -1 && lf <= index) { lf = text.indexOf("\n", index); } //$NON-NLS-0$
-				if (lf === -1 && cr === -1) { break; }
-				if (cr !== -1 && lf !== -1) {
-					if (cr + 1 === lf) {
-						index = lf + 1;
-					} else {
-						index = (cr < lf ? cr : lf) + 1;
-					}
-				} else if (cr !== -1) {
-					index = cr + 1;
-				} else {
-					index = lf + 1;
-				}
-				addedLineCount++;
-			}
-			
-			var modelChangingEvent = {
-				type: "Changing", //$NON-NLS-0$
-				text: text,
-				start: eventStart,
-				removedCharCount: removedCharCount,
-				addedCharCount: addedCharCount,
-				removedLineCount: removedLineCount,
-				addedLineCount: addedLineCount
-			};
-			this.onChanging(modelChangingEvent);
-			
-//			var changeLineCount = model.getLineAtOffset(mapEnd) - model.getLineAtOffset(mapStart) + addedLineCount;
-			model.setText(text, mapStart, mapEnd);
-			if (startProjection) {
-				projection = startProjection.projection;
-				projection._model.setText("", startProjection.start);
-			}		
-			if (endProjection) {
-				projection = endProjection.projection;
-				projection._model.setText("", 0, endProjection.end);
-				projection.start = projection.end;
-				projection._lineCount = 0;
-			}
-			projections.splice(rangeStart, rangeEnd - rangeStart);
-			var changeCount = text.length - (mapEnd - mapStart);
-			for (i = rangeEnd; i < projections.length; i++) {
-				projection = projections[i];
-				projection.start += changeCount;
-				projection.end += changeCount;
-//				if (projection._lineIndex + changeLineCount !== model.getLineAtOffset(projection.start)) {
-//					log("here");
-//				}
-				projection._lineIndex = model.getLineAtOffset(projection.start);
-//				projection._lineIndex += changeLineCount;
-			}
-			
-			var modelChangedEvent = {
-				type: "Changed", //$NON-NLS-0$
-				start: eventStart,
-				removedCharCount: removedCharCount,
-				addedCharCount: addedCharCount,
-				removedLineCount: removedLineCount,
-				addedLineCount: addedLineCount
-			};
-			this.onChanged(modelChangedEvent);
+			this._change = undefined;
 		}
 	};
 	mEventTarget.EventTarget.addMixin(ProjectionTextModel.prototype);
@@ -9917,6 +10355,14 @@ define("orion/editor/projectionTextModel", ['orion/editor/textModel', 'orion/edi
 /*global define */
 
 define("orion/editor/annotations", ['i18n!orion/editor/nls/messages', 'orion/editor/eventTarget'], function(messages, mEventTarget) { //$NON-NLS-2$ //$NON-NLS-1$ //$NON-NLS-0$
+	
+	/**
+	 * @class This object represents a regitry of annotation types.
+	 * @name orion.editor.AnnotationType
+	 */
+	function AnnotationType() {
+	}
+	
 	/**
 	 * @class This object represents a decoration attached to a range of text. Annotations are added to a
 	 * <code>AnnotationModel</code> which is attached to a <code>TextModel</code>.
@@ -9961,41 +10407,85 @@ define("orion/editor/annotations", ['i18n!orion/editor/nls/messages', 'orion/edi
 		_expandedStyle: {styleClass: "annotation expanded"}, //$NON-NLS-0$
 		_collapsedHTML: "<div class='annotationHTML collapsed'></div>", //$NON-NLS-0$
 		_collapsedStyle: {styleClass: "annotation collapsed"}, //$NON-NLS-0$
+		_collapse: function() {
+			if (!this.expanded) { return false; }
+			this.expanded = false;
+			this.html = this._collapsedHTML;
+			this.style = this._collapsedStyle;
+			if (this._annotationModel) {
+				this._annotationModel.modifyAnnotation(this);
+			}
+			return true;
+		},
+		_expand: function() {
+			if (this.expanded) { return false; }
+			this.expanded = true;
+			this.html = this._expandedHTML;
+			this.style = this._expandedStyle;
+			if (this._annotationModel) {
+				this._annotationModel.modifyAnnotation(this);
+			}
+			return true;
+		},
+		_collapseImpl: function (checkOverlaping) {
+			if (this._collapse()) {
+				if (checkOverlaping) {
+					this._forEachOverlaping(function(annotation) {
+						if (!annotation.expanded) {
+							annotation._expandImpl(false);
+							annotation._recollapse = true;
+						}
+					});
+				}
+				var projectionModel = this._projectionModel;
+				var baseModel = projectionModel.getBaseModel();
+				this._projection = {
+					annotation: this,
+					start: baseModel.getLineStart(baseModel.getLineAtOffset(this.start) + 1),
+					end: baseModel.getLineEnd(baseModel.getLineAtOffset(this.end), true)
+				};
+				projectionModel.addProjection(this._projection);
+			}
+		},
+		_expandImpl: function(checkOverlaping) {
+			if (this._expand()) {
+				this._projectionModel.removeProjection(this._projection);
+				if (checkOverlaping) {
+					this._forEachOverlaping(function(annotation) {
+						if (annotation._recollapse) {
+							annotation._collapseImpl(false);
+							annotation._recollapse = false;
+						}
+					});
+				}
+			}
+		},
+		_forEachOverlaping: function(callback) {
+			if (!this._annotationModel) { return; }
+			var annotations = this._annotationModel.getAnnotations(this.start, this.end);
+			while (annotations.hasNext()) {
+				var annotation = annotations.next();
+				if (annotation !== this && annotation.type === AnnotationType.ANNOTATION_FOLDING) {
+					callback.call(this, annotation);
+				}
+			}
+		},
 		/**
 		 * Collapses the annotation.
 		 */
 		collapse: function () {
-			if (!this.expanded) { return; }
-			this.expanded = false;
-			this.html = this._collapsedHTML;
-			this.style = this._collapsedStyle;
-			var projectionModel = this._projectionModel;
-			var baseModel = projectionModel.getBaseModel();
-			this._projection = {
-				start: baseModel.getLineStart(baseModel.getLineAtOffset(this.start) + 1),
-				end: baseModel.getLineEnd(baseModel.getLineAtOffset(this.end), true)
-			};
-			projectionModel.addProjection(this._projection);
+			this._recollapse = false;
+			this._collapseImpl(true);
 		},
 		/**
 		 * Expands the annotation.
 		 */
 		expand: function () {
-			if (this.expanded) { return; }
-			this.expanded = true;
-			this.html = this._expandedHTML;
-			this.style = this._expandedStyle;
-			this._projectionModel.removeProjection(this._projection);
+			this._recollapse = false;
+			this._expandImpl(true);
 		}
 	};
 	 
-	/**
-	 * @class This object represents a regitry of annotation types.
-	 * @name orion.editor.AnnotationType
-	 */
-	function AnnotationType() {
-	}
-	
 	/**
 	 * Error annotation type.
 	 */
@@ -10191,15 +10681,26 @@ define("orion/editor/annotations", ['i18n!orion/editor/nls/messages', 'orion/edi
 		 * Only annotations of the specified types will be shown by
 		 * the receiver.
 		 * </p>
+		 * <p>
+		 * If the priority is not specified, the annotation type will be added
+		 * to the end of the receiver's list (lowest pririoty).
+		 * </p>
 		 *
 		 * @param {Object} type the annotation type to be shown
+		 * @param {Number} priority the priority for the annotation type
 		 * 
 		 * @see orion.editor.AnnotationTypeList#removeAnnotationType
 		 * @see orion.editor.AnnotationTypeList#isAnnotationTypeVisible
+		 * @see orion.editor.AnnotationTypeList#getAnnotationTypePriority
 		 */
-		addAnnotationType: function(type) {
+		addAnnotationType: function(type, priority) {
 			if (!this._annotationTypes) { this._annotationTypes = []; }
-			this._annotationTypes.push(type);
+			var index = priority - 1;
+			if (priority == undefined || !(0 <= index && index < this._annotationTypes.length)) {
+				this._annotationTypes.push(type);
+			} else {
+				this._annotationTypes.splice(index, 0, type);
+			}
 		},
 		/**
 		 * Gets the annotation type priority.  The priority is determined by the
@@ -10279,6 +10780,25 @@ define("orion/editor/annotations", ['i18n!orion/editor/nls/messages', 'orion/edi
 		}
 	};
 	
+	/** @private */
+	function binarySearch(array, offset, inclusive, low, high) {
+		var index;
+		if (low === undefined) { low = -1; }
+		if (high === undefined) { high = array.length; }
+		while (high - low > 1) {
+			index = Math.floor((high + low) / 2);
+			if (offset <= array[index].start) {
+				high = index;
+			} else if (inclusive && offset < array[index].end) {
+				high = index;
+				break;
+			} else {
+				low = index;
+			}
+		}
+		return high;
+	}
+	
 	/**
 	 * Constructs an annotation model.
 	 * 
@@ -10318,8 +10838,9 @@ define("orion/editor/annotations", ['i18n!orion/editor/nls/messages', 'orion/edi
 		addAnnotation: function(annotation) {
 			if (!annotation) { return; }
 			var annotations = this._annotations;
-			var index = this._binarySearch(annotations, annotation.start);
+			var index = binarySearch(annotations, annotation.start);
 			annotations.splice(index, 0, annotation);
+			annotation._annotationModel = this;
 			var e = {
 				type: "Changed", //$NON-NLS-0$
 				added: [annotation],
@@ -10350,7 +10871,8 @@ define("orion/editor/annotations", ['i18n!orion/editor/nls/messages', 'orion/edi
 		 * @property {Function} next Returns the next annotation in the iterator.
 		 */		
 		/**
-		 * Returns an iterator of annotations for the given range of text.
+		 * Returns an iterator of annotations for the given range of text. If called with no parameters,
+		 * returns all annotations in the model.
 		 *
 		 * @param {Number} start the start offset of the range.
 		 * @param {Number} end the end offset of the range.
@@ -10358,20 +10880,26 @@ define("orion/editor/annotations", ['i18n!orion/editor/nls/messages', 'orion/edi
 		 */
 		getAnnotations: function(start, end) {
 			var annotations = this._annotations, current;
-			//TODO binary search does not work for range intersection when there are overlaping ranges, need interval search tree for this
-			var i = 0;
-			var skip = function() {
-				while (i < annotations.length) {
-					var a =  annotations[i++];
-					if ((start === a.start) || (start > a.start ? start < a.end : a.start < end)) {
-						return a;
+			var i = 0, skip;
+			if (start === undefined && end === undefined) {
+				skip = function() {
+					return (i < annotations.length) ? annotations[i++] : null;
+				};
+			} else {
+				//TODO binary search does not work for range intersection when there are overlaping ranges, need interval search tree for this
+				skip = function() {
+					while (i < annotations.length) {
+						var a =  annotations[i++];
+						if ((start === a.start) || (start > a.start ? start < a.end : a.start < end)) {
+							return a;
+						}
+						if (a.start >= end) {
+							break;
+						}
 					}
-					if (a.start >= end) {
-						break;
-					}
-				}
-				return null;
-			};
+					return null;
+				};
+			}
 			current = skip();
 			return {
 				next: function() {
@@ -10434,6 +10962,7 @@ define("orion/editor/annotations", ['i18n!orion/editor/nls/messages', 'orion/edi
 					if (annotation.type === type) {
 						annotations.splice(i, 1);
 						removed.splice(0, 0, annotation);
+						annotation._annotationModel = null;
 					}
 				}
 			} else {
@@ -10460,6 +10989,7 @@ define("orion/editor/annotations", ['i18n!orion/editor/nls/messages', 'orion/edi
 			if (!annotation) { return; }
 			var index = this._getAnnotationIndex(annotation);
 			if (index < 0) { return; }
+			annotation._annotationModel = null;
 			var e = {
 				type: "Changed", //$NON-NLS-0$
 				removed: this._annotations.splice(index, 1),
@@ -10485,6 +11015,7 @@ define("orion/editor/annotations", ['i18n!orion/editor/nls/messages', 'orion/edi
 					annotation = remove[i];
 					index = this._getAnnotationIndex(annotation);
 					if (index < 0) { continue; }
+					annotation._annotationModel = null;
 					annotations.splice(index, 1);
 					removed.splice(0, 0, annotation);
 				}
@@ -10492,7 +11023,8 @@ define("orion/editor/annotations", ['i18n!orion/editor/nls/messages', 'orion/edi
 			if (!add) { add = []; }
 			for (i = 0; i < add.length; i++) {
 				annotation = add[i];
-				index = this._binarySearch(annotations, annotation.start);
+				index = binarySearch(annotations, annotation.start);
+				annotation._annotationModel = this;
 				annotations.splice(index, 0, annotation);
 			}
 			var e = {
@@ -10522,22 +11054,9 @@ define("orion/editor/annotations", ['i18n!orion/editor/nls/messages', 'orion/edi
 			}
 		},
 		/** @ignore */
-		_binarySearch: function (array, offset) {
-			var high = array.length, low = -1, index;
-			while (high - low > 1) {
-				index = Math.floor((high + low) / 2);
-				if (offset <= array[index].start) {
-					high = index;
-				} else {
-					low = index;
-				}
-			}
-			return high;
-		},
-		/** @ignore */
 		_getAnnotationIndex: function(annotation) {
 			var annotations = this._annotations;
-			var index = this._binarySearch(annotations, annotation.start);
+			var index = binarySearch(annotations, annotation.start);
 			while (index < annotations.length && annotations[index].start === annotation.start) {
 				if (annotations[index] === annotation) {
 					return index;
@@ -10566,17 +11085,25 @@ define("orion/editor/annotations", ['i18n!orion/editor/nls/messages', 'orion/edi
 			for (i = startIndex; i < annotations.length; i++) {
 				var annotation = annotations[i];
 				if (annotation.start >= end) {
+					annotation._oldStart = annotation.start;
+					annotation._oldEnd = annotation.end;
 					annotation.start += changeCount;
 					annotation.end += changeCount;
 					e.changed.push(annotation);
 				} else if (annotation.end <= start) {
 					//nothing
 				} else if (annotation.start < start && end < annotation.end) {
+					annotation._oldStart = annotation.start;
+					annotation._oldEnd = annotation.end;
 					annotation.end += changeCount;
 					e.changed.push(annotation);
 				} else {
 					annotations.splice(i, 1);
 					e.removed.push(annotation);
+					annotation._annotationModel = null;
+					if (annotation.expand) {
+						annotation.expand();
+					}
 					i--;
 				}
 			}
@@ -10677,8 +11204,8 @@ define("orion/editor/annotations", ['i18n!orion/editor/nls/messages', 'orion/edi
 			if (!ranges) {
 				ranges = [];
 			}
-			var mergedStyle, i;
-			for (i=0; i<ranges.length && styleRange; i++) {
+			var mergedStyle, i = binarySearch(ranges, styleRange.start, true);
+			for (; i<ranges.length && styleRange; i++) {
 				var range = ranges[i];
 				if (styleRange.end <= range.start) { break; }
 				if (styleRange.start >= range.end) { continue; }
@@ -10710,30 +11237,32 @@ define("orion/editor/annotations", ['i18n!orion/editor/nls/messages', 'orion/edi
 			return ranges;
 		},
 		_onAnnotationModelChanged: function(e) {
-			if (e.textModelChangedEvent) {
-				return;
-			}
 			var view = this._view;
 			if (!view) { return; }
 			var self = this;
 			var model = view.getModel();
-			function redraw(changes) {
+			function redrawRange(start, end) {
+				if (model.getBaseModel) {
+					start = model.mapOffset(start, true);
+					end = model.mapOffset(end, true);
+				}
+				if (start !== -1 && end !== -1) {
+					view.redrawRange(start, end);
+				}
+			}
+			function redraw(changes, changed) {
 				for (var i = 0; i < changes.length; i++) {
 					if (!self.isAnnotationTypeVisible(changes[i].type)) { continue; }
-					var start = changes[i].start;
-					var end = changes[i].end;
-					if (model.getBaseModel) {
-						start = model.mapOffset(start, true);
-						end = model.mapOffset(end, true);
-					}
-					if (start !== -1 && end !== -1) {
-						view.redrawRange(start, end);
+					var change = changes[i];
+					redrawRange(change.start, change.end);
+					if (changed && change._oldStart !== undefined && change._oldEnd) {
+						redrawRange(change._oldStart, change._oldEnd);
 					}
 				}
 			}
 			redraw(e.added);
 			redraw(e.removed);
-			redraw(e.changed);
+			redraw(e.changed, true);
 		},
 		_onDestroy: function(e) {
 			this.destroy();
@@ -11688,7 +12217,7 @@ define("orion/editor/rulers", ['i18n!orion/editor/nls/messages', 'orion/editor/a
 			
 			if (lineIndex === -1) { return; }
 			this._currentGroupAnnotation = groupAnnotation;
-			annotations = annotationModel.getAnnotations(0, model.getCharCount());
+			annotations = annotationModel.getAnnotations();
 			var add = [];
 			while (annotations.hasNext()) {
 				annotation = annotations.next();
@@ -11904,9 +12433,10 @@ define("orion/editor/rulers", ['i18n!orion/editor/nls/messages', 'orion/editor/a
 		while (!annotation && iter.hasNext()) {
 			var a = iter.next();
 			if (!this.isAnnotationTypeVisible(a.type)) { continue; }
+			if (model.getLineAtOffset(a.start) !== model.getLineAtOffset(start)) { continue; }
 			annotation = a;
 		}
-		if (annotation && model.getLineAtOffset(annotation.start) === model.getLineAtOffset(start)) {
+		if (annotation) {
 			var tooltip = mTooltip.Tooltip.getTooltip(this._view);
 			if (tooltip) {
 				tooltip.setTarget(null);
@@ -11916,17 +12446,30 @@ define("orion/editor/rulers", ['i18n!orion/editor/nls/messages', 'orion/editor/a
 			} else {
 				annotation.expand();
 			}
-			this._annotationModel.modifyAnnotation(annotation);
 		}
 	};
 	/** @ignore */
 	FoldingRuler.prototype._getTooltipContents = function(lineIndex, annotations) {
-		if (annotations.length === 1) {
-			if (annotations[0].expanded) {
-				return null;
+		if (annotations.length > 0) {
+			var view = this._view;
+			var model = view.getModel();
+			var start = model.getLineStart(lineIndex);
+			if (model.getBaseModel) {
+				start = model.mapOffset(start);
+				model = model.getBaseModel();
+			}
+			var mapLineIndex = model.getLineAtOffset(start);
+			for (var i = 0; i < annotations.length; i++) {
+				var a = annotations[i];
+				if (!this.isAnnotationTypeVisible(a.type)) { continue; }
+				if (model.getLineAtOffset(a.start) !== mapLineIndex) { continue; }
+				if (annotations[i].expanded) {
+					break;
+				}
+				return AnnotationRuler.prototype._getTooltipContents.call(this, lineIndex, [a]);
 			}
 		}
-		return AnnotationRuler.prototype._getTooltipContents.call(this, lineIndex, annotations);
+		return null;
 	};
 	/** @ignore */
 	FoldingRuler.prototype._onAnnotationModelChanged = function(e) {
@@ -11990,7 +12533,8 @@ define("orion/editor/undoStack", [], function() { //$NON-NLS-0$
 	 * @name orion.editor.Change
 	 * @private
 	 */
-	function Change(offset, text, previousText, type) {
+	function Change(model, offset, text, previousText, type) {
+		this.model = model;
 		this.offset = offset;
 		this.text = text;
 		this.previousText = previousText;
@@ -12032,31 +12576,12 @@ define("orion/editor/undoStack", [], function() { //$NON-NLS-0$
 			return false;
 		},
 		_doUndoRedo: function(offset, text, previousText, view, select) {
-			var model = view.getModel();
-			/* 
-			* TODO UndoStack should be changing the text in the base model.
-			* This is code needs to change when modifications in the base
-			* model are supported properly by the projection model.
-			*/
-			if (model.mapOffset && view.annotationModel) {
-				var mapOffset = model.mapOffset(offset, true);
-				if (mapOffset < 0) {
-					var annotationModel = view.annotationModel;
-					var iter = annotationModel.getAnnotations(offset, offset + 1);
-					while (iter.hasNext()) {
-						var annotation = iter.next();
-						if (annotation.type === "orion.annotation.folding") { //$NON-NLS-0$
-							annotation.expand();
-							mapOffset = model.mapOffset(offset, true);
-							break;
-						}
-					}
+			this.model.setText(text, offset, offset + previousText.length);
+			if (select && view) {
+				var model = view.getModel();
+				if (model !== this.model) {
+					offset = model.mapOffset(offset, true);
 				}
-				if (mapOffset < 0) { return; }
-				offset = mapOffset;
-			}
-			model.setText(text, offset, offset + previousText.length);
-			if (select) {
 				view.setSelection(offset, offset + text.length);
 			}
 		}
@@ -12098,8 +12623,10 @@ define("orion/editor/undoStack", [], function() { //$NON-NLS-0$
 		},
 		/** @ignore */
 		end: function (view) {
-			this.endSelection = view.getSelection();
-			this.endCaret = view.getCaretOffset();
+			if (view) {
+				this.endSelection = view.getSelection();
+				this.endCaret = view.getCaretOffset();
+			}
 			var owner = this.owner;
 			if (owner && owner.end) {
 				owner.end();
@@ -12107,16 +12634,16 @@ define("orion/editor/undoStack", [], function() { //$NON-NLS-0$
 		},
 		/** @ignore */
 		undo: function (view, select) {
-			if (this.changes.length > 1) {
+			if (this.changes.length > 1 && view) {
 				view.setRedraw(false);
 			}
 			for (var i=this.changes.length - 1; i >= 0; i--) {
 				this.changes[i].undo(view, false);
 			}
-			if (this.changes.length > 1) {
+			if (this.changes.length > 1 && view) {
 				view.setRedraw(true);
 			}
-			if (select) {
+			if (select && view) {
 				var start = this.startSelection.start;
 				var end = this.startSelection.end;
 				view.setSelection(this.startCaret ? start : end, this.startCaret ? end : start);
@@ -12129,16 +12656,16 @@ define("orion/editor/undoStack", [], function() { //$NON-NLS-0$
 		},
 		/** @ignore */
 		redo: function (view, select) {
-			if (this.changes.length > 1) {
+			if (this.changes.length > 1 && view) {
 				view.setRedraw(false);
 			}
 			for (var i = 0; i < this.changes.length; i++) {
 				this.changes[i].redo(view, false);
 			}
-			if (this.changes.length > 1) {
+			if (this.changes.length > 1, view) {
 				view.setRedraw(true);
 			}
-			if (select) {
+			if (select && view) {
 				var start = this.endSelection.start;
 				var end = this.endSelection.end;
 				view.setSelection(this.endCaret ? start : end, this.endCaret ? end : start);
@@ -12158,8 +12685,10 @@ define("orion/editor/undoStack", [], function() { //$NON-NLS-0$
 		},
 		/** @ignore */
 		start: function (view) {
-			this.startSelection = view.getSelection();
-			this.startCaret = view.getCaretOffset();
+			if (view) {
+				this.startSelection = view.getSelection();
+				this.startCaret = view.getCaretOffset();
+			}
 			var owner = this.owner;
 			if (owner && owner.start) {
 				owner.start();
@@ -12183,14 +12712,8 @@ define("orion/editor/undoStack", [], function() { //$NON-NLS-0$
 	 * </p>
 	 */
 	function UndoStack (view, size) {
-		this.view = view;
 		this.size = size !== undefined ? size : 100;
 		this.reset();
-		var model = view.getModel();
-		if (model.getBaseModel) {
-			model = model.getBaseModel();
-		}
-		this.model = model;
 		var self = this;
 		this._listener = {
 			onChanging: function(e) {
@@ -12200,10 +12723,26 @@ define("orion/editor/undoStack", [], function() { //$NON-NLS-0$
 				self._onDestroy(e);
 			}
 		};
-		model.addEventListener("Changing", this._listener.onChanging); //$NON-NLS-0$
-		view.addEventListener("Destroy", this._listener.onDestroy); //$NON-NLS-0$
+		if (view.getModel) {
+			var model = view.getModel();
+			if (model.getBaseModel) {
+				model = model.getBaseModel();
+			}
+			this.model = model;
+			this.setView(view);
+		} else {
+			this.shared = true;
+			this.model = view;
+		}
+		this.model.addEventListener("Changing", this._listener.onChanging); //$NON-NLS-0$
 	}
 	UndoStack.prototype = /** @lends orion.editor.UndoStack.prototype */ {
+		/**
+		 * Destroy the undo stack.
+		 */
+		destroy: function() {
+			this._onDestroy();
+		},
 		/**
 		 * Adds a change to the stack.
 		 * 
@@ -12404,6 +12943,16 @@ define("orion/editor/undoStack", [], function() { //$NON-NLS-0$
 			this._ignoreUndo = false;
 			this._compoundChange = undefined;
 		},
+		setView: function(view) {
+			if (this.view === view) { return; }
+			if (this.view) {
+				view.removeEventListener("Destroy", this._listener.onDestroy); //$NON-NLS-0$
+			}
+			this.view = view;
+			if (this.view) {
+				view.addEventListener("Destroy", this._listener.onDestroy); //$NON-NLS-0$
+			}
+		},
 		/**
 		 * Starts a compound change. 
 		 * <p>
@@ -12430,8 +12979,13 @@ define("orion/editor/undoStack", [], function() { //$NON-NLS-0$
 			this.endCompoundChange();
 		},
 		_onDestroy: function(evt) {
-			this.model.removeEventListener("Changing", this._listener.onChanging); //$NON-NLS-0$
-			this.view.removeEventListener("Destroy", this._listener.onDestroy); //$NON-NLS-0$
+			if (!evt /* undo stack destroyed */ || !this.shared) {
+				this.model.removeEventListener("Changing", this._listener.onChanging); //$NON-NLS-0$
+			}
+			if (this.view) {
+				this.view.removeEventListener("Destroy", this._listener.onDestroy); //$NON-NLS-0$
+				this.view = null;
+			}
 		},
 		_onChanging: function(e) {
 			if (this._ignoreUndo) {
@@ -12456,7 +13010,7 @@ define("orion/editor/undoStack", [], function() { //$NON-NLS-0$
 					return;
 				}
 			}
-			this.add(new Change(start, text, previousText, type));
+			this.add(new Change(this.model, start, text, previousText, type));
 		}
 	};
 	
@@ -12697,7 +13251,7 @@ define('orion/objects',[], function() {
 
 /*******************************************************************************
  * @license
- * Copyright (c) 2009, 2013 IBM Corporation and others.
+ * Copyright (c) 2009, 2014 IBM Corporation and others.
  * All rights reserved. This program and the accompanying materials are made 
  * available under the terms of the Eclipse Public License v1.0 
  * (http://www.eclipse.org/legal/epl-v10.html), and the Eclipse Distribution 
@@ -12737,9 +13291,20 @@ define("orion/editor/editor", [ //$NON-NLS-0$
 	function BaseEditor(options) {
 		options = options || {};
 		this._domNode = options.domNode;
+		this._model = options.model;
+		this._undoStack = options.undoStack;
 		this._statusReporter = options.statusReporter;
-		this._dirty = false;
 		this._title = null;
+		var self = this;
+		this._listener = {
+			onChanged: function(e) {
+				self.onChanged(e);
+			}
+		};
+		if (this._model) {
+			this._model.addEventListener("Changed", this._listener.onChanged); //$NON-NLS-0$
+		}
+		this.checkDirty();
 	}
 	BaseEditor.prototype = /** @lends orion.editor.BaseEditor.prototype */ {
 		/**
@@ -12748,6 +13313,14 @@ define("orion/editor/editor", [ //$NON-NLS-0$
 		destroy: function() {
 			this.uninstall();
 			this._statusReporter = this._domNode = null;
+			if (this._model) {
+				this._model.removeEventListener("Changed", this._listener.onChanged); //$NON-NLS-0$
+			}
+		},
+		
+		/** @private */
+		checkDirty : function() {
+			this.setDirty(this._undoStack && !this._undoStack.isClean());
 		},
 		/**
 		 * Focus the the editor view. The default implementation does nothing.
@@ -12785,9 +13358,18 @@ define("orion/editor/editor", [ //$NON-NLS-0$
 			return this._title;
 		},
 		/**
+		 * Returns the editor undo stack. 
+		 *
+		 * @returns {orion.editor.UndoStack} the editor undo stack.
+		 */
+		getUndoStack: function() {
+			return this._undoStack;
+		},
+		/**
 		 * Creates the DOM hierarchy of the editor and add it to the document.
 		 */
 		install: function() {
+			this.installed = true;
 		},
 		/**
 		 * Returns <code>true</code> if the editor is dirty; <code>false</code> otherwise.
@@ -12800,7 +13382,8 @@ define("orion/editor/editor", [ //$NON-NLS-0$
 		 * Marks the current state of the editor as clean. Meaning there are no unsaved modifications.
 		 */
 		markClean: function() {
-			this.setDirty(false);	
+			this.getUndoStack().markClean();
+			this.setDirty(false);
 		},
 		/**
 		 * Called when the dirty state of the editor changes.
@@ -12815,6 +13398,13 @@ define("orion/editor/editor", [ //$NON-NLS-0$
 		 */
 		onInputChanged: function (inputChangedEvent) {
 			return this.dispatchEvent(inputChangedEvent);
+		},
+		/**
+		 * Called when the editor's text model has been changed.
+		 * @param {Event} inputChangedEvent
+		 */
+		onChanged: function (modelChangedEvent) {
+			this.checkDirty();
 		},
 		/**
 		 * Report the message to the user.
@@ -12845,6 +13435,14 @@ define("orion/editor/editor", [ //$NON-NLS-0$
 			this.onDirtyChanged({type: "DirtyChanged"}); //$NON-NLS-0$
 		},
 		/**
+		 * @private
+		 */
+		_setModelText: function(contents) {
+			if (this._model) {
+				this._model.setText(contents);
+			}
+		},
+		/**
 		 * Sets the editor's contents.
 		 *
 		 * @param {String} title the editor title
@@ -12854,6 +13452,19 @@ define("orion/editor/editor", [ //$NON-NLS-0$
 		 */
 		setInput: function(title, message, contents, contentsSaved) {
 			this._title = title;
+			if (!contentsSaved) {
+				if (message) {
+					this.reportStatus(message, "error"); //$NON-NLS-0$
+				} else {
+					if (contents !== null && contents !== undefined && typeof contents === "string") { //$NON-NLS-0$
+						this._setModelText(contents);
+					}
+				}
+				if (this._undoStack) {
+					this._undoStack.reset();
+				}
+			}
+			this.checkDirty();
 			this.onInputChanged({
 				type: "InputChanged", //$NON-NLS-0$
 				title: title,
@@ -12863,9 +13474,23 @@ define("orion/editor/editor", [ //$NON-NLS-0$
 			});
 		},
 		/**
+		 * Replaces the text in the given range with the given text.
+		 * <p>
+		 * The character at the end offset is not replaced.
+		 * </p>
+		 *
+		 * @param {String} text the new text.
+		 * @param {Number} [start=0] the start offset of text range.
+		 * @param {Number} [end=char count] the end offset of text range.
+		 */
+		setText: function(text, start, end) {
+			this.getModel().setText(text, start, end);
+		},
+		/**
 		 * Removes the DOM hierarchy of the editor from the document.
 		 */
 		uninstall: function() {
+			this.installed = false;
 		}
 	};
 	mEventTarget.EventTarget.addMixin(BaseEditor.prototype);
@@ -12981,6 +13606,9 @@ define("orion/editor/editor", [ //$NON-NLS-0$
 		 * @returns {orion.editor.TextModel}
 		 */
 		getModel: function() {
+			if (!this._textView) {
+				return null;
+			}
 			var model = this._textView.getModel();
 			if (model.getBaseModel) {
 				model = model.getBaseModel();
@@ -13001,14 +13629,6 @@ define("orion/editor/editor", [ //$NON-NLS-0$
 		 */
 		getTextView: function() {
 			return this._textView;
-		},
-		/**
-		 * Returns the editor undo stack. 
-		 *
-		 * @returns {orion.editor.UndoStack} the editor undo stack.
-		 */
-		getUndoStack: function() {
-			return this._undoStack;
 		},
 		/**
 		 * Returns the editor's key modes.
@@ -13049,9 +13669,6 @@ define("orion/editor/editor", [ //$NON-NLS-0$
 			if (this._textView) {
 				this._textView.focus();
 			}
-		},
-		markClean: function() {
-			this.getUndoStack().markClean();
 		},
 		/**
 		 * Resizes the text view.
@@ -13148,6 +13765,19 @@ define("orion/editor/editor", [ //$NON-NLS-0$
 		getLineAtOffset: function(offset) {
 			return this.getModel().getLineAtOffset(this.mapOffset(offset));	
 		},
+		/**
+		 * @name getLineStart
+		 * @description Compute the editor start offset of the given line number
+		 * @function
+		 * @public
+		 * @memberof orion.editor.TextView
+		 * @param {Number} line The line number in the editor
+		 * @returns {Number} Returns the start offset of the given line number in the editor.
+		 * @since 5.0
+		 */
+		getLineStart: function(line) {
+			return this.getModel().getLineStart(line);
+		},
 		getCaretOffset: function() {
 			return this.mapOffset(this._textView.getCaretOffset());
 		},
@@ -13173,7 +13803,6 @@ define("orion/editor/editor", [ //$NON-NLS-0$
 				if (annotation.type === AT.ANNOTATION_FOLDING) {
 					if (annotation.expand) {
 						annotation.expand();
-						annotationModel.modifyAnnotation(annotation);
 					}
 				}
 			}
@@ -13239,11 +13868,6 @@ define("orion/editor/editor", [ //$NON-NLS-0$
 		},
 		
 		/** @private */
-		checkDirty : function() {
-			this.setDirty(!this._undoStack.isClean());
-		},
-		
-		/** @private */
 		_getTooltipInfo: function(x, y) {
 			var textView = this._textView;			
 			var annotationModel = this.getAnnotationModel();
@@ -13303,20 +13927,21 @@ define("orion/editor/editor", [ //$NON-NLS-0$
 			annotationModel.replaceAnnotations(remove, add);
 		},
 		
-		install: function() {
-			this.installTextView();
-		},
-		
 		/**
 		 * Creates the underlying TextView and installs the editor's features.
 		 */
-		installTextView : function() {
+		installTextView: function() {
+			this.install();
+		},
+		
+		install : function() {
 			if (this._textView) { return; }
 			
 			// Create textView and install optional features
 			this._textView = this._textViewFactory();
 			if (this._undoStackFactory) {
 				this._undoStack = this._undoStackFactory.createUndoStack(this);
+				this.checkDirty();
 			}
 			if (this._textDNDFactory) {
 				this._textDND = this._textDNDFactory.createTextDND(this, this._undoStack);
@@ -13444,13 +14069,6 @@ define("orion/editor/editor", [ //$NON-NLS-0$
 					}
 				}
 				
-				/*
-				* TODO - UndoStack relies on this line to ensure that collapsed regions are expanded 
-				* when the undo operation happens to those regions. This line needs to be remove when the
-				* UndoStack is fixed.
-				*/
-				textView.annotationModel = this._annotationModel;
-					
 				var rulers = this._annotationFactory.createAnnotationRulers(this._annotationModel);
 				var ruler = this._annotationRuler = rulers.annotationRuler;
 				if (ruler) {
@@ -13500,16 +14118,17 @@ define("orion/editor/editor", [ //$NON-NLS-0$
 				textView: textView
 			};
 			this.dispatchEvent(textViewInstalledEvent);
+			BaseEditor.prototype.install.call(this);
 		},
 
-		uninstall: function() {
-			this.uninstallTextView();
-		},
-		
 		/**
 		 * Destroys the underlying TextView.
 		 */
 		uninstallTextView: function() {
+			this.uninstall();
+		},
+		
+		uninstall: function() {
 			var textView = this._textView;
 			if (!textView) { return; }
 			
@@ -13528,6 +14147,7 @@ define("orion/editor/editor", [ //$NON-NLS-0$
 				textView: textView
 			};
 			this.dispatchEvent(textViewUninstalledEvent);
+			BaseEditor.prototype.uninstall.call(this);
 		},
 		
 		_updateCursorStatus: function() {
@@ -13554,7 +14174,7 @@ define("orion/editor/editor", [ //$NON-NLS-0$
 			}
 			var remove = [], add = [];
 			var model = annotationModel.getTextModel();
-			var iter = annotationModel.getAnnotations(0, model.getCharCount()), annotation;
+			var iter = annotationModel.getAnnotations(), annotation;
 			while (iter.hasNext()) {
 				annotation = iter.next();
 				if (types.indexOf(annotation.type) !== -1) {
@@ -13576,7 +14196,7 @@ define("orion/editor/editor", [ //$NON-NLS-0$
 							var lineIndex = annotation.line - 1;
 							var lineStart = model.getLineStart(lineIndex);
 							start = lineStart + annotation.start - 1;
-							end = lineStart + annotation.end;
+							end = lineStart + annotation.end - 1;
 						} else {
 							// document offsets
 							start = annotation.start;
@@ -13709,6 +14329,17 @@ define("orion/editor/editor", [ //$NON-NLS-0$
 		},
 		
 		/**
+		 * @private
+		 */
+		_setModelText: function(contents) {
+			if (this._textView) {
+				this._textView.setText(contents);
+				this._textView.getModel().setLineDelimiter("auto"); //$NON-NLS-0$
+				this._highlightCurrentLine(this._textView.getSelection());
+			}
+		},
+		
+		/**
 		 * Sets the editor's contents.
 		 *
 		 * @param {String} title
@@ -13718,25 +14349,10 @@ define("orion/editor/editor", [ //$NON-NLS-0$
 		 * @param {Boolean} noFocus
 		 */
 		setInput: function(title, message, contents, contentsSaved, noFocus) {
-			if (this._textView) {
-				if (!contentsSaved) {
-					if (message) {
-						this._textView.setText(message);
-					} else {
-						if (contents !== null && contents !== undefined) {
-							this._textView.setText(contents);
-							this._textView.getModel().setLineDelimiter("auto"); //$NON-NLS-0$
-							this._highlightCurrentLine(this._textView.getSelection());
-						}
-					}
-					this._undoStack.reset();
-					if (!noFocus) {
-						this._textView.focus();
-					}
-				}
-				this.checkDirty();
-			}
 			BaseEditor.prototype.setInput.call(this, title, message, contents, contentsSaved);
+			if (this._textView && !contentsSaved && !noFocus) {
+				this._textView.focus();
+			}
 		},
 		/**
 		 * Reveals a line in the editor, and optionally selects a portion of the line.
@@ -14130,12 +14746,12 @@ define("orion/editor/find", [ //$NON-NLS-0$
 				this._replacingAll = true;
 				var editor = this._editor;
 				var textView = editor.getTextView();
-				editor.reportStatus(messages.replaceAll);
+				editor.reportStatus(messages.replacingAll);
 				var replaceString = this._processReplaceString(this.getReplaceString());
 				var self = this;
 				window.setTimeout(function() {
 					var startPos = 0;
-					var count = 0, lastResult;
+					var count = 0;
 					while (true) {
 						//For replace all, we need to ignore the wrap search from the user option
 						//Otherwise the loop will be dead, see https://bugs.eclipse.org/bugs/show_bug.cgi?id=411813
@@ -14143,7 +14759,6 @@ define("orion/editor/find", [ //$NON-NLS-0$
 						if (!result) {
 							break;
 						}
-						lastResult = result;
 						count++;
 						if (count === 1) {
 							textView.setRedraw(false);
@@ -14326,9 +14941,6 @@ define("orion/editor/find", [ //$NON-NLS-0$
 			var editor = this._editor;
 			if (this._regex) {
 				newStr = editor.getText(start, end).replace(new RegExp(searchStr, this._caseInsensitive ? "i" : ""), newStr); //$NON-NLS-0$
-				if (!newStr) {
-					return;
-				}
 			}
 			editor.setText(newStr, start, end);
 			editor.setSelection(start, start + newStr.length, true);
@@ -14339,7 +14951,7 @@ define("orion/editor/find", [ //$NON-NLS-0$
 				return;
 			}
 			var type = mAnnotations.AnnotationType.ANNOTATION_MATCHING_SEARCH;
-			var iter = annotationModel.getAnnotations(0, annotationModel.getTextModel().getCharCount());
+			var iter = annotationModel.getAnnotations();
 			var remove = [], add;
 			while (iter.hasNext()) {
 				var annotation = iter.next();
@@ -14384,6 +14996,201 @@ define("orion/editor/find", [ //$NON-NLS-0$
 
 /*******************************************************************************
  * @license
+ * Copyright (c) 2014 IBM Corporation and others. All rights reserved.
+ * This program and the accompanying materials are made available under the
+ * terms of the Eclipse Public License v1.0
+ * (http://www.eclipse.org/legal/epl-v10.html), and the Eclipse Distribution
+ * License v1.0 (http://www.eclipse.org/org/documents/edl-v10.html).
+ * 
+ * Contributors: 
+ *	IBM Corporation - initial API and implementation
+ ******************************************************************************/
+/* globals define window */
+
+define('orion/editor/findUI',[
+	'i18n!orion/editor/nls/messages',
+	'orion/editor/find',
+	'orion/objects',
+	'orion/editor/util',
+	'orion/util', 
+], function(messages, mFind, objects, textUtil, util) {
+	
+	function FindUI(editor, undoStack, options) {
+		mFind.Find.call(this, editor, undoStack, options);
+	}
+	
+	FindUI.prototype = new mFind.Find();
+	
+	objects.mixin(FindUI.prototype, {
+		getFindString: function() {
+			var input = this._findInput;
+			if (!input) {
+				return mFind.Find.prototype.getFindString.call(this);
+			}
+			return input.value;
+		},
+		getReplaceString: function() {
+			var input = this._replaceInput;
+			if (!input) {
+				return mFind.Find.prototype.getReplaceString(this);
+			}
+			return input.value;
+		},
+		hide: function() {
+			var visible = this.isVisible();
+			mFind.Find.prototype.hide.call(this);
+			if (visible) {
+				this._rootDiv.className = "textViewFind"; //$NON-NLS-0$
+			}
+		},
+		show: function(options) {
+			mFind.Find.prototype.show.call(this, options);
+			var findString = options.findString;
+			var replaceString = options.replaceString;
+			var input = this._findInput;
+			if (!input) {
+				this._create();
+				input = this._findInput;
+			}
+			if (findString) {
+				input.value = findString;
+			}
+			if (replaceString) {
+				var replaceInput = this._replaceInput;
+				replaceInput.value = replaceString;
+			}
+			var that = this;
+			window.setTimeout(function() {
+				that._rootDiv.className = "textViewFind show"; //$NON-NLS-0$
+				input.select();
+				input.focus();
+			}, 0);
+		},
+		_create: function() {
+			var that = this;
+			var view = this._editor.getTextView();
+			var parent = view.getOptions("parent"); //$NON-NLS-0$
+			var document = parent.ownerDocument; //$NON-NLS-0$
+			var root = util.createElement(document, 'div'); //$NON-NLS-0$
+			root.className = "textViewFind"; //$NON-NLS-0$
+			textUtil.addEventListener(root, "keydown", function(e) { that._handleKeyDown(e); }); //$NON-NLS-0$
+			this._rootDiv = root;
+			this._createContents(document, root);
+			view._rootDiv.insertBefore(root, view._rootDiv.firstChild);
+		},
+		_createContents: function(document, parent) {
+			var that = this;
+			var fintInput = util.createElement(document, 'input'); //$NON-NLS-0$
+			fintInput.className = "textViewFindInput"; //$NON-NLS-0$
+			this._findInput = fintInput;
+			fintInput.type = "text"; //$NON-NLS-0$
+			fintInput.placeholder = messages.findWith;
+			textUtil.addEventListener(fintInput, "input", function(evt) { //$NON-NLS-0$
+				return that._handleInput(evt);
+			});
+			parent.appendChild(fintInput);
+
+			var group = util.createElement(document, 'span'); //$NON-NLS-0$
+			that._createButton(document, group, messages.next, function() { that.find(true); });
+			that._createButton(document, group, messages.previous, function() { that.find(false); });
+			parent.appendChild(group);
+			
+			var readonly = that._editor.getTextView().getOptions("readonly"); //$NON-NLS-0$
+			if (!readonly) {
+				// create replace text
+				var replaceInput = util.createElement(document, 'input'); //$NON-NLS-0$
+				replaceInput.className = "textViewReplaceInput"; //$NON-NLS-0$
+				this._replaceInput = replaceInput;
+				replaceInput.type = "text"; //$NON-NLS-0$
+				replaceInput.placeholder = messages.replaceWith;
+				parent.appendChild(replaceInput);
+				group = util.createElement(document, 'span'); //$NON-NLS-0$
+				that._createButton(document, group, messages.replace, function() { that.replace(); });
+				that._createButton(document, group, messages.replaceAll, function() { that.replaceAll(); });
+				parent.appendChild(group);
+			}
+
+			group = util.createElement(document, 'span'); //$NON-NLS-0$
+			that._createButton(document, group, messages.regex, function(evt) { that._toggle("regex", evt.target); }, this._regex, messages.regexTooltip); //$NON-NLS-0$
+			that._createButton(document, group, messages.caseInsensitive, function(evt) { that._toggle("caseInsensitive", evt.target); }, this._caseInsensitive, messages.caseInsensitiveTooltip); //$NON-NLS-0$
+			that._createButton(document, group, messages.wholeWord, function(evt) { that._toggle("wholeWord", evt.target); }, this._wholeWord, messages.wholeWordTooltip); //$NON-NLS-0$
+			parent.appendChild(group);
+
+			var close = that._createButton(document, parent, "", function() { that.hide(); }); //$NON-NLS-0$
+			close.className = "textViewFindCloseButton"; //$NON-NLS-0$
+			close.title = messages.closeTooltip;
+		},
+		_createButton: function(document, parent, text, callback, checked, tooltip) {
+			var button  = document.createElement("button"); //$NON-NLS-0$
+			this._checked(checked, button);
+			if (tooltip) button.title = tooltip;
+			textUtil.addEventListener(button, "click", function(evt) { callback.call(this, evt); }, false); //$NON-NLS-0$
+			if (text) {
+				button.appendChild(document.createTextNode(text)); //$NON-NLS-0$
+			}
+			parent.appendChild(button);
+			return button;
+		},
+		_toggle: function(prop, button) {
+			var options = {};
+			options[prop] = !this["_" + prop]; //$NON-NLS-0$
+			this.setOptions(options);
+			this._checked(options[prop], button);
+		},
+		_checked: function(checked, button) {
+			button.className = "textViewFindButton"; //$NON-NLS-0$
+			if (checked) {
+				button.className += " checked"; //$NON-NLS-0$
+			}
+		},
+		_handleInput: function() {
+			if (this._incremental) {
+				this.find(true, null, true);
+			}
+			return true;
+		},
+		_handleKeyDown: function(evt) {
+			var handled;
+			var ctrlKeyOnly = (util.isMac ? evt.metaKey : evt.ctrlKey) && !evt.altKey && !evt.shiftKey;
+			if (ctrlKeyOnly && evt.keyCode === 70/*"f"*/ ) {
+				handled = true;
+			}
+			//We can't use ctrlKeyOnly on "k" because ctrl+shift+k means find previous match when the find bar gets focus
+			if (((util.isMac ? evt.metaKey : evt.ctrlKey) && !evt.altKey && evt.keyCode === 75/*"k"*/) || evt.keyCode === 13/*enter*/){
+				if (evt.keyCode === 13) {
+					this.find(this._reverse ? evt.shiftKey : !evt.shiftKey);
+				} else {
+					this.find(!evt.shiftKey);
+				}
+				handled = true;
+			}
+			if (ctrlKeyOnly &&  evt.keyCode === 82 /*"r"*/){
+				this.replace();
+				handled = true;
+			}
+			if (evt.keyCode === 27/*ESC*/){
+				this.hide();
+				handled = true;
+			}
+			if (handled) {
+				if (evt.stopPropagation) { 
+					evt.stopPropagation(); 
+				}
+				if (evt.preventDefault) { 
+					evt.preventDefault(); 
+				}
+				evt.cancelBubble = true;
+				return false;
+			}
+			return true;
+		}
+	});
+
+	return {FindUI: FindUI};
+});
+
+/*******************************************************************************
+ * @license
  * Copyright (c) 2013 IBM Corporation and others.
  * All rights reserved. This program and the accompanying materials are made
  * available under the terms of the Eclipse Public License v1.0
@@ -14401,8 +15208,9 @@ define("orion/editor/actions", [ //$NON-NLS-0$
 	'orion/editor/annotations', //$NON-NLS-0$
 	'orion/editor/tooltip', //$NON-NLS-0$
 	'orion/editor/find', //$NON-NLS-0$
+	'orion/editor/findUI', //$NON-NLS-0$
 	'orion/util' //$NON-NLS-0$
-], function(messages, mKeyBinding, mAnnotations, mTooltip, mFind, util) {
+], function(messages, mKeyBinding, mAnnotations, mTooltip, mFind, mFindUI, util) {
 
 	var AT = mAnnotations.AnnotationType;
 
@@ -14415,7 +15223,7 @@ define("orion/editor/actions", [ //$NON-NLS-0$
 		this.editor = editor;
 		this.undoStack = undoStack;
 		this._incrementalFind = new mFind.IncrementalFind(editor);
-		this._find = find ? find : new mFind.Find(editor, undoStack);
+		this._find = find ? find : new mFindUI.FindUI(editor, undoStack);
 		this._lastEditLocation = null;
 		this.init();
 	}
@@ -14467,11 +15275,10 @@ define("orion/editor/actions", [ //$NON-NLS-0$
 			textView.setAction("find", function() { //$NON-NLS-0$
 				if (this._find) {
 					var selection = this.editor.getSelection();
-					var search = prompt(messages.find, this.editor.getText(selection.start, selection.end));
-					if (search) {
-						this._find.find(true, {findString:search});
-					}
+					this._find.show({findString:this.editor.getText(selection.start, selection.end)});
+					return true;
 				}
+				return false;
 			}.bind(this), {name: messages.find});
 
 			textView.setKeyBinding(new mKeyBinding.KeyBinding("k", true), "findNext"); //$NON-NLS-1$ //$NON-NLS-0$
@@ -14673,7 +15480,6 @@ define("orion/editor/actions", [ //$NON-NLS-0$
 						editor.setCaretOffset(annotation.start);
 						annotation.collapse();
 					}
-					annotationModel.modifyAnnotation(annotation);
 				}
 			}
 			return true;
@@ -14683,8 +15489,7 @@ define("orion/editor/actions", [ //$NON-NLS-0$
 			var textView = editor.getTextView();
 			var annotationModel = editor.getAnnotationModel();
 			if(!annotationModel) { return true; }
-			var model = editor.getModel();
-			var annotation, iter = annotationModel.getAnnotations(0, model.getCharCount());
+			var annotation, iter = annotationModel.getAnnotations();
 			textView.setRedraw(false);
 			while (iter.hasNext()) {
 				annotation = iter.next();
@@ -14695,7 +15500,6 @@ define("orion/editor/actions", [ //$NON-NLS-0$
 					} else {
 						annotation.collapse();
 					}
-					annotationModel.modifyAnnotation(annotation);
 				}
 			}
 			textView.setRedraw(true);
@@ -14812,6 +15616,12 @@ define("orion/editor/actions", [ //$NON-NLS-0$
 			if (!annotationModel) { return true; }
 			var list = editor.getOverviewRuler() || editor.getAnnotationStyler();
 			if (!list) { return true; }
+			function ignore(annotation) {
+				return !!annotation.lineStyle ||
+					annotation.type === AT.ANNOTATION_MATCHING_BRACKET ||
+					annotation.type === AT.ANNOTATION_CURRENT_BRACKET ||
+					!list.isAnnotationTypeVisible(annotation.type);
+			}
 			var model = editor.getModel();
 			var currentOffset = editor.getCaretOffset();
 			var annotations = annotationModel.getAnnotations(forward ? currentOffset : 0, forward ? model.getCharCount() : currentOffset);
@@ -14823,12 +15633,7 @@ define("orion/editor/actions", [ //$NON-NLS-0$
 				} else {
 					if (annotation.start >= currentOffset) { continue; }
 				}
-				if (
-					annotation.lineStyle ||
-					annotation.type === AT.ANNOTATION_MATCHING_BRACKET ||
-					annotation.type === AT.ANNOTATION_CURRENT_BRACKET ||
-					!list.isAnnotationTypeVisible(annotation.type)
-				) {
+				if (ignore(annotation)) {
 					continue;
 				}
 				foundAnnotation = annotation;
@@ -14837,6 +15642,14 @@ define("orion/editor/actions", [ //$NON-NLS-0$
 				}
 			}
 			if (foundAnnotation) {
+				var foundAnnotations = [foundAnnotation];
+				annotations = annotationModel.getAnnotations(foundAnnotation.start, foundAnnotation.start);
+				while (annotations.hasNext()) {
+					annotation = annotations.next();
+					if (annotation !== foundAnnotation && !ignore(annotation)) {
+						foundAnnotations.push(annotation);
+					}
+				}
 				var view = editor.getTextView();
 				var nextLine = model.getLineAtOffset(foundAnnotation.start);
 				var tooltip = mTooltip.Tooltip.getTooltip(view);
@@ -14852,7 +15665,7 @@ define("orion/editor/actions", [ //$NON-NLS-0$
 								y: view.getLocationAtOffset(model.getLineStart(nextLine)).y
 							}, "document", "page"); //$NON-NLS-1$ //$NON-NLS-0$
 							return {
-								contents: [foundAnnotation],
+								contents: foundAnnotations,
 								x: tooltipCoords.x,
 								y: tooltipCoords.y + Math.floor(view.getLineHeight(nextLine) * 1.33)
 							};
@@ -15123,11 +15936,10 @@ define("orion/editor/actions", [ //$NON-NLS-0$
 							}
 						}
 					}
-
 					return false;
-				} else if (matchCommentEnd.test(lineTextBeforeCaret)) {
+				} else if (matchCommentEnd.test(lineTextBeforeCaret) && prefix.charCodeAt(prefix.length - 1) === 32) {
 					// Matches the end of a block comment. Fix the indentation for the following line.
-					text = lineText.substring(selection.start) + lineDelimiter + prefix.substring(0, prefix.length - 1);
+					text = lineDelimiter + prefix.substring(0, prefix.length - 1);
 					editor.setText(text, selection.start, selection.end);
 					editor.setCaretOffset(selection.start + text.length);
 					return true;
@@ -15170,13 +15982,13 @@ define("orion/editor/actions", [ //$NON-NLS-0$
 		 * Automatically inserts the specified opening and closing brackets around the caret or selected text.
 		 */
 		autoPairBrackets: function(openBracket, closeBracket) {
-			if (openBracket === "[" && !this.autoPairSquareBrackets) {
+			if (openBracket === "[" && !this.autoPairSquareBrackets) { //$NON-NLS-0$
 				return false;
-			} else if (openBracket === "{" && !this.autoPairBraces) {
+			} else if (openBracket === "{" && !this.autoPairBraces) { //$NON-NLS-0$
 				return false;
-			} else if (openBracket === "(" && !this.autoPairParentheses) {
+			} else if (openBracket === "(" && !this.autoPairParentheses) { //$NON-NLS-0$
 				return false;
-			} else if (openBracket === "<" && !this.autoPairAngleBrackets) {
+			} else if (openBracket === "<" && !this.autoPairAngleBrackets) { //$NON-NLS-0$
 				return false;
 			}
 
@@ -15296,6 +16108,7 @@ define("orion/editor/actions", [ //$NON-NLS-0$
 			var textView = editor.getTextView();
 			if (textView.getOptions("readonly")) { return false; } //$NON-NLS-0$
 			var selection = editor.getSelection();
+			if (selection.start !== selection.end) { return false; }
 			var model = editor.getModel();
 			var caretOffset = editor.getCaretOffset();
 			var prevChar = (caretOffset === 0) ? "" : model.getText(selection.start - 1, selection.start); //$NON-NLS-0$
@@ -15409,15 +16222,17 @@ define("orion/editor/actions", [ //$NON-NLS-0$
 			var editor = this.editor;
 			var textView = editor.getTextView();
 			if (textView.getOptions("readonly")) { return false; } //$NON-NLS-0$
+			var comment = this.lineComment || "//"; //$NON-NLS-0$
 			var model = editor.getModel();
 			var selection = editor.getSelection();
 			var firstLine = model.getLineAtOffset(selection.start);
 			var lastLine = model.getLineAtOffset(selection.end > selection.start ? selection.end - 1 : selection.end);
-			var uncomment = true, lines = [], lineText, index;
+			var uncomment = true, lineIndices = [], index;
 			for (var i = firstLine; i <= lastLine; i++) {
-				lineText = model.getLine(i, true);
-				lines.push(lineText);
-				if (!uncomment || (index = lineText.indexOf("//")) === -1) { //$NON-NLS-0$
+				var lineText = model.getLine(i, true);
+				index = lineText.indexOf(comment);
+				lineIndices.push(index);
+				if (!uncomment || index === -1) {
 					uncomment = false;
 				} else {
 					if (index !== 0) {
@@ -15432,26 +16247,28 @@ define("orion/editor/actions", [ //$NON-NLS-0$
 					}
 				}
 			}
-			var text, selStart, selEnd;
+			var selStart, selEnd, l = comment.length, k;
 			var lineStart = model.getLineStart(firstLine);
-			var lineEnd = model.getLineEnd(lastLine, true);
+			textView.setRedraw(false);
+			this.startUndo();
 			if (uncomment) {
-				for (var k = 0; k < lines.length; k++) {
-					lineText = lines[k];
-					index = lineText.indexOf("//"); //$NON-NLS-0$
-					lines[k] = lineText.substring(0, index) + lineText.substring(index + 2);
+				for (k = lineIndices.length - 1; k >= 0; k--) {
+					index = lineIndices[k] + model.getLineStart(firstLine + k);
+					editor.setText("", index, index + l);
 				}
-				text = lines.join("");
 				var lastLineStart = model.getLineStart(lastLine);
-				selStart = lineStart === selection.start ? selection.start : selection.start - 2;
-				selEnd = selection.end - (2 * (lastLine - firstLine + 1)) + (selection.end === lastLineStart+1 ? 2 : 0);
+				selStart = lineStart === selection.start ? selection.start : selection.start - l;
+				selEnd = selection.end - (l * (lastLine - firstLine + 1)) + (selection.end === lastLineStart+1 ? l : 0);
 			} else {
-				lines.splice(0, 0, "");
-				text = lines.join("//"); //$NON-NLS-0$
-				selStart = lineStart === selection.start ? selection.start : selection.start + 2;
-				selEnd = selection.end + (2 * (lastLine - firstLine + 1));
+				for (k = lineIndices.length - 1; k >= 0; k--) {
+					index = model.getLineStart(firstLine + k);
+					editor.setText(comment, index, index);
+				}
+				selStart = lineStart === selection.start ? selection.start : selection.start + l;
+				selEnd = selection.end + (l * (lastLine - firstLine + 1));
 			}
-			editor.setText(text, lineStart, lineEnd);
+			this.endUndo();
+			textView.setRedraw(true);
 			editor.setSelection(selStart, selEnd);
 			return true;
 		},
@@ -15530,6 +16347,9 @@ define("orion/editor/actions", [ //$NON-NLS-0$
 		setAutoCompleteComments: function(enabled) {
 			this.autoCompleteComments = enabled;
 		},
+		setLineComment: function(lineComment) {
+			this.lineComment = lineComment;
+		},
 		setSmartIndentation: function(enabled) {
 			this.smartIndentation = enabled;
 		}
@@ -15552,7 +16372,7 @@ define("orion/editor/actions", [ //$NON-NLS-0$
 
 /*******************************************************************************
  * @license
- * Copyright (c) 2010, 2012 IBM Corporation and others.
+ * Copyright (c) 2010, 2014 IBM Corporation and others.
  * All rights reserved. This program and the accompanying materials are made 
  * available under the terms of the Eclipse Public License v1.0 
  * (http://www.eclipse.org/legal/epl-v10.html), and the Eclipse Distribution 
@@ -15578,10 +16398,11 @@ define("orion/editor/templates", [], function() { //$NON-NLS-0$
 	var delimiterVar = "${delimiter}"; //$NON-NLS-0$
 	var cursorVar = "${cursor}"; //$NON-NLS-0$
 	
-	function Template (prefix, description, template) {
+	function Template (prefix, description, template, name) {
 		this.prefix = prefix;
 		this.description = description;
 		this.template = template;
+		this.name = name;
 		this._parse();
 	}
 	Template.prototype = /** @lends orion.editor.Template.prototype */ {
@@ -15641,9 +16462,11 @@ define("orion/editor/templates", [], function() { //$NON-NLS-0$
 			}
 			return {
 				proposal: proposal,
+				name: this.name,
 				description: this.description,
 				groups: newGroups,
-				escapePosition: startOffset + escapePosition
+				escapePosition: startOffset + escapePosition,
+				style: 'noemphasis'
 			};
 		},
 		match: function(prefix) {
@@ -15691,17 +16514,22 @@ define("orion/editor/templates", [], function() { //$NON-NLS-0$
 		addTemplates: function(json) {
 			var templates = this.getTemplates();
 			for (var j = 0; j < json.length; j++) {
-				templates.push(new Template(json[j].prefix, json[j].description, json[j].template));
+				templates.push(new Template(json[j].prefix, json[j].description, json[j].template, json[j].name));
 			}
+		},
+		/**
+		 * Called by the content assist engine to initialize this provider before any <tt>computeProposals()</tt> calls.
+		 * This implementation does nothing; subclasses may override.
+		 */
+		initialize: function() {
 		},
 		computeProposals: function(buffer, offset, context) {
 			var prefix = this.getPrefix(buffer, offset, context);
 			var proposals = [];
-			if (!this.isValid(prefix, buffer, offset, context)) {
-				return proposals;
+			if (this.isValid(prefix, buffer, offset, context)) {
+				proposals = proposals.concat(this.getTemplateProposals(prefix, offset, context));
+				proposals = proposals.concat(this.getKeywordProposals(prefix));
 			}
-			proposals = proposals.concat(this.getTemplateProposals(prefix, offset, context));
-			proposals = proposals.concat(this.getKeywordProposals(prefix));
 			return proposals;
 		},
 		getKeywords: function() {
@@ -15713,8 +16541,20 @@ define("orion/editor/templates", [], function() { //$NON-NLS-0$
 			if (keywords) {
 				for (var i = 0; i < keywords.length; i++) {
 					if (keywords[i].indexOf(prefix) === 0) {
-						proposals.push({proposal: chop(prefix, keywords[i]), description: keywords[i]});
+						proposals.push({proposal: chop(prefix, keywords[i]), 
+							description: keywords[i], 
+							style: 'noemphasis_keyword'//$NON-NLS-0$
+						});
 					}
+				}
+				
+				if (0 < proposals.length) {
+					proposals.splice(0, 0,{
+						proposal: '',
+						description: 'Keywords', //$NON-NLS-0$
+						style: 'noemphasis_title_keywords', //$NON-NLS-0$
+						unselectable: true
+					});	
 				}
 			}
 			return proposals;
@@ -15736,6 +16576,24 @@ define("orion/editor/templates", [], function() { //$NON-NLS-0$
 					proposals.push(proposal);
 				}
 			}
+			
+			if (0 < proposals.length) {
+				//sort the proposals by name
+				proposals.sort(function(p1, p2) {
+					if (p1.name < p2.name) return -1;
+					if (p1.name > p2.name) return 1;
+					return 0;
+				});
+				// if any templates were added to the list of 
+				// proposals, add a title as the first element
+				proposals.splice(0, 0, {
+					proposal: '',
+					description: 'Templates', //$NON-NLS-0$
+					style: 'noemphasis_title', //$NON-NLS-0$
+					unselectable: true
+				});
+			}
+			
 			return proposals;
 		},
 		removePrefix: function(prefix, proposal) {
@@ -16162,8 +17020,7 @@ define("orion/editor/linkedMode", [ //$NON-NLS-0$
 			var annotationModel = this.editor.getAnnotationModel();
 			if (!annotationModel) { return; }
 			var remove = [], add = [];
-			var textModel = annotationModel.getTextModel();
-			var annotations = annotationModel.getAnnotations(0, textModel.getCharCount()), annotation;
+			var annotations = annotationModel.getAnnotations(), annotation;
 			while (annotations.hasNext()) {
 				annotation = annotations.next();
 				switch (annotation.type) {
@@ -16333,7 +17190,7 @@ define("orion/editor/editorFeatures", [ //$NON-NLS-0$
  * 
  * Contributors: IBM Corporation - initial API and implementation
  ******************************************************************************/
-/*global exports module define setTimeout*/
+/*global exports module define setTimeout process document MutationObserver*/
 
 (function(root, factory) { // UMD
     if (typeof define === "function" && define.amd) { //$NON-NLS-0$
@@ -16356,19 +17213,65 @@ define("orion/editor/editorFeatures", [ //$NON-NLS-0$
         running = false;
     }
 
+	var runAsync = (function() {
+		if (typeof process !== "undefined" && typeof process.nextTick === "function") {
+			var nextTick = process.nextTick;
+    		return function() {
+    			nextTick(run);
+    		};
+		} else if (typeof MutationObserver === "function") {
+			var div = document.createElement("div");
+			var observer = new MutationObserver(run);
+			observer.observe(div, {
+            	attributes: true
+        	});
+        	return function() {
+        		div.setAttribute("class", "_tick");
+        	};
+		}
+		return function() {
+			setTimeout(run, 0);
+		};
+	})();
+
     function enqueue(fn) {
         queue.push(fn);
         if (!running) {
             running = true;
-            setTimeout(run, 0);
+            runAsync();
         }
     }
 
     function noReturn(fn) {
-        return function() {
-            fn.apply(undefined, arguments);
+        return function(result) {
+            fn(result);
         };
     }
+    
+    function settleDeferred(fn, result, deferred) {
+    	try {
+    		var listenerResult = fn(result);
+    		var listenerThen = listenerResult && (typeof listenerResult === "object" || typeof listenerResult === "function") && listenerResult.then;
+    		if (typeof listenerThen === "function") {
+    			if (listenerResult === deferred.promise) {
+    				deferred.reject(new TypeError());
+    			} else {
+    				var listenerResultCancel = listenerResult.cancel;
+    				if (typeof listenerResultCancel === "function") {
+    					deferred._parentCancel = listenerResultCancel.bind(listenerResult);
+    				} else {
+    					delete deferred._parentCancel;
+    				}
+    				listenerThen.call(listenerResult, noReturn(deferred.resolve), noReturn(deferred.reject), noReturn(deferred.progress));
+    			}
+    		} else {
+    			deferred.resolve(listenerResult);
+    		}
+    	} catch (e) {
+    		deferred.reject(e);
+    	}
+    }
+
 
     /**
      * @name orion.Promise
@@ -16412,46 +17315,16 @@ define("orion/editor/editorFeatures", [ //$NON-NLS-0$
      */
     function Deferred() {
         var result, state, listeners = [],
-            _this = this,
-            _protected = {};
-
-        Object.defineProperty(this, "_protected", {
-            value: function(secret) {
-                if (secret !== queue) {
-                    throw new Error("protected");
-                }
-                return _protected;
-            }
-        });
+            _this = this;
 
         function notify() {
             var listener;
             while ((listener = listeners.shift())) {
                 var deferred = listener.deferred;
                 var methodName = state === "fulfilled" ? "resolve" : "reject"; //$NON-NLS-0$ //$NON-NLS-1$ //$NON-NLS-2$
-                if (typeof listener[methodName] === "function") { //$NON-NLS-0$
-                    try {
-                        var fn = listener[methodName];
-                        var listenerResult = fn(result);
-                        var listenerThen = listenerResult && (typeof listenerResult === "object" || typeof listenerResult === "function") && listenerResult.then;
-                        if (typeof listenerThen === "function") {
-                            if (listenerResult === deferred.promise) {
-                                deferred.reject(new TypeError());
-                            } else {
-                                var listenerResultCancel = listenerResult.cancel;
-                                if (typeof listenerResultCancel === "function") {
-                                    deferred._protected(queue).parentCancel = listenerResultCancel.bind(listenerResult);
-                                } else {
-                                    delete deferred._protected(queue).parentCancel;
-                                }
-                                listenerThen.call(listenerResult, noReturn(deferred.resolve), noReturn(deferred.reject), noReturn(deferred.progress));
-                            }
-                        } else {
-                            deferred.resolve(listenerResult);
-                        }
-                    } catch (e) {
-                        deferred.reject(e);
-                    }
+                var fn = listener[methodName];
+                if (typeof fn === "function") { //$NON-NLS-0$
+                	settleDeferred(fn, result, deferred);
                 } else {
                     deferred[methodName](result);
                 }
@@ -16459,7 +17332,7 @@ define("orion/editor/editorFeatures", [ //$NON-NLS-0$
         }
 
         function _reject(error) {
-            delete _protected.parentCancel;
+            delete _this._parentCancel;
             state = "rejected";
             result = error;
             if (listeners.length) {
@@ -16468,17 +17341,14 @@ define("orion/editor/editorFeatures", [ //$NON-NLS-0$
         }
 
         function _resolve(value) {
-            var called = false;
-
             function once(fn) {
-                return function(value) {
-                    if (!called) {
-                        called = true;
-                        fn(value);
+                return function(result) {
+                    if (!state || state === "assumed") {
+                          fn(result);
                     }
                 };
             }
-            delete _protected.parentCancel;
+            delete _this._parentCancel;
             try {
                 var valueThen = value && (typeof value === "object" || typeof value === "function") && value.then;
                 if (typeof valueThen === "function") {
@@ -16500,7 +17370,7 @@ define("orion/editor/editorFeatures", [ //$NON-NLS-0$
                         }
                         result = value;
                         valueThen.call(value, once(_resolve), once(_reject));
-                        _protected.parentCancel = valueCancel.bind(value);
+                        _this._parentCancel = valueCancel.bind(value);
                     }
                 } else {
                     state = "fulfilled";
@@ -16515,9 +17385,9 @@ define("orion/editor/editorFeatures", [ //$NON-NLS-0$
         }
 
         function cancel() {
-            var parentCancel = _protected.parentCancel;
+            var parentCancel = _this._parentCancel;
             if (parentCancel) {
-                delete _protected.parentCancel;
+                delete _this._parentCancel;
                 parentCancel();
             } else if (!state) {
                 var cancelError = new Error("Cancel");
@@ -16582,29 +17452,28 @@ define("orion/editor/editorFeatures", [ //$NON-NLS-0$
         };
 
         this.cancel = function() {
-            if (_protected.parentCancel) {
+            if (_this._parentCancel) {
                 setTimeout(cancel, 0);
             } else {
                 cancel();
             }
-
             return _this;
         };
 
         // Note: "then" ALWAYS returns before having onResolve or onReject called as per http://promises-aplus.github.com/promises-spec/
         this.then = function(onFulfill, onReject, onProgress) {
-            var listener = {
+        	var deferred = new Deferred();
+            deferred._parentCancel = _this.promise.cancel;
+            listeners.push({
                 resolve: onFulfill,
                 reject: onReject,
                 progress: onProgress,
-                deferred: new Deferred()
-            };
-            listeners.push(listener);
-            listener.deferred._protected(queue).parentCancel = _this.promise.cancel.bind(_this);
+                deferred: deferred
+            });
             if (state === "fulfilled" || state === "rejected") {
                 enqueue(notify);
             }
-            return listener.deferred.promise;
+            return deferred.promise;
         };
 
         /**
@@ -16721,7 +17590,392 @@ define("orion/editor/editorFeatures", [ //$NON-NLS-0$
 
 /*******************************************************************************
  * @license
- * Copyright (c) 2011, 2012 IBM Corporation and others.
+ * Copyright (c) 2012 IBM Corporation and others.
+ * All rights reserved. This program and the accompanying materials are made 
+ * available under the terms of the Eclipse Public License v1.0 
+ * (http://www.eclipse.org/legal/epl-v10.html), and the Eclipse Distribution 
+ * License v1.0 (http://www.eclipse.org/org/documents/edl-v10.html). 
+ * 
+ * Contributors: IBM Corporation - initial API and implementation
+ ******************************************************************************/
+/*global console window define document*/
+/*jslint regexp:false*/
+
+define('orion/webui/littlelib',["orion/util"], function(util) {
+	/**
+	 * @name orion.webui.littlelib
+	 * @class A small library of DOM and UI helpers.
+	 */
+
+	/**
+	 * Alias for <code>node.querySelector()</code>.
+	 * @name orion.webui.littlelib.$
+	 * @function
+	 * @static
+	 * @param {String} selectors Selectors to match on.
+	 * @param {Node} [node=document] Node to query under.
+	 * @returns {Element}
+	 */
+	function $(selector, node) {
+		if (!node) {
+			node = document;
+		}
+		return node.querySelector(selector);
+	}
+
+	/**
+	 * Alias for <code>node.querySelectorAll()</code>.
+	 * @name orion.webui.littlelib.$$
+	 * @function
+	 * @static
+	 * @param {String} selectors Selectors to match on.
+	 * @param {Node} [node=document] Node to query under.
+	 * @returns {NodeList}
+	 */
+	function $$(selector, node) {
+		if (!node) {
+			node = document;
+		}
+		return node.querySelectorAll(selector);
+	}
+
+	/**
+	 * Identical to {@link orion.webui.littlelib.$$}, but returns an Array instead of a NodeList.
+	 * @name orion.webui.littlelib.$$array
+	 * @function
+	 * @static
+	 * @param {String} selectors Selectors to match on.
+	 * @param {Node} [node=document] Node to query under.
+	 * @returns {Element[]}
+	 */
+	function $$array(selector, node) {
+		return Array.prototype.slice.call($$(selector,node));
+	}
+
+	/**
+	 * Alias for <code>document.getElementById</code>, but returns the input unmodified when passed a Node (or other non-string).
+	 * @function
+	 * @param {String|Element} elementOrId
+	 * @returns {Element}
+	 */
+	function node(either) {
+		var theNode = either;
+		if (typeof(either) === "string") { //$NON-NLS-0$
+			theNode = document.getElementById(either);
+		}	
+		return theNode;
+	}
+
+	/**
+	 * Returns whether <code>child</code> is a descendant of <code>parent</code> in the DOM order.
+	 * @function
+	 * @param {Node} parent
+	 * @param {Node} child
+	 * @returns {Boolean}
+	 */
+	function contains(parent, child) {
+		if (!parent || !child) { return false; }
+		if (parent === child) { return true; }
+		var compare = parent.compareDocumentPosition(child);  // useful to break out for debugging
+		return Boolean(compare & 16);
+	}
+
+	/**
+	 * Returns the bounds of a node. The returned coordinates are absolute (not relative to the viewport).
+	 * @function
+	 * @param {Node} node
+	 * @returns {Object}
+	 */
+	function bounds(node) {
+		var clientRect = node.getBoundingClientRect();
+		return { 
+			left: clientRect.left + document.documentElement.scrollLeft,
+			top: clientRect.top + document.documentElement.scrollTop,
+			width: clientRect.width,
+			height: clientRect.height
+		};
+	}
+
+	/**
+	 * Removes all children of the given node.
+	 * @name orion.webui.littlelib.empty
+	 * @function
+	 * @static
+	 * @param {Node} node
+	 */
+	function empty(node) {
+		while (node.hasChildNodes()) {
+			var child = node.firstChild;
+			node.removeChild(child);
+		}
+	}
+
+	function _getTabIndex(node) {
+		var result = node.tabIndex;
+		if (result === 0 && util.isIE) {
+			/*
+			 * The default value of tabIndex is 0 on IE, even for elements that are not focusable
+			 * by default (http://msdn.microsoft.com/en-us/library/ie/ms534654(v=vs.85).aspx).
+			 * Handle this browser difference by treating this value as -1 if the node is a type
+			 * that is not focusable by default according to the MS doc and has not had this
+			 * attribute value explicitly set on it.
+			 */
+			var focusableElements = {
+				a: true,
+				body: true,
+				button: true,
+				frame: true,
+				iframe: true,
+				img: true,
+				input: true,
+				isindex: true,
+				object: true,
+				select: true,
+				textarea: true
+			};
+			if (!focusableElements[node.nodeName.toLowerCase()] && !node.attributes.tabIndex) {
+				result = -1;
+			}
+		}
+		return result;
+	}
+
+	/* 
+	 * Inspired by http://brianwhitmer.blogspot.com/2009/05/jquery-ui-tabbable-what.html
+	 */
+	function firstTabbable(node) {
+		if (_getTabIndex(node) >= 0) {
+			return node;
+		}
+		if (node.hasChildNodes()) {
+			for (var i=0; i<node.childNodes.length; i++) {
+				var result = firstTabbable(node.childNodes[i]);
+				if (result) {
+					return result;
+				}
+			}
+		}
+		return null;
+	}
+	
+	function lastTabbable(node) {
+		if (_getTabIndex(node) >= 0) {
+			return node;
+		}
+		if (node.hasChildNodes()) {
+			for (var i=node.childNodes.length - 1; i>=0; i--) {
+				var result = lastTabbable(node.childNodes[i]);
+				if (result) {
+					return result;
+				}
+			}
+		}
+		return null;
+	}
+
+	var variableRegEx = /\$\{([^\}]+)\}/;
+	// Internal helper
+	function processNodes(node, replace) {
+		if (node.nodeType === 3) { // TEXT_NODE
+			var matches = variableRegEx.exec(node.nodeValue);
+			if (matches && matches.length > 1) {
+				replace(node, matches);
+			}
+		}
+		if (node.hasChildNodes()) {
+			for (var i=0; i<node.childNodes.length; i++) {
+				processNodes(node.childNodes[i], replace);
+			}
+		}
+	}
+
+	/**
+	 * Performs substitution of strings into textContent within the given node and its descendants. An occurrence of <code>${n}</code>
+	 * in text content will be replaced with the string <code>messages[n]</code>.
+	 * <p>This function is recommended for binding placeholder text in template-created DOM elements to actual display strings.</p>
+	 * @name orion.webui.littlelib.processTextNodes
+	 * @function
+	 * @param {Node} node The node to perform replacement under.
+	 * @param {String[]} messages The replacement strings.
+	 */
+	function processTextNodes(node, messages) {
+		processNodes(node, function(targetNode, matches) {
+			var replaceText = messages[matches[1]] || matches[1];
+			targetNode.parentNode.replaceChild(document.createTextNode(replaceText), targetNode);
+		});
+	}
+
+	/**
+	 * Performs substitution of DOM nodes into textContent within the given node and its descendants. An occurrence of <code>${n}</code>
+	 * in text content will be replaced by the DOM node <code>replaceNodes[n]</code>.
+	 * <p>This function is recommended for performing rich-text replacement within a localized string. The use of actual DOM nodes
+	 * avoids the need for embedded HTML in strings.</p>
+	 * @name orion.webui.littlelib.processDOMNodes
+	 * @function
+	 * @param {Node} node The node to perform replacement under.
+	 * @param {Node[]} replaceNodes The replacement nodes.
+	 */
+	function processDOMNodes(node, replaceNodes) {
+		processNodes(node, function(targetNode, matches) {
+			var replaceNode = replaceNodes[matches[1]];
+			if (replaceNode) {
+				var range = document.createRange();
+				var start = matches.index;
+				range.setStart(targetNode, start);
+				range.setEnd(targetNode, start + matches[0].length);
+				range.deleteContents();
+				range.insertNode(replaceNode);
+			}
+		});
+	}
+
+	/**
+	 * Adds auto-dismiss functionality to the document. When a click event occurs whose <code>target</code> is not a descendant of
+	 * one of the <code>excludeNodes</code>, the <code>dismissFunction</code> is invoked.
+	 * @name orion.webui.littlelib.addAutoDismiss
+	 * @function
+	 * @static
+	 * @param {Node[]} excludeNodes Clicks targeting any descendant of these nodes will not trigger the dismissFunction.
+	 * @param {Function} dismissFunction The dismiss handler.
+	 */
+	
+	var autoDismissNodes = null;
+
+	function addAutoDismiss(excludeNodes, dismissFunction) {
+		// auto dismissal.  Click anywhere else means close.
+		function onclick(event) {
+			autoDismissNodes.forEach(function(autoDismissNode) {
+				var excludeNodeInDocument = false;
+				var excluded = autoDismissNode.excludeNodes.some(function(excludeNode) {
+					if(document.body.contains(excludeNode)) {
+						excludeNodeInDocument = true;
+						return excludeNode.contains(event.target);
+					}
+					return false;
+				});
+				if (excludeNodeInDocument && !excluded) {
+					try {
+						autoDismissNode.dismiss(event);
+					} catch (e) {
+						if (typeof console !== "undefined" && console) { //$NON-NLS-0$
+							console.error(e && e.message);
+						}
+					}
+				}
+			});
+			autoDismissNodes = autoDismissNodes.filter(function(autoDismissNode) {
+				// true if at least one excludeNode is in document.body
+				return autoDismissNode.excludeNodes.some(function(excludeNode) {
+					return document.body.contains(excludeNode);
+				});
+			});
+		}
+
+		// Hook listener only once
+		if (autoDismissNodes === null) {
+			autoDismissNodes = [];
+			document.addEventListener("click", onclick, true); //$NON-NLS-0$
+			if (util.isIOS) {
+				document.addEventListener("touchend", function(event){
+					function unhook(){
+						event.target.removeEventListener("click", unhook);
+					}
+					if (event.touches.length === 0) {
+						// we need a click eventlistener on the target to have ios really trigger a click
+						event.target.addEventListener("click", unhook);
+					}	
+				}, false);
+			}
+		}
+		
+		autoDismissNodes.push({excludeNodes: excludeNodes, dismiss: dismissFunction});
+	}
+	
+	/**
+	 * Removes all auto-dismiss nodes which trigger the specified dismiss function.
+	 * 
+	 * @name orion.webui.littlelib.removeAutoDismiss
+	 * @function
+	 * @static
+	 * @param {Function} dismissFunction The dismiss function to look for.
+	 */
+	function removeAutoDismiss(dismissFunction) {
+		autoDismissNodes = autoDismissNodes.filter(function(autoDismissNode) {
+			return dismissFunction !== autoDismissNode.dismiss;
+		});
+	}
+	
+	/**
+	 * Cancels the default behavior of an event and stops its propagation.
+	 * @name orion.webui.littlelib.stop
+	 * @function
+	 * @static
+	 * @param {Event} event
+	 */
+	function stop(event) {
+		if (window.document.all) { 
+			event.keyCode = 0;
+		}
+		if (event.preventDefault) {
+			event.preventDefault();
+			event.stopPropagation();
+		}
+	}
+	
+	function setFramesEnabled(enable) {
+		var frames = document.getElementsByTagName("iframe"); //$NON-NLS-0$
+		for (var i = 0; i<frames.length; i++) {
+			frames[i].parentNode.style.pointerEvents = enable ? "" : "none"; //$NON-NLS-0$
+		}
+	}
+
+	/**
+	 * Holds useful <code>keyCode</code> values.
+	 * @name orion.webui.littlelib.KEY
+	 * @static
+	 */
+	var KEY = {
+		BKSPC: 8,
+		TAB: 9,
+		ENTER: 13,
+		ESCAPE: 27,
+		SPACE: 32,
+		PAGEUP: 33,
+		PAGEDOWN: 34,
+		END: 35,
+		HOME: 36,
+		LEFT: 37,
+		UP: 38,
+		RIGHT: 39,
+		DOWN: 40,
+		INSERT: 45,
+		DEL: 46
+	};
+		
+	//return module exports
+	return {
+		$: $,
+		$$: $$,
+		$$array: $$array,
+		node: node,
+		contains: contains,
+		bounds: bounds,
+		empty: empty,
+		firstTabbable: firstTabbable,
+		lastTabbable: lastTabbable,
+		stop: stop,
+		processTextNodes: processTextNodes,
+		processDOMNodes: processDOMNodes,
+		addAutoDismiss: addAutoDismiss,
+		setFramesEnabled: setFramesEnabled,
+		removeAutoDismiss: removeAutoDismiss,
+		KEY: KEY
+	};
+});
+
+/*******************************************************************************
+ * @license
+ * Copyright (c) 2011, 2014 IBM Corporation and others.
  * All rights reserved. This program and the accompanying materials are made 
  * available under the terms of the Eclipse Public License v1.0 
  * (http://www.eclipse.org/legal/epl-v10.html), and the Eclipse Distribution 
@@ -16741,8 +17995,9 @@ define("orion/editor/contentAssist", [ //$NON-NLS-0$
 	'orion/Deferred', //$NON-NLS-0$
 	'orion/objects', //$NON-NLS-0$
 	'orion/editor/util', //$NON-NLS-0$
-	'orion/util' //$NON-NLS-0$
-], function(messages, mKeyBinding, mKeyModes, mEventTarget, Deferred, objects, textUtil, util) {
+	'orion/util', //$NON-NLS-0$
+	'orion/webui/littlelib' //$NON-NLS-0$
+], function(messages, mKeyBinding, mKeyModes, mEventTarget, Deferred, objects, textUtil, util, lib) {
 	/**
 	 * @name orion.editor.ContentAssistProvider
 	 * @class Interface defining a provider of content assist proposals.
@@ -16803,18 +18058,7 @@ define("orion/editor/contentAssist", [ //$NON-NLS-0$
 	 * @name orion.editor.ContentAssist#ProposalsComputedEvent
 	 * @event
 	 */
-
-	/**
-	 * Flattens an array of arrays into a one-dimensional array.
-	 * @param {Array[]} array
-	 * @returns {Array}
-	 */
-	function flatten(array) {
-		return array.reduce(function(prev, curr) {
-			return Array.isArray(curr) ? prev.concat(curr) : prev;
-		}, []);
-	}
-
+		
 	// INACTIVE --Ctrl+Space--> ACTIVE --ModelChanging--> FILTERING
 	var State = {
 		INACTIVE: 1,
@@ -16823,40 +18067,48 @@ define("orion/editor/contentAssist", [ //$NON-NLS-0$
 	};
 	
 	var STYLES = {
-		selected : " selected", //$NON-NLS-0$
+		selected : "selected", //$NON-NLS-0$
 		hr : "proposal-hr", //$NON-NLS-0$
 		emphasis : "proposal-emphasis", //$NON-NLS-0$
 		noemphasis : "proposal-noemphasis", //$NON-NLS-0$
+		noemphasis_keyword : "proposal-noemphasis-keyword", //$NON-NLS-0$
+		noemphasis_title : "proposal-noemphasis-title", //$NON-NLS-0$
+		noemphasis_title_keywords : "proposal-noemphasis-title-keywords", //$NON-NLS-0$
 		dfault : "proposal-default" //$NON-NLS-0$
 	};
 	
 	function ContentAssist(textView) {
 		this.textView = textView;
 		this.state = State.INACTIVE;
-		this.providers = [];
+		this.clearProviders();
 		var self = this;
-		this.contentAssistListener = {
-			onModelChanging: function(event) {
-				if (self.isDeactivatingChange(event)) {
-					self.setState(State.INACTIVE);
+		this._textViewListeners = {
+			onModelChanging: (function(event) {
+				this._latestModelChangingEvent = event;
+				if (event) {
+					this._updateFilterText(event);	
+				}
+			}).bind(this),
+			onSelection: (function(event) {
+				if (this.isDeactivatingChange(this._latestModelChangingEvent, event)) {
+					this.setState(State.INACTIVE);
 				} else {
-					if (self.state === State.ACTIVE) {
-						self.setState(State.FILTERING);
+					if (this.isActive()) {
+						if (this.state === State.ACTIVE) {
+							this.setState(State.FILTERING);
+						}
+						this.filterProposals();
 					}
 				}
-			},
-			onScroll: function(event) {
-				self.setState(State.INACTIVE);
-			},
-			onSelection: function(event) {
-				var state = self.state;
-				if (state === State.ACTIVE || state === State.FILTERING) {
-					self.computeProposals();
-					self.setState(State.FILTERING);
-				}
-			}
+				this._latestModelChangingEvent = null;
+			}).bind(this),
+			onScroll: (function(event) {
+				this.setState(State.INACTIVE);
+			}).bind(this)
 		};
+		
 		textView.setKeyBinding(util.isMac ? new mKeyBinding.KeyBinding(' ', false, false, false, true) : new mKeyBinding.KeyBinding(' ', true), "contentAssist"); //$NON-NLS-2$ //$NON-NLS-1$ //$NON-NLS-0$
+		textView.setKeyBinding(util.isMac ? new mKeyBinding.KeyBinding(' ', false, false, true, true) : new mKeyBinding.KeyBinding(' ', true, false, true), "contentAssist"); //$NON-NLS-2$ //$NON-NLS-1$ //$NON-NLS-0$
 		textView.setAction("contentAssist", function() { //$NON-NLS-0$
 			if (!textView.getOptions("readonly")) { //$NON-NLS-0$
 				self.activate();
@@ -16880,7 +18132,8 @@ define("orion/editor/contentAssist", [ //$NON-NLS-0$
 			// if overwrite is truthy, then also replace the prefix
 			var view = this.textView;
 			var sel = view.getSelection();
-			var start = Math.min(sel.start, sel.end), mapStart = start;
+			var start = this._initialCaretOffset;
+			var mapStart = start;
 			var end = Math.max(sel.start, sel.end), mapEnd = end;
 			var model = view.getModel();
 			if (model.getBaseModel) {
@@ -16888,6 +18141,7 @@ define("orion/editor/contentAssist", [ //$NON-NLS-0$
 				mapEnd = model.mapOffset(mapEnd);
 				model = model.getBaseModel();
 			}
+			
 			if (proposal.overwrite) {
 				start = this.getPrefixStart(model, mapStart);
 			}
@@ -16903,9 +18157,10 @@ define("orion/editor/contentAssist", [ //$NON-NLS-0$
 			this.dispatchEvent({type: "ProposalApplied", data: data}); //$NON-NLS-0$
 			return true;
 		},
-		activate: function() {
+		activate: function(providers, autoTriggered) {
 			if (this.state === State.INACTIVE) {
-				this.setState(State.ACTIVE);
+				this._autoTriggered = autoTriggered ? true : false;
+				this.setState(State.ACTIVE, providers);
 			}
 		},
 		deactivate: function() {
@@ -16920,25 +18175,31 @@ define("orion/editor/contentAssist", [ //$NON-NLS-0$
 			return this.state === State.ACTIVE || this.state === State.FILTERING;
 		},
 		/** @returns {Boolean} <code>true</code> if the event describes a change that should deactivate content assist. */
-		isDeactivatingChange: function(/**orion.editor.ModelChangingEvent*/ event) {
-			var deletion = event.removedCharCount > 0 && event.addedCharCount === 0,
-			    view = this.textView,
-			    overWhitespace = (event.start+1 <= view.getModel().getCharCount()) && /^\s*$/.test(view.getText(event.start, event.start+1));
-			return event.removedLineCount > 0 || event.addedLineCount > 0 || (deletion && overWhitespace);
+		isDeactivatingChange: function(/**orion.editor.ModelChangingEvent*/ event, selectionEvent) {
+			var isDeactivating = false;
+			
+			var isPriorToInitialCaretOffset = selectionEvent.newValue.start < this._initialCaretOffset;
+			
+			if (isPriorToInitialCaretOffset || !event) {
+				isDeactivating = true;
+			} else if (event) {
+				isDeactivating = (event.removedLineCount > 0) || (event.addedLineCount > 0);
+			}
+			
+			return isDeactivating;
 		},
 		/** @private */
-		setState: function(state) {
+		setState: function(state, /* Optional. Array of providers to pass to dispatched event.*/ providers) {
 			var eventType;
 			if (state === State.ACTIVE) {
 				eventType = "Activating"; //$NON-NLS-0$
 				if (this._mode) { this._mode.setActive(true); }
-				
 			} else if (state === State.INACTIVE) {
 				eventType = "Deactivating"; //$NON-NLS-0$
 				if (this._mode) { this._mode.setActive(false); }
 			}
 			if (eventType) {
-				this.dispatchEvent({type: eventType});
+				this.dispatchEvent({type: eventType, providers: providers});
 			}
 			this.state = state;
 			this.onStateChange(state);
@@ -16949,19 +18210,13 @@ define("orion/editor/contentAssist", [ //$NON-NLS-0$
 		/** @private */
 		onStateChange: function(state) {
 			if (state === State.INACTIVE) {
-				if (this.listenerAdded) {
-					this.textView.removeEventListener("ModelChanging", this.contentAssistListener.onModelChanging); //$NON-NLS-0$
-					this.textView.removeEventListener("Scroll", this.contentAssistListener.onScroll); //$NON-NLS-0$
-					this.textView.removeEventListener("Selection", this.contentAssistListener.onSelection); //$NON-NLS-0$
-					this.listenerAdded = false;
-				}
+				this._removeTextViewListeners();
+				this._filterText = "";
+				this._initialCaretOffset = -1;
+				this._computedProposals = null;
 			} else if (state === State.ACTIVE) {
-				if (!this.listenerAdded) {
-					this.textView.addEventListener("ModelChanging", this.contentAssistListener.onModelChanging); //$NON-NLS-0$
-					this.textView.addEventListener("Scroll", this.contentAssistListener.onScroll); //$NON-NLS-0$
-					this.textView.addEventListener("Selection", this.contentAssistListener.onSelection); //$NON-NLS-0$
-					this.listenerAdded = true;
-				}
+				this._filterText = "";
+				this._addTextViewListeners();
 				this.computeProposals();
 			}
 		},
@@ -16969,12 +18224,30 @@ define("orion/editor/contentAssist", [ //$NON-NLS-0$
 		 * Computes the proposals at the TextView's current caret offset.
 		 */
 		computeProposals: function() {
-			var self = this;
+			// figure out initial offset, it should be the minimum between 
+			// the beginning of the selection and the current caret offset
 			var offset = this.textView.getCaretOffset();
-			this._computeProposals(offset).then(function(proposals) {
-				if (!self.isActive()) { return; }
-				self.dispatchEvent({type: "ProposalsComputed", data: {proposals: proposals}}); //$NON-NLS-0$
-			});
+			var sel = this.textView.getSelection();
+			var selectionStart = Math.min(sel.start, sel.end);			
+			this._initialCaretOffset = Math.min(offset, selectionStart);
+			this._computedProposals = null;
+			
+			this._computeProposals(this._initialCaretOffset).then(function(proposals) {
+				if (this.isActive()) {
+					var flatProposalArray = this._flatten(proposals);
+					//check if flattened proposals form a valid array with at least one entry
+					if (flatProposalArray && Array.isArray(flatProposalArray) && (0 < flatProposalArray.length)) {
+						this._computedProposals = proposals;
+					}
+					this.dispatchEvent({type: "ProposalsComputed", data: {proposals: flatProposalArray}, autoApply: !this._autoTriggered}); //$NON-NLS-0$
+					if (this._computedProposals && this._filterText) {
+						// force filtering here because user entered text after
+						// computeProposals() was called but before the plugins
+						// returned the computed proposals
+						this.filterProposals(true);
+					}
+				}
+			}.bind(this));
 		},
 		/** @private */
 		getPrefixStart: function(model, end) {
@@ -16991,13 +18264,25 @@ define("orion/editor/contentAssist", [ //$NON-NLS-0$
 			}
 		},
 		/**
+		 * Initializes the providers. A provider must define an <tt>initialize()</tt> method to be initialized.
+		 * @since 6.0
+		 */
+		initialize: function() {
+			this._providers.forEach(function(info) {
+				var provider = info.provider;
+				if (typeof provider.initialize === "function") {//$NON-NLS-0$
+					provider.initialize();
+				}
+			});
+		},
+		/**
 		 * Retrieves the proposals at the given offset.
 		 * @private
 		 * @param {Number} offset The caret offset.
 		 * @returns {Deferred} A promise that will provide the proposals.
 		 */
 		_computeProposals: function(offset) {
-			var providers = this.providers;
+			var providerInfoArray = this._providers;
 			var textView = this.textView;
 			var sel = textView.getSelection();
 			var model = textView.getModel(), mapOffset = offset;
@@ -17015,7 +18300,7 @@ define("orion/editor/contentAssist", [ //$NON-NLS-0$
 			var indentation = line.substring(0, index);
 			var options = textView.getOptions("tabSize", "expandTab"); //$NON-NLS-1$ //$NON-NLS-0$
 			var tab = options.expandTab ? new Array(options.tabSize + 1).join(" ") : "\t"; //$NON-NLS-1$ //$NON-NLS-0$
-			var context = {
+			var params = {
 				line: line,
 				offset: mapOffset,
 				prefix: model.getText(this.getPrefixStart(model, mapOffset), mapOffset),
@@ -17025,48 +18310,381 @@ define("orion/editor/contentAssist", [ //$NON-NLS-0$
 				indentation: indentation
 			};
 			var self = this;
-			var promises = providers.map(function(provider) {
+			var promises = providerInfoArray.map(function(providerInfo) {
+				var provider = providerInfo.provider;
 				var proposals;
 				try {
 					var func, promise;
 					if ((func = provider.computeContentAssist)) {
-						var editorContext = self.editorContextProvider && self.editorContextProvider();
-						promise = func.apply(provider, [editorContext, context]);
+						var ecProvider = self.editorContextProvider, editorContext = ecProvider.getEditorContext();
+						params = objects.mixin(params, ecProvider.getOptions());
+						promise = func.apply(provider, [editorContext, params]);
 					} else if ((func = provider.getProposals || provider.computeProposals)) {
 						// old API
-						promise = func.apply(provider, [model.getText(), mapOffset, context]);
+						promise = func.apply(provider, [model.getText(), mapOffset, params]);
 					}
 					proposals = self.progress ? self.progress.progress(promise, "Generating content assist proposal") : promise; //$NON-NLS-0$
 				} catch (e) {
-					self.handleError(e);
+					return new Deferred().reject(e);
 				}
 				return Deferred.when(proposals);
 			});
-			return Deferred.all(promises, this.handleError).then(flatten);
+			// TODO should we allow error to propagate instead of handling here?
+			return Deferred.all(promises, this.handleError);
+		},
+
+		filterProposals: function(force) {
+			if (this._computedProposals && (this._latestModelChangingEvent || force)) {
+				var model = this.textView.getModel();
+				if (model.getBaseModel) {
+					model = model.getBaseModel();
+				}
+				var prefixStart = this.getPrefixStart(model, this._initialCaretOffset);
+				var prefixText = this.textView.getText(prefixStart, this._initialCaretOffset);
+				
+				// filter proposals based on prefixes and _filterText
+				var proposals = []; //array of arrays of proposals
+				this._computedProposals.forEach(function(proposalArray) {
+					if (proposalArray && Array.isArray(proposalArray)) {
+						var includedProposals = proposalArray.filter(function(proposal) {
+							if (!proposal) {
+								return false;
+							}
+							
+							if ((STYLES[proposal.style] === STYLES.hr)
+								|| (STYLES[proposal.style] === STYLES.noemphasis_title)) {
+								return true;
+							}
+							
+							var proposalString = "";
+							if (proposal.overwrite) {
+								if (proposal.name) {
+									proposalString = proposal.name;
+								} else if (proposal.proposal) {
+									proposalString = proposal.proposal;
+								} else {
+									return false; // unknown format
+								}
+			
+								return (0 === proposalString.indexOf(prefixText + this._filterText));
+								
+							} else if (proposal.name || proposal.proposal) {
+								var activated = false;
+								// try matching name
+								if (proposal.name) {
+									activated = (0 === proposal.name.indexOf(prefixText + this._filterText));	
+								}
+								
+								// try matching proposal text
+								if (!activated && proposal.proposal) {
+									activated = (0 === proposal.proposal.indexOf(this._filterText));
+								}
+								
+								return activated;
+							} else if (typeof proposal === "string") { //$NON-NLS-0$
+								return 0 === proposal.indexOf(this._filterText);
+							} else {
+								return false;
+							}
+						}, this);
+						
+						if (includedProposals.length > 0) {
+							proposals.push(includedProposals);	
+						}
+					}
+				}, this);
+				
+				var flatProposalArray = [];
+				if (proposals) {
+					// filter out extra separators and titles
+					proposals = this._removeExtraUnselectableElements(proposals);
+					flatProposalArray = this._flatten(proposals);
+				}
+				
+				this.dispatchEvent({type: "ProposalsComputed", data: {proposals: flatProposalArray}, autoApply: false}); //$NON-NLS-0$
+			}
+		},
+		
+		/**
+		 * Helper method which removes extra separators and titles from
+		 * an array containing arrays of proposals from the various providers.
+		 * @param{Array[]} proposals An array with each element containing an array of proposals
+		 * @returns {Array} An array without the extra unselectable elements
+		 */
+		_removeExtraUnselectableElements: function(proposals) {
+			// get rid of extra separators and titles
+			var mappedProposals = proposals.map(function(proposalArray) {
+				var element = proposalArray.filter(function(proposal, index) {
+					var keepElement = true;
+					if (STYLES[proposal.style] === STYLES.hr) {
+						if ((0 === index) || ((proposalArray.length - 1) === index)) {
+							keepElement = false; // remove separators at first or last element
+						} else if (STYLES.hr === STYLES[proposalArray[index - 1].style]) {
+							keepElement = false; // remove separator preceeded by another separator
+						}
+					} else if (STYLES[proposal.style] === STYLES.noemphasis_title) {
+						var nextProposal = proposalArray[index + 1];
+						if (nextProposal) {
+							// remove titles that preceed other titles, all of their subelements have already been filtered out
+							if (STYLES[nextProposal.style] === STYLES.noemphasis_title) {
+								keepElement = false;
+							}
+						} else {
+							keepElement = false; //remove titles that are at the end of the array
+						}
+					}
+					return keepElement;
+				});
+				return element;
+			});
+			
+			return mappedProposals;
+		},
+		
+		/**
+		 * Sets the provider that will be invoked to generate the Editor Context service and options to any
+		 * content assist providers that implement the v4.0 content assist API.
+		 * @param {Object} editorContextProvider
+		 */
+		setEditorContextProvider: function(editorContextProvider) {
+			this.editorContextProvider = editorContextProvider;
+		},
+		
+		/**
+		 * Helper method used to generate a unique ID for a provider.
+		 * Note that the uniqueness of the ID is only guaranteed for the life of this
+		 * object and if all of the other IDs are also generated using this method.
+		 */
+		_generateProviderId: function() {
+			if (this._idcount) {
+				this._idcount++;
+			} else {
+				this._idcount = 0;
+			}
+			return "ContentAssistGeneratedID_" +  this._idcount; //$NON-NLS-0$
 		},
 
 		/**
-		 * Sets the editor context factory that this ContentAssist will invoke to generate an <code>{@link orion.edit.EditorContext}</code>.
-		 * The EditorContext is passed to providers that implement the v4.0 content assist API.
-		 * @param {Function} editorContextProvider A function that returns an {@link orion.edit.EditorContext}.
+		 * Sets whether or not automatic content assist triggering is enabled.
+		 * @param {Boolean} enableAutoTrigger
 		 */
-		setEditorContextFactory: function(editorContextFactory) {
-			this.editorContextProvider = editorContextFactory;
+		setAutoTriggerEnabled: function(enableAutoTrigger) {
+			this._autoTriggerEnabled = enableAutoTrigger;
+			this._updateAutoTriggerListenerState();
 		},
+
+		/**
+		 * @name orion.editor.ContentAssistProviderInfo
+		 * @class Encapsulates a content assist provider and its automatic triggers.
+		 *
+		 * @property {String} id Unique ID of this provider.
+		 * @property {RegExp} charTriggers A regular expression matching the characters that, when typed,
+		 * will cause this provider to be activated automatically by the content assist engine.
+		 * @property {RegExp} excludedStyles A regular expression matching the style names that are
+		 * exclusions to this provider's <tt>charTriggers</tt> matching.
+		 * @property {orion.editor.ContentAssistProvider} provider The actual content assist provider.
+		 */
 
 		/**
 		 * Sets the content assist providers that this ContentAssist will consult to obtain proposals.
-		 * @param {orion.editor.ContentAssistProvider[]} providers The providers.
+		 *
+		 * @param {orion.editor.ContentAssistProvider[]|orion.edit.ContentAssistProviderInfo[]} providers The
+		 * providers. Each element may be either a plain {@link orion.editor.ContentAssistProvider}, or a
+		 * {@link orion.edit.ContentAssistProviderInfo}.
 		 */
 		setProviders: function(providers) {
-			this.providers = providers.slice(0);
+			var _self = this;
+			this.setProviderInfoArray(providers.map(function(p) {
+				// Wrap any plain Provider into a ProviderInfo
+				return p.id ? p : {
+					provider: p,
+					id: _self._generateProviderId()
+				};
+			}));
 		},
-		
+
+		/**
+		 * @private
+		 */
+		setProviderInfoArray: function(providerInfoArray) {
+			this.clearProviders();
+			
+			this._providers = providerInfoArray;
+			this._charTriggersInstalled = providerInfoArray.some(function(info){
+				return info.charTriggers;
+			});
+			this._updateAutoTriggerListenerState();
+		},
+
+		/**
+		 * @returns orion.edit.ContentAssistProviderInfo[]
+		 */
+		getProviders: function() {
+			return this._providers.slice();
+		},
+
+		clearProviders: function() {
+			this._providers = [];
+			this._charTriggersInstalled = false;
+			this._updateAutoTriggerListenerState();
+		},
+
 		/**
 		 * Sets the progress handler that will display progress information, if any are generated by content assist providers.
 		 */
 		setProgress: function(progress){
 			this.progress = progress;
+		},
+		
+		setStyleAccessor: function(styleAccessor) {
+			this._styleAccessor = styleAccessor;
+		},
+		
+		/**
+		 * Flattens an array of arrays into a one-dimensional array.
+		 * @param {Array[]} array
+		 * @returns {Array}
+		 */
+		_flatten: function(arrayOrObjectArray) {
+			
+			return arrayOrObjectArray.reduce(function(prev, curr) {
+				var returnValue = prev;
+				var filteredArray = null;
+				
+				if (curr && Array.isArray(curr)) {
+					filteredArray = curr.filter(function(element){
+						return element; //filter out falsy elements
+					});	
+				}
+				
+				// add current proposal array to flattened array
+				// skip current elements that are not arrays
+				if (filteredArray && Array.isArray(filteredArray) && (filteredArray.length > 0)) {
+					var first = filteredArray;
+					var last = prev;
+					var filteredArrayStyle = filteredArray[0].style;
+					
+					if (filteredArrayStyle && (0 === STYLES[filteredArrayStyle].indexOf(STYLES.noemphasis))) {
+						// the style of the first element starts with noemphasis
+						// add these proposals to the end of the array
+						first = prev;
+						last = filteredArray;
+					}
+					
+					if (first.length > 0) {
+						var firstArrayStyle = first[first.length - 1].style;
+						if (firstArrayStyle && (STYLES.hr !== STYLES[firstArrayStyle])) {
+							// add separator between proposals from different providers 
+							// if the previous array didn't already end with a separator
+							first = first.concat({
+								proposal: '',
+								name: '',
+								description: '---------------------------------', //$NON-NLS-0$
+								style: 'hr', //$NON-NLS-0$
+								unselectable: true
+							});
+						}
+					}
+					
+					returnValue = first.concat(last);
+				}
+				
+				return returnValue;
+			}, []);
+		},
+		
+		_triggerListener: function(/*event*/) {
+			var caretOffset = this.textView.getCaretOffset();
+			var stylesAtOffset = null;
+			var providerInfosToActivate = [];
+
+			if (this._charTriggersInstalled) {
+				var currentChar = this.textView.getText(caretOffset - 1, caretOffset);
+
+				this._providers.forEach(function(info) {
+					// check if the charTriggers RegExp matches the currentChar
+					// we're assuming that this will fail much more often than
+					// the excludedStyles test so do this first for better performance
+					var charTriggers = info.charTriggers;
+					if (charTriggers && charTriggers.test(currentChar)) {
+						var isExcluded = false;
+						var excludedStyles = info.excludedStyles;
+						if (this._styleAccessor && excludedStyles) {
+							if (!stylesAtOffset) {
+								// lazily initialize this variable to avoid getting the styles
+								// for every model modification, only ones that may trigger
+								stylesAtOffset = this._styleAccessor.getStyles(caretOffset - 1);
+							}
+							// check if any of the styles match the excludedStyles RegExp
+							isExcluded = stylesAtOffset.some(function (element) {
+								return excludedStyles.test(element.style);
+							});
+						}
+						if (!isExcluded) {
+							providerInfosToActivate.push(info);
+						}
+					}
+				}, this);
+
+				if (providerInfosToActivate.length > 0) {
+					this.activate(providerInfosToActivate, true);
+				}
+			}
+		},
+		
+		/**
+		 * Private helper to install/uninstall the automatic trigger
+		 * listener based on the state of the relevant booleans
+		 */
+		_updateAutoTriggerListenerState: function() {
+			if (!this._boundTriggerListener) {
+				this._boundTriggerListener = this._triggerListener.bind(this);
+			}
+			
+			if (this._triggerListenerInstalled) {
+				// uninstall the listener if necessary
+				if (!this._autoTriggerEnabled || !this._charTriggersInstalled) {
+					this.textView.removeEventListener("Modify", this._boundTriggerListener); //$NON-NLS-0$
+					this._triggerListenerInstalled = false;
+				}
+			} else if (this._autoTriggerEnabled && this._charTriggersInstalled){
+				// install the listener if necessary
+				this.textView.addEventListener("Modify", this._boundTriggerListener); //$NON-NLS-0$
+				this._triggerListenerInstalled = true;
+			}
+		},
+		
+		_addTextViewListeners: function() {
+			if (!this._textViewListenersAdded) {
+				this.textView.addEventListener("ModelChanging", this._textViewListeners.onModelChanging); //$NON-NLS-0$
+				this.textView.addEventListener("Scroll", this._textViewListeners.onScroll); //$NON-NLS-0$
+				this.textView.addEventListener("Selection", this._textViewListeners.onSelection); //$NON-NLS-0$
+				this._textViewListenersAdded = true;
+			}
+		},
+		
+		_removeTextViewListeners: function() {
+			if (this._textViewListenersAdded) {
+				this._latestModelChangingEvent = null;
+				this.textView.removeEventListener("ModelChanging", this._textViewListeners.onModelChanging); //$NON-NLS-0$
+				this.textView.removeEventListener("Scroll", this._textViewListeners.onScroll); //$NON-NLS-0$
+				this.textView.removeEventListener("Selection", this._textViewListeners.onSelection); //$NON-NLS-0$
+				this._textViewListenersAdded = false;
+			}
+		},
+		
+		_updateFilterText: function(modelChangingEvent) {
+			// update this._filterText based on the modification info
+			// contained in the event
+			var removedCharCount = modelChangingEvent.removedCharCount;
+			if (removedCharCount) {
+				var lastIndex = this._filterText.length - removedCharCount;
+				this._filterText = this._filterText.substring(0, lastIndex);
+			}
+			var text = modelChangingEvent.text;
+			if (text) {
+				this._filterText = this._filterText.concat(text);
+			}
 		}
 	};
 	mEventTarget.EventTarget.addMixin(ContentAssist.prototype);
@@ -17094,7 +18712,35 @@ define("orion/editor/contentAssist", [ //$NON-NLS-0$
 				self.selectedIndex = -1;
 				self.cancel();
 			} else {
-				self.selectedIndex = 0;	
+				self.selectedIndex = 0;
+				while(self.proposals[self.selectedIndex] && self.proposals[self.selectedIndex].unselectable) {
+					self.selectedIndex++;
+				}
+				if (self.proposals[self.selectedIndex]) {
+					if (self.widget) {
+						var showWidget = true;
+						
+						if (event.autoApply) {
+							var nextIndex = self.selectedIndex + 1;
+							while (self.proposals[nextIndex] && self.proposals[nextIndex].unselectable) {
+								nextIndex++;
+							}
+							if (!self.proposals[nextIndex]) {
+								// if there is only one selectable proposal apply it automatically
+								showWidget = false;
+								self.contentAssist.apply(self.proposals[self.selectedIndex]);
+							}
+						}
+						
+						if (showWidget) {
+							self.widget.show();
+							self.widget.selectNode(self.selectedIndex);
+						}
+					}
+				} else {
+					self.selectedIndex = -1; // didn't find any selectable items
+					self.cancel();
+				}
 			}
 		});
 		textView.setAction("contentAssistApply", function() { //$NON-NLS-0$
@@ -17115,9 +18761,23 @@ define("orion/editor/contentAssist", [ //$NON-NLS-0$
 		textView.setAction("contentAssistPreviousPage", function() { //$NON-NLS-0$
 			return this.pageUp();
 		}.bind(this));
+		textView.setAction("contentAssistHome", function() { //$NON-NLS-0$
+			if (this.widget) {
+				this.widget.scrollIndex(0, true);
+			}
+			return this.lineDown(0); // select first selectable element starting at the top and moving downwards
+		}.bind(this));
+		textView.setAction("contentAssistEnd", function() { //$NON-NLS-0$
+			return this.lineUp(this.proposals.length - 1); // select first selectable element starting at the bottom and moving up
+		}.bind(this));
 		textView.setAction("contentAssistTab", function() { //$NON-NLS-0$
 			return this.tab();
 		}.bind(this));
+		
+		if (this.widget) {
+			this.widget.setContentAssistMode(this);
+			this.widget.createAccessible();
+		}
 	}
 	ContentAssistMode.prototype = new mKeyModes.KeyMode();
 	objects.mixin(ContentAssistMode.prototype, {
@@ -17130,6 +18790,8 @@ define("orion/editor/contentAssist", [ //$NON-NLS-0$
 			bindings.push({actionID: "contentAssistPreviousProposal", keyBinding: new KeyBinding(38)}); //$NON-NLS-0$
 			bindings.push({actionID: "contentAssistNextPage", keyBinding: new KeyBinding(34)}); //$NON-NLS-0$
 			bindings.push({actionID: "contentAssistPreviousPage", keyBinding: new KeyBinding(33)}); //$NON-NLS-0$
+			bindings.push({actionID: "contentAssistHome", keyBinding: new KeyBinding(lib.KEY.HOME)}); //$NON-NLS-0$
+			bindings.push({actionID: "contentAssistEnd", keyBinding: new KeyBinding(lib.KEY.END)}); //$NON-NLS-0$
 			bindings.push({actionID: "contentAssistTab", keyBinding: new KeyBinding(9)}); //$NON-NLS-0$
 			return bindings;
 		},
@@ -17139,6 +18801,9 @@ define("orion/editor/contentAssist", [ //$NON-NLS-0$
 		/** @private */
 		getContentAssist: function() {
 			return this.contentAssist;
+		},
+		getProposals: function() {
+			return this.proposals;	
 		},
 		isActive: function() {
 			return this.getContentAssist().isActive();
@@ -17150,42 +18815,104 @@ define("orion/editor/contentAssist", [ //$NON-NLS-0$
 				this.contentAssist.textView.removeKeyMode(this);
 			}
 		},
-		lineUp: function() {
-			var newSelected = (this.selectedIndex === 0) ? this.proposals.length - 1 : this.selectedIndex - 1;
-			return this._lineUp(newSelected);
+		/**
+		 * Selects a selectable item in the content assist widget
+		 * iterating backwards for .
+		 * 
+		 * @param index {number} Optional. The index of the item to try and select. 
+		 */
+		lineUp: function(index, noWrap) {
+			return this.selectNew(index, noWrap, false);
 		},
-		_lineUp: function(newSelected) {
-			while (this.proposals[newSelected].unselectable && newSelected > 0) {
-				newSelected--;
+		/**
+		 * Selects the item at the specified index or the next
+		 * selectable item
+		 */
+		lineDown: function(index, noWrap) {
+			return this.selectNew(index, noWrap, true);
+		},
+		selectNew: function(index, noWrap, forward) {
+			var newIndex = index;
+			
+			if (forward) {
+				if (undefined === newIndex) {
+					newIndex = this.selectedIndex + 1;
+				}
+				// handle wrap around
+				if (newIndex >= this.proposals.length) {
+					if (noWrap) {
+						return true; // do nothing
+					} else {
+						newIndex = 0;	
+					}
+				}
+			} else {
+				if (undefined === newIndex) {
+					newIndex = this.selectedIndex - 1;
+				}
+				// handle wrap around
+				if (0 > newIndex) {
+					if (noWrap) {
+						return true; // do nothing
+					} else {
+						newIndex = this.proposals.length - 1;	
+					}
+				}
 			}
-			this.selectedIndex = newSelected;
+			
+			var startIndex = newIndex;
+			while (this.proposals[newIndex] && this.proposals[newIndex].unselectable) {
+				if (forward) {
+					newIndex++;
+					// handle wrap around
+					if (newIndex >= this.proposals.length) {
+						if (noWrap) {
+							return true; // do nothing
+						} else {
+							newIndex = 0;	
+						}
+					}
+				} else {
+					newIndex--;
+					// handle wrap around
+					if (0 > newIndex) {
+						if (noWrap) {
+							return true; // do nothing
+						} else {
+							newIndex = this.proposals.length - 1;	
+						}
+					}
+				}
+				
+				if (newIndex === startIndex) {
+					// looped through all nodes and didn't find any that were selectable
+					newIndex = -1;
+					break;
+				}
+			}
+			
+			this.selectedIndex = newIndex;
+			
 			if (this.widget) {
-				this.widget.setSelectedIndex(this.selectedIndex);
+				this.widget.selectNode(newIndex);
 			}
 			return true;
 		},
-		lineDown: function() {
-			var newSelected = (this.selectedIndex === this.proposals.length - 1) ? 0 : this.selectedIndex + 1;
-			return this._lineDown(newSelected);
-		},
-		_lineDown: function(newSelected) {
-			while (this.proposals[newSelected].unselectable && newSelected < this.proposals.length-1) {
-				newSelected++;
-			}
-			this.selectedIndex = newSelected;
-			if (this.widget) {
-				this.widget.setSelectedIndex(this.selectedIndex);
-			}
-			return true;
-		},
+		
 		pageUp: function() {
+			//TODO find out why this doesn't always go to the very top
 			if (this.widget) {
 				var newSelected = this.widget.getTopIndex();
 				if (newSelected === this.selectedIndex) {
 					this.widget.scrollIndex(newSelected, false);
 					newSelected = this.widget.getTopIndex();
 				}
-				return this._lineUp(newSelected);
+				if (0 === newSelected) {
+					// if we're attempting to select the first item in the list
+					// move down to the next one if it is not selectable
+					return this.lineDown(newSelected, true);	
+				}
+				return this.lineUp(newSelected, true);
 			} else {
 				return this.lineUp();
 			}
@@ -17197,7 +18924,7 @@ define("orion/editor/contentAssist", [ //$NON-NLS-0$
 					this.widget.scrollIndex(newSelected, true);
 					newSelected = this.widget.getBottomIndex();
 				}
-				return this._lineDown(newSelected);
+				return this.lineDown(newSelected, true);
 			} else {
 				return this.lineDown();
 			}
@@ -17208,7 +18935,6 @@ define("orion/editor/contentAssist", [ //$NON-NLS-0$
 		},
 		tab: function() {
 			if (this.widget) {
-				this.widget.createAccessible(this);
 				this.widget.parentNode.focus();
 				return true;
 			} else {
@@ -17243,6 +18969,9 @@ define("orion/editor/contentAssist", [ //$NON-NLS-0$
 				throw new Error("parentNode is required"); //$NON-NLS-0$
 			}
 		}
+		
+		textUtil.addEventListener(this.parentNode, "scroll", this.onScroll.bind(this)); //$NON-NLS-0$
+		
 		var self = this;
 		this.textViewListener = {
 			onMouseDown: function(event) {
@@ -17254,22 +18983,8 @@ define("orion/editor/contentAssist", [ //$NON-NLS-0$
 				// the click is handled by the onClick() function
 			}
 		};
-		this.contentAssist.addEventListener("ProposalsComputed", function(event) { //$NON-NLS-0$
-			self.setProposals(event.data.proposals);
-			self.show();
-			if (!self.textViewListenerAdded) {
-				self.textView.addEventListener("MouseDown", self.textViewListener.onMouseDown); //$NON-NLS-0$
-				self.textViewListenerAdded = true;
-			}
-		});
 		this.contentAssist.addEventListener("Deactivating", function(event) { //$NON-NLS-0$
-			self.setProposals([]);
 			self.hide();
-			if (self.textViewListenerAdded) {
-				self.textView.removeEventListener("MouseDown", self.textViewListener.onMouseDown); //$NON-NLS-0$
-				self.textViewListenerAdded = false;
-			}
-			self.textViewListenerAdded = false;
 		});
 		this.scrollListener = function(e) {
 			if (self.isShowing) {
@@ -17286,79 +19001,117 @@ define("orion/editor/contentAssist", [ //$NON-NLS-0$
 			this.textView.focus();
 		},
 		/** @private */
-		createDiv: function(proposal, isSelected, parent, itemIndex) {
+		onScroll: function(e) {
+			if (this.previousCloneNode && !this.preserveCloneThroughScroll) {
+				this._removeCloneNode();
+				this.previousSelectedNode.classList.add(STYLES.selected);
+			}
+			this.preserveCloneThroughScroll = false;
+		},
+		/** @private */
+		createDiv: function(proposal, parent, itemIndex) {
 			var document = parent.ownerDocument;
 			var div = util.createElement(document, "div"); //$NON-NLS-0$
 			div.id = "contentoption" + itemIndex; //$NON-NLS-0$
 			div.setAttribute("role", "option"); //$NON-NLS-1$ //$NON-NLS-0$
+			div.className = STYLES[proposal.style] ? STYLES[proposal.style] : STYLES.dfault;
 			var node;
 			if (proposal.style === "hr") { //$NON-NLS-0$
 				node = util.createElement(document, "hr"); //$NON-NLS-0$
 			} else {
-				div.className = this.calculateClasses(proposal.style, isSelected);
-				node = document.createTextNode(this.getDisplayString(proposal));
-				if (isSelected) {
-					this.parentNode.setAttribute("aria-activedescendant", div.id); //$NON-NLS-0$
-				}
+				node = this._createDisplayNode(div, proposal, itemIndex);
+				div.contentAssistProposalIndex = itemIndex; // make div clickable
 			}
-			div.appendChild(node, div);
+			div.appendChild(node);
 			parent.appendChild(div);
 		},
 		/** @private */
-		createAccessible: function(mode) {
-			if(!this._isAccessible) {
-				textUtil.addEventListener(this.parentNode, "keydown", function(evt) { //$NON-NLS-0$
-					if (!evt) { evt = window.event; }
-					if(evt.keyCode === 27) {return mode.cancel(); }
-					else if(evt.keyCode === 38) { return mode.lineUp(); }
-					else if(evt.keyCode === 40) { return mode.lineDown(); }
-					else if(evt.keyCode === 13) { return mode.enter(); }
-					if (evt.preventDefault) {
-						evt.preventDefault();
-					} else {
-						evt.cancelBubble = true;
-						evt.returnValue = false;
-						evt.keyCode = 0;
-					}
-					return false;
-				});
-			}
-			this._isAccessible = true;
+		createAccessible: function() {
+			var mode = this._contentAssistMode;
+			var self = this;
+			textUtil.addEventListener(this.parentNode, "keydown", function(evt) { //$NON-NLS-0$
+				if (!evt) { evt = window.event; }
+				if (evt.preventDefault) {
+					evt.preventDefault();
+				}
+				if(evt.keyCode === lib.KEY.ESCAPE) {
+					return mode.cancel(); 
+				} else if(evt.keyCode === lib.KEY.UP) {
+					return mode.lineUp();
+				} else if(evt.keyCode === lib.KEY.DOWN) {
+					return mode.lineDown();
+				} else if(evt.keyCode === lib.KEY.ENTER) {
+					return mode.enter(); 
+				} else if(evt.keyCode === lib.KEY.PAGEDOWN) {
+					return mode.pageDown();
+				} else if(evt.keyCode === lib.KEY.PAGEUP) {
+					return mode.pageUp();
+				} else if(evt.keyCode === lib.KEY.HOME) {
+					self.scrollIndex(0, true);
+					return mode.lineDown(0); // select first selectable element starting at the top and moving downwards
+				} else if(evt.keyCode === lib.KEY.END) {
+					return mode.lineUp(mode.getProposals().length - 1); // select first selectable element starting at the bottom and moving up
+				}
+				return false;
+			});
 		},
 		/** @private */
-		calculateClasses : function(style, isSelected) {
-			var cssClass = STYLES[style];
-			if (!cssClass) {
-				cssClass = STYLES.dfault;
-			}
-			return isSelected ? cssClass + STYLES.selected : cssClass;
-		},
-		/** @private */
-		getDisplayString: function(proposal) {
-			//for simple string content assist, the display string is just the proposal
+		_createDisplayNode: function(div, proposal, index) {
+			var node = null;
+			var plainString = null;
+			
 			if (typeof proposal === "string") { //$NON-NLS-0$
-				return proposal;
+				//for simple string content assist, the display string is just the proposal
+				plainString = proposal;
+			} else if (proposal.description && typeof proposal.description === "string") { //$NON-NLS-0$
+				if (proposal.name && typeof proposal.name === "string") { //$NON-NLS-0$
+					var nameNode = this._createNameNode(proposal.name);
+					nameNode.contentAssistProposalIndex = index;
+					
+					node = document.createElement("span"); //$NON-NLS-0$
+					node.appendChild(nameNode);
+					
+					var descriptionNode = document.createTextNode(proposal.description);
+					node.appendChild(descriptionNode);
+					div.setAttribute("title", proposal.name + proposal.description); //$NON-NLS-0$
+				} else {
+					plainString = proposal.description;
+				}
+			} else {
+				//by default return the straight proposal text
+				plainString = proposal.proposal;
 			}
-			//return the description if applicable
-			if (proposal.description && typeof proposal.description === "string") { //$NON-NLS-0$
-				return proposal.description;
+			
+			if (plainString) {
+				node = this._createNameNode(plainString);
+				div.setAttribute("title", plainString); //$NON-NLS-0$
 			}
-			//by default return the straight proposal text
-			return proposal.proposal;
+			
+			node.contentAssistProposalIndex = index;
+			
+			return node;
+		},
+		/** @private */
+		_createNameNode: function(name) {
+			var node = document.createElement("span"); //$NON-NLS-0$
+			node.classList.add("proposal-name"); //$NON-NLS-0$
+			node.appendChild(document.createTextNode(name));
+			return node;
 		},
 		/**
 		 * @private
 		 * @returns {Object} The proposal represented by the given node.
 		 */
 		getProposal: function(/**DOMNode*/ node) {
-			var nodeIndex = 0;
-			for (var child = this.parentNode.firstChild; child !== null; child = child.nextSibling) {
-				if (child === node) {
-					return this.proposals[nodeIndex] || null;
-				}
-				nodeIndex++;
+			var proposal = null;
+			
+			var nodeIndex = node.contentAssistProposalIndex;
+			
+			if (undefined !== nodeIndex){
+				proposal = this._contentAssistMode.getProposals()[nodeIndex] || null;
 			}
-			return null;
+			
+			return proposal;
 		},
 		/** @private */
 		getTopIndex: function() {
@@ -17385,49 +19138,114 @@ define("orion/editor/contentAssist", [ //$NON-NLS-0$
 		/** @private */
 		scrollIndex: function(index, top) {
 			this.parentNode.childNodes[index].scrollIntoView(top);
+			this.preserveCloneThroughScroll = true;
 		},
-		/** Sets the index of the currently selected proposal. */
-		setSelectedIndex: function(/**Number*/ index) {
-			this.selectedIndex = index;
-			this.selectNode(this.parentNode.childNodes[this.selectedIndex]);
-		},
-		/** @private */
-		selectNode: function(/**DOMNode*/ node) {
-			var nodes = this.parentNode.childNodes;
-			for (var i=0; i < nodes.length; i++) {
-				var child = nodes[i];
-				var selIndex = child.className.indexOf(STYLES.selected);
-				if (selIndex >= 0) {
-					child.className = child.className.substring(0, selIndex) + 
-							child.className.substring(selIndex + STYLES.selected.length);
-				}
-				if (child === node) {
-					child.className = child.className + STYLES.selected;
-					this.parentNode.setAttribute("aria-activedescendant", child.id); //$NON-NLS-0$
-					child.focus();
-					if (child.offsetTop < this.parentNode.scrollTop) {
-						child.scrollIntoView(true);
-					} else if ((child.offsetTop + child.offsetHeight) > (this.parentNode.scrollTop + this.parentNode.clientHeight)) {
-						child.scrollIntoView(false);
-					}
+		/**
+		 * Visually selects the node at the specified nodeIndex
+		 * by updating its CSS class and scrolling it into view
+		 * if necessary.
+		 * @param{Number} nodeIndex The index of the node to select
+		 */
+		selectNode: function(nodeIndex) {
+			var node = null;
+			
+			if (this.previousSelectedNode) {
+				this.previousSelectedNode.classList.remove(STYLES.selected);
+				this.previousSelectedNode = null;
+				if (this.previousCloneNode) {
+					this._removeCloneNode();
 				}
 			}
+			
+			if (-1 !== nodeIndex) {
+				node = this.parentNode.childNodes[nodeIndex];
+				node.classList.add(STYLES.selected);
+				this.parentNode.setAttribute("aria-activedescendant", node.id); //$NON-NLS-0$
+				node.focus();
+				if (node.offsetTop < this.parentNode.scrollTop) {
+					node.scrollIntoView(true);
+					this.preserveCloneThroughScroll = true;
+				} else if ((node.offsetTop + node.offsetHeight) > (this.parentNode.scrollTop + this.parentNode.clientHeight)) {
+					node.scrollIntoView(false);
+					this.preserveCloneThroughScroll = true;
+				}
+				
+				var textNode = node.firstChild || node;  
+				var textBounds = lib.bounds(textNode);
+				var parentBounds = lib.bounds(this.parentNode);
+				var parentStyle = window.getComputedStyle(this.parentNode);
+				var nodeStyle = window.getComputedStyle(node);
+				var allPadding = parseInt(parentStyle.paddingLeft) + parseInt(parentStyle.paddingRight) + parseInt(nodeStyle.paddingLeft) + parseInt(nodeStyle.paddingRight);
+				if (textBounds.width >= (parentBounds.width - allPadding)) {
+					var parentTop = parseInt(parentStyle.top);
+					
+					// create clone node
+					var clone = node.cloneNode(true); // deep clone
+					clone.classList.add("cloneProposal"); //$NON-NLS-0$
+					clone.style.top = parentTop + node.offsetTop - this.parentNode.scrollTop + "px"; //$NON-NLS-0$
+					clone.style.left = parentStyle.left;
+					clone.setAttribute("id", clone.id + "_clone"); //$NON-NLS-1$ //$NON-NLS-0$
+					
+					// try to fit clone node on page horizontally
+					var viewportWidth = document.documentElement.clientWidth;
+					var horizontalOffset = (textBounds.left + textBounds.width) - parseInt(viewportWidth);
+					if (horizontalOffset > 0) {
+						var cloneLeft = parseInt(parentStyle.left) - horizontalOffset;
+						if (0 > cloneLeft) {
+							cloneLeft = 0;
+						}
+						clone.style.left = cloneLeft + "px";
+					}
+
+					// create wrapper parent node (to replicate css class hierarchy)
+					var parentClone = document.createElement("div");
+					parentClone.id = "clone_contentassist";  //$NON-NLS-0$
+					parentClone.classList.add("contentassist"); //$NON-NLS-0$
+					parentClone.classList.add("cloneWrapper"); //$NON-NLS-0$
+					parentClone.appendChild(clone);
+					parentClone.onclick = this.parentNode.onclick;
+					this.parentNode.parentNode.insertBefore(parentClone, this.parentNode);
+					
+					// make all the cloned nodes clickable by setting their contentAssistProposalIndex
+					var recursiveSetIndex = function(cloneNode){
+						cloneNode.contentAssistProposalIndex = node.contentAssistProposalIndex;
+						if (cloneNode.hasChildNodes()) {
+							for (var i = 0 ; i < cloneNode.childNodes.length ; i++){
+								recursiveSetIndex(cloneNode.childNodes[i]);
+							}
+						}
+					};
+					recursiveSetIndex(parentClone);
+					
+					node.classList.remove(STYLES.selected);
+					
+					this.previousCloneNode = parentClone;				
+				}
+			}
+			
+			this.previousSelectedNode = node;
 		},
-		setProposals: function(/**Object[]*/ proposals) {
-			this.proposals = proposals;
+		setContentAssistMode: function(mode) {
+			this._contentAssistMode = mode;
 		},
 		show: function() {
-			if (this.proposals.length === 0) {
+			var proposals = this._contentAssistMode.getProposals();
+			if (proposals.length === 0) {
 				this.hide();
-				return;
+			} else {
+				this.parentNode.innerHTML = "";
+				for (var i = 0; i < proposals.length; i++) {
+					this.createDiv(proposals[i], this.parentNode, i);
+				}
+				this.position();
+				this.parentNode.onclick = this.onClick.bind(this);
+				this.isShowing = true;
+				
+				if (!this.textViewListenerAdded) {
+					this.textView.addEventListener("MouseDown", this.textViewListener.onMouseDown); //$NON-NLS-0$
+					this.textViewListenerAdded = true;
+				}
 			}
-			this.parentNode.innerHTML = "";
-			for (var i = 0; i < this.proposals.length; i++) {
-				this.createDiv(this.proposals[i], i===0, this.parentNode, i);
-			}
-			this.position();
-			this.parentNode.onclick = this.onClick.bind(this);
-			this.isShowing = true;
 		},
 		hide: function() {
 			if(this.parentNode.ownerDocument.activeElement === this.parentNode) {
@@ -17436,6 +19254,18 @@ define("orion/editor/contentAssist", [ //$NON-NLS-0$
 			this.parentNode.style.display = "none"; //$NON-NLS-0$
 			this.parentNode.onclick = null;
 			this.isShowing = false;
+			
+			if (this.textViewListenerAdded) {
+				this.textView.removeEventListener("MouseDown", this.textViewListener.onMouseDown); //$NON-NLS-0$
+				this.textViewListenerAdded = false;
+			}
+			
+			if (this.previousSelectedNode) {
+				this.previousSelectedNode = null;
+				if (this.previousCloneNode) {
+					this._removeCloneNode();
+				}
+			}
 		},
 		position: function() {
 			var contentAssist = this.contentAssist;
@@ -17469,6 +19299,12 @@ define("orion/editor/contentAssist", [ //$NON-NLS-0$
 			if (caretLocation.x + this.parentNode.offsetWidth > viewportWidth) {
 				this.parentNode.style.left = (viewportWidth - this.parentNode.offsetWidth) + "px"; //$NON-NLS-0$
 			}
+		},
+		_removeCloneNode: function(){
+			if (this.parentNode.parentNode.contains(this.previousCloneNode)) {
+				this.parentNode.parentNode.removeChild(this.previousCloneNode);	
+			}
+			this.previousCloneNode = null;
 		}
 	};
 	return {
@@ -17480,7 +19316,7 @@ define("orion/editor/contentAssist", [ //$NON-NLS-0$
 
 /*******************************************************************************
  * @license
- * Copyright (c) 2010, 2012 IBM Corporation and others.
+ * Copyright (c) 2014 IBM Corporation and others.
  * All rights reserved. This program and the accompanying materials are made 
  * available under the terms of the Eclipse Public License v1.0 
  * (http://www.eclipse.org/legal/epl-v10.html), and the Eclipse Distribution 
@@ -17491,95 +19327,220 @@ define("orion/editor/contentAssist", [ //$NON-NLS-0$
 
 /*global define*/
 
-define("orion/editor/keywords", [], function() { //$NON-NLS-0$
-
-	var JS_KEYWORDS = [
-		"break", //$NON-NLS-0$
-		"case", "class", "catch", "continue", "const", //$NON-NLS-4$ //$NON-NLS-3$ //$NON-NLS-2$ //$NON-NLS-1$ //$NON-NLS-0$
-		"debugger", "default", "delete", "do", //$NON-NLS-3$ //$NON-NLS-2$ //$NON-NLS-1$ //$NON-NLS-0$
-		"else", "enum", "export", "extends", //$NON-NLS-3$ //$NON-NLS-2$ //$NON-NLS-1$ //$NON-NLS-0$
-		"false", "finally", "for", "function", //$NON-NLS-3$ //$NON-NLS-2$ //$NON-NLS-1$ //$NON-NLS-0$
-		"if", "implements", "import", "in", "instanceof", "interface", //$NON-NLS-5$ //$NON-NLS-4$ //$NON-NLS-3$ //$NON-NLS-2$ //$NON-NLS-1$ //$NON-NLS-0$
-		"let", //$NON-NLS-0$
-		"new", "null", //$NON-NLS-1$ //$NON-NLS-0$
-		"package", "private", "protected", "public", //$NON-NLS-0$ //$NON-NLS-1$ //$NON-NLS-2$ //$NON-NLS-3$
-		"return", //$NON-NLS-0$
-		"static", "super", "switch", //$NON-NLS-0$ //$NON-NLS-1$ //$NON-NLS-2$
-		"this", "throw", "true", "try", "typeof", //$NON-NLS-0$ //$NON-NLS-1$ //$NON-NLS-2$ //$NON-NLS-3$ //$NON-NLS-4$
-		"undefined", //$NON-NLS-0$
-		"var", "void", //$NON-NLS-0$ //$NON-NLS-1$
-		"while", "with", //$NON-NLS-0$ //$NON-NLS-1$
-		"yield" //$NON-NLS-0$
-	];
-
-	var CSS_KEYWORDS = [
-		"alignment-adjust", "alignment-baseline", "animation", "animation-delay", "animation-direction", "animation-duration", //$NON-NLS-5$ //$NON-NLS-4$ //$NON-NLS-3$ //$NON-NLS-2$ //$NON-NLS-1$ //$NON-NLS-0$
-		"animation-iteration-count", "animation-name", "animation-play-state", "animation-timing-function", "appearance", //$NON-NLS-5$ //$NON-NLS-4$ //$NON-NLS-3$ //$NON-NLS-2$ //$NON-NLS-1$ //$NON-NLS-0$
-		"azimuth", "backface-visibility", "background", "background-attachment", "background-clip", "background-color", //$NON-NLS-5$ //$NON-NLS-4$ //$NON-NLS-3$ //$NON-NLS-2$ //$NON-NLS-1$ //$NON-NLS-0$
-		"background-image", "background-origin", "background-position", "background-repeat", "background-size", "baseline-shift", //$NON-NLS-5$ //$NON-NLS-4$ //$NON-NLS-3$ //$NON-NLS-2$ //$NON-NLS-1$ //$NON-NLS-0$
-		"binding", "bleed", "bookmark-label", "bookmark-level", "bookmark-state", "bookmark-target", "border", "border-bottom", //$NON-NLS-7$ //$NON-NLS-6$ //$NON-NLS-5$ //$NON-NLS-4$ //$NON-NLS-3$ //$NON-NLS-2$ //$NON-NLS-1$ //$NON-NLS-0$
-		"border-bottom-color", "border-bottom-left-radius", "border-bottom-right-radius", "border-bottom-style", "border-bottom-width", //$NON-NLS-5$ //$NON-NLS-4$ //$NON-NLS-3$ //$NON-NLS-2$ //$NON-NLS-1$ //$NON-NLS-0$
-		"border-collapse", "border-color", "border-image", "border-image-outset", "border-image-repeat", "border-image-slice", //$NON-NLS-5$ //$NON-NLS-4$ //$NON-NLS-3$ //$NON-NLS-2$ //$NON-NLS-1$ //$NON-NLS-0$
-		"border-image-source", "border-image-width", "border-left", "border-left-color", "border-left-style", "border-left-width", //$NON-NLS-5$ //$NON-NLS-4$ //$NON-NLS-3$ //$NON-NLS-2$ //$NON-NLS-1$ //$NON-NLS-0$
-		"border-radius", "border-right", "border-right-color", "border-right-style", "border-right-width", "border-spacing", "border-style", //$NON-NLS-6$ //$NON-NLS-5$ //$NON-NLS-4$ //$NON-NLS-3$ //$NON-NLS-2$ //$NON-NLS-1$ //$NON-NLS-0$
-		"border-top", "border-top-color", "border-top-left-radius", "border-top-right-radius", "border-top-style", "border-top-width", //$NON-NLS-5$ //$NON-NLS-4$ //$NON-NLS-3$ //$NON-NLS-2$ //$NON-NLS-1$ //$NON-NLS-0$
-		"border-width", "bottom", "box-align", "box-decoration-break", "box-direction", "box-flex", "box-flex-group", "box-lines", //$NON-NLS-7$ //$NON-NLS-6$ //$NON-NLS-5$ //$NON-NLS-4$ //$NON-NLS-3$ //$NON-NLS-2$ //$NON-NLS-1$ //$NON-NLS-0$
-		"box-ordinal-group", "box-orient", "box-pack", "box-shadow", "box-sizing", "break-after", "break-before", "break-inside", //$NON-NLS-7$ //$NON-NLS-6$ //$NON-NLS-5$ //$NON-NLS-4$ //$NON-NLS-3$ //$NON-NLS-2$ //$NON-NLS-1$ //$NON-NLS-0$
-		"caption-side", "clear", "clip", "color", "color-profile", "column-count", "column-fill", "column-gap", "column-rule", //$NON-NLS-8$ //$NON-NLS-7$ //$NON-NLS-6$ //$NON-NLS-5$ //$NON-NLS-4$ //$NON-NLS-3$ //$NON-NLS-2$ //$NON-NLS-1$ //$NON-NLS-0$
-		"column-rule-color", "column-rule-style", "column-rule-width", "column-span", "column-width", "columns", "content", "counter-increment", //$NON-NLS-7$ //$NON-NLS-6$ //$NON-NLS-5$ //$NON-NLS-4$ //$NON-NLS-3$ //$NON-NLS-2$ //$NON-NLS-1$ //$NON-NLS-0$
-		"counter-reset", "crop", "cue", "cue-after", "cue-before", "cursor", "direction", "display", "dominant-baseline", //$NON-NLS-8$ //$NON-NLS-7$ //$NON-NLS-6$ //$NON-NLS-5$ //$NON-NLS-4$ //$NON-NLS-3$ //$NON-NLS-2$ //$NON-NLS-1$ //$NON-NLS-0$
-		"drop-initial-after-adjust", "drop-initial-after-align", "drop-initial-before-adjust", "drop-initial-before-align", "drop-initial-size", //$NON-NLS-5$ //$NON-NLS-4$ //$NON-NLS-3$ //$NON-NLS-2$ //$NON-NLS-1$ //$NON-NLS-0$
-		"drop-initial-value", "elevation", "empty-cells", "fit", "fit-position", "flex-align", "flex-flow", "flex-inline-pack", "flex-order", //$NON-NLS-8$ //$NON-NLS-7$ //$NON-NLS-6$ //$NON-NLS-5$ //$NON-NLS-4$ //$NON-NLS-3$ //$NON-NLS-2$ //$NON-NLS-1$ //$NON-NLS-0$
-		"flex-pack", "float", "float-offset", "font", "font-family", "font-size", "font-size-adjust", "font-stretch", "font-style", //$NON-NLS-8$ //$NON-NLS-7$ //$NON-NLS-6$ //$NON-NLS-5$ //$NON-NLS-4$ //$NON-NLS-3$ //$NON-NLS-2$ //$NON-NLS-1$ //$NON-NLS-0$
-		"font-variant", "font-weight", "grid-columns", "grid-rows", "hanging-punctuation", "height", "hyphenate-after", //$NON-NLS-7$ //$NON-NLS-6$ //$NON-NLS-5$ //$NON-NLS-4$ //$NON-NLS-3$ //$NON-NLS-2$ //$NON-NLS-1$ //$NON-NLS-0$
-		"hyphenate-before", "hyphenate-character", "hyphenate-lines", "hyphenate-resource", "hyphens", "icon", "image-orientation", //$NON-NLS-7$ //$NON-NLS-6$ //$NON-NLS-5$ //$NON-NLS-4$ //$NON-NLS-3$ //$NON-NLS-2$ //$NON-NLS-1$ //$NON-NLS-0$
-		"image-rendering", "image-resolution", "inline-box-align", "left", "letter-spacing", "line-height", "line-stacking", //$NON-NLS-7$ //$NON-NLS-6$ //$NON-NLS-5$ //$NON-NLS-4$ //$NON-NLS-3$ //$NON-NLS-2$ //$NON-NLS-1$ //$NON-NLS-0$
-		"line-stacking-ruby", "line-stacking-shift", "line-stacking-strategy", "list-style", "list-style-image", "list-style-position", //$NON-NLS-5$ //$NON-NLS-4$ //$NON-NLS-3$ //$NON-NLS-2$ //$NON-NLS-1$ //$NON-NLS-0$
-		"list-style-type", "margin", "margin-bottom", "margin-left", "margin-right", "margin-top", "mark", "mark-after", "mark-before", //$NON-NLS-8$ //$NON-NLS-7$ //$NON-NLS-6$ //$NON-NLS-5$ //$NON-NLS-4$ //$NON-NLS-3$ //$NON-NLS-2$ //$NON-NLS-1$ //$NON-NLS-0$
-		"marker-offset", "marks", "marquee-direction", "marquee-loop", "marquee-play-count", "marquee-speed", "marquee-style", "max-height", //$NON-NLS-7$ //$NON-NLS-6$ //$NON-NLS-5$ //$NON-NLS-4$ //$NON-NLS-3$ //$NON-NLS-2$ //$NON-NLS-1$ //$NON-NLS-0$
-		"max-width", "min-height", "min-width", "move-to", "nav-down", "nav-index", "nav-left", "nav-right", "nav-up", "opacity", "orphans", //$NON-NLS-10$ //$NON-NLS-9$ //$NON-NLS-8$ //$NON-NLS-7$ //$NON-NLS-6$ //$NON-NLS-5$ //$NON-NLS-4$ //$NON-NLS-3$ //$NON-NLS-2$ //$NON-NLS-1$ //$NON-NLS-0$
-		"outline", "outline-color", "outline-offset", "outline-style", "outline-width", "overflow", "overflow-style", "overflow-x", //$NON-NLS-7$ //$NON-NLS-6$ //$NON-NLS-5$ //$NON-NLS-4$ //$NON-NLS-3$ //$NON-NLS-2$ //$NON-NLS-1$ //$NON-NLS-0$
-		"overflow-y", "padding", "padding-bottom", "padding-left", "padding-right", "padding-top", "page", "page-break-after", "page-break-before", //$NON-NLS-8$ //$NON-NLS-7$ //$NON-NLS-6$ //$NON-NLS-5$ //$NON-NLS-4$ //$NON-NLS-3$ //$NON-NLS-2$ //$NON-NLS-1$ //$NON-NLS-0$
-		"page-break-inside", "page-policy", "pause", "pause-after", "pause-before", "perspective", "perspective-origin", "phonemes", "pitch", //$NON-NLS-8$ //$NON-NLS-7$ //$NON-NLS-6$ //$NON-NLS-5$ //$NON-NLS-4$ //$NON-NLS-3$ //$NON-NLS-2$ //$NON-NLS-1$ //$NON-NLS-0$
-		"pitch-range", "play-during", "position", "presentation-level", "punctuation-trim", "quotes", "rendering-intent", "resize", //$NON-NLS-7$ //$NON-NLS-6$ //$NON-NLS-5$ //$NON-NLS-4$ //$NON-NLS-3$ //$NON-NLS-2$ //$NON-NLS-1$ //$NON-NLS-0$
-		"rest", "rest-after", "rest-before", "richness", "right", "rotation", "rotation-point", "ruby-align", "ruby-overhang", "ruby-position", //$NON-NLS-9$ //$NON-NLS-8$ //$NON-NLS-7$ //$NON-NLS-6$ //$NON-NLS-5$ //$NON-NLS-4$ //$NON-NLS-3$ //$NON-NLS-2$ //$NON-NLS-1$ //$NON-NLS-0$
-		"ruby-span", "size", "speak", "speak-header", "speak-numeral", "speak-punctuation", "speech-rate", "stress", "string-set", "table-layout", //$NON-NLS-9$ //$NON-NLS-8$ //$NON-NLS-7$ //$NON-NLS-6$ //$NON-NLS-5$ //$NON-NLS-4$ //$NON-NLS-3$ //$NON-NLS-2$ //$NON-NLS-1$ //$NON-NLS-0$
-		"target", "target-name", "target-new", "target-position", "text-align", "text-align-last", "text-decoration", "text-emphasis", //$NON-NLS-7$ //$NON-NLS-6$ //$NON-NLS-5$ //$NON-NLS-4$ //$NON-NLS-3$ //$NON-NLS-2$ //$NON-NLS-1$ //$NON-NLS-0$
-		"text-height", "text-indent", "text-justify", "text-outline", "text-shadow", "text-transform", "text-wrap", "top", "transform", //$NON-NLS-8$ //$NON-NLS-7$ //$NON-NLS-6$ //$NON-NLS-5$ //$NON-NLS-4$ //$NON-NLS-3$ //$NON-NLS-2$ //$NON-NLS-1$ //$NON-NLS-0$
-		"transform-origin", "transform-style", "transition", "transition-delay", "transition-duration", "transition-property", //$NON-NLS-5$ //$NON-NLS-4$ //$NON-NLS-3$ //$NON-NLS-2$ //$NON-NLS-1$ //$NON-NLS-0$
-		"transition-timing-function", "unicode-bidi", "vertical-align", "visibility", "voice-balance", "voice-duration", "voice-family", //$NON-NLS-7$ //$NON-NLS-6$ //$NON-NLS-5$ //$NON-NLS-4$ //$NON-NLS-3$ //$NON-NLS-2$ //$NON-NLS-1$ //$NON-NLS-0$
-		"voice-pitch", "voice-pitch-range", "voice-rate", "voice-stress", "voice-volume", "volume", "white-space", "white-space-collapse", //$NON-NLS-7$ //$NON-NLS-6$ //$NON-NLS-5$ //$NON-NLS-4$ //$NON-NLS-3$ //$NON-NLS-2$ //$NON-NLS-1$ //$NON-NLS-0$
-		"widows", "width", "word-break", "word-spacing", "word-wrap", "z-index" //$NON-NLS-5$ //$NON-NLS-4$ //$NON-NLS-3$ //$NON-NLS-2$ //$NON-NLS-1$ //$NON-NLS-0$
-	];
-	
-	var JAVA_KEYWORDS = [
-		"abstract", //$NON-NLS-0$
-		"boolean", "break", "byte", //$NON-NLS-2$ //$NON-NLS-1$ //$NON-NLS-0$
-		"case", "catch", "char", "class", "continue", //$NON-NLS-4$ //$NON-NLS-3$ //$NON-NLS-2$ //$NON-NLS-1$ //$NON-NLS-0$
-		"default", "do", "double", //$NON-NLS-2$ //$NON-NLS-1$ //$NON-NLS-0$
-		"else", "extends", //$NON-NLS-1$ //$NON-NLS-0$
-		"false", "final", "finally", "float", "for", //$NON-NLS-4$ //$NON-NLS-3$ //$NON-NLS-2$ //$NON-NLS-1$ //$NON-NLS-0$
-		"if", "implements", "import", "instanceof", "int", "interface", //$NON-NLS-5$ //$NON-NLS-4$ //$NON-NLS-3$ //$NON-NLS-2$ //$NON-NLS-1$ //$NON-NLS-0$
-		"long", //$NON-NLS-0$
-		"native", "new", "null", //$NON-NLS-2$ //$NON-NLS-1$ //$NON-NLS-0$
-		"package", "private", "protected", "public", //$NON-NLS-3$ //$NON-NLS-2$ //$NON-NLS-1$ //$NON-NLS-0$
-		"return", //$NON-NLS-0$
-		"short", "static", "super", "switch", "synchronized", //$NON-NLS-4$ //$NON-NLS-3$ //$NON-NLS-2$ //$NON-NLS-1$ //$NON-NLS-0$
-		"this", "throw", "throws", "transient", "true", "try", //$NON-NLS-5$ //$NON-NLS-4$ //$NON-NLS-3$ //$NON-NLS-2$ //$NON-NLS-1$ //$NON-NLS-0$
-		"void", "volatile", //$NON-NLS-1$ //$NON-NLS-0$
-		"while" //$NON-NLS-0$
-	];
-
+define("orion/editor/stylers/lib/syntax", [], function() { //$NON-NLS-0$
 	return {
-		JSKeywords: JS_KEYWORDS,
-		CSSKeywords: CSS_KEYWORDS,
-		JAVAKeywords: JAVA_KEYWORDS
+		id: "orion.lib", //$NON-NLS-0$
+		grammars: [{
+			id: "orion.lib", //$NON-NLS-0$
+			repository: {
+				brace_open: {
+					match: "{", //$NON-NLS-0$
+					name: "punctuation.section.block.begin" //$NON-NLS-0$
+				},
+				brace_close: {
+					match: "}", //$NON-NLS-0$
+					name: "punctuation.section.block.end" //$NON-NLS-0$
+				},
+				bracket_open: {
+					match: "\\[", //$NON-NLS-0$
+					name: "punctuation.section.bracket.begin" //$NON-NLS-0$
+				},
+				bracket_close: {
+					match: "\\]", //$NON-NLS-0$
+					name: "punctuation.section.bracket.end" //$NON-NLS-0$
+				},
+				parenthesis_open: {
+					match: "\\(", //$NON-NLS-0$
+					name: "punctuation.section.parens.begin" //$NON-NLS-0$
+				},
+				parenthesis_close: {
+					match: "\\)", //$NON-NLS-0$
+					name: "punctuation.section.parens.end" //$NON-NLS-0$
+				},
+				doc_block: {
+					begin: {match: "/\\*\\*", literal: "/**"}, //$NON-NLS-0$
+					end: {match: "\\*/", literal: "*/"}, //$NON-NLS-0$
+					name: "comment.block.documentation", //$NON-NLS-0$
+					patterns: [
+						{
+							match: "@(?:(?!\\*/)\\S)*", //$NON-NLS-0$
+							name: "keyword.other.documentation.tag" //$NON-NLS-0$
+						}, {
+							match: "\\<\\S*\\>", //$NON-NLS-0$
+							name: "keyword.other.documentation.markup" //$NON-NLS-0$
+						}, {
+							match: "(\\b)(TODO)(\\b)(((?!\\*/).)*)", //$NON-NLS-0$
+							name: "meta.annotation.task.todo", //$NON-NLS-0$
+							captures: {
+								2: {name: "keyword.other.documentation.task"}, //$NON-NLS-0$
+								4: {name: "comment.block"} //$NON-NLS-0$
+							}
+						}
+					]
+				},
+				number_decimal: {
+					match: "\\b-?(?:\\.\\d+|\\d+\\.?\\d*)(?:[eE][+-]?\\d+)?\\b", //$NON-NLS-0$
+					name: "constant.numeric.number" //$NON-NLS-0$
+				},
+				number_hex: {
+					match: "\\b0[xX][0-9A-Fa-f]+\\b", //$NON-NLS-0$
+					name: "constant.numeric.hex" //$NON-NLS-0$
+				},
+				string_doubleQuote: {
+					match: '"(?:\\\\.|[^"])*"?', //$NON-NLS-0$
+					name: "string.quoted.double" //$NON-NLS-0$
+				},
+				string_singleQuote: {
+					match: "'(?:\\\\.|[^'])*'?", //$NON-NLS-0$
+					name: "string.quoted.single" //$NON-NLS-0$
+				},
+				todo_comment_singleLine: {
+					match: "(\\b)(TODO)(\\b)(.*)", //$NON-NLS-0$
+					name: "meta.annotation.task.todo", //$NON-NLS-0$
+					captures: {
+						2: {name: "keyword.other.documentation.task"}, //$NON-NLS-0$
+						4: {name: "comment.line"} //$NON-NLS-0$
+					}
+				}
+			}
+		}, {
+			id: "orion.c-like", //$NON-NLS-0$
+			repository: {
+				comment_singleLine: {
+					match: {match: "//.*", literal: "//"}, //$NON-NLS-0$
+					name: "comment.line.double-slash", //$NON-NLS-0$
+					patterns: [
+						{
+							include: "orion.lib#todo_comment_singleLine" //$NON-NLS-0$
+						}
+					]
+				},
+				comment_block: {
+					begin: {match: "/\\*", literal: "/*"}, //$NON-NLS-0$
+					end: {match: "\\*/", literal: "*/"}, //$NON-NLS-0$ 
+					name: "comment.block", //$NON-NLS-0$
+					patterns: [
+						{
+							match: "(\\b)(TODO)(\\b)(((?!\\*/).)*)", //$NON-NLS-0$
+							name: "meta.annotation.task.todo", //$NON-NLS-0$
+							captures: {
+								2: {name: "keyword.other.documentation.task"}, //$NON-NLS-0$
+								4: {name: "comment.block"} //$NON-NLS-0$
+							}
+						}
+					]
+				}
+			}
+		}],
+		keywords: []
 	};
 });
 
 /*******************************************************************************
  * @license
- * Copyright (c) 2011, 2012 IBM Corporation and others.
+ * Copyright (c) 2014 IBM Corporation and others.
+ * All rights reserved. This program and the accompanying materials are made 
+ * available under the terms of the Eclipse Public License v1.0 
+ * (http://www.eclipse.org/legal/epl-v10.html), and the Eclipse Distribution 
+ * License v1.0 (http://www.eclipse.org/org/documents/edl-v10.html). 
+ * 
+ * Contributors: IBM Corporation - initial API and implementation
+ ******************************************************************************/
+
+/*global define*/
+
+define("orion/editor/stylers/text_css/syntax", ["orion/editor/stylers/lib/syntax"], function(mLib) { //$NON-NLS-1$ //$NON-NLS-0$
+	var keywords = [
+		"alignment-adjust", "alignment-baseline", "animation-delay", "animation-direction", "animation-duration", "animation-iteration-count", //$NON-NLS-5$ //$NON-NLS-4$ //$NON-NLS-3$ //$NON-NLS-2$ //$NON-NLS-1$ //$NON-NLS-0$
+		"animation-name", "animation-play-state", "animation-timing-function", "animation", "appearance", //$NON-NLS-4$ //$NON-NLS-3$ //$NON-NLS-2$ //$NON-NLS-1$ //$NON-NLS-0$
+		"azimuth", "backface-visibility", "background-attachment", "background-clip", "background-color", "background-image", //$NON-NLS-5$ //$NON-NLS-4$ //$NON-NLS-3$ //$NON-NLS-2$ //$NON-NLS-1$ //$NON-NLS-0$
+		"background-origin", "background-position", "background-repeat", "background-size", "background", "baseline-shift", //$NON-NLS-5$ //$NON-NLS-4$ //$NON-NLS-3$ //$NON-NLS-2$ //$NON-NLS-1$ //$NON-NLS-0$
+		"binding", "bleed", "bookmark-label", "bookmark-level", "bookmark-state", "bookmark-target", "border-bottom-color", //$NON-NLS-6$ //$NON-NLS-5$ //$NON-NLS-4$ //$NON-NLS-3$ //$NON-NLS-2$ //$NON-NLS-1$ //$NON-NLS-0$
+		"border-bottom-left-radius", "border-bottom-right-radius", "border-bottom-style", "border-bottom-width", "border-bottom", //$NON-NLS-5$ //$NON-NLS-4$ //$NON-NLS-3$ //$NON-NLS-2$ //$NON-NLS-1$ //$NON-NLS-0$
+		"border-collapse", "border-color", "border-image-outset", "border-image-repeat", "border-image-slice", "border-image-source", //$NON-NLS-5$ //$NON-NLS-4$ //$NON-NLS-3$ //$NON-NLS-2$ //$NON-NLS-1$ //$NON-NLS-0$
+		"border-image-width", "border-image", "border-left-color", "border-left-style", "border-left-width", "border-left", //$NON-NLS-5$ //$NON-NLS-4$ //$NON-NLS-3$ //$NON-NLS-2$ //$NON-NLS-1$ //$NON-NLS-0$
+		"border-radius", "border-right-color", "border-right-style", "border-right-width", "border-right", "border-spacing", "border-style", //$NON-NLS-6$ //$NON-NLS-5$ //$NON-NLS-4$ //$NON-NLS-3$ //$NON-NLS-2$ //$NON-NLS-1$ //$NON-NLS-0$
+		"border-top-color", "border-top-left-radius", "border-top-right-radius", "border-top-style", "border-top-width", "border-top", //$NON-NLS-5$ //$NON-NLS-4$ //$NON-NLS-3$ //$NON-NLS-2$ //$NON-NLS-1$ //$NON-NLS-0$
+		"border-width", "border", "bottom", "box-align", "box-decoration-break", "box-direction", "box-flex-group", "box-flex", "box-lines", //$NON-NLS-8$ //$NON-NLS-7$ //$NON-NLS-6$ //$NON-NLS-5$ //$NON-NLS-4$ //$NON-NLS-3$ //$NON-NLS-2$ //$NON-NLS-1$ //$NON-NLS-0$
+		"box-ordinal-group", "box-orient", "box-pack", "box-shadow", "box-sizing", "break-after", "break-before", "break-inside", //$NON-NLS-7$ //$NON-NLS-6$ //$NON-NLS-5$ //$NON-NLS-4$ //$NON-NLS-3$ //$NON-NLS-2$ //$NON-NLS-1$ //$NON-NLS-0$
+		"caption-side", "clear", "clip", "color-profile", "color", "column-count", "column-fill", "column-gap", "column-rule-color", //$NON-NLS-8$ //$NON-NLS-7$ //$NON-NLS-6$ //$NON-NLS-5$ //$NON-NLS-4$ //$NON-NLS-3$ //$NON-NLS-2$ //$NON-NLS-1$ //$NON-NLS-0$
+		"column-rule-style", "column-rule-width", "column-rule", "column-span", "column-width", "columns", "content", "counter-increment", //$NON-NLS-7$ //$NON-NLS-6$ //$NON-NLS-5$ //$NON-NLS-4$ //$NON-NLS-3$ //$NON-NLS-2$ //$NON-NLS-1$ //$NON-NLS-0$
+		"counter-reset", "crop", "cue-after", "cue-before", "cue", "cursor", "direction", "display", "dominant-baseline", //$NON-NLS-8$ //$NON-NLS-7$ //$NON-NLS-6$ //$NON-NLS-5$ //$NON-NLS-4$ //$NON-NLS-3$ //$NON-NLS-2$ //$NON-NLS-1$ //$NON-NLS-0$
+		"drop-initial-after-adjust", "drop-initial-after-align", "drop-initial-before-adjust", "drop-initial-before-align", "drop-initial-size", //$NON-NLS-5$ //$NON-NLS-4$ //$NON-NLS-3$ //$NON-NLS-2$ //$NON-NLS-1$ //$NON-NLS-0$
+		"drop-initial-value", "elevation", "empty-cells", "fit-position", "fit", "flex-align", "flex-flow", "flex-inline-pack", "flex-order", //$NON-NLS-8$ //$NON-NLS-7$ //$NON-NLS-6$ //$NON-NLS-5$ //$NON-NLS-4$ //$NON-NLS-3$ //$NON-NLS-2$ //$NON-NLS-1$ //$NON-NLS-0$
+		"flex-pack", "float-offset", "float", "font-family", "font-size", "font-size-adjust", "font-stretch", "font-style", "font-variant", //$NON-NLS-8$ //$NON-NLS-7$ //$NON-NLS-6$ //$NON-NLS-5$ //$NON-NLS-4$ //$NON-NLS-3$ //$NON-NLS-2$ //$NON-NLS-1$ //$NON-NLS-0$
+		"font-weight", "font", "grid-columns", "grid-rows", "hanging-punctuation", "height", "hyphenate-after", //$NON-NLS-7$ //$NON-NLS-6$ //$NON-NLS-5$ //$NON-NLS-4$ //$NON-NLS-3$ //$NON-NLS-2$ //$NON-NLS-1$ //$NON-NLS-0$
+		"hyphenate-before", "hyphenate-character", "hyphenate-lines", "hyphenate-resource", "hyphens", "icon", "image-orientation", //$NON-NLS-7$ //$NON-NLS-6$ //$NON-NLS-5$ //$NON-NLS-4$ //$NON-NLS-3$ //$NON-NLS-2$ //$NON-NLS-1$ //$NON-NLS-0$
+		"image-rendering", "image-resolution", "inline-box-align", "left", "letter-spacing", "line-height", "line-stacking-ruby", //$NON-NLS-7$ //$NON-NLS-6$ //$NON-NLS-5$ //$NON-NLS-4$ //$NON-NLS-3$ //$NON-NLS-2$ //$NON-NLS-1$ //$NON-NLS-0$
+		"line-stacking-shift", "line-stacking-strategy", "line-stacking", "list-style-image", "list-style-position", "list-style-type", //$NON-NLS-5$ //$NON-NLS-4$ //$NON-NLS-3$ //$NON-NLS-2$ //$NON-NLS-1$ //$NON-NLS-0$
+		"list-style", "margin-bottom", "margin-left", "margin-right", "margin-top", "margin", "mark-after", "mark-before", "mark", //$NON-NLS-8$ //$NON-NLS-7$ //$NON-NLS-6$ //$NON-NLS-5$ //$NON-NLS-4$ //$NON-NLS-3$ //$NON-NLS-2$ //$NON-NLS-1$ //$NON-NLS-0$
+		"marker-offset", "marks", "marquee-direction", "marquee-loop", "marquee-play-count", "marquee-speed", "marquee-style", "max-height", //$NON-NLS-7$ //$NON-NLS-6$ //$NON-NLS-5$ //$NON-NLS-4$ //$NON-NLS-3$ //$NON-NLS-2$ //$NON-NLS-1$ //$NON-NLS-0$
+		"max-width", "min-height", "min-width", "move-to", "nav-down", "nav-index", "nav-left", "nav-right", "nav-up", "opacity", "orphans", //$NON-NLS-10$ //$NON-NLS-9$ //$NON-NLS-8$ //$NON-NLS-7$ //$NON-NLS-6$ //$NON-NLS-5$ //$NON-NLS-4$ //$NON-NLS-3$ //$NON-NLS-2$ //$NON-NLS-1$ //$NON-NLS-0$
+		"outline-color", "outline-offset", "outline-style", "outline-width", "outline", "overflow-style", "overflow-x", "overflow-y", //$NON-NLS-7$ //$NON-NLS-6$ //$NON-NLS-5$ //$NON-NLS-4$ //$NON-NLS-3$ //$NON-NLS-2$ //$NON-NLS-1$ //$NON-NLS-0$
+		"overflow", "padding-bottom", "padding-left", "padding-right", "padding-top", "padding", "page-break-after", "page-break-before", "page-break-inside", //$NON-NLS-8$ //$NON-NLS-7$ //$NON-NLS-6$ //$NON-NLS-5$ //$NON-NLS-4$ //$NON-NLS-3$ //$NON-NLS-2$ //$NON-NLS-1$ //$NON-NLS-0$
+		"page-policy", "page", "pause-after", "pause-before", "pause", "perspective-origin", "perspective", "phonemes", "pitch-range", //$NON-NLS-8$ //$NON-NLS-7$ //$NON-NLS-6$ //$NON-NLS-5$ //$NON-NLS-4$ //$NON-NLS-3$ //$NON-NLS-2$ //$NON-NLS-1$ //$NON-NLS-0$
+		"pitch", "play-during", "position", "presentation-level", "punctuation-trim", "quotes", "rendering-intent", "resize", //$NON-NLS-7$ //$NON-NLS-6$ //$NON-NLS-5$ //$NON-NLS-4$ //$NON-NLS-3$ //$NON-NLS-2$ //$NON-NLS-1$ //$NON-NLS-0$
+		"rest-after", "rest-before", "rest", "richness", "right", "rotation-point", "rotation", "ruby-align", "ruby-overhang", "ruby-position", //$NON-NLS-9$ //$NON-NLS-8$ //$NON-NLS-7$ //$NON-NLS-6$ //$NON-NLS-5$ //$NON-NLS-4$ //$NON-NLS-3$ //$NON-NLS-2$ //$NON-NLS-1$ //$NON-NLS-0$
+		"ruby-span", "size", "speak-header", "speak-numeral", "speak-punctuation", "speak", "speech-rate", "stress", "string-set", "table-layout", //$NON-NLS-9$ //$NON-NLS-8$ //$NON-NLS-7$ //$NON-NLS-6$ //$NON-NLS-5$ //$NON-NLS-4$ //$NON-NLS-3$ //$NON-NLS-2$ //$NON-NLS-1$ //$NON-NLS-0$
+		"target-name", "target-new", "target-position", "target", "text-align-last", "text-align", "text-decoration", "text-emphasis", //$NON-NLS-7$ //$NON-NLS-6$ //$NON-NLS-5$ //$NON-NLS-4$ //$NON-NLS-3$ //$NON-NLS-2$ //$NON-NLS-1$ //$NON-NLS-0$
+		"text-height", "text-indent", "text-justify", "text-outline", "text-shadow", "text-transform", "text-wrap", "top", "transform-origin", //$NON-NLS-8$ //$NON-NLS-7$ //$NON-NLS-6$ //$NON-NLS-5$ //$NON-NLS-4$ //$NON-NLS-3$ //$NON-NLS-2$ //$NON-NLS-1$ //$NON-NLS-0$
+		"transform-style", "transform", "transition-delay", "transition-duration", "transition-property", "transition-timing-function", //$NON-NLS-5$ //$NON-NLS-4$ //$NON-NLS-3$ //$NON-NLS-2$ //$NON-NLS-1$ //$NON-NLS-0$
+		"transition", "unicode-bidi", "vertical-align", "visibility", "voice-balance", "voice-duration", "voice-family", //$NON-NLS-7$ //$NON-NLS-6$ //$NON-NLS-5$ //$NON-NLS-4$ //$NON-NLS-3$ //$NON-NLS-2$ //$NON-NLS-1$ //$NON-NLS-0$
+		"voice-pitch-range", "voice-pitch", "voice-rate", "voice-stress", "voice-volume", "volume", "white-space-collapse", "white-space", //$NON-NLS-7$ //$NON-NLS-6$ //$NON-NLS-5$ //$NON-NLS-4$ //$NON-NLS-3$ //$NON-NLS-2$ //$NON-NLS-1$ //$NON-NLS-0$
+		"widows", "width", "word-break", "word-spacing", "word-wrap", "z-index" //$NON-NLS-5$ //$NON-NLS-4$ //$NON-NLS-3$ //$NON-NLS-2$ //$NON-NLS-1$ //$NON-NLS-0$
+	];
+
+	var grammars = mLib.grammars;
+	grammars.push({
+		id: "orion.css", //$NON-NLS-0$
+		contentTypes: ["text/css"], //$NON-NLS-0$
+		patterns: [
+			{
+				begin: "'(?:\\\\.|[^\\\\'])*\\\\$", //$NON-NLS-0$
+				end: "^(?:$|(?:\\\\.|[^\\\\'])*('|[^\\\\]$))", //$NON-NLS-0$
+				name: "string.quoted.single.css" //$NON-NLS-0$
+			}, {
+				begin: '"(?:\\\\.|[^\\\\"])*\\\\$', //$NON-NLS-0$
+				end: '^(?:$|(?:\\\\.|[^\\\\"])*("|[^\\\\]$))', //$NON-NLS-0$
+				name: "string.quoted.double.css" //$NON-NLS-0$
+			},
+			{include: "orion.lib#string_doubleQuote"}, //$NON-NLS-0$
+			{include: "orion.lib#string_singleQuote"}, //$NON-NLS-0$
+			{include: "orion.c-like#comment_block"}, //$NON-NLS-0$
+			{include: "orion.lib#brace_open"}, //$NON-NLS-0$
+			{include: "orion.lib#brace_close"}, //$NON-NLS-0$
+			{include: "orion.lib#bracket_open"}, //$NON-NLS-0$
+			{include: "orion.lib#bracket_close"}, //$NON-NLS-0$
+			{include: "orion.lib#parenthesis_open"}, //$NON-NLS-0$
+			{include: "orion.lib#parenthesis_close"}, //$NON-NLS-0$
+			{include: "orion.lib#number_decimal"}, //$NON-NLS-0$
+			{include: "#number_hex"}, //$NON-NLS-0$
+			{
+				match: "(?i)\\b-?(?:\\.\\d+|\\d+\\.?\\d*)(?:%|em|ex|ch|rem|vw|vh|vmin|vmax|in|cm|mm|pt|pc|px|deg|grad|rad|turn|s|ms|Hz|kHz|dpi|dpcm|dppx)?\\b", //$NON-NLS-0$
+				name: "constant.numeric.value.css" //$NON-NLS-0$
+			},
+			{			
+				match: "(?:-webkit-|-moz-|-ms-|\\b)(?:" + keywords.join("|") + ")\\b", //$NON-NLS-2$ //$NON-NLS-1$ //$NON-NLS-0$
+				name: "keyword.control.css" //$NON-NLS-0$
+			}
+		],
+		repository: {
+			number_hex: {
+				match: "#[0-9A-Fa-f]+\\b", //$NON-NLS-0$
+				name: "constant.numeric.hex.css" //$NON-NLS-0$
+			}
+		}
+	});
+	return {
+		id: grammars[grammars.length - 1].id,
+		grammars: grammars,
+		keywords: keywords
+	};
+});
+
+/*******************************************************************************
+ * @license
+ * Copyright (c) 2011, 2014 IBM Corporation and others.
  * All rights reserved. This program and the accompanying materials are made 
  * available under the terms of the Eclipse Public License v1.0 
  * (http://www.eclipse.org/legal/epl-v10.html), and the Eclipse Distribution 
@@ -17590,10 +19551,10 @@ define("orion/editor/keywords", [], function() { //$NON-NLS-0$
  *******************************************************************************/
 /*global define */
 
-define("orion/editor/cssContentAssist", [ //$NON-NLS-0$
+define("webtools/cssContentAssist", [ //$NON-NLS-0$
 	'orion/editor/templates', //$NON-NLS-0$
-	'orion/editor/keywords' //$NON-NLS-0$
-], function(mTemplates, mKeywords) {
+	'orion/editor/stylers/text_css/syntax' //$NON-NLS-0$
+], function(mTemplates, mCSS) {
 
 	var overflowValues = {
 		type: "link", //$NON-NLS-0$
@@ -17816,7 +19777,7 @@ define("orion/editor/cssContentAssist", [ //$NON-NLS-0$
 	 */
 	function CssContentAssistProvider() {
 	}
-	CssContentAssistProvider.prototype = new mTemplates.TemplateContentAssist(mKeywords.CSSKeywords, templates);
+	CssContentAssistProvider.prototype = new mTemplates.TemplateContentAssist(mCSS.keywords, templates);
 	
 	CssContentAssistProvider.prototype.getPrefix = function(buffer, offset, context) {
 		var index = offset;
@@ -17833,7 +19794,7 @@ define("orion/editor/cssContentAssist", [ //$NON-NLS-0$
 
 /*******************************************************************************
  * @license
- * Copyright (c) 2011, 2012 IBM Corporation and others.
+ * Copyright (c) 2011, 2014 IBM Corporation and others.
  * All rights reserved. This program and the accompanying materials are made 
  * available under the terms of the Eclipse Public License v1.0 
  * (http://www.eclipse.org/legal/epl-v10.html), and the Eclipse Distribution 
@@ -17844,7 +19805,7 @@ define("orion/editor/cssContentAssist", [ //$NON-NLS-0$
  *******************************************************************************/
 /*global define */
 
-define("orion/editor/htmlContentAssist", ['orion/editor/templates'], function(mTemplates) { //$NON-NLS-1$ //$NON-NLS-0$
+define("webtools/htmlContentAssist", ['orion/editor/templates'], function(mTemplates) { //$NON-NLS-1$ //$NON-NLS-0$
 
 	var simpleDocTemplate = new mTemplates.Template("", "Simple HTML document", //$NON-NLS-0$
 		"<!DOCTYPE html>\n" + //$NON-NLS-0$
@@ -17864,33 +19825,45 @@ define("orion/editor/htmlContentAssist", ['orion/editor/templates'], function(mT
 	var templates = [
 		{
 			prefix: "<img", //$NON-NLS-0$
-			description: "<img> - HTML image element",
+			name: "<img>", //$NON-NLS-0$
+			description: " - HTML image element", //$NON-NLS-0$
 			template: "<img src=\"${cursor}\" alt=\"${Image}\"/>" //$NON-NLS-0$
 		},
 		{
 			prefix: "<a", //$NON-NLS-0$
-			description: "<a> - HTML anchor element",
+			name: "<a>", //$NON-NLS-0$
+			description: " - HTML anchor element", //$NON-NLS-0$
 			template: "<a href=\"${cursor}\"></a>" //$NON-NLS-0$
 		},
 		{
 			prefix: "<ul", //$NON-NLS-0$
-			description: "<ul> - HTML unordered list",
+			name: "<ul>", //$NON-NLS-0$
+			description: " - HTML unordered list",  //$NON-NLS-0$
 			template: "<ul>\n\t<li>${cursor}</li>\n</ul>" //$NON-NLS-0$
 		},
 		{
 			prefix: "<ol", //$NON-NLS-0$
-			description: "<ol> - HTML ordered list",
+			name: "<ol>", //$NON-NLS-0$
+			description: " - HTML ordered list", //$NON-NLS-0$
 			template: "<ol>\n\t<li>${cursor}</li>\n</ol>" //$NON-NLS-0$
 		},
 		{
 			prefix: "<dl", //$NON-NLS-0$
-			description: "<dl> - HTML definition list",
+			name: "<dl>", //$NON-NLS-0$
+			description: " - HTML definition list", //$NON-NLS-0$
 			template: "<dl>\n\t<dt>${cursor}</dt>\n\t<dd></dd>\n</dl>" //$NON-NLS-0$
 		},
 		{
 			prefix: "<table", //$NON-NLS-0$
-			description: "<table> - basic HTML table",
+			name: "<table>", //$NON-NLS-0$
+			description: " - basic HTML table", //$NON-NLS-0$
 			template: "<table>\n\t<tr>\n\t\t<td>${cursor}</td>\n\t</tr>\n</table>" //$NON-NLS-0$
+		},
+		{
+			prefix: "<!--", //$NON-NLS-0$
+			name: "<!-- -->", //$NON-NLS-0$
+			description: " - HTML comment", //$NON-NLS-0$
+			template: "<!-- ${cursor} -->" //$NON-NLS-0$
 		}
 	];
 
@@ -17954,14 +19927,16 @@ define("orion/editor/htmlContentAssist", ['orion/editor/templates'], function(mT
 	HTMLContentAssistProvider.prototype = new mTemplates.TemplateContentAssist([], templates);
 
 	HTMLContentAssistProvider.prototype.getPrefix = function(buffer, offset, context) {
+		var prefix = "";
 		var index = offset;
-		while (index && /[A-Za-z0-9<]/.test(buffer.charAt(index - 1))) {
+		while (index && /[A-Za-z0-9<!-]/.test(buffer.charAt(index - 1))) {
 			index--;
 			if (buffer.charAt(index) === "<") { //$NON-NLS-0$
+				prefix = buffer.substring(index, offset);
 				break;
 			}
 		}
-		return index ? buffer.substring(index, offset) : "";
+		return prefix;
 	};
 	
 	HTMLContentAssistProvider.prototype.computeProposals = function(buffer, offset, context) {
@@ -17969,207 +19944,26 @@ define("orion/editor/htmlContentAssist", ['orion/editor/templates'], function(mT
 		if (buffer.length === 0) {
 			return [simpleDocTemplate.getProposal("", offset, context)];
 		}
-		return mTemplates.TemplateContentAssist.prototype.computeProposals.call(this, buffer, offset, context);
+		var proposals = mTemplates.TemplateContentAssist.prototype.computeProposals.call(this, buffer, offset, context);
+		
+		// sort and then return proposals
+		return proposals.sort(function(l,r) {
+			var leftString = l.prefix || l.proposal;
+			var rightString = r.prefix || r.proposal;
+			
+			// handle titles
+			if (!leftString) {
+				return -1;
+			} else if (!rightString) {
+				return 1;
+			}
+			
+			return leftString.toLowerCase().localeCompare(rightString.toLowerCase());
+		});
 	};
 
 	return {
 		HTMLContentAssistProvider: HTMLContentAssistProvider
-	};
-});
-
-/*******************************************************************************
- * @license
- * Copyright (c) 2011, 2012 IBM Corporation and others.
- * Copyright (c) 2012 VMware, Inc.
- * All rights reserved. This program and the accompanying materials are made 
- * available under the terms of the Eclipse Public License v1.0 
- * (http://www.eclipse.org/legal/epl-v10.html), and the Eclipse Distribution 
- * License v1.0 (http://www.eclipse.org/org/documents/edl-v10.html). 
- *
- * Contributors:
- *     IBM Corporation - initial API and implementation
- *     Andrew Eisenberg - rename to jsTemplateContentAssist.js
- *******************************************************************************/
-/*global define */
-
-define("orion/editor/jsTemplateContentAssist", [ //$NON-NLS-0$
-	'orion/editor/templates', //$NON-NLS-0$
-	'orion/editor/keywords' //$NON-NLS-0$
-], function(mTemplates, mKeywords) {
-
-	function findPreviousChar(buffer, offset) {
-		var c = "";
-		while (offset >= 0) {
-			c = buffer[offset];
-			if (c === '\n' || c === '\r') { //$NON-NLS-1$ //$NON-NLS-0$
-				//we hit the start of the line so we are done
-				break;
-			} else if (/\s/.test(c)) {
-				offset--;
-			} else {
-				// a non-whitespace character, we are done
-				break;
-			}
-		}
-		return c;
-	}
-	
-	var typeofValues = {
-		type: "link", //$NON-NLS-0$
-		values: [
-			"undefined", //$NON-NLS-0$
-			"object", //$NON-NLS-0$
-			"boolean", //$NON-NLS-0$
-			"number", //$NON-NLS-0$
-			"string", //$NON-NLS-0$
-			"function", //$NON-NLS-0$
-			"xml" //$NON-NLS-0$
-		]
-	};
-	
-	function fromJSON(o) {
-		return JSON.stringify(o).replace("}", "\\}"); //$NON-NLS-1$ //$NON-NLS-0$
-	}
-	
-	var uninterestingChars = ":!@#$^&*.?<>"; //$NON-NLS-0$
-
-	var templates = [
-		{
-			prefix: "if", //$NON-NLS-0$
-			description: "if - if statement",
-			template: "if (${condition}) {\n\t${cursor}\n}" //$NON-NLS-0$
-		},
-		{
-			prefix: "if", //$NON-NLS-0$
-			description: "if - if else statement",
-			template: "if (${condition}) {\n\t${cursor}\n} else {\n\t\n}" //$NON-NLS-0$
-		},
-		{
-			prefix: "for", //$NON-NLS-0$
-			description: "for - iterate over array",
-			template: "for (var ${i}=0; ${i}<${array}.length; ${i}++) {\n\t${cursor}\n}" //$NON-NLS-0$
-		},
-		{
-			prefix: "for", //$NON-NLS-0$
-			description: "for - iterate over array with local var",
-			template: "for (var ${i}=0; ${i}<${array}.length; ${i}++) {\n\tvar ${value} = ${array}[${i}];\n\t${cursor}\n}" //$NON-NLS-0$
-		},
-		{
-			prefix: "for", //$NON-NLS-0$
-			description: "for..in - iterate over properties of an object",
-			template: "for (var ${property} in ${object}) {\n\tif (${object}.hasOwnProperty(${property})) {\n\t\t${cursor}\n\t}\n}" //$NON-NLS-0$
-		},
-		{
-			prefix: "while", //$NON-NLS-0$
-			description: "while - while loop with condition",
-			template: "while (${condition}) {\n\t${cursor}\n}" //$NON-NLS-0$
-		},
-		{
-			prefix: "do", //$NON-NLS-0$
-			description: "do - do while loop with condition",
-			template: "do {\n\t${cursor}\n} while (${condition});" //$NON-NLS-0$
-		},
-		{
-			prefix: "switch", //$NON-NLS-0$
-			description: "switch - switch case statement",
-			template: "switch (${expression}) {\n\tcase ${value1}:\n\t\t${cursor}\n\t\tbreak;\n\tdefault:\n}" //$NON-NLS-0$
-		},
-		{
-			prefix: "case", //$NON-NLS-0$
-			description: "case - case statement",
-			template: "case ${value}:\n\t${cursor}\n\tbreak;" //$NON-NLS-0$
-		},
-		{
-			prefix: "try", //$NON-NLS-0$
-			description: "try - try..catch statement",
-			template: "try {\n\t${cursor}\n} catch (${err}) {\n}" //$NON-NLS-0$
-			},
-		{
-			prefix: "try", //$NON-NLS-0$
-			description: "try - try..catch statement with finally block",
-			template: "try {\n\t${cursor}\n} catch (${err}) {\n} finally {\n}" //$NON-NLS-0$
-		},
-		{
-			prefix: "var", //$NON-NLS-0$
-			description: "var - variable declaration",
-			template: "var ${name};" //$NON-NLS-0$
-		},
-		{
-			prefix: "var", //$NON-NLS-0$
-			description: "var - variable declaration with value",
-			template: "var ${name} = ${value};" //$NON-NLS-0$
-		},
-		{
-			prefix: "let", //$NON-NLS-0$
-			description: "let - local scope variable declaration",
-			template: "let ${name};" //$NON-NLS-0$
-		},
-		{
-			prefix: "let", //$NON-NLS-0$
-			description: "let - local scope variable declaration with value",
-			template: "let ${name} = ${value};" //$NON-NLS-0$
-		},
-		{
-			prefix: "return", //$NON-NLS-0$
-			description: "return - return result",
-			template: "return ${result};" //$NON-NLS-0$
-		},
-		{
-			prefix: "typeof", //$NON-NLS-0$
-			description: "typeof - typeof statement",
-			template: "typeof ${object} === \"${type:" + fromJSON(typeofValues) + "}\"" //$NON-NLS-1$ //$NON-NLS-0$
-		},
-		{
-			prefix: "instanceof", //$NON-NLS-0$
-			description: "instanceof - instanceof statement",
-			template: "${object} instanceof ${type}" //$NON-NLS-0$
-		},
-		{
-			prefix: "with", //$NON-NLS-0$
-			description: "with - with statement",
-			template: "with (${object}) {\n\t${cursor}\n}" //$NON-NLS-0$
-		},
-		{
-			prefix: "function", //$NON-NLS-0$
-			description: "function - function declaration",
-			template: "function ${name} (${parameter}) {\n\t${cursor}\n}" //$NON-NLS-0$
-		},
-		{
-			prefix: "nls", //$NON-NLS-0$
-			description: "string - non NLS",
-			template: "${cursor} //$NON-NLS-${0}$" //$NON-NLS-0$
-		},
-		{
-			prefix: "log", //$NON-NLS-0$
-			description: "log - console log",
-			template: "console.log(${object});" //$NON-NLS-0$
-		}
-	];
-
-	/**
-	 * @name orion.editor.JSTemplateContentAssistProvider
-	 * @class Provides content assist for JavaScript keywords.
-	 */
-	function JSTemplateContentAssistProvider() {
-	}
-	JSTemplateContentAssistProvider.prototype = new mTemplates.TemplateContentAssist(mKeywords.JSKeywords, templates);
-
-	/** 
-	 * Determines if the invocation location is a valid place to use
-	 * templates.  We are not being too precise here.  As an approximation,
-	 * just look at the previous character.
-	 *
-	 * @return {Boolean} true if the current invocation location is 
-	 * a valid place for template proposals to appear.
-	 * This means that the invocation location is at the start of a new statement.
-	 */
-	JSTemplateContentAssistProvider.prototype.isValid = function(prefix, buffer, offset, context) {
-		var previousChar = findPreviousChar(buffer, offset-prefix.length-1);
-		return !previousChar || uninterestingChars.indexOf(previousChar) === -1;
-	};
-
-	return {
-		JSTemplateContentAssistProvider: JSTemplateContentAssistProvider
 	};
 });
 
@@ -18769,8 +20563,8 @@ define("orion/editor/mirror", ["i18n!orion/editor/nls/messages", "orion/editor/e
 		this.initialize(model);
 	}
 	
-	var TAB = "token_tab",
-	    SPACE = "token_space",
+	var TAB = "punctuation separator tab",
+	    SPACE = "punctuation separator space",
 
 	    /* Max number of lines to immediately re-highlight after an edit. Remaining lines are handled by follow-up jobs. */
 	    MAX_REHIGHLIGHT = 500,
@@ -20682,7 +22476,7 @@ var RegexUtil = {
 
 /******************************************************************************* 
  * @license
- * Copyright (c) 2011, 2012 IBM Corporation and others.
+ * Copyright (c) 2011, 2014 IBM Corporation and others.
  * All rights reserved. This program and the accompanying materials are made 
  * available under the terms of the Eclipse Public License v1.0 
  * (http://www.eclipse.org/legal/epl-v10.html), and the Eclipse Distribution 
@@ -20701,11 +22495,6 @@ define("orion/editor/htmlGrammar", [], function() {
 	 * @class orion.syntax.HtmlGrammar
 	 */
 	function HtmlGrammar() {
-		/**
-		 * Object containing the grammar rules.
-		 * @public
-		 * @type Object
-		 */
 		return {
 			"scopeName": "source.html",
 			"uuid": "3B5C76FB-EBB5-D930-F40C-047D082CE99B",
@@ -20793,389 +22582,812 @@ define("orion/editor/htmlGrammar", [], function() {
 
 /*global define */
 
-define("examples/editor/textStyler", [ //$NON-NLS-0$
-	'orion/editor/annotations', //$NON-NLS-0$
-	'orion/editor/keywords' //$NON-NLS-0$
-], function(mAnnotations, mKeywords) {
+define("orion/editor/textStyler", ['orion/editor/annotations', 'orion/editor/eventTarget'], function(mAnnotations, mEventTarget) { //$NON-NLS-2$ //$NON-NLS-1$ //$NON-NLS-0$
 
-	var JS_KEYWORDS = mKeywords.JSKeywords;
+	/*
+	 * Throughout textStyler "block" refers to a potentially multi-line token.
+	 * Typical examples are multi-line comments and multi-line strings.
+	 */
 
-	var JAVA_KEYWORDS = mKeywords.JAVAKeywords;
+	var binarySearch = function(array, offset, inclusive, low, high) {
+		var index;
+		if (low === undefined) { low = -1; }
+		if (high === undefined) { high = array.length; }
+		while (high - low > 1) {
+			index = Math.floor((high + low) / 2);
+			if (offset <= array[index].start) {
+				high = index;
+			} else if (inclusive && offset < array[index].end) {
+				high = index;
+				break;
+			} else {
+				low = index;
+			}
+		}
+		return high;
+	};
 
-	var CSS_KEYWORDS = mKeywords.CSSKeywords;
+	var createPatternBasedAdapter = function(grammars, rootId) {
+		return new PatternBasedAdapter(grammars, rootId);
+	};
 
-	// Scanner constants
-	var UNKOWN = 1;
-	var KEYWORD = 2;
-	var NUMBER = 3;
-	var STRING = 4;
-	var MULTILINE_STRING = 5;
-	var SINGLELINE_COMMENT = 6;
-	var MULTILINE_COMMENT = 7;
-	var DOC_COMMENT = 8;
-	var WHITE = 9;
-	var WHITE_TAB = 10;
-	var WHITE_SPACE = 11;
-	var HTML_MARKUP = 12;
-	var DOC_TAG = 13;
-	var TASK_TAG = 14;
-
-	var BRACKETS = "{}()[]<>"; //$NON-NLS-0$
-
-	// Styles
-	var singleCommentStyle = {styleClass: "token_singleline_comment"}; //$NON-NLS-0$
-	var multiCommentStyle = {styleClass: "token_multiline_comment"}; //$NON-NLS-0$
-	var docCommentStyle = {styleClass: "token_doc_comment"}; //$NON-NLS-0$
-	var htmlMarkupStyle = {styleClass: "token_doc_html_markup"}; //$NON-NLS-0$
-	var tasktagStyle = {styleClass: "token_task_tag"}; //$NON-NLS-0$
-	var doctagStyle = {styleClass: "token_doc_tag"}; //$NON-NLS-0$
-	var stringStyle = {styleClass: "token_string"}; //$NON-NLS-0$
-	var numberStyle = {styleClass: "token_number"}; //$NON-NLS-0$
-	var keywordStyle = {styleClass: "token_keyword"}; //$NON-NLS-0$
-	var spaceStyle = {styleClass: "token_space", unmergeable: true}; //$NON-NLS-0$
-	var tabStyle = {styleClass: "token_tab", unmergeable: true}; //$NON-NLS-0$
-	var caretLineStyle = {styleClass: "line_caret"}; //$NON-NLS-0$
-
-	function Scanner (keywords, whitespacesVisible) {
-		this.keywords = keywords;
-		this.whitespacesVisible = whitespacesVisible;
-		this.setText("");
+	function PatternBasedAdapter(grammars, rootId) {
+		this._patternManager = new PatternManager(grammars, rootId);
 	}
+	PatternBasedAdapter.prototype = {
+		blockSpansBeyondEnd: function(block) {
+			return block.pattern.regexEnd === this._eolRegex;
+		},
+		computeBlocks: function(model, text, block, offset, startIndex, endIndex, maxBlockCount) {
+			if (!text) {
+				return [];
+			}
 
-	Scanner.prototype = {
-		getOffset: function() {
-			return this.offset;
-		},
-		getStartOffset: function() {
-			return this.startOffset;
-		},
-		getData: function() {
-			return this.text.substring(this.startOffset, this.offset);
-		},
-		getDataLength: function() {
-			return this.offset - this.startOffset;
-		},
-		_default: function(c) {
-			switch (c) {
-				case 32: // SPACE
-				case 9: // TAB
-					if (this.whitespacesVisible) {
-						return c === 32 ? WHITE_SPACE : WHITE_TAB;
-					}
-					do {
-						c = this._read();
-					} while(c === 32 || c === 9);
-					this._unread(c);
-					return WHITE;
-				case 123: // {
-				case 125: // }
-				case 40: // (
-				case 41: // )
-				case 91: // [
-				case 93: // ]
-				case 60: // <
-				case 62: // >
-					// BRACKETS
-					return c;
-				default:
-					var isCSS = this.isCSS;
-					var off = this.offset - 1;
-					if (!isCSS && 48 <= c && c <= 57) {
-						var floating = false, exponential = false, hex = false, firstC = c;
-						do {
-							c = this._read();
-							if (c === 46 /* dot */ && !floating) {
-								floating = true;
-							} else if (c === 101 /* e */ && !exponential) {
-								floating = exponential = true;
-								c = this._read();
-								if (c !== 45 /* MINUS */) {
-									this._unread(c);
-								}
-							} else if (c === 120 /* x */ && firstC === 48 && (this.offset - off === 2)) {
-								floating = exponential = hex = true;
-							} else if (!(48 <= c && c <= 57 || (hex && ((65 <= c && c <= 70) || (97 <= c && c <= 102))))) { //NUMBER DIGIT or HEX
-								break;
-							}
-						} while(true);
-						this._unread(c);
-						return NUMBER;
-					}
-					if ((97 <= c && c <= 122) || (65 <= c && c <= 90) || c === 95 || (45 /* DASH */ === c && isCSS)) { //LETTER OR UNDERSCORE OR NUMBER
-						do {
-							c = this._read();
-						} while((97 <= c && c <= 122) || (65 <= c && c <= 90) || c === 95 || (48 <= c && c <= 57) || (45 /* DASH */ === c && isCSS));  //LETTER OR UNDERSCORE OR NUMBER
-						this._unread(c);
-						var keywords = this.keywords;
-						if (keywords.length > 0) {
-							var word = this.text.substring(off, this.offset);
-							//TODO slow
-							for (var i=0; i<keywords.length; i++) {
-								if (this.keywords[i] === word) { return KEYWORD; }
-							}
-						}
-					}
-					return UNKOWN;
+			var results = [];
+			var matches = [];
+			startIndex = startIndex || 0;
+			endIndex = endIndex || Infinity;
+			maxBlockCount = maxBlockCount || Infinity;
+			block.blockPatterns.forEach(function(current) {
+				var result = this._findMatch(current.regexBegin || current.regex, text, startIndex);
+				if (result) {
+					matches.push({result: result, pattern: current});
+				}
+			}.bind(this));
+			if (!matches.length) {
+				return results;
 			}
-		},
-		_read: function() {
-			if (this.offset < this.text.length) {
-				return this.text.charCodeAt(this.offset++);
+			matches.sort(function(a,b) {
+				if (a.result.index < b.result.index) {
+					return -1;
+				}
+				if (a.result.index > b.result.index) {
+					return 1;
+				}
+				return a.pattern.pattern.index < b.pattern.pattern.index ? -1 : 1;
+			});
+
+			var index = 0;
+			while (matches.length > 0) {
+				var current = matches[0];
+				matches.splice(0,1);
+	
+				if (endIndex < current.result.index) {
+					break;
+				}
+
+				if (current.result.index < index) {
+					/* processing of another match has moved index beyond this match */
+					this._updateMatch(current, text, matches, index, endIndex);
+					continue;
+				}
+
+				var start = offset + current.result.index;
+				var contentStart = current.result.index;
+				var resultEnd = null;
+
+				var endRegex = current.pattern.regexEnd;
+				if (!endRegex) {
+					resultEnd = this.createBlock(
+						{
+							start: start,
+							end: start + current.result[0].length,
+							contentStart: start,
+							contentEnd: start + current.result[0].length
+						},
+						block.styler,
+						model,
+						block,
+						current.pattern);
+				} else {
+					contentStart += current.result[0].length;
+					var testPattern = current.pattern;
+					/*
+					 * If the end regex contains a capture reference (eg.- "\1") then substitute
+					 * the resolved capture values from the begin match.
+					 */
+					var resolvedEndRegex = this._substituteCaptureValues(endRegex, current.result);
+					if (resolvedEndRegex !== endRegex) {
+						/*
+						 * A substitution was made, so make a copy of the test pattern and set its
+						 * end regex to the resolved one.  This will cause end-match detection to be
+						 * performed with this concrete end regex value, but the original pattern
+						 * definition containing the capture reference will not be affected.
+						 */
+						testPattern = {
+							pattern: testPattern.pattern,
+							regexBegin: testPattern.regexBegin,
+							regexEnd: resolvedEndRegex
+						};
+						endRegex = resolvedEndRegex;
+					}
+
+					var lastIndex = contentStart;
+					while (!resultEnd) {
+						var result = this._findMatch(endRegex, text, lastIndex);
+						if (!result) {
+							this._eolRegex.lastIndex = 0;
+							result = this._eolRegex.exec(text);
+							testPattern = {
+								pattern: testPattern.pattern,
+								regexBegin: testPattern.regexBegin,
+								regexEnd: this._eolRegex
+							};
+						}
+						var testBlock = this.createBlock(
+							{
+								start: start,
+								end: offset + result.index + result[0].length,
+								contentStart: offset + contentStart,
+								contentEnd: offset + result.index
+							},
+							block.styler,
+							model,
+							block,
+							testPattern);
+						var subBlocks = testBlock.getBlocks();
+						if (!subBlocks.length || subBlocks[subBlocks.length - 1].end <= (result.index + offset)) {
+							resultEnd = testBlock;
+						}
+						lastIndex = result.index + result[0].length;
+					}
+				}
+				results.push(resultEnd);
+				if (results.length === maxBlockCount || endIndex <= resultEnd.end) {
+					break;
+				}
+				index = resultEnd.end - offset;
+				this._updateMatch(current, text, matches, index, endIndex);
 			}
-			return -1;
+			return results;
 		},
-		_unread: function(c) {
-			if (c !== -1) { this.offset--; }
+		computeStyle: function(block, model, offset) {
+			if (!block.pattern) {
+				return null;
+			}
+
+			var fullBlock = {
+				start: block.start,
+				end: block.end,
+				style: block.pattern.pattern.name
+			};
+			if (block.contentStart <= offset && offset < block.contentEnd) {
+				if (block.pattern.pattern.contentName) {
+					return {
+						start: block.contentStart,
+						end: block.contentEnd,
+						style: block.pattern.pattern.contentName
+					};
+				}
+				return fullBlock;
+			}
+
+			var regex, captures, testString, index;
+			if (offset < block.contentStart) {
+				captures = block.pattern.pattern.beginCaptures || block.pattern.pattern.captures;
+				if (!captures) {
+					return fullBlock;
+				}
+				regex = block.pattern.regexBegin;
+				testString = model.getText(block.start, block.contentStart);
+				index = block.start;
+			} else {
+				captures = block.pattern.pattern.endCaptures || block.pattern.pattern.captures;
+				if (!captures) {
+					return fullBlock;
+				}
+				regex = block.pattern.regexEnd;
+				testString = model.getText(block.contentEnd, block.end);
+				index = block.contentEnd;
+			}
+
+			regex.lastIndex = 0;
+			var result = regex.exec(testString);
+			if (result) {
+				var styles = [];
+				this._getCaptureStyles(result, captures, index, styles);
+				var style = styles[binarySearch(styles, offset, true)];
+				if (style && style.start <= offset && offset < style.end) {
+					return style;
+				}
+			}
+			return fullBlock;
 		},
-		nextToken: function() {
-			this.startOffset = this.offset;
-			while (true) {
-				var c = this._read(), result;
-				switch (c) {
-					case -1: return null;
-					case 47:	// SLASH -> comment
-						c = this._read();
-						if (!this.isCSS) {
-							if (c === 47) { // SLASH -> single line
-								while (true) {
-									c = this._read();
-									if ((c === -1) || (c === 10) || (c === 13)) {
-										this._unread(c);
-										return SINGLELINE_COMMENT;
-									}
-								}
+		createBlock: function(bounds, styler, model, parent, data) {
+			/* for pattern-based matching data is a pattern */
+			return new Block(
+				bounds,
+				data ? data.pattern.name : null,
+				data ? data.pattern.id : null,
+				styler,
+				model,
+				parent,
+				function(newBlock) {
+					newBlock.pattern = data;
+					newBlock.linePatterns = [];
+					newBlock.blockPatterns = [];
+					newBlock.enclosurePatterns = {};
+					this._initPatterns(this._patternManager, newBlock);
+				}.bind(this));
+		},
+		getBlockContentStyleName: function(block) {
+			return block.pattern.pattern.contentName || block.pattern.pattern.name;
+		},
+		getBlockEndStyle: function(block, text, endIndex, _styles) {
+			/* pattern-defined blocks specify an end style by either a capture or name */
+			var result;
+			if (block.pattern.regexEnd) {
+				result = this._findMatch(block.pattern.regexEnd, text, 0);
+				if (result) {
+					/* the end match is still valid */
+					var captures = block.pattern.pattern.endCaptures || block.pattern.pattern.captures;
+					if (captures) {
+						this._getCaptureStyles(result, captures, endIndex - result[0].length, _styles);
+					} else if (block.pattern.pattern.name) {
+						_styles.push({start: endIndex - result[0].length, end: endIndex, style: block.pattern.pattern.name});
+					}
+				}
+			}
+			return result ? result[0] : null;
+		},
+		getBlockStartStyle: function(block, text, index, _styles) {
+			/* pattern-defined blocks specify a start style by either a capture or name */
+			var result;
+			if (block.pattern.regexBegin) {
+				result = this._findMatch(block.pattern.regexBegin, text, 0);
+				if (result) {
+					/* the begin match is still valid */
+					var captures = block.pattern.pattern.beginCaptures || block.pattern.pattern.captures;
+					if (captures) {
+						this._getCaptureStyles(result, captures, index, _styles);
+					} else {
+						_styles.push({start: index, end: index + result[0].length, style: block.pattern.pattern.name});
+					}
+				}
+			}
+			return result ? result[0] : null;
+		},
+		getBracketMatch: function(block, text) {
+			var match;
+			var keys = Object.keys(block.enclosurePatterns);
+			for (var i = 0; i < keys.length; i++) {
+				var current = block.enclosurePatterns[keys[i]];
+				var result = this._findMatch(current.regex, text, 0);
+				if (result && result.index === 0) {
+					match = current;
+					break;
+				}
+			}
+			if (!match) { return null; }
+
+			var closingName;
+			var atStart = false;
+			if (match.pattern.name.indexOf(this._PUNCTUATION_SECTION_BEGIN) !== -1) {
+				atStart = true;
+				closingName = match.pattern.name.replace(this._PUNCTUATION_SECTION_BEGIN, this._PUNCTUATION_SECTION_END);
+			} else {
+				closingName = match.pattern.name.replace(this._PUNCTUATION_SECTION_END, this._PUNCTUATION_SECTION_BEGIN);
+			}
+			var closingBracket = block.enclosurePatterns[closingName];
+			if (!closingBracket) { return null; }
+
+			return {
+				beginName: match.pattern.name,
+				endName: closingName,
+				atStart: atStart
+			};
+		},
+		parse: function(text, offset, block, _styles, ignoreCaptures) {
+			if (!text) {
+				return;
+			}
+			var patterns = block.linePatterns;
+			if (!patterns) {
+				return;
+			}
+
+			var matches = [];
+			patterns.forEach(function(current) {
+				var regex = current.regex || current.regexBegin;
+				regex.oldLastIndex = regex.lastIndex;
+				var result = this._findMatch(regex, text, 0);
+				if (result) {
+					matches.push({result: result, pattern: current});
+				}
+			}.bind(this));
+			matches.sort(function(a,b) {
+				if (a.result.index < b.result.index) {
+					return -1;
+				}
+				if (a.result.index > b.result.index) {
+					return 1;
+				}
+				return a.pattern.pattern.index < b.pattern.pattern.index ? -1 : 1;
+			});
+
+			var index = 0;
+			while (matches.length > 0) {
+				var current = matches[0];
+				matches.splice(0,1);
+
+				if (current.result.index < index) {
+					/* processing of another match has moved index beyond this match */
+					this._updateMatch(current, text, matches, index);
+					continue;
+				}
+	
+				/* apply the style */
+				var start = current.result.index;
+				var end, result;
+				var substyles = [];
+				if (current.pattern.regex) {	/* line pattern defined by a "match" */
+					result = current.result;
+					end = start + result[0].length;
+					var tokenStyle = {start: offset + start, end: offset + end, style: current.pattern.pattern.name};
+					if (!ignoreCaptures) {
+						if (current.pattern.pattern.captures) {
+							this._getCaptureStyles(result, current.pattern.pattern.captures, offset + start, substyles);
+						}
+						substyles.sort(function(a,b) {
+							if (a.start < b.start) {
+								return -1;
+							}
+							if (a.start > b.start) {
+								return 1;
+							}
+							return 0;
+						});
+						for (var j = 0; j < substyles.length - 1; j++) {
+							if (substyles[j + 1].start < substyles[j].end) {
+								var newStyle = {start: substyles[j + 1].end, end: substyles[j].end, style: substyles[j].style};
+								substyles[j].end = substyles[j + 1].start;
+								substyles.splice(j + 2, 0, newStyle);
 							}
 						}
-						if (c === 42) { // STAR -> multi line
-							c = this._read();
-							var token = MULTILINE_COMMENT;
-							if (c === 42) {
-								token = DOC_COMMENT;
-							}
-							while (true) {
-								while (c === 42) {
-									c = this._read();
-									if (c === 47) {
-										return token;
-									}
-								}
-								if (c === -1) {
-									this._unread(c);
-									return token;
-								}
-								c = this._read();
+					}
+					this._mergeStyles(tokenStyle, substyles, _styles);
+				} else {	/* pattern defined by a "begin/end" pair */
+					/* 
+					 * If the end match contains a capture reference (eg.- "\1") then update
+					 * its regex with the resolved capture values from the begin match.
+					 */
+					var endRegex = current.pattern.regexEnd;
+					endRegex = this._substituteCaptureValues(endRegex, current.result);
+	
+					result = this._findMatch(endRegex, text, current.result.index + current.result[0].length);
+					if (!result) {
+						this._eolRegex.lastIndex = 0;
+						result = this._eolRegex.exec(text);
+					}
+					end = result.index + result[0].length;
+					_styles.push({start: offset + start, end: offset + end, style: current.pattern.pattern.name});
+				}
+				index = result.index + result[0].length;
+				this._updateMatch(current, text, matches, index);
+			}
+			patterns.forEach(function(current) {
+				var regex = current.regex || current.regexBegin;
+				regex.lastIndex = regex.oldLastIndex;
+			});
+		},
+		setStyler: function(/*styler*/) {	
+		},
+		verifyBlock: function(baseModel, text, ancestorBlock, changeCount) {
+			var result = null;
+			var matches = [];
+			var parentBlock = ancestorBlock.parent;
+			parentBlock.blockPatterns.forEach(function(current) {
+				var match = this._findMatch(current.regexBegin || current.regex, text, 0);
+				if (match) {
+					matches.push({result: match, pattern: current});
+				}
+			}.bind(this));
+			matches.sort(function(a,b) {
+				/* ensure that matches at index 0 make it to the front, other matches do not matter */
+				if (!a.result.index && b.result.index) {
+					return -1;
+				}
+				if (a.result.index && !b.result.index) {
+					return 1;
+				}
+				if (!a.result.index && !b.result.index) {
+					return a.pattern.pattern.index < b.pattern.pattern.index ? -1 : 1;
+				}
+				return 0;
+			});
+			if (!matches.length || matches[0].result.index !== 0 || matches[0].pattern.pattern.id !== ancestorBlock.pattern.pattern.id) {
+				result = false;
+			} else {
+				/* the block start appears to be unchanged, now verify that the block end is unchanged */
+				var match = matches[0];
+				var endRegex = match.pattern.regexEnd;
+				if (!endRegex) {
+					/* single-match block, just verify its length */
+					result = ancestorBlock.start + match.result[0].length === ancestorBlock.end + changeCount;
+				} else {
+					/* begin/end-match block */
+
+					 /*
+					  * Determine whether an earlier match of the block's end pattern has been introduced.
+					  * Verifying that this has NOT happened (the most typical case) can be quickly done by
+					  * verifying that the first occurrence of its end pattern is still at its former location.
+					  * However if a match is found prior to this then the blocks preceding it must be computed
+					  * to verify that it is a valid end match (ie.- it is not contained within another block).
+				 	  */
+
+					/*
+					 * If the end regex contains a capture reference (eg.- "\1") then substitute
+					 * the resolved capture values from the begin match.
+					 */
+					endRegex = this._substituteCaptureValues(endRegex, match.result);
+
+					var searchStartIndex = match.result[0].length;
+					var currentMatch = this._findMatch(endRegex, text, searchStartIndex);
+					while (result === null && currentMatch && ancestorBlock.start + currentMatch.index !== ancestorBlock.contentEnd + changeCount) {
+						/*
+						 * A match was found preceeding the former end match, so now compute
+						 * blocks to determine whether it is in fact a valid new end match.
+						 */
+						var blocks = this.computeBlocks(baseModel, text, ancestorBlock, ancestorBlock.start, searchStartIndex, currentMatch.index + 1, null);
+						if (!blocks.length || blocks[blocks.length - 1].end <= ancestorBlock.start + currentMatch.index) {
+							/* the match is valid, so the attempt to use ancestorBlock as-is fails */
+							result = false;
+						} else {
+							/* the match is not valid, so search for the next potential end match */
+							if (!blocks.length) {
+								currentMatch = null;
+							} else {
+								searchStartIndex = blocks[blocks.length - 1].end - ancestorBlock.start;
+								currentMatch = this._findMatch(endRegex, text, searchStartIndex);
 							}
 						}
-						this._unread(c);
-						return UNKOWN;
-					case 39:	// SINGLE QUOTE -> char const
-						result = STRING;
-						while(true) {
-							c = this._read();
-							switch (c) {
-								case 39:
-									return result;
-								case 13:
-								case 10:
-								case -1:
-									this._unread(c);
-									return result;
-								case 92: // BACKSLASH
-									c = this._read();
-									switch (c) {
-										case 10: result = MULTILINE_STRING; break;
-										case 13:
-											result = MULTILINE_STRING;
-											c = this._read();
-											if (c !== 10) {
-												this._unread(c);
-											}
-											break;
-									}
-									break;
-							}
-						}
+					}
+					if (!currentMatch) {
+						this._eolRegex.lastIndex = 0;
+						currentMatch = this._eolRegex.exec(text);
+						result = ancestorBlock.start + currentMatch.index === ancestorBlock.end + changeCount;
+					}
+				}
+			}
+			return result !== null ? result : true;
+		},
+
+		/** @private */
+
+		_findMatch: function(regex, text, startIndex, testBeforeMatch) {
+			/*
+			 * testBeforeMatch provides a potential optimization for callers that do not strongly expect to find
+			 * a match.  If this argument is defined then test() is initially called on the regex, which executes
+			 * significantly faster than exec().  If a match is found then the regex's lastIndex is reverted to
+			 * its pre-test() value, and exec() is then invoked on it in order to get the match details.
+			 */
+	
+			var index = startIndex;
+			var initialLastIndex = regex.lastIndex;
+			this._linebreakRegex.lastIndex = startIndex;
+	
+			var currentLine = this._linebreakRegex.exec(text);
+			/*
+			 * Processing of the first line is treated specially, as it may not start at the beginning of a logical line, but
+			 * regex's may be dependent on matching '^'.  To resolve this, compute the full line corresponding to the start
+			 * of the text, even if it begins prior to startIndex, and adjust the regex's lastIndex accordingly to begin searching
+			 * for matches at the correct location.
+			 */
+			var lineString, indexAdjustment;
+			regex.lastIndex = 0;
+			if (currentLine) {
+				var lineStart = currentLine.index;
+				while (0 <= --lineStart) {
+					var char = text.charAt(lineStart);
+					if (char === this._NEWLINE || char === this._CR) {
 						break;
-					case 34:	// DOUBLE QUOTE -> string
-						result = STRING;
-						while(true) {
-							c = this._read();
-							switch (c) {
-								case 34: // DOUBLE QUOTE
-									return result;
-								case 13:
-								case 10:
-								case -1:
-									this._unread(c);
-									return result;
-								case 92: // BACKSLASH
-									c = this._read();
-									switch (c) {
-										case 10: result = MULTILINE_STRING; break;
-										case 13:
-											result = MULTILINE_STRING;
-											c = this._read();
-											if (c !== 10) {
-												this._unread(c);
-											}
-											break;
-									}
-									break;
-							}
-						}
-						break;
-					default:
-						return this._default(c);
+					}
+				}
+				lineString = text.substring(lineStart + 1, currentLine.index + currentLine[1].length);
+				regex.lastIndex = indexAdjustment = currentLine.index - lineStart - 1;
+			}
+			while (currentLine && currentLine.index < text.length) {
+				var result;
+				if (testBeforeMatch) {
+					var revertIndex = regex.lastIndex;
+					if (regex.test(lineString)) {
+						regex.lastIndex = revertIndex;
+						result = regex.exec(lineString);
+					}
+				} else {
+					result = regex.exec(lineString);
+				}
+				if (result) {
+					result.index += index;
+					result.index -= indexAdjustment;
+					regex.lastIndex = initialLastIndex;
+					return result;
+				}
+				indexAdjustment = 0;
+				index += currentLine[0].length;
+				currentLine = this._linebreakRegex.exec(text);
+				if (currentLine) {
+					lineString = currentLine[1];
+					regex.lastIndex = 0;
+				}
+			}
+			regex.lastIndex = initialLastIndex;
+			return null;
+		},
+		_getCaptureStyles: function(result, captures, offset, _styles) {
+			if (captures[0]) {
+				/* capture index 0 is the full result */
+				_styles.push({start: offset, end: offset + result[0].length, style: captures[0].name});
+				return;
+			}
+	
+			var stringIndex = 0;
+			for (var i = 1; i < result.length; i++) {
+				if (result[i]) {
+					var capture = captures[i];
+					if (capture) {
+						var styleStart = offset + stringIndex;
+						_styles.push({start: styleStart, end: styleStart + result[i].length, style: capture.name});
+					}
+					stringIndex += result[i].length;
 				}
 			}
 		},
-		setText: function(text) {
-			this.text = text;
-			this.offset = 0;
-			this.startOffset = 0;
-		}
-	};
-
-	function WhitespaceScanner () {
-		Scanner.call(this, null, true);
-	}
-	WhitespaceScanner.prototype = new Scanner(null);
-	WhitespaceScanner.prototype.nextToken = function() {
-		this.startOffset = this.offset;
-		while (true) {
-			var c = this._read();
-			switch (c) {
-				case -1: return null;
-				case 32: // SPACE
-					return WHITE_SPACE;
-				case 9: // TAB
-					return WHITE_TAB;
-				default:
-					do {
-						c = this._read();
-					} while(!(c === 32 || c === 9 || c === -1));
-					this._unread(c);
-					return UNKOWN;
+		_initPatterns: function(patternManager, block) {
+			if (block.pattern && block.pattern.pattern.linePatterns) {
+				block.linePatterns = block.pattern.pattern.linePatterns;
+				block.blockPatterns = block.pattern.pattern.blockPatterns;
+				block.enclosurePatterns = block.pattern.pattern.enclosurePatterns;
+				return;
 			}
-		}
+			var patterns = patternManager.getPatterns(block.pattern ? block.pattern.pattern : null);
+			var initRegex = function(match) {
+				var matchString = typeof(match) === "string" ? match : match.match;
+				var result = this._ignoreCaseRegex.exec(matchString);
+				var flags = this._FLAGS;
+				if (result) {
+					matchString = matchString.substring(result[0].length);
+					flags += "i";
+				}
+				return new RegExp(matchString, flags);
+			}.bind(this);
+			var lastBlock = -1;
+			var index = 0;
+			patterns.forEach(function(current) {
+				var pattern;
+				if (current.match && !current.begin && !current.end) {
+					pattern = {regex: initRegex(current.match), pattern: current};
+					block.linePatterns.push(pattern);
+					if (current.name && current.name.indexOf("punctuation.section") === 0 && (current.name.indexOf(this._PUNCTUATION_SECTION_BEGIN) !== -1 || current.name.indexOf(this._PUNCTUATION_SECTION_END) !== -1)) { //$NON-NLS-0$
+						block.enclosurePatterns[current.name] = pattern;
+					}
+				} else if (!current.match && current.begin && current.end) {
+					lastBlock = index;
+					pattern = {regexBegin: initRegex(current.begin), regexEnd: initRegex(current.end), pattern: current};
+					block.linePatterns.push(pattern);
+				}
+				index++;
+			}.bind(this));
+			block.blockPatterns = block.linePatterns.slice(0, lastBlock + 1);
+			if (block.pattern) {
+				block.pattern.pattern.enclosurePatterns = block.enclosurePatterns;
+				block.pattern.pattern.linePatterns = block.linePatterns;
+				block.pattern.pattern.blockPatterns = block.blockPatterns;
+			}
+		},
+		_mergeStyles: function(fullStyle, substyles, resultStyles) {
+			var i = fullStyle.start;
+			substyles.forEach(function(current) {
+				if (i <= current.start) {
+					resultStyles.push({start: i, end: current.start, style: fullStyle.style});
+				}
+				resultStyles.push(current);
+				i = current.end;
+			});
+			if (i < fullStyle.end) {
+				resultStyles.push({start: i, end: fullStyle.end, style: fullStyle.style});
+			}
+		},
+		_substituteCaptureValues: function(regex, resolvedResult) {
+			var regexString = regex.toString();
+			this._captureReferenceRegex.lastIndex = 0;
+			if (!this._captureReferenceRegex.test(regexString)) {
+				/* nothing to do */
+				return regex;
+			}
+
+			this._captureReferenceRegex.lastIndex = 0;
+			var result = this._captureReferenceRegex.exec(regexString);
+			while (result) {
+				regexString = regexString.replace(result[0], resolvedResult[result[1]] || "");
+				this._captureReferenceRegex.lastIndex = 0;
+				result = this._captureReferenceRegex.exec(regexString);
+			}
+			/* return an updated regex, remove the leading '/' and trailing /FLAGS */
+			return new RegExp(regexString.substring(1, regexString.length - 1 - this._FLAGS.length), this._FLAGS);
+		},
+		_updateMatch: function(match, text, matches, minimumIndex, endIndex) {
+			var regEx = match.pattern.regex ? match.pattern.regex : match.pattern.regexBegin;
+			endIndex = endIndex || Infinity;
+			var result = this._findMatch(regEx, text, minimumIndex, true);
+			if (result && result.index < endIndex) {
+				match.result = result;
+				for (var i = 0; i < matches.length; i++) {
+					if (result.index < matches[i].result.index || (result.index === matches[i].result.index && match.pattern.pattern.index < matches[i].pattern.pattern.index)) {
+						matches.splice(i, 0, match);
+						return;
+					}
+				}
+				matches.push(match);
+			}
+		},
+		_captureReferenceRegex: /\\(\d)/g,
+		_eolRegex: /$/,
+		_ignoreCaseRegex: /^\(\?i\)\s*/,
+		_linebreakRegex: /(.*)(?:[\r\n]|$)/g,
+		_CR: "\r", //$NON-NLS-0$
+		_FLAGS: "g", //$NON-NLS-0$
+		_NEWLINE: "\n", //$NON-NLS-0$
+		_PUNCTUATION_SECTION_BEGIN: ".begin", //$NON-NLS-0$
+		_PUNCTUATION_SECTION_END: ".end" //$NON-NLS-0$
 	};
 
-	function CommentScanner (whitespacesVisible) {
-		Scanner.call(this, null, whitespacesVisible);
+	function PatternManager(grammars, rootId) {
+		this._unnamedCounter = 0;
+		this._patterns = [];
+		this._rootId = rootId;
+		grammars.forEach(function(grammar) {
+			this._addRepositoryPatterns(grammar.repository || {}, grammar.id);
+			this._addPatterns(grammar.patterns || [], grammar.id);
+		}.bind(this));
 	}
-	CommentScanner.prototype = new Scanner(null);
-	CommentScanner.prototype.setType = function(type) {
-		this._type = type;
-	};
-	CommentScanner.prototype.nextToken = function() {
-		this.startOffset = this.offset;
-		while (true) {
-			var c = this._read();
-			switch (c) {
-				case -1: return null;
-				case 32: // SPACE
-				case 9: // TAB
-					if (this.whitespacesVisible) {
-						return c === 32 ? WHITE_SPACE : WHITE_TAB;
-					}
-					do {
-						c = this._read();
-					} while(c === 32 || c === 9);
-					this._unread(c);
-					return WHITE;
-				case 60: // <
-					if (this._type === DOC_COMMENT) {
-						do {
-							c = this._read();
-						} while(!(c === 62 || c === -1)); // >
-						if (c === 62) {
-							return HTML_MARKUP;
-						}
-					}
-					return UNKOWN;
-				case 64: // @
-					if (this._type === DOC_COMMENT) {
-						do {
-							c = this._read();
-						} while((97 <= c && c <= 122) || (65 <= c && c <= 90) || c === 95 || (48 <= c && c <= 57));  //LETTER OR UNDERSCORE OR NUMBER
-						this._unread(c);
-						return DOC_TAG;
-					}
-					return UNKOWN;
-				case 84: // T
-					if ((c = this._read()) === 79) { // O
-						if ((c = this._read()) === 68) { // D
-							if ((c = this._read()) === 79) { // O
-								c = this._read();
-								if (!((97 <= c && c <= 122) || (65 <= c && c <= 90) || c === 95 || (48 <= c && c <= 57))) {
-									this._unread(c);
-									return TASK_TAG;
-								}
-								this._unread(c);
-							} else {
-								this._unread(c);
-							}
-						} else {
-							this._unread(c);
-						}
+	PatternManager.prototype = {
+		getPatterns: function(pattern) {
+			var parentId;
+			if (!pattern) {
+				parentId = this._rootId + "#" + this._NO_ID;
+			} else {
+				if (typeof(pattern) === "string") { //$NON-NLS-0$
+					parentId = pattern;
+				} else {
+					parentId = pattern.qualifiedId;
+				}
+				parentId += "#";
+			}
+			/* indexes on patterns are used to break ties when multiple patterns match the same start text */
+			var indexCounter = [0];
+			var resultObject = {};
+			var regEx = new RegExp("^" + parentId + "[^#]+$"); //$NON-NLS-0$
+			this._patterns.forEach(function(current) {
+				if (regEx.test(current.qualifiedId)) {
+					if (current.include) {
+						this._processInclude(current, indexCounter, resultObject);
 					} else {
-						this._unread(c);
+						current.index = indexCounter[0]++;
+						resultObject[current.id] = current;
 					}
-					//FALL THROUGH
-				default:
-					do {
-						c = this._read();
-					} while(!(c === 32 || c === 9 || c === -1 || c === 60 || c === 64 || c === 84));
-					this._unread(c);
-					return UNKOWN;
+				}
+			}.bind(this));
+
+			var result = [];
+			var keys = Object.keys(resultObject);
+			keys.forEach(function(current) {
+				result.push(resultObject[current]);
+			});
+			return result;
+		},
+
+		/** @private */
+
+		_addPattern: function(pattern, patternId, parentId) {
+			pattern.parentId = parentId;
+			pattern.id = patternId;
+			pattern.qualifiedId = pattern.parentId + "#" + pattern.id;
+			this._patterns.push(pattern);
+			if (pattern.patterns && !pattern.include) {
+				this._addPatterns(pattern.patterns, pattern.qualifiedId);
 			}
-		}
+		},
+		_addPatterns: function(patterns, parentId) {
+			patterns.forEach(function(pattern) {
+				this._addPattern(pattern, this._NO_ID + this._unnamedCounter++, parentId);
+			}.bind(this));
+		},
+		_addRepositoryPatterns: function(repository, parentId) {
+			var keys = Object.keys(repository);
+			keys.forEach(function(key) {
+				this._addPattern(repository[key], key, parentId);
+			}.bind(this));
+		},
+		_processInclude: function(pattern, indexCounter, resultObject) {
+			var searchExp;
+			var index = pattern.include.indexOf("#");
+			if (index === 0) {
+				/* inclusion of pattern from same grammar */
+				searchExp = new RegExp("^" + pattern.qualifiedId.substring(0, pattern.qualifiedId.indexOf("#")) + pattern.include + "$");
+			} else if (index === -1) {
+				/* inclusion of whole grammar */
+				searchExp = new RegExp("^" + pattern.include + "#" + this._NO_ID + "[^#]+$");
+			} else {
+				/* inclusion of specific pattern from another grammar */
+				searchExp = new RegExp("^" + pattern.include + "$");
+			}
+			this._patterns.forEach(function(current) {
+				if (searchExp.test(current.qualifiedId)) {
+					if (current.include) {
+						this._processInclude(current, indexCounter, resultObject);
+					} else if (!resultObject[current.id]) {
+						current.index = indexCounter[0]++;
+						resultObject[current.id] = current;
+					}
+				}
+			}.bind(this));
+		},
+		_NO_ID: "NoID"	//$NON-NLS-0$
 	};
 
-	function FirstScanner () {
-		Scanner.call(this, null, false);
+	function Block(bounds, name, typeId, styler, model, parent, initFn) {
+		this.start = bounds.start;
+		this.end = bounds.end;
+		this.contentStart = bounds.contentStart;
+		this.contentEnd = bounds.contentEnd;
+		this.name = name;
+		this.typeId = typeId;
+		this.styler = styler;
+		this.parent = parent;
+		if (initFn) {
+			initFn(this);
+		}
+		this._subBlocks = styler.computeBlocks(model, model.getText(this.start, this.end), this, this.start, null, null, null);
 	}
-	FirstScanner.prototype = new Scanner(null);
-	FirstScanner.prototype._default = function(c) {
-		while(true) {
-			c = this._read();
-			switch (c) {
-				case 47: // SLASH
-				case 34: // DOUBLE QUOTE
-				case 39: // SINGLE QUOTE
-				case -1:
-					this._unread(c);
-					return UNKOWN;
+	Block.prototype = {
+		adjustBounds: function(index, value) {
+			if (index < this.start) {
+				this.start += value;
 			}
+			if (index < this.contentStart) {
+				this.contentStart += value;
+			}
+			if (index <= this.end) {
+				this.end += value;
+			}
+			if (index <= this.contentEnd) {
+				this.contentEnd += value;
+			}
+			this._subBlocks.forEach(function(current) {
+				if (index <= current.end) {
+					current.adjustBounds(index, value);
+				}
+			});
+		},
+		getBlocks: function() {
+			return this._subBlocks;
+		},
+		isRenderingWhitespace: function() {
+			return this.styler._isRenderingWhitespace();
 		}
 	};
 
-	function TextStyler (view, lang, annotationModel) {
-		this.commentStart = "/*"; //$NON-NLS-0$
-		this.commentEnd = "*/"; //$NON-NLS-0$
-		var keywords = [];
-		switch (lang) {
-			case "java": keywords = JAVA_KEYWORDS; break; //$NON-NLS-0$
-			case "js": keywords = JS_KEYWORDS; break; //$NON-NLS-0$
-			case "css": keywords = CSS_KEYWORDS; break; //$NON-NLS-0$
+	function TextStylerAccessor(styler) {
+		this._styler = styler;
+	}
+	TextStylerAccessor.prototype = {
+		getStyles: function(offset) {
+			return this._styler.getStyles(offset);
 		}
-		this.whitespacesVisible = this.spacesVisible = this.tabsVisible = false;
-		this.detectHyperlinks = true;
-		this.highlightCaretLine = false;
-		this.foldingEnabled = true;
-		this.detectTasks = true;
-		this._scanner = new Scanner(keywords, this.whitespacesVisible);
-		this._firstScanner = new FirstScanner();
-		this._commentScanner = new CommentScanner(this.whitespacesVisible);
-		this._whitespaceScanner = new WhitespaceScanner();
-		//TODO these scanners are not the best/correct way to parse CSS
-		if (lang === "css") { //$NON-NLS-0$
-			this._scanner.isCSS = true;
-			this._firstScanner.isCSS = true;
-		}
-		this.view = view;
-		this.annotationModel = annotationModel;
-		this._bracketAnnotations = undefined;
+	};
+
+	function TextStyler(view, annotationModel, stylerAdapter) {
+		this._whitespacesVisible = this._spacesVisible = this._tabsVisible = false;
+		this._highlightCaretLine = false;
+		this._foldingEnabled = true;
+		this._detectTasks = true;
+		this._view = view;
+		this._annotationModel = annotationModel;
+		this._stylerAdapter = stylerAdapter;
+		this._stylerAdapter.setStyler(this);
+		this._accessor = new TextStylerAccessor(this);
+		this._bracketAnnotations;
 
 		var self = this;
 		this._listener = {
@@ -21204,101 +23416,138 @@ define("examples/editor/textStyler", [ //$NON-NLS-0$
 		view.addEventListener("Selection", this._listener.onSelection); //$NON-NLS-0$
 		view.addEventListener("Destroy", this._listener.onDestroy); //$NON-NLS-0$
 		view.addEventListener("LineStyle", this._listener.onLineStyle); //$NON-NLS-0$
-		this._computeComments ();
-		this._computeFolding();
+
+		var charCount = model.getCharCount();
+		var rootBounds = {start: 0, contentStart: 0, end: charCount, contentEnd: charCount};
+		this._rootBlock = this._stylerAdapter.createBlock(rootBounds, this, model, null);
+		if (annotationModel) {
+			var add = [];
+			annotationModel.removeAnnotations(mAnnotations.AnnotationType.ANNOTATION_FOLDING);
+			this._computeFolding(this._rootBlock.getBlocks(), view.getModel(), add);
+			if (this._detectTasks) {
+				annotationModel.removeAnnotations(mAnnotations.AnnotationType.ANNOTATION_TASK);
+				this._computeTasks(this._rootBlock, model, add);
+			}
+			annotationModel.replaceAnnotations([], add);
+		}
 		view.redrawLines();
 	}
-
 	TextStyler.prototype = {
+		computeBlocks: function(model, text, block, offset, startIndex, endIndex, maxBlockCount) {
+			return this._stylerAdapter.computeBlocks(model, text, block, offset, startIndex, endIndex, maxBlockCount);
+		},
 		destroy: function() {
-			var view = this.view;
-			if (view) {
-				var model = view.getModel();
+			if (this._view) {
+				var model = this._view.getModel();
 				if (model.getBaseModel) {
 					model = model.getBaseModel();
 				}
 				model.removeEventListener("Changed", this._listener.onChanged); //$NON-NLS-0$
-				view.removeEventListener("MouseDown", this._listener.onMouseDown); //$NON-NLS-0$
-				view.removeEventListener("Selection", this._listener.onSelection); //$NON-NLS-0$
-				view.removeEventListener("Destroy", this._listener.onDestroy); //$NON-NLS-0$
-				view.removeEventListener("LineStyle", this._listener.onLineStyle); //$NON-NLS-0$
-				this.view = null;
+				this._view.removeEventListener("MouseDown", this._listener.onMouseDown); //$NON-NLS-0$
+				this._view.removeEventListener("Selection", this._listener.onSelection); //$NON-NLS-0$
+				this._view.removeEventListener("Destroy", this._listener.onDestroy); //$NON-NLS-0$
+				this._view.removeEventListener("LineStyle", this._listener.onLineStyle); //$NON-NLS-0$
+				this._view = null;
 			}
 		},
-		setHighlightCaretLine: function(highlight) {
-			this.highlightCaretLine = highlight;
+		getBlockAtIndex: function(index) {
+			return this._findBlock(this._rootBlock, index);
 		},
-		setWhitespacesVisible: function(visible, redraw) {
-			if (this.whitespacesVisible === visible) { return; }
-			this.whitespacesVisible = visible;
-			this._scanner.whitespacesVisible = visible;
-			this._commentScanner.whitespacesVisible = visible;
-			if (redraw) {
-				this.view.redraw();
+		getRootBlock: function() {
+			return this._rootBlock;
+		},
+		getStyleAccessor: function() {
+			return this._accessor;
+		},
+		getStyles: function(offset) {
+			var result = [];
+			var model = this._view.getModel();
+			if (model.getBaseModel) {
+				model = model.getBaseModel();
 			}
+			var block = this._findBlock(this._rootBlock, offset);
+			var lineIndex = model.getLineAtOffset(offset);
+			var lineText = model.getLine(lineIndex);
+			var styles = [];
+			this._stylerAdapter.parse(lineText, model.getLineStart(lineIndex), block, styles);
+			var style = styles[binarySearch(styles, offset, true)];
+			if (style && style.start <= offset && offset < style.end) {
+				result.push(style);
+			}
+			while (block) {
+				style = this._stylerAdapter.computeStyle(block, model, offset);
+				if (style) {
+					result.splice(0, 0, style);
+				}
+				block = block.parent;
+			}
+			return result;
 		},
-		setTabsVisible: function(visible) {
-			if (this.tabsVisible === visible) { return; }
-			this.tabsVisible = visible;
-			this.setWhitespacesVisible(this.tabsVisible || this.spacesVisible, false);
-			this.view.redraw();
-		},
-		setSpacesVisible: function(visible) {
-			if (this.spacesVisible === visible) { return; }
-			this.spacesVisible = visible;
-			this.setWhitespacesVisible(this.tabsVisible || this.spacesVisible, false);
-			this.view.redraw();
-		},
-		setDetectHyperlinks: function(enabled) {
-			this.detectHyperlinks = enabled;
-		},
-		setFoldingEnabled: function(enabled) {
-			this.foldingEnabled = enabled;
+		setDetectHyperlinks: function() {
 		},
 		setDetectTasks: function(enabled) {
-			this.detectTasks = enabled;
+			this._detectTasks = enabled;
 		},
-		_binarySearch: function (array, offset, inclusive, low, high) {
-			var index;
-			if (low === undefined) { low = -1; }
-			if (high === undefined) { high = array.length; }
-			while (high - low > 1) {
-				index = Math.floor((high + low) / 2);
-				if (offset <= array[index].start) {
-					high = index;
-				} else if (inclusive && offset < array[index].end) {
-					high = index;
-					break;
-				} else {
-					low = index;
-				}
+		setFoldingEnabled: function(enabled) {
+			this._foldingEnabled = enabled;
+		},
+		setHighlightCaretLine: function(highlight) {
+			this._highlightCaretLine = highlight;
+		},
+		setSpacesVisible: function(visible) {
+			if (this._spacesVisible === visible) { return; }
+			this._spacesVisible = visible;
+			this.setWhitespacesVisible(this._tabsVisible || this._spacesVisible, false);
+			this._view.redraw();
+		},
+		setTabsVisible: function(visible) {
+			if (this._tabsVisible === visible) { return; }
+			this._tabsVisible = visible;
+			this.setWhitespacesVisible(this._tabsVisible || this._spacesVisible, false);
+			this._view.redraw();
+		},
+		setWhitespacesVisible: function(visible, redraw) {
+			if (this._whitespacesVisible === visible) { return; }
+			this._whitespacesVisible = visible;
+			if (redraw) {
+				this._view.redraw();
 			}
-			return high;
 		},
-		_computeComments: function() {
-			var model = this.view.getModel();
-			if (model.getBaseModel) { model = model.getBaseModel(); }
-			this.comments = this._findComments(model.getText());
-		},
-		_computeFolding: function() {
-			if (!this.foldingEnabled) { return; }
-			var view = this.view;
-			var viewModel = view.getModel();
+
+		/** @private */
+
+		_computeFolding: function(blocks, viewModel, _add) {
 			if (!viewModel.getBaseModel) { return; }
-			var annotationModel = this.annotationModel;
-			if (!annotationModel) { return; }
-			annotationModel.removeAnnotations(mAnnotations.AnnotationType.ANNOTATION_FOLDING);
-			var add = [];
 			var baseModel = viewModel.getBaseModel();
-			var comments = this.comments;
-			for (var i=0; i<comments.length; i++) {
-				var comment = comments[i];
-				var annotation = this._createFoldingAnnotation(viewModel, baseModel, comment.start, comment.end);
+			blocks.forEach(function(block) {
+				var annotation = this._createFoldingAnnotation(viewModel, baseModel, block.start, block.end);
 				if (annotation) {
-					add.push(annotation);
+					_add.push(annotation);
 				}
+				this._computeFolding(block.getBlocks(), viewModel, _add);
+			}.bind(this));
+		},
+		_computeTasks: function(block, baseModel, annotations, start, end) {
+			start = start || block.start;
+			end = end || block.end;
+			if (block.start <= end && start <= block.end) {
+				if (!this._annotationModel) { return; }
+
+				var annotationType = mAnnotations.AnnotationType.ANNOTATION_TASK;
+				if (block.name && block.name.indexOf("comment") === 0) {
+					var substyles = [];
+					this._stylerAdapter.parse(baseModel.getText(block.contentStart, block.end), block.contentStart, block, substyles, true);
+					for (var i = 0; i < substyles.length; i++) {
+						if (substyles[i].style === "meta.annotation.task.todo" && start <= substyles[i].start && substyles[i].end <= end) {
+							annotations.push(mAnnotations.AnnotationType.createAnnotation(annotationType, substyles[i].start, substyles[i].end, baseModel.getText(substyles[i].start, substyles[i].end)));
+						}
+					}
+				}
+
+				block.getBlocks().forEach(function(current) {
+					this._computeTasks(current, baseModel, annotations, start, end);
+				}.bind(this));
 			}
-			annotationModel.replaceAnnotations(null, add);
 		},
 		_createFoldingAnnotation: function(viewModel, baseModel, start, end) {
 			var startLine = baseModel.getLineAtOffset(start);
@@ -21308,289 +23557,69 @@ define("examples/editor/textStyler", [ //$NON-NLS-0$
 			}
 			return new (mAnnotations.AnnotationType.getType(mAnnotations.AnnotationType.ANNOTATION_FOLDING))(start, end, viewModel);
 		},
-		_computeTasks: function(type, commentStart, commentEnd) {
-			if (!this.detectTasks) { return; }
-			var annotationModel = this.annotationModel;
-			if (!annotationModel) { return; }
-			var view = this.view;
-			var viewModel = view.getModel(), baseModel = viewModel;
-			if (viewModel.getBaseModel) { baseModel = viewModel.getBaseModel(); }
-			var annotations = annotationModel.getAnnotations(commentStart, commentEnd);
-			var remove = [];
-			var annotationType = mAnnotations.AnnotationType.ANNOTATION_TASK;
-			while (annotations.hasNext()) {
-				var annotation = annotations.next();
-				if (annotation.type === annotationType) {
-					remove.push(annotation);
-				}
+		_findBlock: function(parentBlock, offset) {
+			var blocks = parentBlock.getBlocks();
+			if (!blocks.length) {
+				return parentBlock;
 			}
-			var add = [];
-			var scanner = this._commentScanner;
-			scanner.setText(baseModel.getText(commentStart, commentEnd));
-			var token;
-			while ((token = scanner.nextToken())) {
-				var tokenStart = scanner.getStartOffset() + commentStart;
-				if (token === TASK_TAG) {
-					var end = baseModel.getLineEnd(baseModel.getLineAtOffset(tokenStart));
-					if (type !== SINGLELINE_COMMENT) {
-						end = Math.min(end, commentEnd - this.commentEnd.length);
-					}
-					add.push(mAnnotations.AnnotationType.createAnnotation(annotationType, tokenStart, end, baseModel.getText(tokenStart, end)));
-				}
-			}
-			annotationModel.replaceAnnotations(remove, add);
-		},
-		_getLineStyle: function(lineIndex) {
-			if (this.highlightCaretLine) {
-				var view = this.view;
-				var model = view.getModel();
-				var selection = view.getSelection();
-				if (selection.start === selection.end && model.getLineAtOffset(selection.start) === lineIndex) {
-					return caretLineStyle;
-				}
-			}
-			return null;
-		},
-		_getStyles: function(model, text, start) {
-			if (model.getBaseModel) {
-				start = model.mapOffset(start);
-			}
-			var end = start + text.length;
 
-			var styles = [];
-
-			// for any sub range that is not a comment, parse code generating tokens (keywords, numbers, brackets, line comments, etc)
-			var offset = start, comments = this.comments;
-			var startIndex = this._binarySearch(comments, start, true);
-			for (var i = startIndex; i < comments.length; i++) {
-				if (comments[i].start >= end) { break; }
-				var commentStart = comments[i].start;
-				var commentEnd = comments[i].end;
-				if (offset < commentStart) {
-					this._parse(text.substring(offset - start, commentStart - start), offset, styles);
+			var index = binarySearch(blocks, offset, true);
+			if (index < blocks.length && blocks[index].start <= offset && offset < blocks[index].end) {
+				return this._findBlock(blocks[index], offset);
+			}
+			return parentBlock;
+		},
+		_findBrackets: function(bracketMatch, block, text, start, end) {
+			var result = [], styles = [];
+			var offset = start, blocks = block.getBlocks();
+			var startIndex = binarySearch(blocks, start, true);
+			for (var i = startIndex; i < blocks.length; i++) {
+				if (blocks[i].start >= end) { break; }
+				var blockStart = blocks[i].start;
+				var blockEnd = blocks[i].end;
+				if (offset < blockStart) {
+					this._stylerAdapter.parse(text.substring(offset - start, blockStart - start), offset, block, styles);
+					styles.forEach(function(current) {
+						if (current.style.indexOf(bracketMatch.beginName) === 0) {
+							result.push(current.start + 1);
+						} else if (current.style.indexOf(bracketMatch.endName) === 0) {
+							result.push(-(current.start + 1));
+						}
+					});
+					styles = [];
 				}
-				var type = comments[i].type, style;
-				switch (type) {
-					case DOC_COMMENT: style = docCommentStyle; break;
-					case MULTILINE_COMMENT: style = multiCommentStyle; break;
-					case MULTILINE_STRING: style = stringStyle; break;
-				}
-				var s = Math.max(offset, commentStart);
-				var e = Math.min(end, commentEnd);
-				if ((type === DOC_COMMENT || type === MULTILINE_COMMENT) && (this.whitespacesVisible || this.detectHyperlinks)) {
-					this._parseComment(text.substring(s - start, e - start), s, styles, style, type);
-				} else if (type === MULTILINE_STRING && this.whitespacesVisible) {
-					this._parseString(text.substring(s - start, e - start), s, styles, stringStyle);
-				} else {
-					styles.push({start: s, end: e, style: style});
-				}
-				offset = commentEnd;
+				offset = blockEnd;
 			}
 			if (offset < end) {
-				this._parse(text.substring(offset - start, end - start), offset, styles);
-			}
-			if (model.getBaseModel) {
-				for (var j = 0; j < styles.length; j++) {
-					var length = styles[j].end - styles[j].start;
-					styles[j].start = model.mapOffset(styles[j].start, true);
-					styles[j].end = styles[j].start + length;
-				}
-			}
-			return styles;
-		},
-		_parse: function(text, offset, styles) {
-			var scanner = this._scanner;
-			scanner.setText(text);
-			var token;
-			while ((token = scanner.nextToken())) {
-				var tokenStart = scanner.getStartOffset() + offset;
-				var style = null;
-				switch (token) {
-					case KEYWORD: style = keywordStyle; break;
-					case NUMBER: style = numberStyle; break;
-					case MULTILINE_STRING:
-					case STRING:
-						if (this.whitespacesVisible) {
-							this._parseString(scanner.getData(), tokenStart, styles, stringStyle);
-							continue;
-						} else {
-							style = stringStyle;
+				this._stylerAdapter.parse(text.substring(offset - start, end - start), offset, block, styles);
+				styles.forEach(function(current) {
+					if (current.style) {
+						if (current.style.indexOf(bracketMatch.beginName) === 0) {
+							result.push(current.start + 1);
+						} else if (current.style.indexOf(bracketMatch.endName) === 0) {
+							result.push(-(current.start + 1));
 						}
-						break;
-					case DOC_COMMENT:
-						this._parseComment(scanner.getData(), tokenStart, styles, docCommentStyle, token);
-						continue;
-					case SINGLELINE_COMMENT:
-						this._parseComment(scanner.getData(), tokenStart, styles, singleCommentStyle, token);
-						continue;
-					case MULTILINE_COMMENT:
-						this._parseComment(scanner.getData(), tokenStart, styles, multiCommentStyle, token);
-						continue;
-					case WHITE_TAB:
-						if (this.whitespacesVisible && this.tabsVisible) {
-							style = tabStyle;
-						}
-						break;
-					case WHITE_SPACE:
-						if (this.whitespacesVisible && this.spacesVisible) {
-							style = spaceStyle;
-						}
-						break;
-				}
-				styles.push({start: tokenStart, end: scanner.getOffset() + offset, style: style});
-			}
-		},
-		_parseComment: function(text, offset, styles, s, type) {
-			var scanner = this._commentScanner;
-			scanner.setText(text);
-			scanner.setType(type);
-			var token;
-			while ((token = scanner.nextToken())) {
-				var tokenStart = scanner.getStartOffset() + offset;
-				var style = s;
-				switch (token) {
-					case WHITE_TAB:
-						if (this.whitespacesVisible && this.tabsVisible) {
-							style = tabStyle;
-						}
-						break;
-					case WHITE_SPACE:
-						if (this.whitespacesVisible && this.spacesVisible) {
-							style = spaceStyle;
-						}
-						break;
-					case HTML_MARKUP:
-						style = htmlMarkupStyle;
-						break;
-					case DOC_TAG:
-						style = doctagStyle;
-						break;
-					case TASK_TAG:
-						style = tasktagStyle;
-						break;
-					default:
-						if (this.detectHyperlinks) {
-							style = this._detectHyperlinks(scanner.getData(), tokenStart, styles, style);
-						}
-				}
-				if (style) {
-					styles.push({start: tokenStart, end: scanner.getOffset() + offset, style: style});
-				}
-			}
-		},
-		_parseString: function(text, offset, styles, s) {
-			var scanner = this._whitespaceScanner;
-			scanner.setText(text);
-			var token;
-			while ((token = scanner.nextToken())) {
-				var tokenStart = scanner.getStartOffset() + offset;
-				var style = s;
-				switch (token) {
-					case WHITE_TAB:
-						if (this.whitespacesVisible && this.tabsVisible) {
-							style = tabStyle;
-						}
-						break;
-					case WHITE_SPACE:
-						if (this.whitespacesVisible && this.spacesVisible) {
-							style = spaceStyle;
-						}
-						break;
-				}
-				if (style) {
-					styles.push({start: tokenStart, end: scanner.getOffset() + offset, style: style});
-				}
-			}
-		},
-		_detectHyperlinks: function(text, offset, styles, s) {
-			var href = null, index, linkStyle;
-			if ((index = text.indexOf("://")) > 0) { //$NON-NLS-0$
-				href = text;
-				var start = index;
-				while (start > 0) {
-					var c = href.charCodeAt(start - 1);
-					if (!((97 <= c && c <= 122) || (65 <= c && c <= 90) || 0x2d === c || (48 <= c && c <= 57))) { //LETTER OR DASH OR NUMBER
-						break;
 					}
-					start--;
-				}
-				if (start > 0) {
-					var brackets = "\"\"''(){}[]<>"; //$NON-NLS-0$
-					index = brackets.indexOf(href.substring(start - 1, start));
-					if (index !== -1 && (index & 1) === 0 && (index = href.lastIndexOf(brackets.substring(index + 1, index + 2))) !== -1) {
-						var end = index;
-						linkStyle = this._clone(s);
-						linkStyle.tagName = "a"; //$NON-NLS-0$
-						linkStyle.attributes = {href: href.substring(start, end)};
-						styles.push({start: offset, end: offset + start, style: s});
-						styles.push({start: offset + start, end: offset + end, style: linkStyle});
-						styles.push({start: offset + end, end: offset + text.length, style: s});
-						return null;
-					}
-				}
-			} else if (text.toLowerCase().indexOf("bug#") === 0) { //$NON-NLS-0$
-				href = "https://bugs.eclipse.org/bugs/show_bug.cgi?id=" + parseInt(text.substring(4), 10); //$NON-NLS-0$
-			}
-			if (href) {
-				linkStyle = this._clone(s);
-				linkStyle.tagName = "a"; //$NON-NLS-0$
-				linkStyle.attributes = {href: href};
-				return linkStyle;
-			}
-			return s;
-		},
-		_clone: function(obj) {
-			if (!obj) { return obj; }
-			var newObj = {};
-			for (var p in obj) {
-				if (obj.hasOwnProperty(p)) {
-					var value = obj[p];
-					newObj[p] = value;
-				}
-			}
-			return newObj;
-		},
-		_findComments: function(text, offset) {
-			offset = offset || 0;
-			var scanner = this._firstScanner, token;
-			scanner.setText(text);
-			var result = [];
-			while ((token = scanner.nextToken())) {
-				if (token === MULTILINE_COMMENT || token === DOC_COMMENT || token === MULTILINE_STRING) {
-					result.push({
-						start: scanner.getStartOffset() + offset,
-						end: scanner.getOffset() + offset,
-						type: token
-					});
-				}
-				if (token === SINGLELINE_COMMENT || token === MULTILINE_COMMENT || token === DOC_COMMENT) {
-					//TODO can we avoid this work if edition does not overlap comment?
-					this._computeTasks(token, scanner.getStartOffset() + offset, scanner.getOffset() + offset);
-				}
+				});
 			}
 			return result;
 		},
-		_findMatchingBracket: function(model, offset) {
-			var brackets = BRACKETS;
-			var bracket = model.getText(offset, offset + 1);
-			var bracketIndex = brackets.indexOf(bracket, 0);
-			if (bracketIndex === -1) { return -1; }
-			var closingBracket;
-			if (bracketIndex & 1) {
-				closingBracket = brackets.substring(bracketIndex - 1, bracketIndex);
-			} else {
-				closingBracket = brackets.substring(bracketIndex + 1, bracketIndex + 2);
-			}
+		_findMatchingBracket: function(model, block, offset) {
 			var lineIndex = model.getLineAtOffset(offset);
+			var lineEnd = model.getLineEnd(lineIndex);
+			var text = model.getText(offset, lineEnd);
+			
+			var bracketMatch = this._stylerAdapter.getBracketMatch(block, text);
+			if (!bracketMatch) { return -1; }
+
 			var lineText = model.getLine(lineIndex);
 			var lineStart = model.getLineStart(lineIndex);
-			var lineEnd = model.getLineEnd(lineIndex);
-			brackets = this._findBrackets(bracket, closingBracket, lineText, lineStart, lineStart, lineEnd);
-			for (var i=0; i<brackets.length; i++) {
+			var brackets = this._findBrackets(bracketMatch, block, lineText, lineStart, lineEnd);
+			for (var i = 0; i < brackets.length; i++) {
 				var sign = brackets[i] >= 0 ? 1 : -1;
 				if (brackets[i] * sign - 1 === offset) {
 					var level = 1;
-					if (bracketIndex & 1) {
+					if (!bracketMatch.atStart) {
 						i--;
 						for (; i>=0; i--) {
 							sign = brackets[i] >= 0 ? 1 : -1;
@@ -21604,8 +23633,8 @@ define("examples/editor/textStyler", [ //$NON-NLS-0$
 							lineText = model.getLine(lineIndex);
 							lineStart = model.getLineStart(lineIndex);
 							lineEnd = model.getLineEnd(lineIndex);
-							brackets = this._findBrackets(bracket, closingBracket, lineText, lineStart, lineStart, lineEnd);
-							for (var j=brackets.length - 1; j>=0; j--) {
+							brackets = this._findBrackets(bracketMatch, block, lineText, lineStart, lineEnd);
+							for (var j = brackets.length - 1; j >= 0; j--) {
 								sign = brackets[j] >= 0 ? 1 : -1;
 								level += sign;
 								if (level === 0) {
@@ -21624,12 +23653,12 @@ define("examples/editor/textStyler", [ //$NON-NLS-0$
 							}
 						}
 						lineIndex += 1;
-						var lineCount = model.getLineCount ();
+						var lineCount = model.getLineCount();
 						while (lineIndex < lineCount) {
 							lineText = model.getLine(lineIndex);
 							lineStart = model.getLineStart(lineIndex);
 							lineEnd = model.getLineEnd(lineIndex);
-							brackets = this._findBrackets(bracket, closingBracket, lineText, lineStart, lineStart, lineEnd);
+							brackets = this._findBrackets(bracketMatch, block, lineText, lineStart, lineEnd);
 							for (var k=0; k<brackets.length; k++) {
 								sign = brackets[k] >= 0 ? 1 : -1;
 								level += sign;
@@ -21645,113 +23674,119 @@ define("examples/editor/textStyler", [ //$NON-NLS-0$
 			}
 			return -1;
 		},
-		_findBrackets: function(bracket, closingBracket, text, textOffset, start, end) {
-			var result = [];
-			var bracketToken = bracket.charCodeAt(0);
-			var closingBracketToken = closingBracket.charCodeAt(0);
-			// for any sub range that is not a comment, parse code generating tokens (keywords, numbers, brackets, line comments, etc)
-			var offset = start, scanner = this._scanner, token, comments = this.comments;
-			var startIndex = this._binarySearch(comments, start, true);
-			for (var i = startIndex; i < comments.length; i++) {
-				if (comments[i].start >= end) { break; }
-				var commentStart = comments[i].start;
-				var commentEnd = comments[i].end;
-				if (offset < commentStart) {
-					scanner.setText(text.substring(offset - start, commentStart - start));
-					while ((token = scanner.nextToken())) {
-						if (token === bracketToken) {
-							result.push(scanner.getStartOffset() + offset - start + textOffset + 1);
-						} else if (token === closingBracketToken) {
-							result.push(-(scanner.getStartOffset() + offset - start + textOffset + 1));
-						}
+		_getLineStyle: function(lineIndex) {
+			if (this._highlightCaretLine) {
+				var model = this._view.getModel();
+				var selection = this._view.getSelection();
+				if (selection.start === selection.end && model.getLineAtOffset(selection.start) === lineIndex) {
+					return this._caretLineStyle;
+				}
+			}
+			return null;
+		},
+		_getStyles: function(block, model, text, start) {
+			if (model.getBaseModel) {
+				start = model.mapOffset(start);
+			}
+			var end = start + text.length;
+
+			var styles = [];
+			var offset = start, blocks = block.getBlocks();
+			var startIndex = binarySearch(blocks, start, true);
+			for (var i = startIndex; i < blocks.length; i++) {
+				if (blocks[i].start >= end) { break; }
+				var blockStart = blocks[i].start;
+				var blockEnd = blocks[i].end;
+				if (offset < blockStart) {
+					/* content on that line that preceeds the start of the block */
+					this._stylerAdapter.parse(text.substring(offset - start, blockStart - start), offset, block, styles);
+				}
+				var s = Math.max(offset, blockStart);
+				if (s === blockStart) {
+					/* currently in the block's "start" segment */
+					var startString = this._stylerAdapter.getBlockStartStyle(blocks[i], text.substring(s - start), s, styles);
+					if (startString) {
+						s += startString.length;
 					}
 				}
-				offset = commentEnd;
+
+				/*
+				 * Compute the block end now in order to determine the end-bound of the contained content, but do not add
+				 * its styles to the styles array until content styles have been computed, so that ordering is preserved.
+				 */
+				var e = Math.min(end, blockEnd);
+				var endStyles = [];
+				if (e === blockEnd) {
+					/* currently in the block's "end" segment */
+					var testString = text.substring(e - offset - (blocks[i].end - blocks[i].contentEnd));
+					var endString = this._stylerAdapter.getBlockEndStyle(blocks[i], testString, e, endStyles);
+					if (endString) {
+						e -= endString.length;
+					}
+				}
+
+				var blockSubstyles = this._getStyles(blocks[i], model, text.substring(s - start, e - start), s);
+				var blockStyleName = this._stylerAdapter.getBlockContentStyleName(blocks[i]);
+				if (blockStyleName) {
+					/*
+					 * If a name was specified for the current block then apply its style throughout its
+					 * content wherever a style is not provided by a sub-element.
+					 */
+					var index = s;
+					blockSubstyles.forEach(function(current) {
+						if (current.start - index) {
+							styles.push({start: index, end: current.start, style: blockStyleName});
+						}
+						if (current.mergeable) {
+							current.style += "," + blockStyleName;
+						}
+						styles.push(current);
+						index = current.end;
+					});
+					if (e - index) {
+						styles.push({start: index, end: e, style: blockStyleName});
+					}
+				} else {
+					styles = styles.concat(blockSubstyles);
+				}
+				styles = styles.concat(endStyles);
+				offset = blockEnd;
 			}
 			if (offset < end) {
-				scanner.setText(text.substring(offset - start, end - start));
-				while ((token = scanner.nextToken())) {
-					if (token === bracketToken) {
-						result.push(scanner.getStartOffset() + offset - start + textOffset + 1);
-					} else if (token === closingBracketToken) {
-						result.push(-(scanner.getStartOffset() + offset - start + textOffset + 1));
-					}
+				/* content on that line that follows the end of the block */
+				this._stylerAdapter.parse(text.substring(offset - start, end - start), offset, block, styles);
+			}
+			if (model.getBaseModel) {
+				for (var j = 0; j < styles.length; j++) {
+					var length = styles[j].end - styles[j].start;
+					styles[j].start = model.mapOffset(styles[j].start, true);
+					styles[j].end = styles[j].start + length;
 				}
 			}
-			return result;
+			return styles;
 		},
-		_onDestroy: function(e) {
+		_isRenderingWhitespace: function() {
+			return this._whitespacesVisible && (this._tabsVisible || this._spacesVisible);
+		},
+		_onDestroy: function() {
 			this.destroy();
 		},
-		_onLineStyle: function (e) {
-			if (e.textView === this.view) {
+		_onLineStyle: function(e) {
+			if (e.textView === this._view) {
 				e.style = this._getLineStyle(e.lineIndex);
 			}
-			e.ranges = this._getStyles(e.textView.getModel(), e.lineText, e.lineStart);
-		},
-		_onSelection: function(e) {
-			var oldSelection = e.oldValue;
-			var newSelection = e.newValue;
-			var view = this.view;
-			var model = view.getModel();
-			var lineIndex;
-			if (this.highlightCaretLine) {
-				var oldLineIndex = model.getLineAtOffset(oldSelection.start);
-				lineIndex = model.getLineAtOffset(newSelection.start);
-				var newEmpty = newSelection.start === newSelection.end;
-				var oldEmpty = oldSelection.start === oldSelection.end;
-				if (!(oldLineIndex === lineIndex && oldEmpty && newEmpty)) {
-					if (oldEmpty) {
-						view.redrawLines(oldLineIndex, oldLineIndex + 1);
-					}
-					if ((oldLineIndex !== lineIndex || !oldEmpty) && newEmpty) {
-						view.redrawLines(lineIndex, lineIndex + 1);
-					}
+			e.ranges = this._getStyles(this._rootBlock, e.textView.getModel(), e.lineText, e.lineStart);
+			e.ranges.forEach(function(current) {
+				if (current.style) {
+					current.style = {styleClass: current.style.replace(/\./g, " ")};
 				}
-			}
-			if (!this.annotationModel) { return; }
-			var remove = this._bracketAnnotations, add, caret;
-			if (newSelection.start === newSelection.end && (caret = view.getCaretOffset()) > 0) {
-				var mapCaret = caret - 1;
-				if (model.getBaseModel) {
-					mapCaret = model.mapOffset(mapCaret);
-					model = model.getBaseModel();
+			});
+			if (this._isRenderingWhitespace()) {
+				if (this._spacesVisible) {
+					this._spliceStyles(this._spacePattern, e.ranges, e.lineText, e.lineStart);
 				}
-				var bracket = this._findMatchingBracket(model, mapCaret);
-				if (bracket !== -1) {
-					add = [
-						mAnnotations.AnnotationType.createAnnotation(mAnnotations.AnnotationType.ANNOTATION_MATCHING_BRACKET, bracket, bracket + 1),
-						mAnnotations.AnnotationType.createAnnotation(mAnnotations.AnnotationType.ANNOTATION_CURRENT_BRACKET, mapCaret, mapCaret + 1)
-					];
-				}
-			}
-			this._bracketAnnotations = add;
-			this.annotationModel.replaceAnnotations(remove, add);
-		},
-		_onMouseDown: function(e) {
-			if (e.clickCount !== 2) { return; }
-			var view = this.view;
-			var model = view.getModel();
-			var offset = view.getOffsetAtLocation(e.x, e.y);
-			if (offset > 0) {
-				var mapOffset = offset - 1;
-				var baseModel = model;
-				if (model.getBaseModel) {
-					mapOffset = model.mapOffset(mapOffset);
-					baseModel = model.getBaseModel();
-				}
-				var bracket = this._findMatchingBracket(baseModel, mapOffset);
-				if (bracket !== -1) {
-					e.preventDefault();
-					var mapBracket = bracket;
-					if (model.getBaseModel) {
-						mapBracket = model.mapOffset(mapBracket, true);
-					}
-					if (offset > mapBracket) {
-						offset--;
-						mapBracket++;
-					}
-					view.setSelection(mapBracket, offset);
+				if (this._tabsVisible) {
+					this._spliceStyles(this._tabPattern, e.ranges, e.lineText, e.lineStart);
 				}
 			}
 		},
@@ -21760,56 +23795,170 @@ define("examples/editor/textStyler", [ //$NON-NLS-0$
 			var removedCharCount = e.removedCharCount;
 			var addedCharCount = e.addedCharCount;
 			var changeCount = addedCharCount - removedCharCount;
-			var view = this.view;
-			var viewModel = view.getModel();
+			var viewModel = this._view.getModel();
 			var baseModel = viewModel.getBaseModel ? viewModel.getBaseModel() : viewModel;
 			var end = start + removedCharCount;
 			var charCount = baseModel.getCharCount();
-			var commentCount = this.comments.length;
-			var lineStart = baseModel.getLineStart(baseModel.getLineAtOffset(start));
-			var commentStart = this._binarySearch(this.comments, lineStart, true);
-			var commentEnd = this._binarySearch(this.comments, end, false, commentStart - 1, commentCount);
 
-			var ts;
-			if (commentStart < commentCount && this.comments[commentStart].start <= lineStart && lineStart < this.comments[commentStart].end) {
-				ts = this.comments[commentStart].start;
-				if (ts > start) { ts += changeCount; }
-			} else {
-				if (commentStart === commentCount && commentCount > 0 && charCount - changeCount === this.comments[commentCount - 1].end) {
-					ts = this.comments[commentCount - 1].start;
+			/* compute the nearest ancestor block to the start and end indices */
+			var lineStart = baseModel.getLineStart(baseModel.getLineAtOffset(start));
+			var ancestorBlock = this._findBlock(this._rootBlock, start);
+
+			var blockExtended, blocks, parentBlock, redraw, text, te, ts;
+			do {
+				parentBlock = ancestorBlock.parent;
+
+				/*
+				 * Determine whether ancestorBlock contains the full range of
+				 * text whose styling may be affected by this model change.
+				 */
+				if (!blockExtended && parentBlock) {
+					/* verify that ancestorBlock's start and end matches are not affected by this change */
+					text = baseModel.getText(ancestorBlock.start, Math.min(charCount, ancestorBlock.end + changeCount + 1));
+					if (!this._stylerAdapter.verifyBlock(baseModel, text, ancestorBlock, changeCount)) {
+						ancestorBlock = parentBlock;
+						continue;
+					}
+				}
+
+				/*
+				 * The change has not directly changed ancestorBlock's start/end strings, now verify that its end
+				 * bound is still valid (ie.- ensure that a new block is not extending beyond the end bound).
+				 */
+
+				blocks = ancestorBlock.getBlocks();
+				var blockCount = blocks.length;
+				var blockStart = binarySearch(blocks, lineStart, true);
+				var blockEnd = binarySearch(blocks, end, false, blockStart - 1, blockCount);
+
+				/*
+				 * If the change immediately follows the preceding block then test whether
+				 * the block should be extended.
+				 */
+				blockExtended = false;
+				if (blockStart && blocks.length && blocks[blockStart - 1].end === start) {
+					text = baseModel.getText(blocks[blockStart - 1].start, Math.min(charCount, start + 1));
+					var tempBlocks = this.computeBlocks(baseModel, text, ancestorBlock, blocks[blockStart - 1].start, null, null, null);
+					if (tempBlocks.length && tempBlocks[0].end !== blocks[blockStart - 1].end) {
+						/* the change has affected the preceding block's end, so include this block */
+						blockStart--;
+						blockExtended = true;
+					}
+				}
+
+				if (blockStart < blockCount && blocks[blockStart].start <= lineStart && (lineStart < blocks[blockStart].end || blockExtended)) {
+					ts = blocks[blockStart].start;
+					if (ts > start) { ts += changeCount; }
+				} else if (blockStart === blockCount && blockCount > 0 && ancestorBlock.end - changeCount === blocks[blockCount - 1].end) {
+					ts = blocks[blockCount - 1].start;
+					if (ts > start) { ts += changeCount; }
 				} else {
 					ts = lineStart;
 				}
-			}
-			var te;
-			if (commentEnd < commentCount) {
-				te = this.comments[commentEnd].end;
-				if (te > start) { te += changeCount; }
-				commentEnd += 1;
-			} else {
-				commentEnd = commentCount;
-				te = charCount;//TODO could it be smaller?
-			}
-			var text = baseModel.getText(ts, te), comment;
-			var newComments = this._findComments(text, ts), i;
-			for (i = commentStart; i < this.comments.length; i++) {
-				comment = this.comments[i];
-				if (comment.start > start) { comment.start += changeCount; }
-				if (comment.start > start) { comment.end += changeCount; }
-			}
-			var redraw = (commentEnd - commentStart) !== newComments.length;
+
+				if (blockEnd < blockCount) {
+					te = blocks[blockEnd].end;
+				} else {
+					te = ancestorBlock.contentEnd;
+				}
+				if (start <= te) { te += changeCount; }
+				te = Math.min(te, charCount - 1);
+				text = baseModel.getText(ts, te + 1);
+				var newBlocks = this.computeBlocks(baseModel, text, ancestorBlock, ts, null, null, null);
+
+				if (blockEnd < blockCount) {
+					/* ensure that blockEnd's end is preserved */
+					if (newBlocks.length && newBlocks[newBlocks.length - 1].end === te && newBlocks[newBlocks.length - 1].typeId === blocks[blockEnd].typeId) {
+						break;
+					}
+
+					/*
+					 * ancestorBlock's end match is no longer valid because it is being spanned by a block from
+					 * within.  Attempt to find a subsequent sibling block with the same type, as its end match 
+					 * will serve as the end match for this spanning block as well.
+					 */
+					if (newBlocks.length && this._stylerAdapter.blockSpansBeyondEnd(newBlocks[newBlocks.length - 1])) {
+						blockEnd++;
+						var subBlocks = newBlocks[newBlocks.length - 1].getBlocks();
+						var spanningTypeId = (subBlocks.length ? subBlocks[subBlocks.length - 1] : newBlocks[newBlocks.length - 1]).typeId;
+						while (blockEnd < blockCount) {
+							if (blocks[blockEnd].typeId === spanningTypeId) {
+								/* found a potential end block, must verify it */
+								var tempTe = blocks[blockEnd].end + changeCount;
+								tempTe = Math.min(tempTe, charCount - 1);
+								text = baseModel.getText(ts, tempTe + 1);
+								var tempNewBlocks = this.computeBlocks(baseModel, text, ancestorBlock, ts, null, null, null);
+								if (tempNewBlocks.length && tempNewBlocks[tempNewBlocks.length - 1].end === tempTe) {
+									/* verified, can now stop looking */
+									te = tempTe;
+									newBlocks = tempNewBlocks;
+									break;
+								}
+							}
+							blockEnd++;
+						}
+						if (blockEnd < blockCount) {
+							break;
+						}
+					}
+				} else {
+					/* ensure that ancestorBlock's end is preserved */
+					if (!newBlocks.length || newBlocks[newBlocks.length - 1].end <= ancestorBlock.contentEnd + changeCount) {
+						break;
+					}
+				}
+
+				/* 
+				 * The end block's end bound is spanned by a block from within, so move up to the ancestor
+				 * block, or extend end to the end of the content if already at the root-level block.
+				 */
+
+				if (!parentBlock) {
+					te = charCount;
+					blockEnd = blockCount;
+					text = baseModel.getText(ts, te);
+					newBlocks = this.computeBlocks(baseModel, text, ancestorBlock, ts, null, null, null);
+					break;
+				}
+
+				ancestorBlock = parentBlock;
+				redraw = true; /* blocks may not appear to be changed in the context of the parent block */
+			} while (true);
+
+			this._rootBlock.adjustBounds(start, changeCount);
+			blockEnd = Math.min(blockEnd + 1, blockCount);
+
+			var block;
 			if (!redraw) {
-				for (i=0; i<newComments.length; i++) {
-					comment = this.comments[commentStart + i];
-					var newComment = newComments[i];
-					if (comment.start !== newComment.start || comment.end !== newComment.end || comment.type !== newComment.type) {
+				redraw = (blockEnd - blockStart) !== newBlocks.length;
+			}
+			if (!redraw) {
+				for (var i = 0; i < newBlocks.length; i++) {
+					block = blocks[blockStart + i];
+					var newBlock = newBlocks[i];
+					if (block.start !== newBlock.start || block.end !== newBlock.end || block.typeId !== newBlock.typeId) {
 						redraw = true;
 						break;
 					}
 				}
 			}
-			var args = [commentStart, commentEnd - commentStart].concat(newComments);
-			Array.prototype.splice.apply(this.comments, args);
+
+			if (!blocks.length && !newBlocks.length) {
+				this.dispatchEvent({
+					type: "BlocksChanged",
+					old: [ancestorBlock],
+					"new": [ancestorBlock]
+				});
+			} else {
+				this.dispatchEvent({
+					type: "BlocksChanged",
+					old: blocks.slice(blockStart, blockEnd),
+					"new": newBlocks
+				});
+			}
+
+			var args = [blockStart, blockEnd - blockStart].concat(newBlocks);
+			Array.prototype.splice.apply(blocks, args);
 			if (redraw) {
 				var redrawStart = ts;
 				var redrawEnd = te;
@@ -21817,24 +23966,21 @@ define("examples/editor/textStyler", [ //$NON-NLS-0$
 					redrawStart = viewModel.mapOffset(redrawStart, true);
 					redrawEnd = viewModel.mapOffset(redrawEnd, true);
 				}
-				view.redrawRange(redrawStart, redrawEnd);
+				this._view.redrawRange(redrawStart, redrawEnd);
 			}
 
-			if (this.foldingEnabled && baseModel !== viewModel && this.annotationModel) {
-				var annotationModel = this.annotationModel;
-				var iter = annotationModel.getAnnotations(ts, te);
-				var remove = [], all = [];
-				var annotation;
+			if (this._annotationModel) {
+				var remove = [], add = [];
+				var allFolding = [];
+				var iter = this._annotationModel.getAnnotations(ts, te);
+				var doFolding = this._foldingEnabled && baseModel !== viewModel;
+				var parent = ancestorBlock.parent || ancestorBlock;
 				while (iter.hasNext()) {
-					annotation = iter.next();
-					if (annotation.type === mAnnotations.AnnotationType.ANNOTATION_FOLDING) {
-						all.push(annotation);
-						for (i = 0; i < newComments.length; i++) {
-							if (annotation.start === newComments[i].start && annotation.end === newComments[i].end) {
-								break;
-							}
-						}
-						if (i === newComments.length) {
+					var annotation = iter.next();
+					if (doFolding && annotation.type === mAnnotations.AnnotationType.ANNOTATION_FOLDING) {
+						allFolding.push(annotation);
+						block = this._findBlock(parent, annotation.start);
+						if (!(block && annotation.start === block.start && annotation.end === block.end)) {
 							remove.push(annotation);
 							annotation.expand();
 						} else {
@@ -21852,36 +23998,382 @@ define("examples/editor/textStyler", [ //$NON-NLS-0$
 								if (startLine !== endLine) {
 									if (!annotation.expanded) {
 										annotation.expand();
-										annotationModel.modifyAnnotation(annotation);
 									}
 								} else {
-									annotationModel.removeAnnotation(annotation);
+									remove.push(annotation);
 								}
 							}
 						}
-					}
-				}
-				var add = [];
-				for (i = 0; i < newComments.length; i++) {
-					comment = newComments[i];
-					for (var j = 0; j < all.length; j++) {
-						if (all[j].start === comment.start && all[j].end === comment.end) {
-							break;
-						}
-					}
-					if (j === all.length) {
-						annotation = this._createFoldingAnnotation(viewModel, baseModel, comment.start, comment.end);
-						if (annotation) {
-							add.push(annotation);
+					} else if (annotation.type === mAnnotations.AnnotationType.ANNOTATION_TASK) {
+						if (ancestorBlock.start <= annotation.start && annotation.end <= ancestorBlock.end) {
+							remove.push(annotation);
 						}
 					}
 				}
-				annotationModel.replaceAnnotations(remove, add);
+				if (doFolding) {
+					parent.getBlocks().forEach(function(block) {
+						this._updateFolding(block, baseModel, viewModel, allFolding, add, ts, te);
+					}.bind(this));
+				}
+				if (this._detectTasks) {
+					this._computeTasks(ancestorBlock, baseModel, add, ts, te);
+				}
+				this._annotationModel.replaceAnnotations(remove, add);
 			}
-		}
+		},
+		_onMouseDown: function(e) {
+			if (e.clickCount !== 2) { return; }
+			var model = this._view.getModel();
+			var offset = this._view.getOffsetAtLocation(e.x, e.y);
+			if (offset > 0) {
+				var mapOffset = offset - 1;
+				var baseModel = model;
+				if (model.getBaseModel) {
+					mapOffset = model.mapOffset(mapOffset);
+					baseModel = model.getBaseModel();
+				}
+				var block = this._findBlock(this._rootBlock, mapOffset);
+				var bracket = this._findMatchingBracket(baseModel, block, mapOffset);
+				if (bracket !== -1) {
+					e.preventDefault();
+					var mapBracket = bracket;
+					if (model.getBaseModel) {
+						mapBracket = model.mapOffset(mapBracket, true);
+					}
+					if (offset > mapBracket) {
+						offset--;
+						mapBracket++;
+					}
+					this._view.setSelection(mapBracket, offset);
+				}
+			}
+		},
+		_onSelection: function(e) {
+			var oldSelection = e.oldValue;
+			var newSelection = e.newValue;
+			var model = this._view.getModel();
+			var lineIndex;
+			if (this._highlightCaretLine) {
+				var oldLineIndex = model.getLineAtOffset(oldSelection.start);
+				lineIndex = model.getLineAtOffset(newSelection.start);
+				var newEmpty = newSelection.start === newSelection.end;
+				var oldEmpty = oldSelection.start === oldSelection.end;
+				if (!(oldLineIndex === lineIndex && oldEmpty && newEmpty)) {
+					if (oldEmpty) {
+						this._view.redrawLines(oldLineIndex, oldLineIndex + 1);
+					}
+					if ((oldLineIndex !== lineIndex || !oldEmpty) && newEmpty) {
+						this._view.redrawLines(lineIndex, lineIndex + 1);
+					}
+				}
+			}
+			if (!this._annotationModel) { return; }
+
+			var remove = this._bracketAnnotations, add, caret;
+			if (newSelection.start === newSelection.end && (caret = this._view.getCaretOffset()) > 0) {
+				var mapCaret = caret - 1;
+				if (model.getBaseModel) {
+					mapCaret = model.mapOffset(mapCaret);
+					model = model.getBaseModel();
+				}
+				var block = this._findBlock(this._rootBlock, mapCaret);
+				var bracket = this._findMatchingBracket(model, block, mapCaret);
+				if (bracket !== -1) {
+					add = [
+						mAnnotations.AnnotationType.createAnnotation(mAnnotations.AnnotationType.ANNOTATION_MATCHING_BRACKET, bracket, bracket + 1),
+						mAnnotations.AnnotationType.createAnnotation(mAnnotations.AnnotationType.ANNOTATION_CURRENT_BRACKET, mapCaret, mapCaret + 1)
+					];
+				}
+			}
+			this._bracketAnnotations = add;
+			this._annotationModel.replaceAnnotations(remove, add);
+		},
+		_spliceStyles: function(whitespacePattern, ranges, text, offset) {
+			var regex = whitespacePattern.regex;
+			regex.lastIndex = 0;
+			var rangeIndex = 0;
+			var result = regex.exec(text);
+			while (result) {
+				var charIndex = offset + result.index;
+				while (rangeIndex < ranges.length) {
+					if (charIndex < ranges[rangeIndex].end) {
+						break;
+					}
+					rangeIndex++;
+				}
+				var newStyle = {
+					start: charIndex,
+					end: charIndex + 1,
+					style: whitespacePattern.style
+				};
+				if (rangeIndex < ranges.length && ranges[rangeIndex].start <= charIndex) {
+					var endStyle = {start: charIndex + 1, end: ranges[rangeIndex].end, style: ranges[rangeIndex].style};
+					ranges[rangeIndex].end = charIndex;
+					ranges.splice(rangeIndex + 1, 0, endStyle);
+					ranges.splice(rangeIndex + 1, 0, newStyle);
+					rangeIndex += 2;
+				} else {
+					ranges.splice(rangeIndex, 0, newStyle);
+					rangeIndex++;
+				}
+				result = regex.exec(text);
+			}
+		},
+		_updateFolding: function(block, baseModel, viewModel, allFolding, _add, start, end) {
+			start = start || block.start;
+			end = end || block.end;
+			if (block.start <= end && start <= block.end) {
+				var index = binarySearch(allFolding, block.start, true);
+				if (!(index < allFolding.length && allFolding[index].start === block.start && allFolding[index].end === block.end)) {
+					var annotation = this._createFoldingAnnotation(viewModel, baseModel, block.start, block.end);
+					if (annotation) {
+						_add.push(annotation);
+					}
+				}
+				block.getBlocks().forEach(function(current) {
+					this._updateFolding(current, baseModel, viewModel, allFolding, _add, start, end);
+				}.bind(this));
+			}
+		},
+		_caretLineStyle: {styleClass: "meta annotation currentLine"}, //$NON-NLS-0$
+		_spacePattern: {regex: /[ ]/g, style: {styleClass: "punctuation separator space", unmergeable: true}}, //$NON-NLS-0$
+		_tabPattern: {regex: /\t/g, style: {styleClass: "punctuation separator tab", unmergeable: true}} //$NON-NLS-0$
 	};
 
-	return {TextStyler: TextStyler};
+	mEventTarget.EventTarget.addMixin(TextStyler.prototype);
+
+	return {
+		TextStyler: TextStyler,
+		Block: Block,
+		createPatternBasedAdapter: createPatternBasedAdapter
+	};
+});
+
+/*******************************************************************************
+ * @license
+ * Copyright (c) 2014 IBM Corporation and others.
+ * All rights reserved. This program and the accompanying materials are made 
+ * available under the terms of the Eclipse Public License v1.0 
+ * (http://www.eclipse.org/legal/epl-v10.html), and the Eclipse Distribution 
+ * License v1.0 (http://www.eclipse.org/org/documents/edl-v10.html). 
+ * 
+ * Contributors: IBM Corporation - initial API and implementation
+ ******************************************************************************/
+
+/*global define*/
+
+define("orion/editor/stylers/application_javascript/syntax", ["orion/editor/stylers/lib/syntax"], function(mLib) { //$NON-NLS-1$ //$NON-NLS-0$
+	var keywords = [
+		"break", //$NON-NLS-0$
+		"case", "class", "catch", "continue", "const", //$NON-NLS-4$ //$NON-NLS-3$ //$NON-NLS-2$ //$NON-NLS-1$ //$NON-NLS-0$
+		"debugger", "default", "delete", "do", //$NON-NLS-3$ //$NON-NLS-2$ //$NON-NLS-1$ //$NON-NLS-0$
+		"else", "enum", "export", "extends", //$NON-NLS-3$ //$NON-NLS-2$ //$NON-NLS-1$ //$NON-NLS-0$
+		"false", "finally", "for", "function", //$NON-NLS-3$ //$NON-NLS-2$ //$NON-NLS-1$ //$NON-NLS-0$
+		"if", "implements", "import", "in", "instanceof", "interface", //$NON-NLS-5$ //$NON-NLS-4$ //$NON-NLS-3$ //$NON-NLS-2$ //$NON-NLS-1$ //$NON-NLS-0$
+		"let", //$NON-NLS-0$
+		"new", "null", //$NON-NLS-1$ //$NON-NLS-0$
+		"package", "private", "protected", "public", //$NON-NLS-0$ //$NON-NLS-1$ //$NON-NLS-2$ //$NON-NLS-3$
+		"return", //$NON-NLS-0$
+		"static", "super", "switch", //$NON-NLS-0$ //$NON-NLS-1$ //$NON-NLS-2$
+		"this", "throw", "true", "try", "typeof", //$NON-NLS-0$ //$NON-NLS-1$ //$NON-NLS-2$ //$NON-NLS-3$ //$NON-NLS-4$
+		"undefined", //$NON-NLS-0$
+		"var", "void", //$NON-NLS-0$ //$NON-NLS-1$
+		"while", "with", //$NON-NLS-0$ //$NON-NLS-1$
+		"yield" //$NON-NLS-0$
+	];
+
+	var grammars = mLib.grammars;
+	grammars.push({
+		id: "orion.js", //$NON-NLS-0$
+		contentTypes: ["application/javascript"], //$NON-NLS-0$
+		patterns: [
+			{
+				begin: "'(?:\\\\.|[^\\\\'])*\\\\$", //$NON-NLS-0$
+				end: "^(?:$|(?:\\\\.|[^\\\\'])*('|[^\\\\]$))", //$NON-NLS-0$
+				name: "string.quoted.single.js" //$NON-NLS-0$
+			}, {
+				begin: '"(?:\\\\.|[^\\\\"])*\\\\$', //$NON-NLS-0$
+				end: '^(?:$|(?:\\\\.|[^\\\\"])*("|[^\\\\]$))', //$NON-NLS-0$
+				name: "string.quoted.double.js" //$NON-NLS-0$
+			},
+			{include: "orion.lib#string_doubleQuote"}, //$NON-NLS-0$
+			{include: "orion.lib#string_singleQuote"}, //$NON-NLS-0$
+			{include: "orion.c-like#comment_singleLine"}, //$NON-NLS-0$
+			{
+				match: "/(?![\\s\\*])(?:\\\\.|[^/])+/(?:[gim]{0,3})", //$NON-NLS-0$
+				name: "string.regexp.js" //$NON-NLS-0$
+			},
+			{include: "orion.lib#doc_block"}, //$NON-NLS-0$
+			{include: "orion.c-like#comment_block"}, //$NON-NLS-0$
+			{include: "orion.lib#brace_open"}, //$NON-NLS-0$
+			{include: "orion.lib#brace_close"}, //$NON-NLS-0$
+			{include: "orion.lib#bracket_open"}, //$NON-NLS-0$
+			{include: "orion.lib#bracket_close"}, //$NON-NLS-0$
+			{include: "orion.lib#parenthesis_open"}, //$NON-NLS-0$
+			{include: "orion.lib#parenthesis_close"}, //$NON-NLS-0$
+			{include: "orion.lib#number_decimal"}, //$NON-NLS-0$
+			{include: "orion.lib#number_hex"}, //$NON-NLS-0$
+			{
+				match: "\\b(?:" + keywords.join("|") + ")\\b", //$NON-NLS-2$ //$NON-NLS-1$ //$NON-NLS-0$
+				name: "keyword.control.js" //$NON-NLS-0$
+			}
+		]
+	});
+	return {
+		id: grammars[grammars.length - 1].id,
+		grammars: grammars,
+		keywords: keywords
+	};
+});
+
+/*******************************************************************************
+ * @license
+ * Copyright (c) 2014 IBM Corporation and others.
+ * All rights reserved. This program and the accompanying materials are made 
+ * available under the terms of the Eclipse Public License v1.0 
+ * (http://www.eclipse.org/legal/epl-v10.html), and the Eclipse Distribution 
+ * License v1.0 (http://www.eclipse.org/org/documents/edl-v10.html). 
+ * 
+ * Contributors: IBM Corporation - initial API and implementation
+ ******************************************************************************/
+
+/*global define*/
+
+define("orion/editor/stylers/application_xml/syntax", ["orion/editor/stylers/lib/syntax"], function(mLib) { //$NON-NLS-1$ //$NON-NLS-0$
+
+	var grammars = mLib.grammars;
+	grammars.push({
+		id: "orion.xml", //$NON-NLS-0$
+		contentTypes: ["application/xml", "application/xhtml+xml"], //$NON-NLS-1$ //$NON-NLS-0$
+		patterns: [
+			{include: "#comment"}, //$NON-NLS-0$
+			{include: "#doctype"}, //$NON-NLS-0$
+			{include: "#xmlDeclaration"}, //$NON-NLS-0$
+			{include: "#tag"}, //$NON-NLS-0$
+			{include: "#ampersandEscape"} //$NON-NLS-0$
+		],
+		repository: {
+			ampersandEscape: {
+				match: "&lt;|&gt;|&amp;", //$NON-NLS-0$
+				name: "constant.character" //$NON-NLS-0$
+			},
+			comment: {
+				begin: {match: "<!--", literal: "<!--"}, //$NON-NLS-0$
+				end: {match: "-->", literal: "-->"}, //$NON-NLS-0$
+				name: "comment.block.xml", //$NON-NLS-0$
+				patterns: [
+					{
+						match: "(\\b)(TODO)(\\b)(((?!-->).)*)", //$NON-NLS-0$
+						name: "meta.annotation.task.todo", //$NON-NLS-0$
+						captures: {
+							2: {name: "keyword.other.documentation.task"}, //$NON-NLS-0$
+							4: {name: "comment.line"} //$NON-NLS-0$
+						}
+					}
+				]
+			},
+			doctype: {
+				begin: "<!(?:doctype|DOCTYPE)", //$NON-NLS-0$
+				end: ">", //$NON-NLS-0$
+				name: "meta.tag.doctype.xml", //$NON-NLS-0$
+				captures: {
+					0: {name: "entity.name.tag.doctype.xml"}, //$NON-NLS-0$
+				},
+				patterns: [
+					{include: "#comment"}, //$NON-NLS-0$
+					{include: "orion.lib#string_doubleQuote"}, //$NON-NLS-0$
+					{include: "orion.lib#string_singleQuote"} //$NON-NLS-0$
+				]
+			},
+			tag: {
+				begin: "</?[A-Za-z0-9]+", //$NON-NLS-0$
+				end: "/?>", //$NON-NLS-0$
+				captures: {
+					0: {name: "entity.name.tag.xml"}, //$NON-NLS-0$
+				},
+				name: "meta.tag.xml", //$NON-NLS-0$
+				patterns: [
+					{include: "#comment"}, //$NON-NLS-0$
+					{include: "orion.lib#string_doubleQuote"}, //$NON-NLS-0$
+					{include: "orion.lib#string_singleQuote"} //$NON-NLS-0$
+				]	
+			},
+			xmlDeclaration: {
+				begin: "<\\?xml", //$NON-NLS-0$
+				end: "\\?>", //$NON-NLS-0$
+				captures: {
+					0: {name: "entity.name.tag.declaration.xml"}, //$NON-NLS-0$
+				},
+				patterns: [
+					{include: "#comment"}, //$NON-NLS-0$
+					{include: "orion.lib#string_doubleQuote"}, //$NON-NLS-0$
+					{include: "orion.lib#string_singleQuote"} //$NON-NLS-0$
+				],
+				name: "meta.tag.declaration.xml" //$NON-NLS-0$
+			}
+		}
+	});
+	return {
+		id: grammars[grammars.length - 1].id,
+		grammars: grammars,
+		keywords: []
+	};
+});
+
+/*******************************************************************************
+ * @license
+ * Copyright (c) 2014 IBM Corporation and others.
+ * All rights reserved. This program and the accompanying materials are made 
+ * available under the terms of the Eclipse Public License v1.0 
+ * (http://www.eclipse.org/legal/epl-v10.html), and the Eclipse Distribution 
+ * License v1.0 (http://www.eclipse.org/org/documents/edl-v10.html). 
+ * 
+ * Contributors: IBM Corporation - initial API and implementation
+ ******************************************************************************/
+
+/*global define*/
+
+define("orion/editor/stylers/text_html/syntax", ["orion/editor/stylers/lib/syntax", "orion/editor/stylers/application_javascript/syntax", "orion/editor/stylers/text_css/syntax", "orion/editor/stylers/application_xml/syntax"], //$NON-NLS-4$ //$NON-NLS-3$ //$NON-NLS-2$ //$NON-NLS-1$ //$NON-NLS-0$
+	function(mLib, mJS, mCSS, mXML) {
+
+	var grammars = mLib.grammars.concat(mJS.grammars).concat(mCSS.grammars).concat(mXML.grammars);
+	grammars.push({
+		id: "orion.html", //$NON-NLS-0$
+		contentTypes: ["text/html"], //$NON-NLS-0$
+		patterns: [
+			{
+				begin: "(?i)(<style)([^>]*)(>)", //$NON-NLS-0$
+				end: "(?i)(</style>)", //$NON-NLS-0$
+				captures: {
+					1: {name: "entity.name.tag.html"}, //$NON-NLS-0$
+					3: {name: "entity.name.tag.html"} //$NON-NLS-0$
+				},
+				contentName: "source.css.embedded.html", //$NON-NLS-0$
+				patterns: [
+					{include: "orion.css"} //$NON-NLS-0$
+				]
+			}, {
+				begin: "(?i)<script\\s*>|<script\\s.*?(?:language\\s*=\\s*(['\"])javascript\\1|type\\s*=\\s*(['\"])(?:text|application)/(?:javascript|ecmascript)\\2).*?>", //$NON-NLS-0$
+				end: "(?i)</script>", //$NON-NLS-0$
+				captures: {
+					0: {name: "entity.name.tag.html"} //$NON-NLS-0$
+				},
+				contentName: "source.js.embedded.html", //$NON-NLS-0$
+				patterns: [
+					{include: "orion.js"} //$NON-NLS-0$
+				]
+			},
+			{include: "orion.xml#comment"}, //$NON-NLS-0$
+			{include: "orion.xml#doctype"}, //$NON-NLS-0$
+			{include: "orion.xml#tag"}, //$NON-NLS-0$
+			{include: "orion.xml#ampersandEscape"} //$NON-NLS-0$
+		]
+	});
+	return {
+		id: grammars[grammars.length - 1].id,
+		grammars: grammars,
+		keywords: []
+	};
 });
 
 /*******************************************************************************
@@ -21899,6 +24391,9 @@ define("examples/editor/textStyler", [ //$NON-NLS-0$
 /*globals define Node */
 
 define('orion/editor/edit', [ //$NON-NLS-0$
+	"require", //$NON-NLS-0$
+
+	"orion/editor/config", //$NON-NLS-0$
 	"orion/editor/shim", //$NON-NLS-0$
 	
 	"orion/editor/textView", //$NON-NLS-0$
@@ -21917,16 +24412,21 @@ define('orion/editor/edit', [ //$NON-NLS-0$
 	"orion/editor/editorFeatures", //$NON-NLS-0$
 	
 	"orion/editor/contentAssist", //$NON-NLS-0$
-	"orion/editor/cssContentAssist", //$NON-NLS-0$
-	"orion/editor/htmlContentAssist", //$NON-NLS-0$
-	"orion/editor/jsTemplateContentAssist", //$NON-NLS-0$
+	"webtools/cssContentAssist", //$NON-NLS-0$
+	"webtools/htmlContentAssist", //$NON-NLS-0$
 	
 	"orion/editor/AsyncStyler", //$NON-NLS-0$
 	"orion/editor/mirror", //$NON-NLS-0$
 	"orion/editor/textMateStyler", //$NON-NLS-0$
 	"orion/editor/htmlGrammar", //$NON-NLS-0$
-	"examples/editor/textStyler" //$NON-NLS-0$
-], function(shim, mTextView, mTextModel, mTextTheme, mProjModel, mEventTarget, mKeyBinding, mRulers, mAnnotations, mTooltip, mUndoStack, mTextDND, mEditor, mEditorFeatures, mContentAssist, mCSSContentAssist, mHtmlContentAssist, mJSContentAssist, mAsyncStyler, mMirror, mTextMateStyler, mHtmlGrammar, mTextStyler) {
+	"orion/editor/textStyler", //$NON-NLS-0$
+	"orion/editor/stylers/application_javascript/syntax", //$NON-NLS-0$
+	"orion/editor/stylers/text_css/syntax", //$NON-NLS-0$
+	"orion/editor/stylers/text_html/syntax" //$NON-NLS-0$
+
+], function(require, config, shim, mTextView, mTextModel, mTextTheme, mProjModel, mEventTarget, mKeyBinding, mRulers, mAnnotations,
+			mTooltip, mUndoStack, mTextDND, mEditor, mEditorFeatures, mContentAssist, mCSSContentAssist, mHtmlContentAssist,
+			mAsyncStyler, mMirror, mTextMateStyler, mHtmlGrammar, mTextStyler, mJS, mCSS, mHTML) {
 
 	/**	@private */
 	function getDisplay(window, document, element) {
@@ -21940,6 +24440,9 @@ define('orion/editor/edit', [ //$NON-NLS-0$
 				display = temp.currentStyle.display;
 			}
 			temp = temp.parentNode;
+		}
+		if (!temp || !display) {
+			return "none"; //$NON-NLS-0$
 		}
 		return display;
 	}
@@ -22049,7 +24552,8 @@ define('orion/editor/edit', [ //$NON-NLS-0$
 	 * @property {Function} [statusReporter] a status reporter.
 	 * @property {String} [title=""] the editor title.
 	 * @property {String} [contents=""] the editor contents.
-	 * @property {String} [lang] the styler language. Plain text by default.
+	 * @property {String} [lang] @deprecated use contentType instead
+	 * @property {String} [contentType] the type of the content (eg.- application/javascript, text/html, etc.)
 	 * @property {Boolean} [showLinesRuler=true] whether or not the lines ruler is shown.
 	 * @property {Boolean} [showAnnotationRuler=true] whether or not the annotation ruler is shown.
 	 * @property {Boolean} [showOverviewRuler=true] whether or not the overview ruler is shown.
@@ -22105,7 +24609,7 @@ define('orion/editor/edit', [ //$NON-NLS-0$
 		var textViewFactory = function() {
 			return new mTextView.TextView({
 				parent: parent,
-				model: new mProjModel.ProjectionTextModel(new mTextModel.TextModel("")),
+				model: new mProjModel.ProjectionTextModel(options.model ? options.model : new mTextModel.TextModel("")),
 				tabSize: options.tabSize ? options.tabSize : 4,
 				readonly: options.readonly,
 				fullSelection: options.fullSelection,
@@ -22132,29 +24636,37 @@ define('orion/editor/edit', [ //$NON-NLS-0$
 			};
 		}
 	
-		// Canned highlighters for js, java, and css. Grammar-based highlighter for html
 		var syntaxHighlighter = {
 			styler: null, 
 			
-			highlight: function(lang, editor) {
-				if (this.styler) {
+			highlight: function(contentType, editor) {
+				if (this.styler && this.styler.destroy) {
 					this.styler.destroy();
-					this.styler = null;
 				}
-				if (lang) {
-					var textView = editor.getTextView();
-					var annotationModel = editor.getAnnotationModel();
-					switch(lang) {
-						case "js": //$NON-NLS-0$
-						case "java": //$NON-NLS-0$
-						case "css": //$NON-NLS-0$
-							this.styler = new mTextStyler.TextStyler(textView, lang, annotationModel);
-							editor.setFoldingRulerVisible(options.showFoldingRuler === undefined || options.showFoldingRuler);
-							break;
-						case "html": //$NON-NLS-0$
-							this.styler = new mTextMateStyler.TextMateStyler(textView, new mHtmlGrammar.HtmlGrammar());
-							break;
-					}
+				this.styler = null;
+
+				/* to maintain backwards-compatibility convert previously-supported lang values to types */
+				if (contentType === "js") { //$NON-NLS-0$
+					contentType = "application/javascript"; //$NON-NLS-0$
+				} else if (contentType === "css") { //$NON-NLS-0$
+					contentType = "text/css"; //$NON-NLS-0$
+				} else if (contentType === "html") { //$NON-NLS-0$
+					contentType = "text/html"; //$NON-NLS-0$
+				} else if (contentType === "java") { //$NON-NLS-0$
+					contentType = "text/x-java-source"; //$NON-NLS-0$
+				}
+
+				var textView = editor.getTextView();
+				var annotationModel = editor.getAnnotationModel();
+				if (contentType) {
+					contentType = contentType.replace(/[*|:/".<>?+]/g, '_');
+					require(["./stylers/" + contentType + "/syntax"], function(grammar) { //$NON-NLS-1$ //$NON-NLS-0$
+						var stylerAdapter = new mTextStyler.createPatternBasedAdapter(grammar.grammars, grammar.id);
+						this.styler = new mTextStyler.TextStyler(textView, annotationModel, stylerAdapter);
+					});
+				}
+				if (contentType === "text/css") { //$NON-NLS-0$
+					editor.setFoldingRulerVisible(options.showFoldingRuler === undefined || options.showFoldingRuler);
 				}
 			}
 		};
@@ -22201,23 +24713,24 @@ define('orion/editor/edit', [ //$NON-NLS-0$
 		editor.setFoldingRulerVisible(options.showFoldingRuler === undefined || options.showFoldingRuler);
 		editor.setInput(options.title, null, contents, false, options.noFocus);
 		
-		syntaxHighlighter.highlight(options.lang, editor);
+		syntaxHighlighter.highlight(options.contentType || options.lang, editor);
 		if (contentAssist) {
 			var cssContentAssistProvider = new mCSSContentAssist.CssContentAssistProvider();
 			var htmlContentAssistProvider = new mHtmlContentAssist.HTMLContentAssistProvider();
-			var jsTemplateContentAssistProvider = new mJSContentAssist.JSTemplateContentAssistProvider();
 			contentAssist.addEventListener("Activating", function() { //$NON-NLS-0$
 				if (/css$/.test(options.lang)) {
 					contentAssist.setProviders([cssContentAssistProvider]);
-				} else if (/js$/.test(options.lang)) {
-					contentAssist.setProviders([jsTemplateContentAssistProvider]);
 				} else if (/html$/.test(options.lang)) {
 					contentAssist.setProviders([htmlContentAssistProvider]);
 				}
 			});
 		}
-		/* The minimum height of the editor is 50px */
-		if (getHeight(parent) <= 50) {
+		/*
+		 * The minimum height of the editor is 50px. Do not compute size if the editor is not
+		 * attached to the DOM or it is display=none.
+		 */
+		var window = doc.defaultView || doc.parentWindow;
+		if (!options.noComputeSize && getDisplay(window, doc, parent) !== "none" && getHeight(parent) <= 50) { //$NON-NLS-0$
 			var height = editor.getTextView().computeSize().height;
 			parent.style.height = height + "px"; //$NON-NLS-0$
 		}
@@ -22229,6 +24742,7 @@ define('orion/editor/edit', [ //$NON-NLS-0$
 		for (var i = 0; i < arguments.length; i++) {
 			merge(editorNS, arguments[i]);	
 		}
+		editorNS.edit = edit;
 	}
 	
 	return edit;

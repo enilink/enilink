@@ -14,18 +14,36 @@
 			data-lift="head">
 		<script src="/classpath/orion/editable/editable-input-orion.js"
 			data-lift="head"></script>
+		<script src="/classpath/typeaheadjs/editable/typeaheadjs.js" data-lift="head"></script>
 		<style>
-.editable-form-control,.editable-container.editable-inline,.editable-container.editable-inline>*
+.editableform .form-control, .editable-form-control,.editable-container.editable-inline,.editable-container.editable-inline>*
 	{
 	width: 100%;
 }
 
 .editable-input {
-	width: 83.3333%;
+	width: 100%;
+	margin-bottom: 5px;
+}
+
+.editable-lang {
+	margin-bottom: 5px;
 }
 
 .editable-buttons {
-	margin-left: 0
+	margin-left: 0;
+}
+
+.editable-buttons > .btn {
+	margin-bottom: 5px;
+}
+
+.editable-buttons .editable-submit {
+    margin-right: 5px;
+}
+
+.editable-buttons .editable-cancel {
+    margin-left: 0;
 }
 </style>
 		<script src="/classpath/enilink/edit.js" data-lift="head"></script>

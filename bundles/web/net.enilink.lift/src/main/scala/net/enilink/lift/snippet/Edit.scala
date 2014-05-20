@@ -378,6 +378,11 @@ class Edit extends DispatchSnippet {
 if (add && (add.add !== undefined || add.remove !== undefined)) {
 	params = add;	model = callback;	callback = remove;
 } else {
+	if (typeof remove == "function") {
+		model = callback;
+		callback = remove;
+		remove = undefined;
+	}
 	params = { 'add' : add, 'remove' : remove };
 }
 """) & handler.call("updateTriples", JsRaw("params"), JsRaw("callback"), modelParam))), //

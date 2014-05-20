@@ -312,7 +312,11 @@ trait CURIE extends RDFNodeBuilder {
     var expanded = false
     val ref: Option[Reference] = curieOrIri match {
       // support for SPARQL variables
-      case variable(v) => createVariable(v) // ?foo
+      case variable(v) => createVariable(v) match {
+        // anonymous variables must be expanded
+        case newVar @ Some(_) if v == "?" => expanded = true; newVar
+        case other => other
+      }  // ?foo
       case parts(p, l) if (p == null) => None
       case parts(p, l) if (p == "xml") => None // xml:foo
 

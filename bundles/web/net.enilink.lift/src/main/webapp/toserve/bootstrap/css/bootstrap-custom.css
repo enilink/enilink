@@ -31,6 +31,15 @@ div[lang]::before,span[lang]::before,div[lang]:before,span[lang]:before
 	margin-top: -20px;
 }
 
+.btn-hover {
+	opacity: 0.3;
+	cursor: pointer;
+}
+
+.btn-hover:hover {
+	opacity: 1.0;
+}
+
 .focused {
 	background-color: rgba(82, 168, 236, 0.3);
 }
