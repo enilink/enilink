@@ -101,16 +101,28 @@ class JsonCallHandler {
 
   def createHelper(editProperty: Boolean = false) = new EditingHelper(if (editProperty) PropertyEditingHelper.Type.PROPERTY else PropertyEditingHelper.Type.VALUE)
 
-  def apply: PartialFunction[JValue, Any] = {
-    case JsonCommand("removeResource", _, JString(resource)) => {
-      (for (model <- model; em = model.getManager) yield {
-        val ref = if (resource.startsWith("_:")) em.createReference(resource)
-        else if (resource.startsWith("<") && resource.endsWith(">")) URIs.createURI(resource.substring(1, resource.length - 1))
-        else URIs.createURI(resource)
-        em.removeRecursive(ref, true);
+  def removeResources(resources: List[String]) = {
+    (for (model <- model; em = model.getManager; transaction = em.getTransaction) yield {
+      transaction.begin
+      try {
+        resources.foreach { resource =>
+          val ref = if (resource.startsWith("_:")) em.createReference(resource)
+          else if (resource.startsWith("<") && resource.endsWith(">")) URIs.createURI(resource.substring(1, resource.length - 1))
+          else URIs.createURI(resource)
+          em.removeRecursive(ref, true);
+        }
+        transaction.commit
         JBool(true)
-      }) openOr JBool(false)
-    }
+      } catch {
+        case _: Exception => if (transaction.isActive) transaction.rollback; JBool(false)
+      }
+    }) openOr JBool(false)
+  }
+
+  def apply: PartialFunction[JValue, Any] = {
+    case JsonCommand("removeResource", _, JArray(resources)) => removeResources(resources.map(_.values.toString))
+    case JsonCommand("removeResource", _, JString(resource)) => removeResources(List(resource))
+
     case JsonCommand("blankNode", _, _) => {
       (for (model <- model; em = model.getManager) yield em.createReference.toString) or
         Some(new BlankNode().toString) map (JString(_)) get
@@ -253,15 +265,15 @@ class JsonCallHandler {
                         // TODO support reverse relationships
                         case (Variable("this", _), rel, objVar: Variable) => (
                           rel match {
-                            case v: Variable => List((v.toString, stmt.getPredicate))
+                            case v: Variable => List((v.sym.name, stmt.getPredicate))
                             case _ => Nil
-                          }) ++ resultValue.flatMap(v => Some((objVar.toString, v)))
+                          }) ++ resultValue.flatMap(v => Some((objVar.sym.name, v)))
                         case _ => Nil
                       }.toMap
                       // [rel] or [rev] was not contained in current HTML fragment
                       // simply bind first var that is different from ?this
                       if (params.isEmpty) params = resultValue flatMap { value =>
-                        vars.collectFirst { case v if v.n != "this" => v } map { v => (v.toString, value) }
+                        vars.collectFirst { case v if v.n != "this" => v } map { v => (v.sym.name, value) }
                       } toMap
                       val renderResult = CurrentContext.withSubject(model.get.getManager.find(stmt.getSubject)) {
                         QueryParams.doWith(params) { TemplateHelpers.withAppFor(p)(TemplateHelpers.render(wrappedTemplate)) }

@@ -1,10 +1,10 @@
 $.fn.editableform.template = '<form class="editableform" role="form">'
-		+ '<div class="container-fluid"><div class="row">'
+		+ '<div><div class="row">'
 		+ '<div class="col-sm-9"><div class="editable-input"></div></div>'
 		+ '<div class="col-sm-3">'
 		+ '<div class="editable-lang" style="display:none;"><div class="input-group"><span class="input-group-addon">@</span><input class="form-control input-sm" style="max-width:40px" type="text" placeholder="lang"></div></div>'
 		+ '<div class="editable-buttons"></div></div></div></div>'
-		+ '<div class="editable-error-block"></div>' + '</form>';
+		+ '<div class="editable-error-block"></div></form>';
 enilink = $.extend(window.enilink || {}, {
 	rdf : function(model) {
 		function createFunc(orig, model) {
@@ -349,16 +349,12 @@ enilink = $.extend(window.enilink || {}, {
 						}
 						target.addClass("focused");
 						buttons.data("target", target);
-
-						var top, left;
-						if (target.innerWidth() <= buttons.outerWidth()
-								|| target.innerHeight() <= buttons
-										.outerHeight()) {
-							top = target.offset().top;
+						var top = target.offset().top;
+						var left;
+						if (target.innerWidth() <= buttons.outerWidth()) {
 							left = target.offset().left + target.outerWidth()
 									- 5;
 						} else {
-							top = target.offset().top;
 							left = target.offset().left + target.innerWidth()
 									- buttons.outerWidth();
 						}

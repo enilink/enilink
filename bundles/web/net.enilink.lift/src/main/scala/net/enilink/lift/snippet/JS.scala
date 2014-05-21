@@ -37,6 +37,10 @@ object JS extends DispatchSnippet with SparqlHelper {
   def dispatch: DispatchIt = {
     case "bootstrap" => _ => bootstrap
     case "rdfa" => _ => rdfa
+    case "require" => _ => <xml:group>
+                             <script>var require = {{ baseUrl : "/classpath/" }};</script>
+                             { script("/" + LiftRules.resourceServerPath + "/require/require.js") }
+                           </xml:group>
     case "templates" => _ => templates
   }
 

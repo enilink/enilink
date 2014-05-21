@@ -145,7 +145,7 @@ class LiftModule extends Logger {
     }
 
     ResourceServer.allow {
-      case (("enilink" | "typeaheadjs" | "require" | "orion" | "select2" | "fileupload") :: _) => true
+      case (("enilink" | "typeaheadjs" | "require" | "orion" | "select2" | "fileupload" | "flight") :: _) => true
       case (("bootstrap" | "bootstrap-editable") :: _) | (_ :: "bootstrap" :: _) => true
       case rdfa @ ("rdfa" :: _) if rdfa.last.endsWith(".js") => true
     }
