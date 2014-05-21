@@ -1,0 +1,125 @@
+<div data-lift="rdfa">
+	<script type="text/javascript">
+		require(["/js/widgets/properties.js"], function(properties) {
+			properties.attachTo(document, { target : "#properties" });
+			$(document).trigger("attach-components");
+		});
+	</script>
+	<div about="?this">
+		<section style="margin-bottom: 5px;">
+			<div style="display: inline-block; vertical-align: bottom"><form class="form-inline"><input class="form-control input-sm input-property" type="text" placeholder="Add..." autocomplete="off"></input></form></div>
+			<div class="dropdown" data-if="?relProperty" style="margin-right: 15px; display: inline-block; vertical-align: bottom">
+				<a class="dropdown-toggle" id="dLabel" role="button"
+					data-toggle="dropdown" href="#"><b class="caret"></b>
+				</a>
+				<!-- query relevant properties -->
+				<div class="optional clearable">
+					<div class="union">
+						<div data-bind="rdfs:comment as ?relProperty"></div>
+						<div data-bind="rdfs:label as ?relProperty"></div>
+						<div rel="rdf:type" class="clearable">
+							<div rel="rdfs:subClassOf">
+								<div rel="owl:onProperty" resource="?relProperty"></div>
+							</div>
+						</div>
+					</div>
+					<!-- filter existing properties -->
+					<div rel="?relProperty" resource="?" class="clearable not-exists"></div>
+				</div>
+				<ul class="dropdown-menu" role="menu" aria-labelledby="dLabel">
+					<li about="?relProperty" class="asc"><a href="javascript://"
+						class="add-property"><span about="?relProperty"
+							data-lift="rdf.label"></span></a></li>
+				</ul>
+			</div>
+		</section>
+		<section id="properties" class="optional">
+			<!-- sort by property -->
+			<div class="clearable asc" about="?property"></div>
+
+			<div class="row" data-clear-rel="?property" data-t="property">
+				<div class="col-sm-4" style="font-weight: bold">
+					<a href="{app}/describe?model={model}&resource={}&inferred={inferred}"
+						data-lift="rdf.ref?for=predicate&to=href"><span
+						data-lift="rdf.!label?for=predicate"></span></a>
+				</div>
+				<div class="col-sm-8">
+					<div class="union">
+						<div class="row asc editable" rel="?property" resource="?oResource"
+							data-filter="!isLiteral(?oResource)" data-t="resourceValue">
+							<div class="col-sm-12">
+								<a href="{app}/describe?model={model}&resource={}&inferred={inferred}"
+									data-lift="rdf.ref?to=href"><span
+									data-lift="rdf.label"></span></a> <span data-if="inferred"><i
+									class="glyphicon glyphicon-share-alt" style="opacity: 0.5"></i></span>
+							</div>
+						</div>
+						<div class="row asc editable" property="?property"
+							content="?oLiteral" data-if="?oLiteral"
+							data-filter="isLiteral(?oLiteral)" data-t="literalValue">
+							<div class="col-sm-12">
+								<span data-lift="rdf.label" style="white-space: pre-wrap;"></span> <span data-if="inferred"><i
+									class="glyphicon glyphicon-share-alt" style="opacity: 0.5"></i></span>
+							</div>
+						</div>
+					</div>
+					<!-- literal value or a property without a value -->
+					<div data-unless="?objectProperty">
+						<div data-unless="?oResource" data-property="?property"
+							data-add="literalValue">
+							<i class="glyphicon glyphicon-plus"></i>
+						</div>
+						<div data-if="?oResource" data-rel="?property"
+							data-add="resourceValue">
+							<i class="glyphicon glyphicon-plus"></i>
+						</div>
+					</div>
+					<div data-if="?objectProperty" data-rel="?property"
+						data-add="resourceValue">
+						<i class="glyphicon glyphicon-plus"></i>
+					</div>
+				</div>
+			</div>
+
+			<!-- sort by inverse property -->
+			<div class="clearable asc" about="?invProperty"></div>
+
+			<div style="margin-top: 2em"></div>
+			<div class="row" data-clear-rel="?invProperty">
+				<div class="col-sm-4" style="font-weight: bold">
+					<i class="glyphicon glyphicon-arrow-left"></i> <a
+						href="{app}/describe?model={model}&resource={}"
+						data-lift="rdf.ref?for=predicate&to=href"><span
+						data-lift="rdf.label?for=predicate"></span></a>
+				</div>
+				<div class="col-sm-8 union">
+					<div class="row asc" rev="?invProperty"
+						resource="?invResource">
+						<div class="col-sm-12">
+							<a href="{app}/describe?model={model}&resource={}"
+								data-lift="rdf.ref?to=href"><span data-lift="rdf.label"></span></a>
+							<span data-if="inferred"><i class="glyphicon glyphicon-share-alt"
+								style="opacity: 0.5"></i></span>
+						</div>
+					</div>
+				</div>
+			</div>
+		</section>
+	</div>
+	<br />
+	<!-- show relevant properties for classes -->
+	<div about="?this" typeof="rdfs:Class" class="optional"
+		data-if="?classProperty">
+		<h4>Relevant class properties</h4>
+		<section>
+			<!-- query relevant properties -->
+			<span about="?this" rel="rdfs:subClassOf" class="clearable">
+				<span rel="owl:onProperty" resource="?classProperty"></span>
+			</span>
+			<ul about="?classProperty">
+				<li><a href="{app}/describe?model={model}&resource={}"
+					data-lift="rdf.ref?to=href"><span data-lift="rdf.label"></span></a></li>
+			</ul>
+		</section>
+	</div>
+</div>

@@ -13,111 +13,6 @@
 		<script data-lift="JS.templates"></script>
 		<script type="text/javascript" data-lift="head">
 			$(function() {
-				var testObjectProperty = '<span class="clearable" about="?property" rel="rdf:type">'
-						+ '<span about="?objectProperty" data-bind="owl:ObjectProperty as ?objectProperty"></span>'
-						+ '<span resource="?objectProperty"></span>'
-						+ '<span class="not-exists union"><span resource="owl:AnnotationProperty"></span><span resource="owl:DatatypeProperty"></span></span>'
-						+ '</span>';
-				function addProperty(property, ns) {
-					var propertyUri = $.rdf.resource(property).value;
-					var existing = $('#properties [data-property]').filter(function() {
-						return $(this).resourceAttr("data-property").value == propertyUri;
-					});
-					if (existing.length == 0) {
-						existing = $('#properties [data-rel]').filter(function() {
-							return $(this).resourceAttr("data-rel").value == propertyUri;
-						});
-					}
-					if (existing.length > 0) {
-						existing.click();
-						return;
-					}
-					var template = $(
-							'<div about="?this" data-lift="rdfa?queryAsserted=false" class="union optional">'
-									+ testObjectProperty
-									+ '<div id="content"><div data-embed="describe" data-template="property"></div></div>'
-									+ '</div>').prefix(ns);
-					enilink.render({
-						what : $("<div>").append(template).html(),
-						bind : {
-							property : property
-						}
-					}, {
-						resource : enilink.param("resource"),
-						model : enilink.param("model")
-					}, function(html) {
-						var content = $(html).find("#content").children();
-						$("#properties").append(content);
-						var addBtn = content.find("[data-add]");
-						enilink.ui.enableAdd(addBtn);
-						addBtn.click();
-					})
-				}
-
-				$(".add-property").click(function() {
-					var self = $(this).closest("li[about]");
-					var property = self.resourceAttr("about").value.toString();
-					addProperty(property, self.xmlns());
-				});
-			
-			function installTypeahead() {
-					var self = $(this);
-					var model = self.closest("[data-model]").attr("data-model");
-					var timeoutID;
-					self.typeahead(
-							{
-								minLength : 2
-							},
-							{
-								source : function(query, cb) {
-									if (timeoutID) {
-										clearTimeout(timeoutID);
-									}
-									timeoutID = window.setTimeout(function() {
-										var subject = self.closest("[about]")
-												.resourceAttr("about");
-										var stmt = $.rdf.triple(subject,
-												"<urn:null>", "<urn:null>").dump();
-										if (query.charAt(0) == '<') {
-											query = query.slice(1);
-										}
-										enilink.rdf(model).propose({
-											rdf : stmt,
-											query : query
-										}, cb);
-									}, 500);
-								},
-								displayKey : function(v) {
-									return v.content;
-								},
-								templates : {
-									suggestion : function(v) {
-										var t = $('<p />').css("white-space",
-												"nowrap").text(v.label);
-										if (v.perfectMatch) {
-											t.css("font-weight", "bold");
-										}
-										return $("<span />").append(t);
-									}
-								}
-							}).on("typeahead:autocompleted typeahead:selected",
-							function(evt, proposal) {
-								if (proposal.resource) {
-									addProperty(proposal.resource, self.xmlns());
-								} else if (proposal.content.match(/[:]$/)) {
-									// automatically trigger typeahead
-									setTimeout(function() {
-										self.typeahead("val", "");
-										self.typeahead("val", proposal.content);
-									}, 50);
-								}
-							});
-				}
-				$('input.input-property').not('.tt-input, .tt-hint').each(
-						installTypeahead);				
-			});
-			
-			$(function() {
 				$("[data-tab]").each(function() {
 					var self = $(this);
 					self.css("cursor", "pointer");
@@ -157,124 +52,7 @@
 					data-lift="loc.properties"></span></a></li>
 			<li><a data-tab="#acl-tab">ACL</a></li>
 		</ul>
-		<div id="properties-tab" data-lift="rdfa">
-			<div about="?this">
-				<section style="margin-bottom: 5px;">
-					<div style="display: inline-block; vertical-align: bottom"><form class="form-inline"><input class="form-control input-sm input-property" type="text" placeholder="Add..." autocomplete="off"></input></form></div>
-					<div class="dropdown" data-if="?relProperty" style="margin-right: 15px; display: inline-block; vertical-align: bottom">
-						<a class="dropdown-toggle" id="dLabel" role="button"
-							data-toggle="dropdown" href="#"><b class="caret"></b>
-						</a>
-						<!-- query relevant properties -->
-						<div class="optional clearable">
-							<div class="union">
-								<div data-bind="rdfs:comment as ?relProperty"></div>
-								<div data-bind="rdfs:label as ?relProperty"></div>
-								<div rel="rdf:type" class="clearable">
-									<div rel="rdfs:subClassOf">
-										<div rel="owl:onProperty" resource="?relProperty"></div>
-									</div>
-								</div>
-							</div>
-							<!-- filter existing properties -->
-							<div rel="?relProperty" resource="?" class="clearable not-exists"></div>
-						</div>
-						<ul class="dropdown-menu" role="menu" aria-labelledby="dLabel">
-							<li about="?relProperty" class="asc"><a href="javascript://"
-								class="add-property"><span about="?relProperty"
-									data-lift="rdf.label"></span></a></li>
-						</ul>
-					</div>
-				</section>
-				<section id="properties" class="optional">
-					<!-- sort by property -->
-					<div class="clearable asc" about="?property"></div>
-
-					<div class="row" data-clear-rel="?property" data-t="property">
-						<div class="col-sm-4" style="font-weight: bold">
-							<a href="{app}/describe?model={model}&resource={}&inferred={inferred}"
-								data-lift="rdf.ref?for=predicate&to=href"><span
-								data-lift="rdf.!label?for=predicate"></span></a>
-						</div>
-						<div class="col-sm-8">
-							<div class="union">
-								<div class="row asc editable" rel="?property" resource="?oResource"
-									data-filter="!isLiteral(?oResource)" data-t="resourceValue">
-									<div class="col-sm-12">
-										<a href="{app}/describe?model={model}&resource={}&inferred={inferred}"
-											data-lift="rdf.ref?to=href"><span
-											data-lift="rdf.label"></span></a> <span data-if="inferred"><i
-											class="glyphicon glyphicon-share-alt" style="opacity: 0.5"></i></span>
-									</div>
-								</div>
-								<div class="row asc editable" property="?property"
-									content="?oLiteral" data-if="?oLiteral"
-									data-filter="isLiteral(?oLiteral)" data-t="literalValue">
-									<div class="col-sm-12">
-										<span data-lift="rdf.label" style="white-space: pre-wrap;"></span> <span data-if="inferred"><i
-											class="glyphicon glyphicon-share-alt" style="opacity: 0.5"></i></span>
-									</div>
-								</div>
-							</div>
-							<!-- literal value or a property without a value -->
-							<div data-unless="?objectProperty">
-								<div data-unless="?oResource" data-property="?property"
-									data-add="literalValue">
-									<i class="glyphicon glyphicon-plus"></i>
-								</div>
-								<div data-if="?oResource" data-rel="?property"
-									data-add="resourceValue">
-									<i class="glyphicon glyphicon-plus"></i>
-								</div>
-							</div>
-							<div data-if="?objectProperty" data-rel="?property"
-								data-add="resourceValue">
-								<i class="glyphicon glyphicon-plus"></i>
-							</div>
-						</div>
-					</div>
-
-					<!-- sort by inverse property -->
-					<!-- div class="clearable asc" about="?invProperty"></div>
-
-					<div class="row" data-clear-rel="?invProperty">
-						<div class="col-sm-3" style="font-weight: bold">
-							<i class="glyphicon glyphicon-arrow-left"></i> <a
-								href="{app}/describe?model={model}&resource={}"
-								data-lift="rdf.ref?for=predicate&to=href"><span
-								data-lift="rdf.label?for=predicate"></span></a>
-						</div>
-						<div class="col-sm-9 union">
-							<div class="row asc" rev="?invProperty"
-								resource="?invResource">
-								<div class="col-sm-12">
-									<a href="{app}/describe?model={model}&resource={}"
-										data-lift="rdf.ref?to=href"><span data-lift="rdf.label"></span></a>
-									<span data-if="inferred"><i class="glyphicon glyphicon-share-alt"
-										style="opacity: 0.5"></i></span>
-								</div>
-							</div>
-						</div>
-					</div-->
-				</section>
-			</div>
-			<br />
-			<!-- show relevant properties for classes -->
-			<div about="?this" typeof="rdfs:Class" class="optional"
-				data-if="?classProperty">
-				<h4>Relevant class properties</h4>
-				<section>
-					<!-- query relevant properties -->
-					<span about="?this" rel="rdfs:subClassOf" class="clearable">
-						<span rel="owl:onProperty" resource="?classProperty"></span>
-					</span>
-					<ul about="?classProperty">
-						<li><a href="{app}/describe?model={model}&resource={}"
-							data-lift="rdf.ref?to=href"><span data-lift="rdf.label"></span></a></li>
-					</ul>
-				</section>
-			</div>
-		</div>
+		<div id="properties-tab"><div data-lift="embed?what=widgets/properties"></div></div>
 		<div id="acl-tab" style="display: none">
 			<style data-lift="head">
 .acl-widget {
@@ -317,7 +95,7 @@
 				<div class="row">
 					<div class="col-sm-4">
 						<div class="acl-widget acl-append">
-							<div data-embed="acl-widget">
+							<div data-embed="widgets/acl">
 								<lift:bind-at name="acl.modeName">Append</lift:bind-at>
 								<lift:bind-at name="acl.mode">
 									<span resource="acl:Append"></span>
@@ -327,7 +105,7 @@
 					</div>
 					<div class="col-sm-4">
 						<div class="acl-widget acl-write">
-							<div data-embed="acl-widget">
+							<div data-embed="widgets/acl">
 								<lift:bind-at name="acl.modeName">Write</lift:bind-at>
 								<lift:bind-at name="acl.mode">
 									<span resource="acl:Write"></span>
@@ -337,7 +115,7 @@
 					</div>
 					<div class="col-sm-4">
 						<div class="acl-widget acl-control">
-							<div data-embed="acl-widget">
+							<div data-embed="widgets/acl">
 								<lift:bind-at name="acl.modeName">Control</lift:bind-at>
 								<lift:bind-at name="acl.mode">
 									<span resource="acl:Control"></span>
