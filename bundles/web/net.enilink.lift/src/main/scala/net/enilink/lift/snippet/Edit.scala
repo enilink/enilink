@@ -176,7 +176,7 @@ class JsonCallHandler {
           p match {
             case resProposal: IResourceProposal =>
               val o2 = if (resProposal.getUseAsValue) o ~ ("resource", resProposal.getResource.getReference.toString) else o
-              o2 ~ ("perfectMatch", resProposal.isPerfectMatch())
+              o2 ~ ("perfectMatch", resProposal.getScore() >= 1000)
             case other => o
           }
         } toList

@@ -135,6 +135,8 @@ enilink = $.extend(window.enilink || {}, {
 									if (value.perfectMatch) {
 										// use emphasis style
 										proposal.style = "emphasis";
+									} else {
+										proposal.style = "noemphasis";
 									}
 									proposals.push(proposal);
 								});
