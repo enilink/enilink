@@ -75,8 +75,9 @@ object TemplateHelpers {
 
   private object FindScript {
     def unapply(in: NodeSeq): Option[Elem] = in match {
-      case e: Elem => e.attribute("type").map(_.text).filter(_ == "text/javascript").flatMap {
-        _ => if (e.attribute("src").isEmpty) Some(e) else None
+      case e: Elem if e.attribute("src").isEmpty => e.attribute("type").map(_.text) match {
+        case None | Some("text/javascript") => Some(e)
+        case _ => None
       }
       case _ => None
     }
