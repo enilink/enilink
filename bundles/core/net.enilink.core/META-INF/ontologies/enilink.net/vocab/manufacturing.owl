@@ -10,7 +10,8 @@
   <owl:Ontology rdf:about="">
     <owl:versionInfo rdf:datatype="http://www.w3.org/2001/XMLSchema#string"
     >Created with TopBraid Composer</owl:versionInfo>
-    <owl:imports rdf:resource="http://www.loa-cnr.it/ontologies/DUL.owl"/>
+    <!-- Do not explicitly import DUL ontology since it has negative effects on reasoning performance. -->
+    <!-- owl:imports rdf:resource="http://www.loa-cnr.it/ontologies/DUL.owl"/ -->
   </owl:Ontology>
   <owl:Class rdf:ID="Resource">
     <rdfs:subClassOf>
