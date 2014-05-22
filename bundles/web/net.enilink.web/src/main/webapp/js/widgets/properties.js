@@ -5,7 +5,7 @@ define([ "flight/lib/component" ], function(defineComponent) {
 	'<span class="not-exists union"><span resource="owl:AnnotationProperty"></span><span resource="owl:DatatypeProperty"></span></span>' + //
 	'</span>';
 
-	function addProperty(target, property, ns) {
+	function addProperty(target, property) {
 		var propertyUri = $.rdf.resource(property).value;
 		var existing = target.find('[data-property]').filter(function() {
 			return $(this).resourceAttr("data-property").value == propertyUri;
@@ -22,7 +22,10 @@ define([ "flight/lib/component" ], function(defineComponent) {
 		var template = $('<div about="?this" data-lift="rdfa?queryAsserted=false" class="union optional">' + //
 		testObjectProperty + //
 		'<div id="content"><div data-embed="describe" data-template="property"></div></div>' + //
-		'</div>').prefix(ns);
+		'</div>').prefix({
+			rdf : "http://www.w3.org/1999/02/22-rdf-syntax-ns#",
+			owl : "http://www.w3.org/2002/07/owl#"
+		});
 
 		enilink.render({
 			what : $("<div>").append(template).html(),
@@ -33,6 +36,7 @@ define([ "flight/lib/component" ], function(defineComponent) {
 			resource : enilink.param("resource"),
 			model : enilink.param("model")
 		}, function(html) {
+			console.log($(html).find(".query").text());
 			var content = $(html).find("#content").children();
 			target.append(content);
 			var addBtn = content.find("[data-add]");
@@ -42,12 +46,14 @@ define([ "flight/lib/component" ], function(defineComponent) {
 	}
 
 	var addPropertyBtn = defineComponent(function() {
-		this.attributes({ target : null });
-		
+		this.attributes({
+			target : null
+		});
+
 		this.onClick = function() {
 			var self = this.$node.closest("li[about]");
 			var property = self.resourceAttr("about").value.toString();
-			addProperty(self.closest(".widget").find(this.attr.target), property, self.xmlns());
+			addProperty(self.closest(".widget").find(this.attr.target), property);
 		}
 
 		this.after('initialize', function() {
@@ -56,7 +62,9 @@ define([ "flight/lib/component" ], function(defineComponent) {
 	});
 
 	var propertyInput = defineComponent(function() {
-		this.attributes({ target : null });
+		this.attributes({
+			target : null
+		});
 		this.installTypeahead = function() {
 			var thisComponent = this;
 			var self = this.$node;
@@ -95,7 +103,7 @@ define([ "flight/lib/component" ], function(defineComponent) {
 				}
 			}).on("typeahead:autocompleted typeahead:selected", function(evt, proposal) {
 				if (proposal.resource) {
-					addProperty(self.closest(".widget").find(thisComponent.attr.target), proposal.resource, self.xmlns());
+					addProperty(self.closest(".widget").find(thisComponent.attr.target), proposal.resource);
 				} else if (proposal.content.match(/[:]$/)) {
 					// automatically trigger typeahead
 					setTimeout(function() {
@@ -112,11 +120,17 @@ define([ "flight/lib/component" ], function(defineComponent) {
 	});
 
 	return defineComponent(function() {
-		this.attributes({ target : null });
+		this.attributes({
+			target : null
+		});
 		this.after('initialize', function() {
 			this.on('attach-components', function() {
-				addPropertyBtn.attachTo(this.$node.find(".add-property"), { target : this.attr.target });
-				propertyInput.attachTo(this.$node.find(".input-property").not('.tt-input, .tt-hint'), { target : this.attr.target });
+				addPropertyBtn.attachTo(this.$node.find(".add-property"), {
+					target : this.attr.target
+				});
+				propertyInput.attachTo(this.$node.find(".input-property").not('.tt-input, .tt-hint'), {
+					target : this.attr.target
+				});
 			});
 		});
 	});

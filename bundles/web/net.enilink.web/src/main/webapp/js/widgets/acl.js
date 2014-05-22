@@ -78,7 +78,7 @@ $(function() {
 								return true;
 							}
 							enilink.render({
-								what : '<div data-lift="rdfa"><span class="query"></span><div data-embed="acl-widget" data-template="acl-content">' + //
+								what : '<div data-lift="rdfa"><span class="query"></span><div data-embed="widgets/acl" data-template="acl-content">' + //
 								'<lift:bind-at name="acl.modeName"></lift:bind-at>' + //
 								'<lift:bind-at name="acl.mode"><span resource="' + mode.value + '"></span></lift:bind-at>' + //
 								'</div></div>'

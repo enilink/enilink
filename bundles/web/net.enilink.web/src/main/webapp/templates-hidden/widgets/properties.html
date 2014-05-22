@@ -80,12 +80,12 @@
 					</div>
 				</div>
 			</div>
-
+		</section>
+		<section class="inverse-properties-section" style="margin-top: 2em">
 			<!-- sort by inverse property -->
 			<div class="clearable asc" about="?invProperty"></div>
 
-			<div style="margin-top: 2em"></div>
-			<div class="row" data-clear-rel="?invProperty">
+			<div class="row optional" data-clear-rel="?invProperty">
 				<div class="col-sm-4" style="font-weight: bold">
 					<i class="glyphicon glyphicon-arrow-left"></i> <a
 						href="{app}/describe?model={model}&resource={}"
@@ -93,13 +93,12 @@
 						data-lift="rdf.label?for=predicate"></span></a>
 				</div>
 				<div class="col-sm-8 union">
-					<div class="row asc" rev="?invProperty"
-						resource="?invResource">
+					<div class="row asc" rev="?invProperty" resource="?invResource">
 						<div class="col-sm-12">
 							<a href="{app}/describe?model={model}&resource={}"
 								data-lift="rdf.ref?to=href"><span data-lift="rdf.label"></span></a>
-							<span data-if="inferred"><i class="glyphicon glyphicon-share-alt"
-								style="opacity: 0.5"></i></span>
+							<span data-if="inferred"><i
+								class="glyphicon glyphicon-share-alt" style="opacity: 0.5"></i></span>
 						</div>
 					</div>
 				</div>
