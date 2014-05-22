@@ -47,7 +47,7 @@ define([ "flight/lib/component" ], function(defineComponent) {
 		this.onClick = function() {
 			var self = this.$node.closest("li[about]");
 			var property = self.resourceAttr("about").value.toString();
-			addProperty($(this.attr.target), property, self.xmlns());
+			addProperty(self.closest(".widget").find(this.attr.target), property, self.xmlns());
 		}
 
 		this.after('initialize', function() {
@@ -95,7 +95,7 @@ define([ "flight/lib/component" ], function(defineComponent) {
 				}
 			}).on("typeahead:autocompleted typeahead:selected", function(evt, proposal) {
 				if (proposal.resource) {
-					addProperty($(thisComponent.attr.target), proposal.resource, self.xmlns());
+					addProperty(self.closest(".widget").find(thisComponent.attr.target), proposal.resource, self.xmlns());
 				} else if (proposal.content.match(/[:]$/)) {
 					// automatically trigger typeahead
 					setTimeout(function() {

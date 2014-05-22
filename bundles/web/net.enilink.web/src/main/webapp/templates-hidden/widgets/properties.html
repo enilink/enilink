@@ -1,7 +1,7 @@
-<div data-lift="rdfa">
-	<script type="text/javascript">
+<div data-lift="rdfa" class="widget">
+	<script type="text/javascript" data-lift="head">
 		require(["/js/widgets/properties.js"], function(properties) {
-			properties.attachTo(document, { target : "#properties" });
+			properties.attachTo(document, { target : ".properties-section" });
 			$(document).trigger("attach-components");
 		});
 	</script>
@@ -9,7 +9,7 @@
 		<section style="margin-bottom: 5px;">
 			<div style="display: inline-block; vertical-align: bottom"><form class="form-inline"><input class="form-control input-sm input-property" type="text" placeholder="Add..." autocomplete="off"></input></form></div>
 			<div class="dropdown" data-if="?relProperty" style="margin-right: 15px; display: inline-block; vertical-align: bottom">
-				<a class="dropdown-toggle" id="dLabel" role="button"
+				<a class="dropdown-toggle" role="button"
 					data-toggle="dropdown" href="#"><b class="caret"></b>
 				</a>
 				<!-- query relevant properties -->
@@ -26,14 +26,14 @@
 					<!-- filter existing properties -->
 					<div rel="?relProperty" resource="?" class="clearable not-exists"></div>
 				</div>
-				<ul class="dropdown-menu" role="menu" aria-labelledby="dLabel">
+				<ul class="dropdown-menu" role="menu">
 					<li about="?relProperty" class="asc"><a href="javascript://"
 						class="add-property"><span about="?relProperty"
 							data-lift="rdf.label"></span></a></li>
 				</ul>
 			</div>
 		</section>
-		<section id="properties" class="optional">
+		<section class="properties-section optional">
 			<!-- sort by property -->
 			<div class="clearable asc" about="?property"></div>
 
