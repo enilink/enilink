@@ -275,8 +275,10 @@ class JsonCallHandler {
                       if (params.isEmpty) params = resultValue flatMap { value =>
                         vars.collectFirst { case v if v.n != "this" => v } map { v => (v.sym.name, value) }
                       } toMap
-                      val renderResult = CurrentContext.withSubject(model.get.getManager.find(stmt.getSubject)) {
-                        QueryParams.doWith(params) { TemplateHelpers.withAppFor(p)(TemplateHelpers.render(wrappedTemplate)) }
+                      val renderResult = Globals.contextModel.doWith(model) {
+                        CurrentContext.withSubject(model.get.getManager.find(stmt.getSubject)) {
+                          QueryParams.doWith(params) { TemplateHelpers.withAppFor(p)(TemplateHelpers.render(wrappedTemplate)) }
+                        }
                       }
                       renderResult match {
                         case Full((html, script)) =>

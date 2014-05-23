@@ -259,7 +259,7 @@ private class RDFaToSparqlParser(e: xml.Elem, base: String)(implicit s: Scope = 
       case _ => false
     })) {
       literal1 = select(fresh("l_"))
-      e1 = e1.copy(attributes = e1.attributes.append(new UnprefixedAttribute("data-clear-content", "?" + literal1, e1.attributes)))
+      e1 = e1.copy(attributes = e1.attributes.append(new UnprefixedAttribute("data-clear-content", literal1.toString, e1.attributes)))
     } else {
       // content="?someVar"
       literal1 match {

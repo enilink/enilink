@@ -12,37 +12,39 @@
 
 	<div id="files"></div>
 
-	<script src="/classpath/fileupload/js/vendor/jquery.ui.widget.js"></script>
-	<script src="/classpath/fileupload/js/jquery.iframe-transport.js"></script>
-	<script src="/classpath/fileupload/js/jquery.fileupload.js"></script>
-
 	<script>
 		$(function() {
-			$('#fileupload').fileupload(
-					{
-						dataType : 'json',
-						add : function(e, data) {
-							$('#progress-bar').css('width', '0%');
-							$('#progress').show();
-							data.submit();
-						},
-						progressall : function(e, data) {
-							var progress = parseInt(data.loaded / data.total
-									* 100, 10)
-									+ '%';
-							$('#progress-bar').css('width', progress);
-						},
-						done : function(e, data) {
-							$.each(data.files, function(index, file) {
-								var div = $("<div>");
-								$("<a>").text(file.name).attr("href",
-										"/files/" + data.result[index].id)
-										.appendTo(div);
-								div.appendTo($("#files"));
-							});
-							$('#progress').fadeOut();
-						}
-					});
+			requirejs.config({
+				paths : {
+					"jquery.ui.widget" : "/classpath/fileupload/js/vendor/jquery.ui.widget",
+					"jquery.iframe-transport" : "/classpath/fileupload/js/jquery.iframe-transport",
+					"jquery.fileupload" : "/classpath/fileupload/js/jquery.fileupload"
+				}
+			});
+			require([ "jquery.ui.widget", //
+			"jquery.iframe-transport", // 
+			"jquery.fileupload" ], function() {
+				$('#fileupload').fileupload({
+					dataType : 'json',
+					add : function(e, data) {
+						$('#progress-bar').css('width', '0%');
+						$('#progress').show();
+						data.submit();
+					},
+					progressall : function(e, data) {
+						var progress = parseInt(data.loaded / data.total * 100, 10) + '%';
+						$('#progress-bar').css('width', progress);
+					},
+					done : function(e, data) {
+						$.each(data.files, function(index, file) {
+							var div = $("<div>");
+							$("<a>").text(file.name).attr("href", "/files/" + data.result[index].id).appendTo(div);
+							div.appendTo($("#files"));
+						});
+						$('#progress').fadeOut();
+					}
+				});
+			});
 		});
 	</script>
 </div>
