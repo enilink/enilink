@@ -29,8 +29,7 @@ trait RDFaUtils {
  * This parser is host-language neutral, so caller must
  * fish base out of HTML head.
  *
- * @See: <a href="http://www.w3.org/TR/rdfa-syntax/"
- * >RDFa in XHTML: Syntax and Processing</a>
+ * @See: <a href="http://www.w3.org/TR/rdfa-syntax/">RDFa in XHTML: Syntax and Processing</a>
  * W3C Recommendation 14 October 2008
  *
  */
@@ -314,9 +313,10 @@ trait CURIE extends RDFNodeBuilder {
       // support for SPARQL variables
       case variable(v) => createVariable(v) match {
         // anonymous variables must be expanded
-        case newVar @ Some(_) if v == "?" => expanded = true; newVar
+        case newVar @ Some(_) if v == "?" =>
+          expanded = true; newVar
         case other => other
-      }  // ?foo
+      } // ?foo
       case parts(p, l) if (p == null) => None
       case parts(p, l) if (p == "xml") => None // xml:foo
 
@@ -344,7 +344,7 @@ trait CURIE extends RDFNodeBuilder {
             Some(uri(token))
           } catch {
             // token is not a valid IRI
-            case _ : Throwable => None
+            case _: Throwable => None
           }
           case other => other
         }

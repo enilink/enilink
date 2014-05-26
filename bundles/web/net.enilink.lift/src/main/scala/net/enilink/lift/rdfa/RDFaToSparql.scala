@@ -274,16 +274,9 @@ private class RDFaToSparqlParser(e: xml.Elem, base: String)(implicit s: Scope = 
     (e1, literal1)
   }
 
-  override def createVariable(name: String): Option[Reference] = {
-    name match {
-      // TODO is support for ?this variable required?
-      //      case "this" => if (thisStack.isEmpty) None else Some(thisStack.top.thisNode match {
-      //        case v: Variable => select(v)
-      //        case other => other
-      //      })
-      case "?" => Some(select(fresh("v")))
-      case _ => Some(select(Variable(name.substring(1), None)))
-    }
+  override def createVariable(name: String): Option[Reference] = name match {
+    case "?" => Some(select(fresh("v")))
+    case _ => Some(select(Variable(name.substring(1), None)))
   }
 
   def select[V <: Variable](v: V): V = {
