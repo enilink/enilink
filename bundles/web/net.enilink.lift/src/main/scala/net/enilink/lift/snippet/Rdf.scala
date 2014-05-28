@@ -115,6 +115,7 @@ class Rdf extends DispatchSnippet with RDFaTemplates {
 
           val newAttrValue = "\\{([^}]*)\\}".r.replaceAllIn(origText, m => m.group(1) match {
             case "" => encode(value)
+            case "this" => encode(CurrentContext.value.map(_.topContext.subject).filter(_ != null).map(_.toString) openOr "")
             case "model" => {
               // insert current model into the attribute
               encode(Globals.contextModel.vend.map(_.toString) openOr "")

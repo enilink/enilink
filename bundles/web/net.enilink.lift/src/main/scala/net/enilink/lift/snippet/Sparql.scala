@@ -88,7 +88,7 @@ trait SparqlHelper {
       }
     }
     val (target, targetModel) = if (isMetaQuery) (Globals.contextModelSet.vend, Empty) else {
-      val ctxResource = CurrentContext.value.flatMap { case RdfContext(s: IReference, _, _) => Full(s) case _ => Empty }
+      val ctxResource = CurrentContext.value.flatMap { case RdfContext(s: IReference, _, _, _) => Full(s) case _ => Empty }
       val theModel = model or Globals.contextModel.vend
       (theModel.map(m => ctxResource.map(m.resolve(_)) openOr m.getOntology), theModel)
     }

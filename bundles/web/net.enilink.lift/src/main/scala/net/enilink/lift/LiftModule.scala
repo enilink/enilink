@@ -10,7 +10,7 @@ import net.enilink.auth.UserPrincipal
 import net.enilink.core.ModelSetManager
 import net.enilink.komma.core.BlankNode
 import net.enilink.komma.core.IUnitOfWork
-import net.enilink.komma.core.URIs
+import net.enilink.komma.core.URI
 import net.enilink.komma.model.IModel
 import net.enilink.komma.model.IObject
 import net.enilink.lift.files.FileService
@@ -43,6 +43,9 @@ import net.enilink.komma.core.URIs
 import net.enilink.komma.model.IModelAware
 import net.enilink.lift.util.RdfContext
 import net.enilink.lift.util.CurrentContext
+import net.liftweb.common.Full
+import net.liftweb.http.RequestVar
+import net.enilink.komma.core.IReference
 
 /**
  * A class that's instantiated early and run.  It allows the application
@@ -150,45 +153,62 @@ class LiftModule extends Logger {
       case rdfa @ ("rdfa" :: _) if rdfa.last.endsWith(".js") => true
     }
 
-    // Make a unit of work span the whole HTTP request
+    Globals.contextModelRules.append {
+      case _ => S.param("model").flatMap { name =>
+        try {
+          Full(URIs.createURI(name))
+        } catch {
+          case e: Exception => error(e); Empty
+        }
+      }
+    }
+
     val bnode = "^(_:.*)".r
+    Globals.contextResourceRules.append {
+      case _ => S.param("resource").flatMap {
+        case bnode(id) => Full(new BlankNode(id))
+        case other => try {
+          Full(URIs.createURI(other))
+        } catch {
+          case e: Exception => Empty
+        }
+      }
+    }
+
+    // Make a unit of work span the whole HTTP request
     S.addAround(new LoanWrapper {
+      private object ContextResource extends RequestVar[Box[IReference]](Empty)
       private object DepthCnt extends DynoVar[Boolean]
 
       def apply[T](f: => T): T = if (DepthCnt.is == Full(true)) f
       else DepthCnt.run(true) {
-        // a model and a resource can be passed by parameters
-        val resourceName = S.param("resource")
-        val modelName = S.param("model")
-
         Globals.contextModelSet.vend.map { modelSet =>
+          val noAjax = S.request.exists(_.standardRequest_?)
+
+          // store for later Ajax requests
+          if (noAjax) Globals.contextModelSet.request.set(Full(modelSet))
+
           var unitsOfWork: Seq[IUnitOfWork] = Nil
           // start a unit of work for the current model set
           val uow = modelSet.getUnitOfWork
           unitsOfWork = unitsOfWork ++ List(uow)
           uow.begin
           try {
-            val model = modelName.flatMap { name =>
-              // try to get the model from the model set
-              try {
-                val modelUri = URIs.createURI(name)
-                Box.legacyNullTest(modelSet.getModel(modelUri, false))
-              } catch {
-                case e: Exception => error(e); Empty
-              }
-            } or Globals.contextModel.vend
+            val model = S.request.flatMap(req => Globals.contextModelRules.toList.find(_.isDefinedAt(req)) match {
+              case Some(f) => f(req)
+              case _ => Empty
+            }).flatMap(uri => Box.legacyNullTest(modelSet.getModel(uri, false))) or Globals.contextModel.vend
 
-            val rdfContext = resourceName.flatMap {
-              // a resource was passed as parameter, replace the global selection with this resource
-              case bnode(id) => model.map(_.resolve(new BlankNode(id)))
-              case other => try {
-                model.map(_.resolve(URIs.createURI(other)))
-              } catch {
-                case e: Exception => Empty
+            val rdfContext = (S.request.flatMap(req => Globals.contextResourceRules.toList.find(_.isDefinedAt(req)) match {
+              case Some(f) => f(req) match {
+                case ref @ Full(_) if noAjax =>
+                  ContextResource.set(ref); ref
+                case ref => ref
               }
-            } or model.map(_.getOntology) map (RdfContext(_, null))
+              case _ => Empty
+            }).flatMap(ref => model.map(_.resolve(ref))) or ContextResource.get or model.map(_.getOntology)) map (RdfContext(_, null))
 
-            if (model.isDefined) Globals.contextModel.request.set(model)
+            if (noAjax && model.isDefined) Globals.contextModel.request.set(model)
             model.foreach { m =>
               if (modelSet != m.getModelSet) {
                 var uow = m.getModelSet.getUnitOfWork

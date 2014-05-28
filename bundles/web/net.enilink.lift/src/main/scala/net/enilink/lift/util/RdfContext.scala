@@ -10,7 +10,7 @@ import net.liftweb.common.Box
 import org.eclipse.core.runtime.Platform
 import net.enilink.lift.selection.SelectionProvider
 
-case class RdfContext(val subject: Any, val predicate: Any, val prefix: NamespaceBinding = TopScope) {
+case class RdfContext(val subject: Any, val predicate: Any, val prefix: NamespaceBinding = TopScope, val parent : RdfContext = null) {
   override def equals(that: Any): Boolean = that match {
     case other: RdfContext => subject == other.subject && predicate == other.predicate && prefix == other.prefix
     case _ => false
@@ -20,8 +20,10 @@ case class RdfContext(val subject: Any, val predicate: Any, val prefix: Namespac
   override def toString = {
     "(s = " + subject + ", p = " + predicate + ", prefix = " + prefix + ")"
   }
+  
+  def topContext : RdfContext = if (parent == null || (parent eq this)) this else parent.topContext
 
-  def copy(subject: Any = this.subject, predicate: Any = this.predicate, prefix: NamespaceBinding = this.prefix) = RdfContext(subject, predicate, prefix)
+  def childContext(subject: Any = this.subject, predicate: Any = this.predicate, prefix: NamespaceBinding = this.prefix) = RdfContext(subject, predicate, prefix, this)
 }
 
 object CurrentContext extends DynamicVariable[Box[RdfContext]](Empty) {

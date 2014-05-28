@@ -75,16 +75,23 @@ object Globals extends Factory {
     }
   }) {}
 
+  val contextModelSetRules = LiftRules.RulesSeq[PartialFunction[Req, Box[IModelSet]]]
   implicit val contextModelSet = new FactoryMaker(() => Empty: Box[IModelSet]) {}
   contextModelSet.default.set(() => {
-    contextModel.vend.map(_.getModelSet) or Box.legacyNullTest(modelSetTracker.getService) or {
+    S.request.flatMap(req => contextModelSetRules.toList.find(_.isDefinedAt(req)) match {
+      case Some(f) => f(req)
+      case _ => Empty
+    }) or contextModel.vend.map(_.getModelSet) or Box.legacyNullTest(modelSetTracker.getService) or {
       // refresh service tracker
       modelSetTracker.close; modelSetTracker.open
       Box.legacyNullTest(modelSetTracker.getService)
     }
   })
 
+  val contextModelRules = LiftRules.RulesSeq[PartialFunction[Req, Box[URI]]]
   implicit val contextModel = new FactoryMaker(() => Empty: Box[IModel]) {}
+
+  val contextResourceRules = LiftRules.RulesSeq[PartialFunction[Req, Box[IReference]]]
 
   implicit val contextUser = new FactoryMaker(() => UNKNOWN_USER: IReference) {}
 

@@ -79,9 +79,9 @@ trait Binder {
 
   def changeContext(ctx: RdfContext, attributeName: String, rdfValue: Any) = attributeName match {
     case RDFaRelAttribute() =>
-      ctx.copy(predicate = rdfValue)
+      ctx.childContext(predicate = rdfValue)
     case RDFaResourceAttribute() =>
-      ctx.copy(subject = rdfValue, predicate = null)
+      ctx.childContext(subject = rdfValue, predicate = null)
     case _ => ctx
   }
 

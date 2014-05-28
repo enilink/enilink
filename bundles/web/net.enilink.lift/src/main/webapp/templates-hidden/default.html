@@ -27,6 +27,11 @@
 			</div>
 		</div>
 		<span data-lift="bs.submenu"></span>
+		<div style="position: fixed; top: 20px; right: 0px; z-index: 9999">
+			<img alt="" id="ajax-loader" src="/images/ajax-loader.gif"
+				style="float: left; margin-right: 25px; display: none"></img>
+			<div class="visible-xs" style="float: left; width: 50px"></div>
+		</div>
 	</header>
 	<script data-lift="JS.bootstrap"></script>
 	
@@ -39,10 +44,6 @@
 					<lift:warning_msg class="alert alert-warning"></lift:warning_msg>
 					<lift:notice_msg class="alert alert-info"></lift:notice_msg>
 				</div>
-			</div>
-			<div style="position: absolute; right: 0px">
-				<img alt="" id="ajax-loader" style="display: none"
-					src="/images/ajax-loader.gif"></img>
 			</div>
 		</div>
 
