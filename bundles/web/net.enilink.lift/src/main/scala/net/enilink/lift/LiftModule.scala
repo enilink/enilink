@@ -177,7 +177,9 @@ class LiftModule extends Logger {
 
     // Make a unit of work span the whole HTTP request
     S.addAround(new LoanWrapper {
-      private object ContextResource extends RequestVar[Box[IReference]](Empty)
+      private object ContextResource extends RequestVar[Box[IReference]](Empty) {
+        override def logUnreadVal = false
+      }
       private object DepthCnt extends DynoVar[Boolean]
 
       def apply[T](f: => T): T = if (DepthCnt.is == Full(true)) f
