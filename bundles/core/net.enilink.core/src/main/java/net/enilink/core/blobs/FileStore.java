@@ -6,7 +6,6 @@ import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
-import java.nio.charset.Charset;
 import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -34,8 +33,6 @@ public class FileStore {
 
 	protected String computeKey(InputStream in, long length) throws Exception {
 		MessageDigest digest = MessageDigest.getInstance("SHA-1");
-		// add length to digest
-		digest.update(("length: " + length).getBytes(Charset.forName("UTF-8")));
 		try {
 			int n = 0;
 			byte[] buffer = new byte[8192];

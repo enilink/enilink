@@ -2,12 +2,14 @@ package net.enilink.core;
 
 import java.util.Collection;
 
+import net.enilink.composition.annotations.Iri;
 import net.enilink.composition.traits.Behaviour;
 
 import com.google.inject.AbstractModule;
 import com.google.inject.Module;
 
 import net.enilink.komma.model.IModelSet;
+import net.enilink.komma.model.MODELS;
 import net.enilink.komma.core.IDialect;
 import net.enilink.komma.core.QueryFragment;
 import net.enilink.komma.core.SparqlStandardDialect;
@@ -16,7 +18,8 @@ import net.enilink.komma.core.URIs;
 /**
  * Implements OWLIM specific SPARQL extensions.
  */
-public abstract class OwlimDialectSupport implements IModelSet,
+@Iri(MODELS.NAMESPACE + "OwlimSEModelSet")
+public abstract class OwlimSeModelSetSupport implements IModelSet,
 		IModelSet.Internal, Behaviour<IModelSet> {
 	static class OwlimDialect extends SparqlStandardDialect {
 		@Override

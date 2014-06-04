@@ -1,13 +1,23 @@
 package net.enilink.core;
 
+import java.io.BufferedInputStream;
+import java.io.InputStream;
+import java.nio.file.Files;
+import java.nio.file.Paths;
 import java.security.PrivilegedAction;
 import java.util.HashMap;
+import java.util.HashSet;
+import java.util.LinkedList;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Queue;
+import java.util.Set;
 
 import javax.security.auth.Subject;
 
 import net.enilink.auth.AuthModule;
+import net.enilink.commons.iterator.IMap;
+import net.enilink.commons.iterator.WrappedIterator;
 import net.enilink.composition.properties.PropertySetFactory;
 import net.enilink.core.security.ISecureEntity;
 import net.enilink.core.security.SecureEntitySupport;
@@ -17,27 +27,33 @@ import net.enilink.core.security.SecurityUtil;
 import net.enilink.komma.core.IEntityManager;
 import net.enilink.komma.core.IGraph;
 import net.enilink.komma.core.IProvider;
+import net.enilink.komma.core.IReference;
+import net.enilink.komma.core.IStatement;
 import net.enilink.komma.core.IUnitOfWork;
 import net.enilink.komma.core.KommaModule;
 import net.enilink.komma.core.LinkedHashGraph;
 import net.enilink.komma.core.Properties;
-import net.enilink.komma.core.StatementPattern;
+import net.enilink.komma.core.Statement;
 import net.enilink.komma.core.URI;
 import net.enilink.komma.core.URIs;
+import net.enilink.komma.core.visitor.IDataVisitor;
 import net.enilink.komma.em.util.UnitOfWork;
 import net.enilink.komma.model.IModel;
 import net.enilink.komma.model.IModelSet;
 import net.enilink.komma.model.IModelSetFactory;
+import net.enilink.komma.model.IURIConverter;
 import net.enilink.komma.model.MODELS;
 import net.enilink.komma.model.ModelPlugin;
 import net.enilink.komma.model.ModelSetModule;
+import net.enilink.komma.model.ModelUtil;
+import net.enilink.komma.model.base.ExtensibleURIConverter;
 import net.enilink.komma.model.base.IURIMapRule;
 import net.enilink.komma.model.base.SimpleURIMapRule;
 import net.enilink.komma.workbench.IProjectModelSet;
 import net.enilink.komma.workbench.ProjectModelSetSupport;
+import net.enilink.vocab.acl.Authorization;
 import net.enilink.vocab.acl.ENILINKACL;
 import net.enilink.vocab.acl.WEBACL;
-import net.enilink.vocab.acl.Authorization;
 import net.enilink.vocab.foaf.Agent;
 import net.enilink.vocab.foaf.FOAF;
 import net.enilink.vocab.rdf.RDF;
@@ -46,6 +62,8 @@ import net.enilink.vocab.rdfs.Resource;
 
 import org.eclipse.core.resources.IProject;
 import org.eclipse.core.resources.ResourcesPlugin;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import com.google.inject.AbstractModule;
 import com.google.inject.Guice;
@@ -56,40 +74,84 @@ import com.google.inject.name.Named;
 import com.google.inject.util.Modules;
 
 class ModelSetManager {
+	private static final Logger log = LoggerFactory
+			.getLogger(ModelSetManager.class);
+
 	public static final ModelSetManager INSTANCE = new ModelSetManager();
-	public static final String REPOSITORY_TYPE;
+	public static final IGraph config;
 	static {
-		String repoType = System.getProperty("net.enilink.repository.type");
-		if (repoType == null) {
-			repoType = "memory";
+		final IGraph[] graph = { null };
+		String configName = System.getProperty("net.enilink.config");
+		if (configName != null) {
+			URI configUri = null;
+			try {
+				configUri = URIs.createURI(configName);
+			} catch (IllegalArgumentException iae) {
+
+			}
+			if (configUri == null && Files.exists(Paths.get(configName))) {
+				configUri = URIs.createFileURI(configName);
+			}
+			if (configUri != null) {
+				graph[0] = new LinkedHashGraph();
+				try {
+					IURIConverter uriConverter = new ExtensibleURIConverter();
+					try (InputStream in = new BufferedInputStream(
+							uriConverter.createInputStream(configUri))) {
+						ModelUtil.readData(
+								in,
+								configUri.toString(),
+								(String) uriConverter.contentDescription(
+										configUri, null).get(
+										IURIConverter.ATTRIBUTE_MIME_TYPE),
+								new IDataVisitor<Void>() {
+									@Override
+									public Void visitBegin() {
+										return null;
+									}
+
+									@Override
+									public Void visitEnd() {
+										return null;
+									}
+
+									@Override
+									public Void visitStatement(IStatement stmt) {
+										graph[0].add(stmt);
+										return null;
+									}
+								});
+					}
+				} catch (Exception e) {
+					log.error("Unable to read config file", e);
+				}
+			}
 		}
-		REPOSITORY_TYPE = repoType.toLowerCase();
+		config = graph[0];
 	}
 
 	private UnitOfWork uow = new UnitOfWork();
 	private IModelSet modelSet;
 
-	protected void addServerInfo(URI modelSet, IGraph config) {
-		String serverUrl = System.getProperty("net.enilink.repository.server");
-		if (serverUrl == null) {
-			// serverUrl = "http://localhost:10035"; // Allegrograph
-			// serverUrl = "jdbc:virtuoso://localhost:1111"; // Virtuoso
-			serverUrl = "http://localhost:8080/openrdf-sesame";
+	protected void overwriteProperty(IGraph data, URI s, URI property,
+			Object value) {
+		if (value != null) {
+			data.remove(s, property, null);
+			data.add(s, property, value);
 		}
-		config.add(modelSet, MODELS.NAMESPACE_URI.appendLocalPart("server"),
-				URIs.createURI(serverUrl));
-		String username = System.getProperty("net.enilink.repository.username");
-		if (username != null) {
-			config.add(modelSet,
-					MODELS.NAMESPACE_URI.appendLocalPart("username"), username);
-			String password = System
-					.getProperty("net.enilink.repository.password");
-			if (password != null) {
-				config.add(modelSet,
-						MODELS.NAMESPACE_URI.appendLocalPart("password"),
-						password);
-			}
-		}
+	}
+
+	protected void addSystemProperties(URI modelSet, IGraph config) {
+		String target = modelSet.localPart();
+		overwriteProperty(config, modelSet,
+				MODELS.NAMESPACE_URI.appendLocalPart("server"),
+				System.getProperty("net.enilink." + target + ".server"));
+		overwriteProperty(config, modelSet,
+				MODELS.NAMESPACE_URI.appendLocalPart("username"),
+				System.getProperty("net.enilink." + target + ".username"));
+		overwriteProperty(config, modelSet,
+				MODELS.NAMESPACE_URI.appendLocalPart("password"),
+				System.getProperty("net.enilink." + target + ".password"));
 	}
 
 	protected Module createModelSetGuiceModule(KommaModule module) {
@@ -136,10 +198,6 @@ class ModelSetManager {
 		module.addBehaviour(SessionModelSetSupport.class);
 		module.addBehaviour(LazyModelSupport.class);
 
-		if ("owlim".equals(REPOSITORY_TYPE)) {
-			module.addBehaviour(OwlimDialectSupport.class);
-		}
-
 		module.addConcept(IProjectModelSet.class);
 		module.addBehaviour(ProjectModelSetSupport.class);
 
@@ -149,22 +207,30 @@ class ModelSetManager {
 		return module;
 	}
 
-	protected IGraph createModelSetConfig(URI ms) {
+	protected IGraph createConfig(URI modelSet) {
 		IGraph graph = new LinkedHashGraph();
-		graph.add(ms, RDF.PROPERTY_TYPE, MODELS.TYPE_MODELSET);
+		graph.add(modelSet, RDF.PROPERTY_TYPE, MODELS.TYPE_MODELSET);
 
-		// store meta data in repository
-		// graph.add(ms, MODELS.PROPERTY_METADATACONTEXT,
-		// URIs.createURI("komma:metadata"));
-		return graph;
-	}
-
-	protected URI getPersistentModelSetType() {
-		String localName = "RemoteModelSet";
-		if (REPOSITORY_TYPE.equals("agraph")) {
-			localName = "AGraphModelSet";
+		if (config != null) {
+			// add data to config of current model set
+			Set<IReference> seen = new HashSet<>();
+			Queue<IReference> queue = new LinkedList<>();
+			queue.add(modelSet);
+			while (!queue.isEmpty()) {
+				IReference s = queue.remove();
+				if (seen.add(s)) {
+					IGraph about = config.filter(s, null, null);
+					graph.addAll(about);
+					for (Object o : about.objects()) {
+						if (o instanceof IReference && !seen.contains(o)) {
+							queue.add((IReference) o);
+						}
+					}
+				}
+			}
 		}
-		return MODELS.NAMESPACE_URI.appendLocalPart(localName);
+		addSystemProperties(modelSet, graph);
+		return graph;
 	}
 
 	protected IModelSet createMetaModelSet() {
@@ -176,15 +242,17 @@ class ModelSetManager {
 
 		Injector injector = Guice.createInjector(
 				createModelSetGuiceModule(module), new ContextProviderModule());
-		URI msUri = URIs.createURI("urn:enilink:metamodelset");
-		IGraph graph = createModelSetConfig(msUri);
-		addServerInfo(msUri, graph);
-		graph.add(msUri, MODELS.NAMESPACE_URI.appendLocalPart("repository"),
-				"enilink-meta");
+		URI msUri = URIs.createURI("urn:enilink:metadata");
+		IGraph graph = createConfig(msUri);
+		if (!graph.contains(msUri,
+				MODELS.NAMESPACE_URI.appendLocalPart("repository"), null)) {
+			graph.add(msUri,
+					MODELS.NAMESPACE_URI.appendLocalPart("repository"),
+					"enilink-meta");
+		}
 
 		IModelSetFactory factory = injector.getInstance(IModelSetFactory.class);
-		IModelSet metaModelSet = factory.createModelSet(graph,
-				getPersistentModelSetType());
+		IModelSet metaModelSet = factory.createModelSet(graph);
 
 		// include model behaviors into meta model set
 		metaModelSet.getModule().includeModule(createDataModelSetModule());
@@ -192,20 +260,32 @@ class ModelSetManager {
 	}
 
 	protected IModelSet createModelSet(IModel metaDataModel) {
-		URI msUri = URIs.createURI("urn:enilink:modelset");
+		URI msUri = URIs.createURI("urn:enilink:data");
 
-		IGraph graph = createModelSetConfig(msUri);
-		addServerInfo(msUri, graph);
-		graph.add(msUri, MODELS.NAMESPACE_URI.appendLocalPart("repository"),
-				"enilink");
+		IGraph graph = createConfig(msUri);
+		if (!graph.contains(msUri,
+				MODELS.NAMESPACE_URI.appendLocalPart("repository"), null)) {
+			graph.add(msUri,
+					MODELS.NAMESPACE_URI.appendLocalPart("repository"),
+					"enilink");
+		}
+		// remove old config
 		metaDataModel.getManager().remove(
-				new StatementPattern(msUri, MODELS.NAMESPACE_URI
-						.appendLocalPart("server"), null));
-
+				WrappedIterator.create(
+						graph.filter(msUri, null, null).iterator()).mapWith(
+						new IMap<IStatement, IStatement>() {
+							@Override
+							public IStatement map(IStatement stmt) {
+								return new Statement(stmt.getSubject(), stmt
+										.getPredicate(), null);
+							}
+						}));
 		metaDataModel.getManager().add(graph);
+
+		// maybe use toInstance here so that config data has not to be inserted
+		// into the database
 		IModelSet.Internal modelSet = (IModelSet.Internal) metaDataModel
-				.getManager().createNamed(msUri, MODELS.TYPE_MODELSET,
-						getPersistentModelSetType());
+				.getManager().find(msUri);
 		modelSet.create();
 		return modelSet;
 	}
@@ -218,8 +298,8 @@ class ModelSetManager {
 				createModelSetGuiceModule(module), new ContextProviderModule());
 		IModelSetFactory factory = injector.getInstance(IModelSetFactory.class);
 
-		URI msUri = URIs.createURI("urn:enilink:modelset");
-		IGraph graph = createModelSetConfig(msUri);
+		URI msUri = URIs.createURI("urn:enilink:data");
+		IGraph graph = createConfig(msUri);
 		graph.add(msUri, MODELS.NAMESPACE_URI.appendFragment("inference"),
 				false);
 		IModelSet modelSet = factory.createModelSet(graph,
@@ -289,9 +369,8 @@ class ModelSetManager {
 					new PrivilegedAction<Object>() {
 						@Override
 						public Object run() {
-							boolean isMemoryRepo = "memory"
-									.equals(REPOSITORY_TYPE);
-							if (isMemoryRepo) {
+							if (config == null) {
+								// create default memory repository
 								modelSet = createModelSet();
 							} else {
 								IModelSet metaModelSet = createMetaModelSet();
@@ -305,7 +384,7 @@ class ModelSetManager {
 							// register some namespace
 							modelSet.getModule().addNamespace("foaf",
 									FOAF.NAMESPACE_URI);
-							if (isMemoryRepo
+							if (config == null
 									|| "all".equals(System
 											.getProperty("net.enilink.acl.anonymous"))) {
 								IEntityManager em = modelSet
