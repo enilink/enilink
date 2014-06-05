@@ -5,9 +5,11 @@ import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.security.PrivilegedAction;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedList;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Queue;
@@ -24,6 +26,7 @@ import net.enilink.core.security.SecureEntitySupport;
 import net.enilink.core.security.SecureModelSetSupport;
 import net.enilink.core.security.SecurePropertySetFactory;
 import net.enilink.core.security.SecurityUtil;
+import net.enilink.komma.core.BlankNode;
 import net.enilink.komma.core.IEntityManager;
 import net.enilink.komma.core.IGraph;
 import net.enilink.komma.core.IProvider;
@@ -37,6 +40,8 @@ import net.enilink.komma.core.Statement;
 import net.enilink.komma.core.URI;
 import net.enilink.komma.core.URIs;
 import net.enilink.komma.core.visitor.IDataVisitor;
+import net.enilink.komma.em.CacheModule;
+import net.enilink.komma.em.CachingEntityManagerModule;
 import net.enilink.komma.em.util.UnitOfWork;
 import net.enilink.komma.model.IModel;
 import net.enilink.komma.model.IModelSet;
@@ -172,8 +177,22 @@ class ModelSetManager {
 			}
 
 			@Override
-			protected Class<? extends PropertySetFactory> getPropertySetFactoryClass() {
-				return SecurePropertySetFactory.class;
+			protected Module getEntityManagerModule() {
+				return new CachingEntityManagerModule() {
+					@Override
+					protected Class<? extends PropertySetFactory> getPropertySetFactoryClass() {
+						return SecurePropertySetFactory.class;
+					}
+				};
+			}
+
+			@Override
+			protected List<? extends Module> createFactoryModules(
+					KommaModule kommaModule) {
+				List<Module> modules = new ArrayList<>(super
+						.createFactoryModules(kommaModule));
+				modules.add(new CacheModule(BlankNode.generateId()));
+				return modules;
 			}
 		}).with(new AbstractModule() {
 			@Override
