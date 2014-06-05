@@ -214,6 +214,7 @@ class ModelSetManager {
 	protected KommaModule createDataModelSetModule() {
 		KommaModule module = ModelPlugin.createModelSetModule(getClass()
 				.getClassLoader());
+		module.addBehaviour(OwlimSeModelSetSupport.class);
 		module.addBehaviour(SessionModelSetSupport.class);
 		module.addBehaviour(LazyModelSupport.class);
 
@@ -255,6 +256,7 @@ class ModelSetManager {
 	protected IModelSet createMetaModelSet() {
 		KommaModule module = ModelPlugin.createModelSetModule(getClass()
 				.getClassLoader());
+		module.addBehaviour(OwlimSeModelSetSupport.class);
 		module.addBehaviour(SessionModelSetSupport.class);
 		module.addConcept(ISecureEntity.class);
 		module.addBehaviour(SecureEntitySupport.class);
