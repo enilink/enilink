@@ -161,7 +161,7 @@ enilink = $.extend(window.enilink || {}, {
 			value = target.closest("[content]").attr("content")
 					|| target.text().trim();
 		}
-		var model = target.closest("[data-model]").attr("data-model");
+		var model = enilink.contextModel(target);
 		var rdfStmts = $.rdf.dump(triples);
 		options = $.extend(defaultEditableOptions(rdfStmts, model), {
 			title : "Edit value",

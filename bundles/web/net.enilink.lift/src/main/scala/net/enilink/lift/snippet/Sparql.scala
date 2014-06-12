@@ -26,6 +26,9 @@ import net.enilink.lift.util.TemplateHelpers
 import net.liftweb.common.Empty
 import net.liftweb.common.Box
 import net.enilink.lift.util.RdfContext
+import net.enilink.komma.model.IModel
+import net.enilink.komma.model.IModelAware
+import net.enilink.lift.util.RdfContext
 
 /**
  * Global SPARQL parameters that can be shared between different snippets.
@@ -142,7 +145,7 @@ class Sparql extends SparqlHelper with RDFaTemplates {
                 // ensure at least one template iteration with empty binding set if no results where found
                 if (!toRender.hasNext) toRender = List((new LinkedHashBindings[Object], false)).toIterator
                 val transformers = (".query *" #> sparql) & ClearClearable
-                val result = renderTuples(transformers(n1), toRender)
+                val result = renderTuples(rdfCtx, transformers(n1), toRender)
                 result
               case _ => n1
             }
@@ -241,26 +244,36 @@ class Sparql extends SparqlHelper with RDFaTemplates {
     applyRules(ns)
   }
 
-  def renderTuples(ns: Seq[xml.Node], rows: Iterator[(IBindings[_], Boolean)]) = {
+  def renderTuples(ctx: RdfContext, ns: Seq[xml.Node], rows: Iterator[(IBindings[_], Boolean)]) = {
     var template = createTemplate(ns)
-    rows foreach { row => template.transform(CurrentContext.value.get, row._1, row._2) }
+    rows foreach { row => template.transform(ctx, row._1, row._2) }
 
     val result = ClearClearable.apply(S.session.get.processSurroundAndInclude(PageName.get, template.render))
     result.map {
       case e: Elem => {
+        // add data-model attribute
+        val e1 = (e.attribute("data-model") match {
+          case Some(_) => e
+          case None => ctx match {
+            case RdfContext(s: IModelAware, _, _, _) => e % ("data-model" -> s.getModel.getURI.toString)
+            case _ => e
+          }
+          // add data-resoure attribute
+        }) % ("data-resource", ctx.subject.toString)
+
         // add RDFa prefix declarations
-        val xmlns = "xmlns:?([^=]+)=\"(\\S+)\"".r.findAllIn(e.scope.buildString(scala.xml.TopScope)).matchData.map(m => (m.group(1), m.group(2))).toList
-        if (xmlns.isEmpty) e else {
+        val xmlns = "xmlns:?([^=]+)=\"(\\S+)\"".r.findAllIn(e1.scope.buildString(scala.xml.TopScope)).matchData.map(m => (m.group(1), m.group(2))).toList
+        if (xmlns.isEmpty) e1 else {
           // add RDFa 1.1 prefix attribute
-          var attributes = e.attributes.append(
-            new UnprefixedAttribute("prefix", xmlns.foldLeft(new StringBuilder((e \ "@prefix").text)) {
+          var attributes = e1.attributes.append(
+            new UnprefixedAttribute("prefix", xmlns.foldLeft(new StringBuilder((e1 \ "@prefix").text)) {
               (sb, mapping) =>
                 if (sb.length > 0) sb.append(" ")
                 sb.append(mapping._1).append(": ").append(mapping._2)
             }.toString, Null))
           // add legacy xmlns attributes
           attributes = xmlns.foldLeft(attributes) { (attrs, mapping) => attrs.append(new UnprefixedAttribute("xmlns:" + mapping._1, mapping._2, attrs)) }
-          e.copy(attributes = attributes)
+          e1.copy(attributes = attributes)
         }
       }
       case other => other
