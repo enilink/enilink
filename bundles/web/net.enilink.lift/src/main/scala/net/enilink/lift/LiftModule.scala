@@ -177,9 +177,6 @@ class LiftModule extends Logger {
 
     // Make a unit of work span the whole HTTP request
     S.addAround(new LoanWrapper {
-      private object ContextResource extends RequestVar[Box[IReference]](Empty) {
-        override def logUnreadVal = false
-      }
       private object DepthCnt extends DynoVar[Boolean]
 
       def apply[T](f: => T): T = if (DepthCnt.is == Full(true)) f
@@ -202,33 +199,29 @@ class LiftModule extends Logger {
             }).flatMap(uri => Box.legacyNullTest(modelSet.getModel(uri, false))) or Globals.contextModel.vend
 
             val rdfContext = (S.request.flatMap(req => Globals.contextResourceRules.toList.find(_.isDefinedAt(req)) match {
-              case Some(f) => f(req) match {
-                case ref @ Full(_) if noAjax =>
-                  ContextResource.set(ref); ref
-                case ref => ref
-              }
+              case Some(f) => f(req)
               case _ => Empty
-            }).flatMap(ref => model.map(_.resolve(ref))) or ContextResource.get or model.map(_.getOntology)) map (RdfContext(_, null))
+            }).flatMap(ref => model.map(_.resolve(ref))) or model.map(_.getOntology)) map (RdfContext(_, null))
 
-            if (noAjax && model.isDefined) Globals.contextModel.request.set(model)
-            model.foreach { m =>
-              if (modelSet != m.getModelSet) {
-                var uow = m.getModelSet.getUnitOfWork
-                unitsOfWork = unitsOfWork ++ List(uow)
-                uow.begin
-              }
+            if (noAjax) {
+              if (model.isDefined) Globals.contextModel.request.set(model)
+              if (rdfContext.isDefined) CurrentContext.forRequest(rdfContext)
             }
 
-            Globals.contextModel.doWith(model) {
-              CurrentContext.withValue(rdfContext) {
-                S.session.flatMap(_.httpSession.map(_.attribute("javax.security.auth.subject")) match {
-                  case Full(s: Subject) => Full(Subject.doAs(s, new PrivilegedAction[T] {
-                    override def run = f
-                  }))
-                  case _ => Full(f)
-                }).openOrThrowException("Unexpected error.")
-              }
+            def innerFunc = {
+              S.session.flatMap(_.httpSession.map(_.attribute("javax.security.auth.subject")) match {
+                case Full(s: Subject) => Full(Subject.doAs(s, new PrivilegedAction[T] {
+                  override def run = f
+                }))
+                case _ => Full(f)
+              }).openOrThrowException("Unexpected error.")
             }
+
+            if (model.isDefined) Globals.contextModel.doWith(model) {
+              if (rdfContext.isDefined) CurrentContext.withValue(rdfContext)(innerFunc) else innerFunc
+            }
+            else if (rdfContext.isDefined) CurrentContext.withValue(rdfContext)(innerFunc)
+            else innerFunc
           } finally {
             for (uow <- unitsOfWork) uow.end
           }
