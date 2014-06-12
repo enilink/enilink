@@ -3,9 +3,13 @@
 	owl: http://www.w3.org/2002/07/owl#
 	rdfs: http://www.w3.org/2000/01/rdf-schema#">
 	<script type="text/javascript" data-lift="head">
-		require(["/js/widgets/properties.js"], function(properties) {
-			properties.attachTo(document, { target : ".properties-section" });
-			$(document).trigger("attach-components");
+		$(function() {
+			require([ "/enilink/js/widgets/properties.js" ], function(properties) {
+				properties.attachTo(document, {
+					target : ".properties-section"
+				});
+				$(document).trigger("attach-components");
+			});
 		});
 	</script>
 	<div about="?this">
@@ -84,29 +88,7 @@
 				</div>
 			</div>
 		</section>
-		<section class="inverse-properties-section" style="margin-top: 2em">
-			<!-- sort by inverse property -->
-			<div class="clearable asc" about="?invProperty"></div>
-
-			<div class="row optional" data-clear-rel="?invProperty">
-				<div class="col-sm-4" style="font-weight: bold">
-					<i class="glyphicon glyphicon-arrow-left"></i> <a
-						href="{app}/describe?model={model}&resource={}"
-						data-lift="rdf.ref?for=predicate&to=href"><span
-						data-lift="rdf.label?for=predicate"></span></a>
-				</div>
-				<div class="col-sm-8 union">
-					<div class="row asc" rev="?invProperty" resource="?invResource">
-						<div class="col-sm-12">
-							<a href="{app}/describe?model={model}&resource={}"
-								data-lift="rdf.ref?to=href"><span data-lift="rdf.label"></span></a>
-							<span data-if="inferred"><i
-								class="glyphicon glyphicon-share-alt" style="opacity: 0.5"></i></span>
-						</div>
-					</div>
-				</div>
-			</div>
-		</section>
+		<a href="javascript:void(0)" class="show-inverse-properties"><i class="glyphicon glyphicon-arrow-left"></i> Show inverse properties</a>
 	</div>
 	<br />
 	<!-- show relevant properties for classes -->

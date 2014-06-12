@@ -119,6 +119,22 @@ define([ "flight/lib/component" ], function(defineComponent) {
 		});
 	});
 
+	var showInversePropertiesBtn = defineComponent(function() {
+		this.onClick = function() {
+			var node = this.$node;
+			enilink.render('<div data-lift="rdfa"><div data-embed="widgets/inverse-properties"></div></div>', {
+				model : enilink.contextModel(node),
+				resource : enilink.contextResource(node)
+			}, function(html) {
+				node.replaceWith(html);
+			});
+		}
+
+		this.after('initialize', function() {
+			this.on('click', this.onClick);
+		});
+	});
+
 	return defineComponent(function() {
 		this.attributes({
 			target : null
@@ -131,6 +147,7 @@ define([ "flight/lib/component" ], function(defineComponent) {
 				propertyInput.attachTo(this.$node.find(".input-property").not('.tt-input, .tt-hint'), {
 					target : this.attr.target
 				});
+				showInversePropertiesBtn.attachTo(this.$node.find(".show-inverse-properties"));
 			});
 		});
 	});
