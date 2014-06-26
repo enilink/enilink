@@ -36,8 +36,8 @@ import net.liftweb.util.LoanWrapper
 import net.liftweb.util.Props
 import net.liftweb.util.TemplateCache
 import net.liftweb.util.Helpers._
-import net.liftweb.util.Vendor.funcToVender
-import net.liftweb.util.Vendor.valToVender
+import net.liftweb.util.Vendor.funcToVendor
+import net.liftweb.util.Vendor.valToVendor
 import net.liftweb.http.NoticeType
 import net.enilink.komma.core.URIs
 import net.enilink.komma.model.IModelAware
@@ -46,6 +46,7 @@ import net.enilink.lift.util.CurrentContext
 import net.liftweb.common.Full
 import net.liftweb.http.RequestVar
 import net.enilink.komma.core.IReference
+import scala.language.postfixOps
 
 /**
  * A class that's instantiated early and run.  It allows the application

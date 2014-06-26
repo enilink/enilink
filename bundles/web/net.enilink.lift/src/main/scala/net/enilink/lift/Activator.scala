@@ -100,7 +100,7 @@ class Activator extends BundleActivator with Loggable {
     // applies chained mutators from all lift bundles to an empty sitemap
     LiftRules.setSiteMapFunc(() => {
       val siteMapMutator = bundleTracker.getTracked.values.foldLeft((sm: SiteMap) => sm)(
-        (prev, config) => config.sitemapMutator match { case Full(m) => prev.andThen(m()) case _ => prev })
+        (prev, config) => config.sitemapMutator match { case Full(m) => prev.andThen(m) case _ => prev })
       siteMapMutator(SiteMap())
     })
   }
@@ -141,8 +141,8 @@ class Activator extends BundleActivator with Loggable {
           try {
             try {
               ClassHelpers.createInvoker("boot", m) map (_())
-              ClassHelpers.createInvoker("sitemapMutator", m) map {
-                f => config.sitemapMutator = Full(() => f().get.asInstanceOf[SiteMap => SiteMap])
+              config.sitemapMutator = ClassHelpers.createInvoker("sitemapMutator", m).flatMap {
+                f => f().map(_.asInstanceOf[SiteMap => SiteMap])
               }
               debug("Lift-powered bundle " + bundle.getSymbolicName + " booted.")
             } catch {
@@ -222,7 +222,7 @@ class Activator extends BundleActivator with Loggable {
    * Configuration of a Lift-powered bundle.
    */
   private case class LiftBundleConfig(module: Box[AnyRef], packages: Seq[String]) {
-    var sitemapMutator: Box[() => (SiteMap => SiteMap)] = None
+    var sitemapMutator: Box[SiteMap => SiteMap] = None
     def mapResource(s: String) = s.replaceAll("//", "/")
   }
 
@@ -258,8 +258,8 @@ class Activator extends BundleActivator with Loggable {
       } else if (resourcePath.startsWith(baseResourceLocation)) {
         val suffix = resourcePath.drop(1)
         // lookup possible appPath in sitemap
-        val appPath = LiftRules.siteMap.flatMap(_.findLoc(suffix.head).collectFirst( _.currentValue match {
-          case Full(app : Application) => app.path
+        val appPath = LiftRules.siteMap.flatMap(_.findLoc(suffix.head).collectFirst(_.currentValue match {
+          case Full(app: Application) => app.path
         })) openOr Nil
         if (appPath.nonEmpty && suffix.startsWith(appPath))
           // /toserve/[application path]/some/resource => /toserve/some/resource
@@ -290,22 +290,22 @@ class Activator extends BundleActivator with Loggable {
 
       val liftBundles = bundleTracker.getTracked.entrySet.toSeq.view
       (places.view.flatMap { place =>
-        liftBundles flatMap { b =>
+        liftBundles.flatMap { b =>
           b.getKey getResource (b.getValue mapResource place) match {
             case null => None
             case res =>
               debug("""Lift-powered bundle "%s" answered for resource "%s".""".format(b.getKey.getSymbolicName, place))
               Some(res)
           }
-        } headOption
-      } headOption) orElse (
+        }.headOption
+      }.headOption) orElse (
         // try to find resource at external location
         places.view.flatMap { place =>
           resourcePaths.view.flatMap { path =>
             val file = new File(path, place.stripPrefix("/"))
             if (file.exists) Some(file.toURI.toURL) else None
           }
-        } headOption) match {
+        }.headOption) match {
           case None => null
           case Some(res) => res
         }

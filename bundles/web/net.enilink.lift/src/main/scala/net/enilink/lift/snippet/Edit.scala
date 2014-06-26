@@ -56,23 +56,24 @@ class JsonCallHandler {
 
   val (call, jsCmd) = AjaxHelpers.createJsonFunc(this.apply)
 
-  val initialModel: Box[IModel] = Globals.contextModel.vend
-  def model = Globals.contextModel.vend or initialModel
+  def model = Globals.contextModel.vend
 
   val path = S.request map (_.path)
 
   class EditingHelper(editType: PropertyEditingHelper.Type) extends PropertyEditingHelper(editType) {
-    override def getStatement(element: AnyRef) = {
-      val stmt = element.asInstanceOf[IStatement]
-      val em = model.get.getManager
-      val p = stmt.getPredicate
-      new Statement(em.find(stmt.getSubject), if (p == null) null else em.find(p), stmt.getObject)
-    }
-
-    override def getEditingDomain = model.get.getModelSet.adapters.getAdapter(classOf[IEditingDomainProvider]) match {
-      case p: IEditingDomainProvider => p.getEditingDomain
+    override def getStatement(element: AnyRef) = element match {
+      case stmt: IStatement => model.map { m =>
+        val em = m.getManager
+        val p = stmt.getPredicate
+        new Statement(em.find(stmt.getSubject), if (p == null) null else em.find(p), stmt.getObject)
+      } openOr null
       case _ => null
     }
+
+    override def getEditingDomain = model.map(_.getModelSet.adapters.getAdapter(classOf[IEditingDomainProvider]) match {
+      case p: IEditingDomainProvider => p.getEditingDomain
+      case _ => null
+    }) openOr null
 
     override def getPropertyEditingSupport(stmt: IStatement) = {
       super.getPropertyEditingSupport(stmt)
@@ -124,8 +125,7 @@ class JsonCallHandler {
     case JsonCommand("removeResource", _, JString(resource)) => removeResources(List(resource))
 
     case JsonCommand("blankNode", _, _) => {
-      (for (model <- model; em = model.getManager) yield em.createReference.toString) or
-        Some(new BlankNode().toString) map (JString(_)) get
+      ((for (model <- model; em = model.getManager) yield JString(em.createReference.toString)) openOr JString(new BlankNode().toString))
     }
     case JsonCommand("updateTriples", _, params) => {
       import scala.collection.JavaConversions._
@@ -170,7 +170,7 @@ class JsonCallHandler {
         proposalSupport <- Option(createHelper(stmt.getPredicate == null).getProposalSupport(stmt));
         proposalProvider <- Option(proposalSupport.getProposalProvider)
       ) yield {
-        proposalProvider.getProposals(query, index getOrElse query.length) map { p =>
+        proposalProvider.getProposals(query, index getOrElse query.length).map { p =>
           val o = ("label", p.getLabel) ~ ("content", p.getContent) ~ ("description", p.getDescription) ~
             ("cursorPosition", p.getCursorPosition) ~ ("insert", p.isInsert)
           p match {
@@ -179,7 +179,7 @@ class JsonCallHandler {
               o2 ~ ("perfectMatch", resProposal.getScore() >= 1000)
             case other => o
           }
-        } toList
+        }.toList
       }
       proposals map (JArray(_)) getOrElse JArray(Nil)
     }
@@ -275,9 +275,11 @@ class JsonCallHandler {
                       if (params.isEmpty) params = resultValue flatMap { value =>
                         vars.collectFirst { case v if v.n != "this" => v } map { v => (v.sym.name, value) }
                       } toMap
-                      val renderResult = Globals.contextModel.doWith(model) {
-                        CurrentContext.withSubject(model.get.getManager.find(stmt.getSubject)) {
-                          QueryParams.doWith(params) { TemplateHelpers.withAppFor(p)(TemplateHelpers.render(wrappedTemplate)) }
+                      val renderResult = model flatMap { m =>
+                        Globals.contextModel.doWith(Full(m)) {
+                          CurrentContext.withSubject(m.getManager.find(stmt.getSubject)) {
+                            QueryParams.doWith(params) { TemplateHelpers.withAppFor(p)(TemplateHelpers.render(wrappedTemplate)) }
+                          }
                         }
                       }
                       renderResult match {

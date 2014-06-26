@@ -217,7 +217,7 @@ class TemplateNode(
   attributes: MetaData,
   scope: NamespaceBinding,
   val binders: Seq[Binder],
-  child: xml.Node*) extends Elem(prefix, label, attributes, scope, child: _*) with RDFaUtils {
+  child: xml.Node*) extends Elem(prefix, label, attributes, scope, true, child: _*) with RDFaUtils {
   val instances: mutable.Map[(MetaData, RdfContext), Elem] = new LinkedHashMap
 
   override def copy(
@@ -262,7 +262,7 @@ class Template(val ns: NodeSeq) {
                 internalTransform(rCtx, e.child)
               case None => {
                 val instance = if (rCtx == ctx) {
-                  new Elem(t.prefix, t.label, rAttrs, t.scope, deepCopy(t.child): _*)
+                  new Elem(t.prefix, t.label, rAttrs, t.scope, true, deepCopy(t.child): _*)
                 } else {
                   new ElemWithRdfa(rCtx, t.prefix, t.label, rAttrs, t.scope, deepCopy(t.child): _*)
                 }
@@ -290,7 +290,7 @@ class Template(val ns: NodeSeq) {
           case e: ElemWithRdfa => {
             val result = e.copy(child = processSurroundAndInclude(e.child))
             CurrentContext.withValue(Full(e.context)) {
-              S.session.get.processSurroundAndInclude(PageName.get, result)
+              S.session.map(_.processSurroundAndInclude(PageName.get, result)) openOr result
             }
           }
           case e: Elem => e.copy(child = processSurroundAndInclude(e.child))

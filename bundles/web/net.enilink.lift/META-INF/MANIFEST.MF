@@ -15,8 +15,7 @@ Export-Package: net.enilink.lift,
  net.enilink.lift.selection,
  net.enilink.lift.sitemap,
  net.enilink.lift.snippet,
- net.enilink.lift.util,
- net.liftweb.osgi
+ net.enilink.lift.util
 Bundle-ClassPath: .
 Bundle-Activator: net.enilink.lift.Activator
 Import-Package: com.google.common.base;version="17.0.0",
@@ -31,10 +30,13 @@ Import-Package: com.google.common.base;version="17.0.0",
  org.slf4j
 Require-Bundle: org.eclipse.core.runtime,
  org.scala-lang.scala-library;visibility:=reexport,
+ org.scala-lang.modules.scala-parser-combinators;visibility:=reexport,
+ org.scala-lang.modules.scala-xml;visibility:=reexport,
+ net.liftweb;visibility:=reexport,
  net.enilink.komma.model,
  net.enilink.core;visibility:=reexport,
  net.enilink.komma.edit,
- org.eclipse.core.commands,
- net.liftweb;bundle-version="1.0.0";visibility:=reexport
+ org.eclipse.core.commands
 Bundle-ActivationPolicy: lazy
 Bundle-RequiredExecutionEnvironment: JavaSE-1.7
+Bundle-Vendor: enilink.net

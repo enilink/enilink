@@ -17,7 +17,7 @@ class ElemWithRdfa(
   label: String,
   attributes: MetaData,
   scope: NamespaceBinding,
-  child: xml.Node*) extends Elem(prefix, label, attributes, scope, child: _*) {
+  child: xml.Node*) extends Elem(prefix, label, attributes, scope, true, child: _*) {
 
   override def basisForHashCode: Seq[Any] = List(context) ++ super.basisForHashCode
 

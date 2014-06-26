@@ -36,13 +36,14 @@ import net.enilink.lift.util.RdfContext
 object QueryParams extends RequestVar[Map[String, _]](Map.empty)
 
 object RdfHelpers {
+  import scala.language.implicitConversions
   implicit def bindingsToMap(bindings: IBindings[_]): Map[String, _] = bindings.getKeys.iterator.map(k => k -> bindings.get(k)).toMap
 }
 
 trait SparqlHelper {
   def extractParams(ns: NodeSeq) = (ns \ "@data-params").text.split("\\s+").filterNot(_.isEmpty).map(_.stripPrefix("?")).toSeq
 
-  def bindParams(params: Seq[String]) = convertParams(params flatMap { name => S.param(name) map (name -> _) } toMap)
+  def bindParams(params: Seq[String]) = convertParams(params.flatMap { name => S.param(name) map (name -> _) }.toMap)
 
   def convertParams(params: Map[String, _]): Map[String, Any] = {
     params flatMap {
@@ -63,13 +64,13 @@ trait SparqlHelper {
   }
 
   def globalQueryParameters: Map[String, _] = {
-    List(("currentUser", Globals.contextUser.vend)) ++
+    (List(("currentUser", Globals.contextUser.vend)) ++
       (CurrentContext.value.flatMap {
         _.subject match {
           case entity: IEntity => Full(("this", entity))
           case _ => Empty
         }
-      }) ++ QueryParams toMap
+      }) ++ QueryParams).toMap
   }
 
   /**
@@ -179,7 +180,7 @@ class Sparql extends SparqlHelper with RDFaTemplates {
       }
     }
 
-    def paramExists(name: String) = S.param(name) filter (_.nonEmpty) isDefined
+    def paramExists(name: String) = S.param(name).filter(_.nonEmpty).isDefined
 
     def transform(e: Elem, attr: String, matched: Boolean): NodeSeq = {
       def removeAttrs(meta: MetaData) = meta.remove(attr).remove("data-then").remove("data-else")
@@ -248,7 +249,7 @@ class Sparql extends SparqlHelper with RDFaTemplates {
     var template = createTemplate(ns)
     rows foreach { row => template.transform(ctx, row._1, row._2) }
 
-    val result = ClearClearable.apply(S.session.get.processSurroundAndInclude(PageName.get, template.render))
+    val result = ClearClearable.apply(S.session.map(_.processSurroundAndInclude(PageName.get, template.render)) openOr Nil)
     result.map {
       case e: Elem => {
         // add data-model attribute

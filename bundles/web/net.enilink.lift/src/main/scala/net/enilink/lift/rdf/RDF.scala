@@ -21,7 +21,7 @@ trait Reference extends Node
 case class Label(n: String) extends Reference {
   override def toString() = n
 }
-case class BlankNode extends Reference
+case class BlankNode() extends Reference
 
 case class Variable(val n: String, val qual: Option[Int]) extends Reference {
   def quote() = sym

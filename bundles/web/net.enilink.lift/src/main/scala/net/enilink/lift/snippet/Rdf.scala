@@ -95,59 +95,58 @@ class Rdf extends DispatchSnippet with RDFaTemplates {
     }
     (ns: NodeSeq) =>
       ns flatMap { n =>
-        val replaceAttr = S.currentAttr("to")
-        // support replacement of individual attributes
-        if (replaceAttr.isDefined) {
-          var attributes = n.attributes
-          val attrValue = n.attribute(replaceAttr.get) getOrElse NodeSeq.Empty
-          val value = method match {
-            case m if runMethod.isDefinedAt(m) => runMethod(m)
-            case _ => ""
-          }
-
-          val origText = if (attrValue.isEmpty) "{}" else attrValue.text
-
-          // encode if attribute is used as URL
-          val encode = replaceAttr.get.toLowerCase match {
-            case "href" | "src" if origText != "{}" => Helpers.urlEncode _
-            case _ => (v: String) => v
-          }
-
-          val newAttrValue = "\\{([^}]*)\\}".r.replaceAllIn(origText, m => m.group(1) match {
-            case "" => encode(value)
-            case "this" => encode(CurrentContext.value.map(_.topContext.subject).filter(_ != null).map(_.toString) openOr "")
-            case "model" => {
-              // insert current model into the attribute
-              encode(Globals.contextModel.vend.map(_.toString) openOr "")
+        S.currentAttr("to") match {
+          case Full(replaceAttr) =>
+            // support replacement of individual attributes
+            var attributes = n.attributes
+            val attrValue = n.attribute(replaceAttr) getOrElse NodeSeq.Empty
+            val value = method match {
+              case m if runMethod.isDefinedAt(m) => runMethod(m)
+              case _ => ""
             }
-            case "app" => Globals.applicationPath.vend.stripSuffix("/")
-            case other => S.param(other).dmap("")(encode(_))
-          })
 
-          attributes = attributes.remove(replaceAttr.get)
-          attributes = attributes.append(new UnprefixedAttribute(replaceAttr.get, newAttrValue, attributes))
-          n.asInstanceOf[Elem].copy(attributes = attributes)
-        } else if (target != null) {
-          val selector = if (n.attributes.isEmpty || n.attributes.size == 1 && n.attribute("data-t").isDefined) "*" else "* *"
-          (method match {
-            case m if runMethod.isDefinedAt(m) => selector #> runMethod(m)
-            case _ => tryo(target.getClass.getMethod(method)) match {
-              case Full(meth) => meth.invoke(target) match {
-                case i: java.lang.Iterable[_] => selector #> i.map(withChangedContext _)
-                case i: Iterable[_] => selector #> i.map(withChangedContext _)
-                case null => PassThru
-                case o @ _ => selector #> o.toString
+            val origText = if (attrValue.isEmpty) "{}" else attrValue.text
+
+            // encode if attribute is used as URL
+            val encode = replaceAttr.toLowerCase match {
+              case "href" | "src" if origText != "{}" => Helpers.urlEncode _
+              case _ => (v: String) => v
+            }
+
+            val newAttrValue = "\\{([^}]*)\\}".r.replaceAllIn(origText, m => m.group(1) match {
+              case "" => encode(value)
+              case "this" => encode(CurrentContext.value.map(_.topContext.subject).filter(_ != null).map(_.toString) openOr "")
+              case "model" => {
+                // insert current model into the attribute
+                encode(Globals.contextModel.vend.map(_.toString) openOr "")
               }
-              case _ => ClearNodes
-            }
-          })(n)
-        } else {
-          n
+              case "app" => Globals.applicationPath.vend.stripSuffix("/")
+              case other => S.param(other).dmap("")(encode(_))
+            })
+
+            attributes = attributes.remove(replaceAttr)
+            attributes = attributes.append(new UnprefixedAttribute(replaceAttr, newAttrValue, attributes))
+            n.asInstanceOf[Elem].copy(attributes = attributes)
+          case Empty if target != null =>
+            val selector = if (n.attributes.isEmpty || n.attributes.size == 1 && n.attribute("data-t").isDefined) "*" else "* *"
+            (method match {
+              case m if runMethod.isDefinedAt(m) => selector #> runMethod(m)
+              case _ => tryo(target.getClass.getMethod(method)) match {
+                case Full(meth) => meth.invoke(target) match {
+                  case i: java.lang.Iterable[_] => selector #> i.map(withChangedContext _)
+                  case i: Iterable[_] => selector #> i.map(withChangedContext _)
+                  case null => PassThru
+                  case o @ _ => selector #> o.toString
+                }
+                case _ => ClearNodes
+              }
+            })(n)
+          case _ => n
         }
       }
   }
 
   def withChangedContext(s: Any)(n: NodeSeq): NodeSeq = CurrentContext.withSubject(s) {
-    S.session.get.processSurroundAndInclude(PageName.get, n)
+    S.session.map(_.processSurroundAndInclude(PageName.get, n)) openOr Nil
   }
 }

@@ -117,7 +117,7 @@ object Search extends SparqlHelper with SparqlExtractor {
       bindingNames = (ns \ "@data-for").text.split("\\s+").filter(_.nonEmpty).map(_.stripPrefix("?")).toList
       if (bindingNames.nonEmpty) {
         param = (ns \ "@data-param").text
-        searchString = Full(ns \ "@data-value" text).filter(_.nonEmpty) or S.param(param).filter(_.nonEmpty)
+        searchString = Full((ns \ "@data-value").text).filter(_.nonEmpty) or S.param(param).filter(_.nonEmpty)
         searchString.dmap(Nil: NodeSeq) { searchStr =>
           (Globals.contextModel.vend.map(_.getManager) or Globals.contextModelSet.vend.map(_.getMetaDataManager)) map { em =>
             fragment = Full(em.getFactory.getDialect.fullTextSearch(bindingNames, IDialect.DEFAULT, searchStr))
@@ -215,7 +215,7 @@ class Rdfa extends Sparql with SparqlExtractor {
       if (!bindingName.isEmpty) {
         countQuery = sparqlFromRdfa.getCountQuery(bindingName)
         def paramsForOffset(offsetParam: String, offset: Long): List[(String, String)] = {
-          (ParamsHelper.params(Set(offsetParam)) ++ List(offsetParam -> offset.toString)) toList
+          (ParamsHelper.params(Set(offsetParam)) ++ List(offsetParam -> offset.toString)).toList
         }
         val paginator = new PaginatorSnippet[AnyRef] {
           // ensure that offset param does not interfere with non-ajax offset

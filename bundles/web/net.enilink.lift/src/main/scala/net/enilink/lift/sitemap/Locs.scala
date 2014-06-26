@@ -58,6 +58,6 @@ case class DynamicLoc(override val name: String,
   val calcDynItems: () => List[MenuItem])
   extends Loc[Unit] {
   override def defaultValue: Box[Unit] = Full(())
-  override def supplimentalKidMenuItems: List[MenuItem] = calcDynItems() ::: super.supplimentalKidMenuItems
+  override def supplementalKidMenuItems: List[MenuItem] = calcDynItems() ::: super.supplementalKidMenuItems
   init()
 }

@@ -15,9 +15,9 @@ import net.enilink.lift.sitemap.HideIfInactive
 
 object Bs extends DispatchSnippet {
   val alertAttrs = S.mapToAttrs(List("errorClass" -> "alert alert-danger",
-    "warningClass" -> "alert", "noticeClass" -> "alert-info") toMap)
+    "warningClass" -> "alert", "noticeClass" -> "alert-info").toMap)
   val feedbackAttrs = S.mapToAttrs(List("errorClass",
-    "warningClass", "noticeClass") map (_ -> "form-control-feedback") toMap)
+    "warningClass", "noticeClass").map(_ -> "form-control-feedback").toMap)
 
   def dispatch: DispatchIt = {
     case "menu" => _ => menu

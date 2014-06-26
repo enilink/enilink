@@ -10,6 +10,7 @@ import scala.xml.NodeSeq
 import scala.xml.TopScope
 import scala.xml.NamespaceBinding
 import net.enilink.komma.core.URIs
+import scala.language.postfixOps
 
 object RDFaParser extends RDFaParser()(new Scope())
 
