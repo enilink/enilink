@@ -19,25 +19,29 @@ import net.enilink.lift.rdf.Variable
 import net.enilink.lift.rdf.Vocabulary
 import net.enilink.lift.rdf.XmlLiteral
 import net.enilink.lift.rdf.PlainLiteral
-import net.liftweb.util.Helpers._
 import scala.xml.NamespaceBinding
 import java.util.regex.Pattern
+import scala.xml.Null
 
 /**
  * Can be used to replace relative CURIEs with absolute URIs
  */
 trait CURIEExpander extends CURIE {
   override def setExpandedReference(e: xml.Elem, attr: String, ref: Reference) = {
-    e % (attr.substring(1) -> ref)
+    e.copy(attributes = e.attributes.append(new UnprefixedAttribute(attr.substring(1), ref.toString, Null)))
   }
 
   override def setExpandedReferences(e: xml.Elem, attr: String, refs: Iterable[Reference]) = {
-    e % (attr.substring(1) -> refs.mkString(" "))
+    e.copy(attributes = e.attributes.append(new UnprefixedAttribute(attr.substring(1), refs.mkString(" "), Null)))
   }
 }
 
 object SparqlFromRDFa {
-  def apply(e: xml.Elem, base: String): SparqlFromRDFa = return new RDFaToSparqlParser(e, base) with CURIEExpander
+  def apply(e: xml.Elem, base: String, varResolver: Option[VariableResolver] = None): SparqlFromRDFa = return new RDFaToSparqlParser(e, base, varResolver) with CURIEExpander
+}
+
+trait VariableResolver {
+  def resolve(name: String): Option[Reference]
 }
 
 trait SparqlFromRDFa {
@@ -50,7 +54,7 @@ trait SparqlFromRDFa {
   def getCountQuery(bindingName: String): String
 }
 
-private class RDFaToSparqlParser(e: xml.Elem, base: String)(implicit s: Scope = new Scope()) extends RDFaParser with SparqlFromRDFa {
+private class RDFaToSparqlParser(e: xml.Elem, base: String, varResolver: Option[VariableResolver] = None)(implicit s: Scope = new Scope()) extends RDFaParser with SparqlFromRDFa {
   import RDFaHelpers._
   import scala.collection.mutable
   class ThisScope(val thisNode: Reference = Variable("this", None), val elem: xml.Elem = null)
@@ -274,10 +278,10 @@ private class RDFaToSparqlParser(e: xml.Elem, base: String)(implicit s: Scope = 
     (e1, literal1)
   }
 
-  override def createVariable(name: String): Option[Reference] = name match {
+  override def createVariable(name: String): Option[Reference] = varResolver.map(_.resolve(name)) getOrElse (name match {
     case "?" => Some(select(fresh("v")))
     case _ => Some(select(Variable(name.substring(1), None)))
-  }
+  })
 
   def select[V <: Variable](v: V): V = {
     // only select variable if we are not in a "filter exists" or "filter not exists" block
