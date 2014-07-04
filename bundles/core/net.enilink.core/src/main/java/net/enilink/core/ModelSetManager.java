@@ -24,6 +24,7 @@ import net.enilink.composition.properties.PropertySetFactory;
 import net.enilink.core.security.ISecureEntity;
 import net.enilink.core.security.SecureEntitySupport;
 import net.enilink.core.security.SecureModelSetSupport;
+import net.enilink.core.security.SecureModelSupport;
 import net.enilink.core.security.SecurePropertySetFactory;
 import net.enilink.core.security.SecurityUtil;
 import net.enilink.komma.core.BlankNode;
@@ -222,6 +223,7 @@ class ModelSetManager {
 		module.addBehaviour(ProjectModelSetSupport.class);
 
 		module.addBehaviour(SecureModelSetSupport.class);
+		module.addBehaviour(SecureModelSupport.class);
 		module.addConcept(ISecureEntity.class);
 		module.addBehaviour(SecureEntitySupport.class);
 		return module;

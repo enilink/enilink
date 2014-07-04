@@ -8,8 +8,11 @@ import java.util.Set;
 import javax.security.auth.Subject;
 
 import net.enilink.auth.UserPrincipal;
+import net.enilink.komma.core.IEntityManager;
+import net.enilink.komma.core.IReference;
 import net.enilink.komma.core.URI;
 import net.enilink.komma.core.URIs;
+import net.enilink.komma.em.concepts.IResource;
 import net.enilink.vocab.acl.WEBACL;
 
 import org.eclipse.core.runtime.QualifiedName;
@@ -26,6 +29,8 @@ public class SecurityUtil {
 	public static final URI SYSTEM_USER = usernameToUri("system");
 
 	public static final URI USERS_MODEL = URIs.createURI("enilink:model:users");
+
+	public static final URI ROLE_ADMIN = URIs.createURI("enilink:role:Admin");
 
 	public static final Subject SYSTEM_USER_SUBJECT = subjectForUser(SYSTEM_USER);
 
@@ -117,5 +122,22 @@ public class SecurityUtil {
 			}
 		}
 		return UNKNOWN_USER;
+	}
+
+	/**
+	 * Determines if the current user has the requested role within the given
+	 * entity manager.
+	 * 
+	 * @param em
+	 *            The entity manager that contains the data about the current
+	 *            user
+	 * @param role
+	 *            The role that should be looked up
+	 * 
+	 * @return <code>true</code> if the current user has the given
+	 *         <code>role</code>, else <code>false</code>
+	 */
+	public static boolean hasRole(IEntityManager em, IReference role) {
+		return em.find(getUser(), IResource.class).getRdfTypes().contains(role);
 	}
 }
