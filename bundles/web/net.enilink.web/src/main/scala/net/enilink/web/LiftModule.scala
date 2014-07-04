@@ -38,7 +38,7 @@ class LiftModule {
     implicit val app = ""
     val entries = List[Menu](Menus.application("enilink", List(""), List(AddAppMenusAfter), List(
       Menu("enilink.Home", S ? "Home") / "index",
-      Menu("enilink.Vocabulary", S ? "Vocabulary") / "vocab",
+      Menu("enilink.Models", S ? "Models") / "models",
       // /upload for uploading of files
       Menu("enilink.Upload", S ? "Upload") / "upload" >> Hidden,
       // /static path to be visible
@@ -61,21 +61,21 @@ class LiftModule {
       }
     }
 
-    LiftRules.dispatch.append(ELSRest)
+    //    LiftRules.dispatch.append(ELSRest)
     LiftRules.dispatch.append(ModelsRest)
     LiftRules.statelessRewrite.append({
       case RewriteRequest(
-        ParsePath("vocab" :: Nil, _, _, _), _, req) if req.param("model").nonEmpty &&
+        ParsePath(("vocab" | "models") :: Nil, _, _, _), _, req) if req.param("model").nonEmpty &&
         req.param("type").isEmpty && req.headers("accept").find(_.toLowerCase.contains("text/html")).isDefined =>
         RewriteResponse("static" :: "ontology" :: Nil)
-      case RewriteRequest(ParsePath("vocab" :: first :: _, _, _, _), _, req) if first != "index" && req.param("model").isEmpty =>
+      case RewriteRequest(ParsePath((prefix @ ("vocab" | "models")) :: first :: _, _, _, _), _, req) if first != "index" && req.param("model").isEmpty =>
         val params = Map("model" -> {
           if (req.serverName == "localhost" || req.serverName == "127.0.0.1") "http://enilink.net" + req.uri else req.url
         })
         if (req.param("type").isEmpty && req.headers("accept").find(_.toLowerCase.contains("text/html")).isDefined) {
           RewriteResponse("static" :: "ontology" :: Nil, params)
         } else {
-          RewriteResponse("vocab" :: Nil, params)
+          RewriteResponse(prefix :: Nil, params)
         }
     })
   }

@@ -1,16 +1,18 @@
 package net.enilink.web.rest
 
 import java.io.ByteArrayOutputStream
+
 import scala.Array.canBuildFrom
 import scala.collection.JavaConversions.mapAsJavaMap
+
 import org.eclipse.core.runtime.Platform
 import org.eclipse.core.runtime.QualifiedName
 import org.eclipse.core.runtime.content.IContentDescription
 import org.eclipse.core.runtime.content.IContentType
-import net.enilink.komma.model.ModelPlugin
+
 import net.enilink.komma.core.URI
 import net.enilink.komma.core.URIs
-import net.enilink.core.ModelSetManager
+import net.enilink.komma.model.ModelPlugin
 import net.enilink.lift.util.Globals
 import net.enilink.lift.util.NotAllowedModel
 import net.liftweb.common.Box
@@ -26,7 +28,6 @@ import net.liftweb.http.NotFoundResponse
 import net.liftweb.http.Req
 import net.liftweb.http.S
 import net.liftweb.http.rest.RestHelper
-import net.enilink.komma.model.ModelPlugin
 
 object ModelsRest extends RestHelper {
   /**
@@ -53,7 +54,8 @@ object ModelsRest extends RestHelper {
   lazy val mimeTypeProp = new QualifiedName(ModelPlugin.PLUGIN_ID, "mimeType")
   lazy val rdfContentTypes: Map[(String, String), IContentType] = Platform.getContentTypeManager.getAllContentTypes.flatMap {
     contentType =>
-      contentType.getDefaultDescription.getProperty(mimeTypeProp) match {
+      contentType.getDefaultDescription.getProperty(mimeTypeProp).asInstanceOf[String] match {
+        case null => Nil
         case mimeType(superType, subType) => List((superType -> subType) -> contentType)
         case superType: String => List((superType -> "*") -> contentType)
         case _ => Nil
@@ -64,7 +66,7 @@ object ModelsRest extends RestHelper {
    * Tests requests for wanting RDF data.
    */
   protected trait RdfTest {
-    def testResponse_?(r: Req): Boolean = getResponseContentType(r) isDefined
+    def testResponse_?(r: Req): Boolean = getResponseContentType(r).isDefined
   }
 
   /**
@@ -129,10 +131,9 @@ object ModelsRest extends RestHelper {
       })
   }
 
+  def validModel(modelName: List[String]) = !modelName.isEmpty && modelName != List("index") || Globals.contextModel.vend.isDefined
+
   serve {
-    case "vocab" :: modelName RdfGet req if !modelName.isEmpty && modelName != List("index") || Globals.contextModel.vend.isDefined => {
-      val modelUri = getUri(req)
-      serveRdf(req, modelUri)
-    }
+    case ("vocab" | "models") :: modelName RdfGet req if validModel(modelName) => serveRdf(req, getUri(req))
   }
 }
