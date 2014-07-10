@@ -15,7 +15,8 @@ Export-Package: net.enilink.lift,
  net.enilink.lift.selection,
  net.enilink.lift.sitemap,
  net.enilink.lift.snippet,
- net.enilink.lift.util
+ net.enilink.lift.util,
+ net.liftweb.osgi
 Bundle-ClassPath: .
 Bundle-Activator: net.enilink.lift.Activator
 Import-Package: com.google.common.base;version="17.0.0",

@@ -129,13 +129,15 @@ class Rdf extends DispatchSnippet with RDFaTemplates {
             n.asInstanceOf[Elem].copy(attributes = attributes)
           case Empty if target != null =>
             val selector = if (n.attributes.isEmpty || n.attributes.size == 1 && n.attribute("data-t").isDefined) "*" else "* *"
+            lazy val hasChildren = n.nonEmptyChildren.nonEmpty
             (method match {
               case m if runMethod.isDefinedAt(m) => selector #> runMethod(m)
               case _ => tryo(target.getClass.getMethod(method)) match {
                 case Full(meth) => meth.invoke(target) match {
-                  case i: java.lang.Iterable[_] => selector #> i.map(withChangedContext _)
-                  case i: Iterable[_] => selector #> i.map(withChangedContext _)
+                  case i: java.lang.Iterable[_] if hasChildren => selector #> i.map(withChangedContext _)
+                  case i: Iterable[_] if hasChildren => selector #> i.map(withChangedContext _)
                   case null => PassThru
+                  case o @ _ if hasChildren => selector #> withChangedContext(o) _
                   case o @ _ => selector #> o.toString
                 }
                 case _ => ClearNodes

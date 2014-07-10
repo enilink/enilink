@@ -112,7 +112,7 @@ class Sparql extends SparqlHelper with RDFaTemplates {
   def renderWithoutPrepare(n: NodeSeq): NodeSeq = {
     // check if inferred statements should be distinguished from explicit statements
     def distinguishInferred(ns: NodeSeq): Boolean = {
-      ns.foldLeft(false) { (distInf, n) => distInf | (n \ "@data-if").text == "inferred" | distinguishInferred(n.child) }
+      ns.foldLeft(false) { (distInf, n) => distInf || (n \ "@data-if").text == "inferred" || (n \ "@data-unless").text == "inferred" || distinguishInferred(n.child) }
     }
     val queryAsserted = includeInferred && S.attr("queryAsserted", _ != "false", true) && distinguishInferred(n)
 
