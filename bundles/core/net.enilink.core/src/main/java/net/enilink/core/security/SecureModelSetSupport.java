@@ -7,8 +7,10 @@ import net.enilink.composition.annotations.ParameterTypes;
 import net.enilink.composition.cache.annotations.Cacheable;
 import net.enilink.composition.traits.Behaviour;
 import net.enilink.komma.core.IReference;
+import net.enilink.komma.core.URI;
 import net.enilink.komma.dm.IDataManager;
 import net.enilink.komma.em.ThreadLocalDataManager;
+import net.enilink.komma.model.IModel;
 import net.enilink.komma.model.IModelSet;
 import net.enilink.vocab.acl.ENILINKACL;
 import net.enilink.vocab.acl.WEBACL;
@@ -63,6 +65,20 @@ public abstract class SecureModelSetSupport implements ISecureModelSet,
 				});
 		modules.clear();
 		modules.add(compoundModule);
+	}
+
+	@ParameterTypes({ URI.class, String.class })
+	public IModel createModel(MethodInvocation invocation) throws Throwable {
+		IModel model = (IModel) invocation.proceed();
+		if (model != null) {
+			URI user = SecurityUtil.getUser();
+			if (!(SecurityUtil.UNKNOWN_USER.equals(user) || SecurityUtil.SYSTEM_USER
+					.equals(user))
+					&& ((ISecureEntity) model).getAclOwner() == null) {
+				((ISecureEntity) model).setAclOwner(user);
+			}
+		}
+		return model;
 	}
 
 	@Override
