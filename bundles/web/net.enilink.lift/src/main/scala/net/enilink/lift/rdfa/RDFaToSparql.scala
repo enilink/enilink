@@ -173,11 +173,12 @@ private class RDFaToSparqlParser(e: xml.Elem, base: String, varResolver: Option[
     } else {
       var close = 0
       var closeFilter = 0
-      def addBlock(block: String) { addLine(block + " {"); indent; close += 1 }
+      def addBlock(block: String) { addLine(block + "{"); indent; close += 1 }
       def addFilter(block: String) { addBlock(block); withinFilter += 1; closeFilter += 1 }
-      if (hasCssClass(e, "optional")) addBlock("optional")
-      if (hasCssClass(e, "exists")) addFilter("filter exists")
-      if (hasCssClass(e, "not-exists")) addFilter("filter not exists")
+      if (hasCssClass(e, "group")) addBlock("")
+      if (hasCssClass(e, "optional")) addBlock("optional ")
+      if (hasCssClass(e, "exists")) addFilter("filter exists ")
+      if (hasCssClass(e, "not-exists")) addFilter("filter not exists ")
       nonempty(e, "data-pattern") foreach { p =>
         val pTrimmed = p.trim
         if (pTrimmed.endsWith(".") || pTrimmed.endsWith("}")) addLine(p) else addLine(p + " . ")

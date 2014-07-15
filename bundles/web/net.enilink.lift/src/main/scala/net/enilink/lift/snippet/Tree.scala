@@ -1,19 +1,8 @@
 package net.enilink.lift.snippet
 
-import scala.xml.NodeSeq
-import net.liftweb.http.DispatchSnippet
-import net.liftweb.http.LiftRules
-import net.liftweb.http.S
-import net.liftweb.util.Helpers._
-import scala.xml.Text
 import scala.collection.mutable
-import net.liftweb.sitemap.MenuItem
-import net.liftweb.common.Full
-import net.liftweb.sitemap.Loc
-import net.enilink.lift.sitemap.Application
-import net.liftweb.builtin.snippet.Msg
-import net.enilink.lift.util.Globals
-import net.enilink.lift.sitemap.HideIfInactive
+import scala.xml.NodeSeq
+import scala.xml.NodeSeq.seqToNodeSeq
 
 /**
  * A simple tree snippet that converts any structure in the form of

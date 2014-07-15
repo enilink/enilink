@@ -210,7 +210,7 @@ class LiftModule extends Logger {
             }
 
             def innerFunc = {
-              S.session.flatMap(_.httpSession.map(_.attribute("javax.security.auth.subject")) match {
+              S.containerSession.flatMap(_.attribute("javax.security.auth.subject") match {
                 case Full(s: Subject) => Full(Subject.doAs(s, new PrivilegedAction[T] {
                   override def run = f
                 }))

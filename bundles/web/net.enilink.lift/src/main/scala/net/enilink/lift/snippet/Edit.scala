@@ -1,51 +1,52 @@
 package net.enilink.lift.snippet
 
 import java.io.ByteArrayInputStream
+import java.util.UUID
 import scala.collection.JavaConversions.bufferAsJavaList
+import scala.collection.mutable
 import scala.collection.mutable.LinkedHashSet
 import scala.collection.mutable.ListBuffer
-import scala.collection.{ mutable }
-import scala.xml.Group
 import scala.xml.NodeSeq
 import org.eclipse.core.runtime.IStatus
 import net.enilink.komma.common.command.AbortExecutionException
 import net.enilink.komma.common.command.CommandResult
 import net.enilink.komma.common.command.ICommand
-import net.enilink.komma.em.concepts.IProperty
-import net.enilink.komma.em.concepts.IResource
-import net.enilink.komma.edit.domain.IEditingDomainProvider
-import net.enilink.komma.edit.properties.IResourceProposal
-import net.enilink.komma.edit.properties.PropertyEditingHelper
-import net.enilink.komma.edit.util.PropertyUtil
-import net.enilink.komma.model.IModel
-import net.enilink.komma.model.ModelUtil
 import net.enilink.komma.core.BlankNode
 import net.enilink.komma.core.IEntityManager
 import net.enilink.komma.core.IReference
 import net.enilink.komma.core.IStatement
 import net.enilink.komma.core.IStatementPattern
 import net.enilink.komma.core.Statement
+import net.enilink.komma.core.URI
 import net.enilink.komma.core.URIs
 import net.enilink.komma.core.visitor.IDataVisitor
+import net.enilink.komma.edit.domain.IEditingDomainProvider
+import net.enilink.komma.edit.properties.EditingHelper
+import net.enilink.komma.edit.util.PropertyUtil
+import net.enilink.komma.em.concepts.IProperty
+import net.enilink.komma.em.concepts.IResource
+import net.enilink.komma.model.IModel
+import net.enilink.komma.model.ModelUtil
 import net.enilink.lift.rdfa.RDFaParser
-import net.enilink.lift.rdfa.template.RDFaTemplates
 import net.enilink.lift.util.AjaxHelpers
 import net.enilink.lift.util.Globals
+import net.enilink.lift.util.CurrentContext
 import net.enilink.lift.util.TemplateHelpers
 import net.liftweb.common.Box
-import net.liftweb.common.Full
 import net.liftweb.http.DispatchSnippet
 import net.liftweb.http.S
 import net.liftweb.http.js.JE._
 import net.liftweb.http.js.JsCmds._
 import net.liftweb.http.js.JsExp.strToJsExp
 import net.liftweb.json._
-import net.liftweb.json.JsonDSL
 import net.liftweb.util.JsonCommand
 import net.liftweb.util.LiftFlowOfControlException
-import java.util.UUID
-import net.enilink.komma.core.URI
-import net.enilink.lift.util.CurrentContext
+import net.liftweb.common.Full
+import net.enilink.komma.edit.properties.IResourceProposal
+import net.liftweb.common.Empty
+import scala.xml.Group
+import net.enilink.komma.core.IEntity
+import org.eclipse.core.runtime.Status
 
 case class ProposeInput(rdf: JValue, query: String, index: Option[Int])
 case class GetValueInput(rdf: JValue)
@@ -60,23 +61,14 @@ class JsonCallHandler {
 
   val path = S.request map (_.path)
 
-  class EditingHelper(editType: PropertyEditingHelper.Type) extends PropertyEditingHelper(editType) {
-    override def getStatement(element: AnyRef) = element match {
-      case stmt: IStatement => model.map { m =>
-        val em = m.getManager
-        val p = stmt.getPredicate
-        new Statement(em.find(stmt.getSubject), if (p == null) null else em.find(p), stmt.getObject)
-      } openOr null
-      case _ => null
-    }
-
+  class RdfEditingHelper(editType: EditingHelper.Type) extends EditingHelper(editType) {
     override def getEditingDomain = model.map(_.getModelSet.adapters.getAdapter(classOf[IEditingDomainProvider]) match {
       case p: IEditingDomainProvider => p.getEditingDomain
       case _ => null
     }) openOr null
 
-    override def getPropertyEditingSupport(stmt: IStatement) = {
-      super.getPropertyEditingSupport(stmt)
+    override def getEditingSupport(element: Object) = {
+      super.getEditingSupport(element)
     }
 
     override def setProperty(element: Any, property: IProperty) {}
@@ -100,7 +92,16 @@ class JsonCallHandler {
     }
   }
 
-  def createHelper(editProperty: Boolean = false) = new EditingHelper(if (editProperty) PropertyEditingHelper.Type.PROPERTY else PropertyEditingHelper.Type.VALUE)
+  def createHelper(editProperty: Boolean = false) = new RdfEditingHelper(if (editProperty) EditingHelper.Type.PROPERTY else EditingHelper.Type.VALUE)
+
+  def resolve(stmt: IStatement): Option[IStatement] = stmt match {
+    case stmt: IStatement => model.map { m =>
+      val em = m.getManager
+      val p = stmt.getPredicate
+      new Statement(em.find(stmt.getSubject), if (p == null) null else em.find(p), stmt.getObject)
+    }
+    case _ => None
+  }
 
   def removeResources(resources: List[String]) = {
     (for (model <- model; em = model.getManager; transaction = em.getTransaction) yield {
@@ -166,7 +167,7 @@ class JsonCallHandler {
       import net.liftweb.json.JsonDSL._
       val proposals = for (
         ProposeInput(rdf, query, index) <- params.extractOpt[ProposeInput];
-        stmt <- statements(rdf).headOption;
+        stmt <- statements(rdf).headOption.flatMap(resolve _);
         proposalSupport <- Option(createHelper(stmt.getPredicate == null).getProposalSupport(stmt));
         proposalProvider <- Option(proposalSupport.getProposalProvider)
       ) yield {
@@ -186,7 +187,7 @@ class JsonCallHandler {
     case JsonCommand("getValue", _, params) => {
       params.extractOpt[GetValueInput] flatMap {
         case GetValueInput(rdf) => statements(rdf) match {
-          case stmt :: _ => Option(createHelper().getValue(stmt))
+          case stmt :: _ => resolve(stmt).map(createHelper().getValue(_))
           case _ => None
         }
         case _ => None
@@ -231,12 +232,14 @@ class JsonCallHandler {
         case SetValueInput(rdf, value, template, templatePath) =>
           statements(rdf) match {
             case stmt :: _ => {
-              val cmdResult = createHelper().setValue(stmt, value match {
-                case JString(s) => s.trim
-                // also allow RDF/JSON encoded values
-                case _ => valueFromJSON(value)
-              })
-              val status = cmdResult.getStatus
+              val cmdResult = resolve(stmt).map { s =>
+                createHelper().setValue(s, s.getSubject.asInstanceOf[IEntity].getEntityManager, value match {
+                  case JString(s) => s.trim
+                  // also allow RDF/JSON encoded values
+                  case _ => valueFromJSON(value)
+                })
+              }
+              val status = cmdResult.map(_.getStatus) getOrElse Status.CANCEL_STATUS
               if (status.isOK) {
                 template match {
                   case Some(tname) =>
@@ -247,7 +250,7 @@ class JsonCallHandler {
                       import net.enilink.lift.rdf._
                       println("Template: " + template)
                       val wrappedTemplate = <div about="?this" data-lift="rdfa">{ template }</div>
-                      val resultValue = cmdResult.getReturnValues.headOption
+                      val resultValue = cmdResult.flatMap(_.getReturnValues.headOption)
                       val vars = new LinkedHashSet[Variable]()
                       var params = new RDFaParser {
                         override def createVariable(name: String) = {
@@ -337,7 +340,7 @@ class JsonCallHandler {
     }
   }
 
-  val NULL_URI = URIs.createURI("urn:null")
+  val NULL_URI = URIs.createURI("komma:null")
 
   /**
    * Parses RDF/JSON, RDF/XML and Turtle.

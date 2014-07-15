@@ -29,6 +29,7 @@ import net.enilink.lift.util.RdfContext
 import net.enilink.komma.model.IModel
 import net.enilink.komma.model.IModelAware
 import net.enilink.lift.util.RdfContext
+import scala.xml.Node
 
 /**
  * Global SPARQL parameters that can be shared between different snippets.
@@ -129,27 +130,29 @@ class Sparql extends SparqlHelper with RDFaTemplates {
         case Full(rdfCtx) => rdfCtx.subject match {
           case entity: IEntity =>
             val em = entity.getEntityManager
-            val (n1, sparql, params) = toSparql(n, em)
-            val query = withParameters(em.createQuery(sparql, includeInferred), params)
-            query.bindResultType(null: String, classOf[IValue]).evaluate match {
-              case r: IGraphResult =>
-                n1 //renderGraph(new LinkedHashGraph(r.toList()))
-              case r: ITupleResult[_] =>
-                val firstBinding = r.getBindingNames.get(0)
-                val allTuples = r.map { row => (toBindings(firstBinding, row), includeInferred) }
-                var toRender = (if (queryAsserted) {
-                  // query explicit statements and prepend them to the results
-                  withParameters(em.createQuery(sparql, false), params)
-                    .bindResultType(null: String, classOf[IValue]).evaluate.asInstanceOf[ITupleResult[_]]
-                    .map { row => (toBindings(firstBinding, row), false) } ++ allTuples
-                } else allTuples)
-                // ensure at least one template iteration with empty binding set if no results where found
-                if (!toRender.hasNext) toRender = List((new LinkedHashBindings[Object], false)).toIterator
-                val transformers = (".query *" #> sparql) & ClearClearable
-                val result = renderTuples(rdfCtx, transformers(n1), toRender)
-                result
-              case _ => n1
-            }
+            toSparql(n, em) map {
+              case (n1, sparql, params) =>
+                val query = withParameters(em.createQuery(sparql, includeInferred), params)
+                query.bindResultType(null: String, classOf[IValue]).evaluate match {
+                  case r: IGraphResult =>
+                    n1 //renderGraph(new LinkedHashGraph(r.toList()))
+                  case r: ITupleResult[_] =>
+                    val firstBinding = r.getBindingNames.get(0)
+                    val allTuples = r.map { row => (toBindings(firstBinding, row), includeInferred) }
+                    var toRender = (if (queryAsserted) {
+                      // query explicit statements and prepend them to the results
+                      withParameters(em.createQuery(sparql, false), params)
+                        .bindResultType(null: String, classOf[IValue]).evaluate.asInstanceOf[ITupleResult[_]]
+                        .map { row => (toBindings(firstBinding, row), false) } ++ allTuples
+                    } else allTuples)
+                    // ensure at least one template iteration with empty binding set if no results where found
+                    if (!toRender.hasNext) toRender = List((new LinkedHashBindings[Object], false)).toIterator
+                    val transformers = (".query *" #> sparql) & ClearClearable
+                    val result = renderTuples(rdfCtx, transformers(n1), toRender)
+                    result
+                  case _ => n1
+                }
+            } openOr n
           case _ => n
         }
         case _ => n
@@ -158,45 +161,12 @@ class Sparql extends SparqlHelper with RDFaTemplates {
     captureRdfContext(n)(renderResults)
   }
 
-  def toSparql(n: NodeSeq, em: IEntityManager): (NodeSeq, String, Map[String, _]) = {
-    (n, n.head.child.foldLeft("")((q, c) => c match { case scala.xml.Text(t) => q + t case _ => q }), globalQueryParameters ++ bindParams(extractParams(n)))
+  def toSparql(n: NodeSeq, em: IEntityManager): Box[(NodeSeq, String, Map[String, _])] = n.collectFirst {
+    case e: Elem if (e.attribute("data-sparql").filter(_.nonEmpty).isDefined) =>
+      (n, e.attribute("data-sparql").map(_.text).get, globalQueryParameters ++ bindParams(extractParams(n)))
   }
 
   def prepare(ns: NodeSeq) = {
-    object Transform {
-      def unapply(value: String): Option[(NodeSeq) => NodeSeq] = value.split("\\s*#>\\s*") match {
-        case Array(left, right) => {
-          if (left.startsWith("_ ")) Some((ns: NodeSeq) => {
-            // apply transformation only to current node
-            val e = ns.asInstanceOf[Elem]; val child = e.child
-            (("*" + left.substring(1)) #> right).apply(e.copy(child = Nil)) map {
-              case newE: Elem if child.nonEmpty => newE.copy(child = child)
-              case other => other
-            }
-          })
-          else Some(left #> right)
-        }
-        case _ => None
-      }
-    }
-
-    def paramExists(name: String) = S.param(name).filter(_.nonEmpty).isDefined
-
-    def transform(e: Elem, attr: String, matched: Boolean): NodeSeq = {
-      def removeAttrs(meta: MetaData) = meta.remove(attr).remove("data-then").remove("data-else")
-      lazy val thenRule = e \ "@data-then"
-      lazy val elseRule = e \ "@data-else"
-      lazy val hasRules = thenRule.nonEmpty || elseRule.nonEmpty
-      val rule = if (matched) thenRule else elseRule
-      if (rule.nonEmpty) {
-        rule.text match {
-          case Transform(f) => f(e.copy(attributes = removeAttrs(e.attributes)))
-          case _ => e.copy(attributes = removeAttrs(e.attributes), child = applyRules(e.child))
-        }
-      } else if (matched || hasRules) e.copy(attributes = removeAttrs(e.attributes), child = applyRules(e.child))
-      else Nil
-    }
-
     def applyRules(ns: NodeSeq): NodeSeq = {
       import TemplateHelpers._
       ns flatMap {
@@ -222,23 +192,20 @@ class Sparql extends SparqlHelper with RDFaTemplates {
       } flatMap {
         // process data-if*** and data-unless*** attributes
         case e: Elem =>
-          var ns: NodeSeq = e
-          val notTransformed = List(true, false) forall { isIf =>
-            val attr = if (isIf) "data-if-param" else "data-unless-param"
-            val value = e \ ("@" + attr)
-            if (value.nonEmpty) {
-              ns = value.text match {
-                case v if v.nonEmpty => {
-                  val param = v.stripPrefix("?")
-                  transform(e, attr, if (isIf) paramExists(param) else !paramExists(param))
-                }
-                case _ => e.copy(child = applyRules(e.child))
-              }
-              false
-            } else true
+          var condTransform: Box[ConditionalTransform] = Empty
+          def throwException { throw new IllegalArgumentException("data-if-* and data-unless-* may not be applied at the same time") }
+          def setTransform(isIf: Boolean) = condTransform match {
+            case Empty => condTransform = Full(if (isIf) new If() else new Unless())
+            case Full(_: If) if !isIf => throwException
+            case Full(_: Unless) if isIf => throwException
+            case _ =>
           }
-          if (notTransformed) ns = e.copy(child = applyRules(e.child))
-          ns
+          val tests = e.attributes.collect {
+            case UnprefixedAttribute(name, value, _) if name.startsWith("data-if-") =>
+              setTransform(true); (name.substring(8), value.text)
+            case UnprefixedAttribute(name, value, _) if name.startsWith("data-unless-") => setTransform(false); (name.substring(12), value.text)
+          }
+          condTransform.map(_.evaluate(tests, e, e.attributes, Full(applyRules _))) openOr e.copy(child = applyRules(e.child))
         case other => other
       }
     }

@@ -215,7 +215,7 @@ class Rdfa extends Sparql with SparqlExtractor {
       if (!bindingName.isEmpty) {
         countQuery = sparqlFromRdfa.getCountQuery(bindingName)
         def paramsForOffset(offsetParam: String, offset: Long): List[(String, String)] = {
-          (ParamsHelper.params(Set(offsetParam)) ++ List(offsetParam -> offset.toString)).toList
+          (ParamsHelper.params(Set(offsetParam)) + (offsetParam -> offset.toString)).toList
         }
         val paginator = new PaginatorSnippet[AnyRef] {
           // ensure that offset param does not interfere with non-ajax offset
@@ -274,9 +274,11 @@ class Rdfa extends Sparql with SparqlExtractor {
     }
   }
 
-  override def toSparql(n: NodeSeq, em: IEntityManager): (NodeSeq, String, Map[String, _]) = {
+  override def toSparql(n: NodeSeq, em: IEntityManager): Box[(NodeSeq, String, Map[String, _])] = {
     val sparqlFromRdfa = extractSparql(n)
-    val queryParams = globalQueryParameters ++ bindParams(extractParams(n))
-    paginate(sparqlFromRdfa, queryParams, em)
+    if (sparqlFromRdfa.getQueryVariables.isEmpty) Empty else {
+      val queryParams = globalQueryParameters ++ bindParams(extractParams(n))
+      Full(paginate(sparqlFromRdfa, queryParams, em))
+    }
   }
 }
