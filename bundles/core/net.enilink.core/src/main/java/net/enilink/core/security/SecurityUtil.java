@@ -14,6 +14,7 @@ import net.enilink.komma.core.URI;
 import net.enilink.komma.core.URIs;
 import net.enilink.komma.em.concepts.IResource;
 import net.enilink.vocab.acl.WEBACL;
+import net.enilink.vocab.foaf.Group;
 
 import org.eclipse.core.runtime.QualifiedName;
 import org.eclipse.core.runtime.jobs.IJobChangeEvent;
@@ -139,5 +140,22 @@ public class SecurityUtil {
 	 */
 	public static boolean hasRole(IEntityManager em, IReference role) {
 		return em.find(getUser(), IResource.class).getRdfTypes().contains(role);
+	}
+
+	/**
+	 * Determines if the current user is member of a group within the given
+	 * entity manager.
+	 * 
+	 * @param em
+	 *            The entity manager that contains the data about the current
+	 *            user
+	 * @param role
+	 *            The group that should be looked up
+	 * 
+	 * @return <code>true</code> if the current user is member of the given
+	 *         <code>group</code>, else <code>false</code>
+	 */
+	public static boolean isMemberOf(IEntityManager em, IReference group) {
+		return em.find(group, Group.class).getFoafMember().contains(getUser());
 	}
 }
