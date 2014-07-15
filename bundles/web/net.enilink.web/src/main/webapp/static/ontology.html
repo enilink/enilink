@@ -77,12 +77,12 @@ ul {
 							</li>
 						</ul>
 					</div>
-					<div class="col-md-6"
-						data-filter="regex(str(?p), concat(str(?this), &quot;[/#][^/#]+$&quot;))">
+					<div class="col-md-6">
 						<h3>Properties</h3>
 						<ul data-lift="tree">
-							<li about="?p" class="asc">
-								<div class="clearable union optional" rel="rdf:type">
+							<li about="?p" class="asc union optional"
+								data-filter="regex(str(?p), concat(str(?this), &quot;[/#][^/#]+$&quot;))">
+								<div class="clearable union" rel="rdf:type">
 									<span resource="rdf:Property"></span> <span
 										resource="owl:ObjectProperty"></span> <span
 										resource="owl:DatatypeProperty"></span> <span
@@ -90,8 +90,8 @@ ul {
 								</div> <a href="{app}/describe?model={model}&resource={}"
 								data-lift="rdf.ref?to=href"><span data-lift="rdf.label"></span></a>
 								<ul>
-									<li class="optional child" rev="rdfs:subPropertyOf"
-										resource="?subP" data-lift="rdf.label"></li>
+									<li class="child" rev="rdfs:subPropertyOf" resource="?subP"
+										data-lift="rdf.label"></li>
 								</ul>
 							</li>
 						</ul>

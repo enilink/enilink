@@ -79,7 +79,7 @@ define([ "flight/lib/component" ], function(defineComponent) {
 					}
 					timeoutID = window.setTimeout(function() {
 						var subject = self.closest("[about]").resourceAttr("about");
-						var stmt = $.rdf.triple(subject, "<urn:null>", "<urn:null>").dump();
+						var stmt = $.rdf.triple(subject, "<komma:null>", "<komma:null>").dump();
 						if (query.charAt(0) == '<') {
 							query = query.slice(1);
 						}
