@@ -2,7 +2,7 @@ package net.enilink.lift.snippet
 
 import java.io.ByteArrayInputStream
 import java.util.UUID
-import scala.collection.JavaConversions.bufferAsJavaList
+import scala.collection.JavaConversions._
 import scala.collection.mutable
 import scala.collection.mutable.LinkedHashSet
 import scala.collection.mutable.ListBuffer
@@ -128,6 +128,14 @@ class JsonCallHandler {
     case JsonCommand("blankNode", _, _) => {
       ((for (model <- model; em = model.getManager) yield JString(em.createReference.toString)) openOr JString(new BlankNode().toString))
     }
+    case JsonCommand("namespace", _, prefix) => (prefix match {
+      case JString(prefix) => Full(prefix)
+      case JNull => Full("")
+      case _ => Empty
+    }).flatMap { p => model.flatMap(m => Box.legacyNullTest(m.getManager.getNamespace(p))) }.map(ns => JString(ns.toString)) openOr JNull
+    case JsonCommand("namespaces", _, _) => JObject(for {
+      m <- model.toList; ns <- m.getManager.getNamespaces.iterator
+    } yield JField(ns.getPrefix, JString(ns.getURI.toString)))
     case JsonCommand("updateTriples", _, params) => {
       import scala.collection.JavaConversions._
       var success = false
@@ -248,7 +256,7 @@ class JsonCallHandler {
                       template <- TemplateHelpers.find(p, Full(tname))
                     } yield {
                       import net.enilink.lift.rdf._
-                      println("Template: " + template)
+                      // println("Template: " + template)
                       val wrappedTemplate = <div about="?this" data-lift="rdfa">{ template }</div>
                       val resultValue = cmdResult.flatMap(_.getReturnValues.headOption)
                       val vars = new LinkedHashSet[Variable]()
@@ -391,6 +399,8 @@ class Edit extends DispatchSnippet {
       SetExp(JsVar("enilink.rdf"), Call("$.extend", JsRaw("window.enilink.rdf || {}"),
         JsObj(
           ("blankNode", AnonFunc("callback, model", handler.call("blankNode", JsRaw("{}"), JsVar("callback"), modelParam))), //
+          ("namespace", AnonFunc("prefix, callback, model", handler.call("namespace", JsVar("prefix"), JsVar("callback"), modelParam))), //
+          ("namespaces", AnonFunc("callback, model", handler.call("namespaces", JsRaw("null"), JsVar("callback"), modelParam))), //
           ("removeResource", AnonFunc("resource, callback, model", handler.call("removeResource", JsVar("resource"), JsVar("callback"), modelParam))), //
           ("updateTriples", AnonFunc("add, remove, callback, model",
             JsRaw("""var params;
