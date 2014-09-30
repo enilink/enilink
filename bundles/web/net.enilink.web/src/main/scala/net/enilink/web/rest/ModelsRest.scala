@@ -1,15 +1,12 @@
 package net.enilink.web.rest
 
 import java.io.ByteArrayOutputStream
-
 import scala.Array.canBuildFrom
 import scala.collection.JavaConversions.mapAsJavaMap
-
 import org.eclipse.core.runtime.Platform
 import org.eclipse.core.runtime.QualifiedName
 import org.eclipse.core.runtime.content.IContentDescription
 import org.eclipse.core.runtime.content.IContentType
-
 import net.enilink.komma.core.URI
 import net.enilink.komma.core.URIs
 import net.enilink.komma.model.ModelPlugin
@@ -28,6 +25,7 @@ import net.liftweb.http.NotFoundResponse
 import net.liftweb.http.Req
 import net.liftweb.http.S
 import net.liftweb.http.rest.RestHelper
+import net.enilink.komma.model.IModel
 
 object ModelsRest extends RestHelper {
   /**
@@ -124,7 +122,7 @@ object ModelsRest extends RestHelper {
         case _ => getResponseContentType(r) map (_.getDefaultDescription) match {
           case Some(cd) if "true".equals(String.valueOf(cd.getProperty(hasWriter))) =>
             val baos = new ByteArrayOutputStream
-            model.save(baos, Map(classOf[IContentDescription] -> cd))
+            model.save(baos, Map(IModel.OPTION_CONTENT_DESCRIPTION -> cd))
             Full(new RdfResponse(baos.toByteArray, cd, Nil, 200))
           case _ => None
         }
