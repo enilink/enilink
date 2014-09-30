@@ -210,12 +210,18 @@ class LiftModule extends Logger {
             }
 
             def innerFunc = {
-              S.containerSession.flatMap(_.attribute("javax.security.auth.subject") match {
-                case Full(s: Subject) => Full(Subject.doAs(s, new PrivilegedAction[T] {
-                  override def run = f
-                }))
-                case _ => Full(f)
-              }).openOrThrowException("Unexpected error.")
+              try {
+                // the attribute lookup may cause a NPE if called on session shutdown
+                // since Lift initializes even unused sessions before shutting them down
+                S.containerSession.flatMap(_.attribute("javax.security.auth.subject") match {
+                  case Full(s: Subject) => Full(Subject.doAs(s, new PrivilegedAction[T] {
+                    override def run = f
+                  }))
+                  case _ => None
+                }) openOr f
+              } catch {
+                case _ : Throwable => f
+              }
             }
 
             if (model.isDefined) Globals.contextModel.doWith(model) {

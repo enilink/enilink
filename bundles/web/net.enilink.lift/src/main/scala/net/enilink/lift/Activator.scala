@@ -71,7 +71,7 @@ class Activator extends BundleActivator with Loggable {
 
         liftServiceReg = context.registerService(classOf[LiftService], new LiftService() {
           override def port() = {
-            Integer.valueOf(serviceRef.getProperty(Activator.SERVICE_KEY_HTTP_PORT).toString())
+            Integer.valueOf(serviceRef.getProperty(Activator.SERVICE_KEY_HTTP_PORT).toString)
           }
         }, null);
       }
@@ -196,6 +196,16 @@ class Activator extends BundleActivator with Loggable {
       liftServiceReg = null
     }
     if (bundleTracker != null) {
+      bundleTracker.getTracked.entrySet.toSeq.view foreach { entry =>
+        entry.getValue.module.map { module =>
+          try {
+            ClassHelpers.createInvoker("shutdown", module) map (_())
+            logger.debug("Lift-powered bundle " + entry.getKey.getSymbolicName + " stopped.")
+          } catch {
+            case e: Throwable => logger.error("Error while stopping Lift-powered bundle " + entry.getKey.getSymbolicName, e)
+          }
+        }
+      }
       bundleTracker.close
       bundleTracker = null
     }

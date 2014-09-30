@@ -121,7 +121,7 @@ class Rdf extends DispatchSnippet with RDFaTemplates {
                 encode(Globals.contextModel.vend.map(_.toString) openOr "")
               }
               case "app" => Globals.applicationPath.vend.stripSuffix("/")
-              case other => S.param(other).dmap("")(encode(_))
+              case other => (S.attr(other) or S.param(other)).dmap("")(encode(_))
             })
 
             attributes = attributes.remove(replaceAttr)
