@@ -1,5 +1,5 @@
 define([ "flight/lib/component" ], function(defineComponent) {
-	var testObjectProperty = '<span class="clearable" about="?property" rel="rdf:type">' + //
+	var testObjectProperty = '<span class="clearable optional" about="?property" rel="rdf:type">' + //
 	'<span about="?objectProperty" data-bind="owl:ObjectProperty as ?objectProperty"></span>' + //
 	'<span resource="?objectProperty"></span>' + //
 	'<span class="not-exists union"><span resource="owl:AnnotationProperty"></span><span resource="owl:DatatypeProperty"></span></span>' + //
@@ -19,7 +19,9 @@ define([ "flight/lib/component" ], function(defineComponent) {
 			existing.click();
 			return;
 		}
-		var template = $('<div about="?this" data-lift="rdfa?queryAsserted=false" class="union optional">' + //
+		var template = $('<div about="?this" data-lift="rdfa?queryAsserted=false" class="union">' + //
+		// ensure that at least ?this and ?property are bound within a result
+		'<div class="clearable"><div data-bind="?this as ?this"></div><div data-bind="?property as ?property"></div></div>' + //
 		testObjectProperty + //
 		'<div id="content"><div data-embed="describe" data-template="property"></div></div>' + //
 		'</div>').prefix({
@@ -33,10 +35,9 @@ define([ "flight/lib/component" ], function(defineComponent) {
 				property : property
 			}
 		}, {
-			resource : enilink.param("resource"),
-			model : enilink.param("model")
+			resource : enilink.contextResource(target),
+			model : enilink.contextModel(target)
 		}, function(html) {
-			console.log($(html).find(".query").text());
 			var content = $(html).find("#content").children();
 			target.append(content);
 			var addBtn = content.find("[data-add]");
