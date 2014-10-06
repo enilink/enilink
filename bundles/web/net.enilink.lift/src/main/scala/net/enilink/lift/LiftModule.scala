@@ -157,7 +157,7 @@ class LiftModule extends Logger {
     Globals.contextModelRules.append {
       case _ => S.param("model").flatMap { name =>
         try {
-          Full(URIs.createURI(name))
+          Full(URIs.createURI(name)).filterNot(_.isRelative)
         } catch {
           case e: Exception => error(e); Empty
         }
@@ -169,7 +169,7 @@ class LiftModule extends Logger {
       case _ => S.param("resource").flatMap {
         case bnode(id) => Full(new BlankNode(id))
         case other => try {
-          Full(URIs.createURI(other))
+          Full(URIs.createURI(other)).filterNot(_.isRelative)
         } catch {
           case e: Exception => Empty
         }

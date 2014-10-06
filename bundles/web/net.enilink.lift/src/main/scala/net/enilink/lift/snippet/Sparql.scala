@@ -65,13 +65,14 @@ trait SparqlHelper {
   }
 
   def globalQueryParameters: Map[String, _] = {
-    (List(("currentUser", Globals.contextUser.vend)) ++
+    val map = (List(("currentUser", Globals.contextUser.vend)) ++
       (CurrentContext.value.flatMap {
         _.subject match {
           case entity: IEntity => Full(("this", entity))
           case _ => Empty
         }
       }) ++ QueryParams).toMap
+    map
   }
 
   /**
