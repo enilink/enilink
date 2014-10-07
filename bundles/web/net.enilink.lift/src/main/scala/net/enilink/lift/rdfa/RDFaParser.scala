@@ -109,9 +109,9 @@ class RDFaParser()(implicit val s: Scope = new Scope()) extends CURIE with RDFaU
     }
 
     // step 9 literal object
-    val (e2, arcs9, xmlobj) = {
-      if (!props.isEmpty) literalObject(subj45, props, lang, e1)
-      else (e1, Stream.empty, false)
+    val ((e2, arcs9, xmlobj), isLiteral) = {
+      if (!props.isEmpty) (literalObject(subj45, props, lang, e1), true)
+      else ((e1, Stream.empty, false), false)
     }
 
     // step 10 complete incomplete triples.
@@ -122,7 +122,7 @@ class RDFaParser()(implicit val s: Scope = new Scope()) extends CURIE with RDFaU
 
     // step 11. recur
     var newE = e2
-    val arcs = handleArcs(newE, arcs6 ++ arcs7 ++ arcs9 ++ arcs10)
+    val arcs = handleArcs(newE, arcs6 ++ arcs7 ++ arcs9 ++ arcs10, isLiteral)
     val childArcs = (if (!xmlobj) {
       val newChild = new ListBuffer[xml.Node]
       var changedChild = false
@@ -195,7 +195,7 @@ class RDFaParser()(implicit val s: Scope = new Scope()) extends CURIE with RDFaU
     return (e2, subj45, objref5, skip)
   }
 
-  def handleArcs(e: xml.Elem, arcs: Stream[Arc]) = {
+  def handleArcs(e: xml.Elem, arcs: Stream[Arc], isLiteral : Boolean) = {
     arcs
   }
 

@@ -58,7 +58,10 @@ trait SparqlFromRDFa {
 class SubSelectRDFaToSparqlParser(
   e: xml.Elem,
   base: String,
-  varResolver: Option[VariableResolver], val explicitProjection: Option[String], override val initialIndentation: Int)(implicit s: Scope = new Scope()) extends RDFaToSparqlParser(e, base, varResolver) {
+  varResolver: Option[VariableResolver],
+  val explicitProjection: Option[String],
+  override val initialIndentation: Int,
+  override val initialStrictness: Boolean)(implicit s: Scope = new Scope()) extends RDFaToSparqlParser(e, base, varResolver) {
 
   override def projection = {
     explicitProjection.map(_.toString) getOrElse super.projection
@@ -82,11 +85,13 @@ class RDFaToSparqlParser(e: xml.Elem, base: String, varResolver: Option[Variable
   val seen: mutable.Set[Arc] = new mutable.HashSet[Arc]
 
   val initialIndentation = 0
+  val initialStrictness = false
 
   var indentation = initialIndentation
   def indent { indentation = indentation + 1 }
   def dedent { indentation = indentation - 1 }
 
+  var strict = initialStrictness
   var withinFilter = 0
 
   var resultElem: xml.Elem = _
@@ -184,6 +189,20 @@ class RDFaToSparqlParser(e: xml.Elem, base: String, varResolver: Option[Variable
     }
   }
 
+  def doMaybeStrict(e: xml.Elem, block: => (xml.Elem, Stream[Arc])) = {
+    val current = e.attribute("data-strict").map(_.toString)
+      .collect {
+        case m if "false" == m.toLowerCase => false;
+        case _ => true
+      } getOrElse strict
+
+    var old = strict
+    strict = current
+    val result = block
+    strict = old
+    result
+  }
+
   override def walk(e: xml.Elem, base: String, subj1: Reference, obj1: Reference,
     pending1f: Iterable[Reference], pending1r: Iterable[Reference],
     lang1: Symbol): (xml.Elem, Stream[Arc]) = {
@@ -196,32 +215,35 @@ class RDFaToSparqlParser(e: xml.Elem, base: String, varResolver: Option[Variable
       e.child.collect { case element: xml.Elem => element }.headOption.map(
         m => {
           indent
-          val innerQuery = new SubSelectRDFaToSparqlParser(m, "", varResolver, nonempty(e, "data-select"), indentation).getQuery
+          val innerQuery = new SubSelectRDFaToSparqlParser(m, "", varResolver, nonempty(e, "data-select"), indentation, strict).getQuery
           sparql.append("{\n" + innerQuery + "}\n")
           dedent
         })
       (e, Stream.empty)
     } else {
-      var close = 0
-      var closeFilter = 0
-      def addBlock(block: String) { addLine(block + "{"); indent; close += 1 }
-      def addFilter(block: String) { addBlock(block); withinFilter += 1; closeFilter += 1 }
-      if (hasCssClass(e, "group")) addBlock("")
-      if (hasCssClass(e, "optional")) addBlock("optional ")
-      if (hasCssClass(e, "exists")) addFilter("filter exists ")
-      if (hasCssClass(e, "not-exists")) addFilter("filter not exists ")
 
-      nonempty(e, "data-pattern") foreach { p =>
-        val pTrimmed = p.trim
-        if (pTrimmed.endsWith(".") || pTrimmed.endsWith("}")) addLine(p) else addLine(p + " . ")
-      }
-      nonempty(e, "data-bind") foreach { bind => addLine("bind (" + bind + ")") }
-      val result = super.walk(e, base, subj1, obj1, pending1f, pending1r, lang1)
-      nonempty(e, "data-filter") foreach { filter => addLine("filter (" + filter + ")") }
-      while (close > 0) { dedent; addLine("}"); close -= 1 }
-      withinFilter -= closeFilter
-      if (thisStack.top.elem eq e) thisStack.pop
-      result
+      doMaybeStrict(e, {
+        var close = 0
+        var closeFilter = 0
+        def addBlock(block: String) { addLine(block + "{"); indent; close += 1 }
+        def addFilter(block: String) { addBlock(block); withinFilter += 1; closeFilter += 1 }
+        if (hasCssClass(e, "group")) addBlock("")
+        if (hasCssClass(e, "optional")) addBlock("optional ")
+        if (hasCssClass(e, "exists")) addFilter("filter exists ")
+        if (hasCssClass(e, "not-exists")) addFilter("filter not exists ")
+
+        nonempty(e, "data-pattern") foreach { p =>
+          val pTrimmed = p.trim
+          if (pTrimmed.endsWith(".") || pTrimmed.endsWith("}")) addLine(p) else addLine(p + " . ")
+        }
+        nonempty(e, "data-bind") foreach { bind => addLine("bind (" + bind + ")") }
+        val result = super.walk(e, base, subj1, obj1, pending1f, pending1r, lang1)
+        nonempty(e, "data-filter") foreach { filter => addLine("filter (" + filter + ")") }
+        while (close > 0) { dedent; addLine("}"); close -= 1 }
+        withinFilter -= closeFilter
+        if (thisStack.top.elem eq e) thisStack.pop
+        result
+      })
     }
   }
 
@@ -242,9 +264,16 @@ class RDFaToSparqlParser(e: xml.Elem, base: String, varResolver: Option[Variable
     }
   }
 
-  override def handleArcs(e: xml.Elem, arcs: Stream[Arc]) = {
+  override def handleArcs(e: xml.Elem, arcs: Stream[Arc], isLiteral: Boolean) = {
     for ((s, p, o) <- arcs.filter(seen.add(_))) {
       addLine(toString(s) + " " + toString(p) + " " + toString(o) + " . ")
+      if (strict) {
+        if (isLiteral) {
+          addLine("FILTER ( isLiteral(" + toString(o) + ") ) ")
+        } else {
+          addLine("FILTER ( !isLiteral(" + toString(o) + ") ) ")
+        }
+      }
     }
     arcs
   }
