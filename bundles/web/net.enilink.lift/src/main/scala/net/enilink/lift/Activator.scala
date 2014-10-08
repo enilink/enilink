@@ -98,11 +98,11 @@ class Activator extends BundleActivator with Loggable {
 
     // set the sitemap function
     // applies chained mutators from all lift bundles to an empty sitemap
-    LiftRules.setSiteMapFunc(() => {
-      val siteMapMutator = bundleTracker.getTracked.values.foldLeft((sm: SiteMap) => sm)(
+    LiftRules.setSiteMapFunc(() => Box.legacyNullTest(bundleTracker).map { tracker =>
+      val siteMapMutator = tracker.getTracked.values.foldLeft((sm: SiteMap) => sm)(
         (prev, config) => config.sitemapMutator match { case Full(m) => prev.andThen(m) case _ => prev })
       siteMapMutator(SiteMap())
-    })
+    } openOr SiteMap())
   }
 
   def start(context: BundleContext) {
