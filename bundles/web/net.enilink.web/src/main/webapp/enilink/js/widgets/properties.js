@@ -1,8 +1,11 @@
 define([ "flight/lib/component" ], function(defineComponent) {
-	var testObjectProperty = '<span class="clearable optional" about="?property" rel="rdf:type">' + //
+	var testObjectProperty = '<span class="clearable optional">' + //
 	'<span about="?objectProperty" data-bind="owl:ObjectProperty as ?objectProperty"></span>' + //
-	'<span resource="?objectProperty"></span>' + //
-	'<span class="not-exists union"><span resource="owl:AnnotationProperty"></span><span resource="owl:DatatypeProperty"></span></span>' + //
+	'<span about="?property" class="union">' +
+	'	<span rel="rdf:type" resource="?objectProperty"></span>' + // 
+	'	<span data-pattern="?property rdfs:range rdfs:Class"></span>' + // 
+	'</span>' + //
+	'<span rel="rdf:type" class="not-exists union"><span resource="owl:AnnotationProperty"></span><span resource="owl:DatatypeProperty"></span></span>' + //
 	'</span>';
 
 	function addProperty(target, property) {
@@ -19,13 +22,14 @@ define([ "flight/lib/component" ], function(defineComponent) {
 			existing.click();
 			return;
 		}
-		var template = $('<div about="?this" data-lift="rdfa?queryAsserted=false" class="union">' + //
+		var template = $('<div about="?this" data-lift="rdfa?queryAsserted=false">' + //
 		// ensure that at least ?this and ?property are bound within a result
 		'<div class="clearable"><div data-bind="?this as ?this"></div><div data-bind="?property as ?property"></div></div>' + //
 		testObjectProperty + //
-		'<div id="content"><div data-embed="describe" data-template="property"></div></div>' + //
+		'<div id="content" class="optional"><div data-embed="widgets/properties" data-template="property"></div></div>' + //
 		'</div>').prefix({
 			rdf : "http://www.w3.org/1999/02/22-rdf-syntax-ns#",
+			rdfs : "http://www.w3.org/2000/01/rdf-schema#",
 			owl : "http://www.w3.org/2002/07/owl#"
 		});
 

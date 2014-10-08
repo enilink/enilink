@@ -13,6 +13,7 @@
 		});
 	</script>
 	<div about="?this">
+		<div data-bind="?this as ?this"></div>
 		<section style="margin-bottom: 5px;">
 			<div style="display: inline-block; vertical-align: bottom"><form class="form-inline"><input class="form-control input-sm input-property" type="text" placeholder="Add..." autocomplete="off"></input></form></div>
 			<div class="dropdown" data-if="?relProperty" style="margin-right: 15px; display: inline-block; vertical-align: bottom">
@@ -90,7 +91,6 @@
 		</section>
 		<a href="javascript:void(0)" class="show-inverse-properties"><i class="glyphicon glyphicon-arrow-left"></i> Show inverse properties</a>
 	</div>
-	<br />
 	<!-- show relevant properties for classes -->
 	<div about="?this" typeof="rdfs:Class" class="optional"
 		data-if="?classProperty">
