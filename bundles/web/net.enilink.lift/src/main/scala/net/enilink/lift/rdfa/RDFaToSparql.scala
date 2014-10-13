@@ -341,7 +341,7 @@ class RDFaToSparqlParser(e: xml.Elem, base: String, varResolver: Option[Variable
   }
 
   override def createVariable(name: String): Option[Reference] = varResolver.map(_.resolve(name)) getOrElse (name match {
-    case "?" => Some(select(fresh("v")))
+    case "?" | "$" => Some(select(fresh("v")))
     case _ => Some(select(Variable(name.substring(1), None)))
   })
 

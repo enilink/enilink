@@ -111,7 +111,8 @@ trait RdfAttributeBinder extends Binder {
   }
 }
 
-class VarBinder(val e: Elem, val attr: String, val name: String) extends RdfAttributeBinder {
+class VarBinder(val e: Elem, val attr: String, val name: String, val verbatim : Boolean = false) extends RdfAttributeBinder {
+  // the verbatim flag constrols if URIs should be shortened to CURIEs or not
   // allow to keep this node by adding the CSS class "keep", even if no binding exists for the related variable
   val keepNode = RDFaHelpers.hasCssClass(e, "keep")
   val clearAttribute = attr.startsWith("data-clear-") || attr == "data-if"
@@ -121,7 +122,7 @@ class VarBinder(val e: Elem, val attr: String, val name: String) extends RdfAttr
     var currentCtx = ctx
     if (rdfValue != null || keepNode) currentCtx = changeContext(currentCtx, attr, rdfValue)
     val attValue = rdfValue match {
-      case ref: IReference => shortRef(ctx, e, attr, ref)
+      case ref: IReference => if (verbatim) ref else shortRef(ctx, e, attr, ref)
       case literal: ILiteral if !clearAttribute => {
         // add datatype and lang attributes
         if (literal.getDatatype != null) {
@@ -171,7 +172,7 @@ class IriBinder(val e: Elem, val attr: String, val iri: URI) extends RdfAttribut
 
 object TemplateNode extends RDFaUtils {
   val ignoreAttributes = Set("data-for", "data-params", "data-bind")
-  val variable = "^[?]([^=]+)$".r
+  val variable = "^([?$][^=]+)$".r
 
   def unapply(n: Node): Option[(Elem, Seq[Binder])] = {
     n match {
@@ -185,8 +186,12 @@ object TemplateNode extends RDFaUtils {
               case "data-unless" => Some(new UnlessInferredBinder(meta.key))
               case _ => None
             }
-            // fill variables for nodes of type <span about="?someVar">Data about some subject.</span>
-            case variable(v) => if (!ignoreAttributes.contains(meta.key)) Some(new VarBinder(e, meta.key, v)) else None
+            // fill variables for nodes of type <span about="?someVar">Data about some subject.</span> or
+            // <span data-var="$someVar">Verbatim replacement.</span>
+            case variable(v) => if (!ignoreAttributes.contains(meta.key)) {
+              val verbatim = v.startsWith("$")
+              Some(new VarBinder(e, meta.key, v.substring(1), verbatim))
+            } else None
             case str if !str.isEmpty => meta.key match {
               case RDFaRelAttribute() | RDFaResourceAttribute() =>
                 try {
