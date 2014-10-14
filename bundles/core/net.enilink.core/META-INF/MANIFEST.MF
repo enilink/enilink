@@ -5,7 +5,6 @@ Bundle-SymbolicName: net.enilink.core;singleton:=true
 Bundle-Version: 1.0.0.qualifier
 Bundle-Activator: net.enilink.core.Activator
 Require-Bundle: org.eclipse.core.runtime,
- net.enilink.komma.model,
  net.enilink.komma.edit,
  net.enilink.komma.workbench,
  net.enilink.security,
