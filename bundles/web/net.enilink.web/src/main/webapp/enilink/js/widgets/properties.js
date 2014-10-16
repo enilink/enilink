@@ -43,7 +43,7 @@ define([ "flight/lib/component" ], function(defineComponent) {
 			model : enilink.contextModel(target)
 		}, function(html) {
 			var content = $(html).find("#content").children();
-			target.append(content);
+			target.prepend(content);
 			var addBtn = content.find("[data-add]");
 			enilink.ui.enableAdd(addBtn);
 			addBtn.click();

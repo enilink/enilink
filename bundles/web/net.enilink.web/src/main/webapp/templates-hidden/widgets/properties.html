@@ -1,4 +1,6 @@
-<div data-lift="rdfa" class="widget" data-limit="500" prefix="
+<div data-lift="rdfa" class="widget" data-t-path="widgets/properties"
+	data-limit="500"
+	prefix="
 	rdf: http://www.w3.org/1999/02/22-rdf-syntax-ns#
 	owl: http://www.w3.org/2002/07/owl#
 	rdfs: http://www.w3.org/2000/01/rdf-schema#">
@@ -15,11 +17,16 @@
 	<div about="?this">
 		<div data-bind="?this as ?this"></div>
 		<section style="margin-bottom: 5px;">
-			<div style="display: inline-block; vertical-align: bottom"><form class="form-inline"><input class="form-control input-sm input-property" type="text" placeholder="Add..." autocomplete="off"></input></form></div>
-			<div class="dropdown" data-if="?relProperty" style="margin-right: 15px; display: inline-block; vertical-align: bottom">
-				<a class="dropdown-toggle" role="button"
-					data-toggle="dropdown" href="#"><b class="caret"></b>
-				</a>
+			<div style="display: inline-block; vertical-align: bottom">
+				<form class="form-inline">
+					<input class="form-control input-sm input-property" type="text"
+						placeholder="Add..." autocomplete="off"></input>
+				</form>
+			</div>
+			<div class="dropdown" data-if="?relProperty"
+				style="margin-right: 15px; display: inline-block; vertical-align: bottom">
+				<a class="dropdown-toggle" role="button" data-toggle="dropdown"
+					href="#"><b class="caret"></b> </a>
 				<!-- query relevant properties -->
 				<div class="optional clearable">
 					<div class="union">
@@ -47,18 +54,21 @@
 
 			<div class="row" data-clear-rel="?property" data-t="property">
 				<div class="col-sm-4" style="font-weight: bold">
-					<a href="{app}/describe?model={model}&resource={}&inferred={inferred}"
+					<a
+						href="{app}/describe?model={model}&resource={}&inferred={inferred}"
 						data-lift="rdf.ref?for=predicate&to=href"><span
 						data-lift="rdf.!label?for=predicate"></span></a>
 				</div>
 				<div class="col-sm-8">
 					<div class="union">
-						<div class="row asc editable" rel="?property" resource="?oResource"
-							data-filter="!isLiteral(?oResource)" data-t="resourceValue">
+						<div class="row asc editable" rel="?property"
+							resource="?oResource" data-filter="!isLiteral(?oResource)"
+							data-t="resourceValue">
 							<div class="col-sm-12">
-								<a href="{app}/describe?model={model}&resource={}&inferred={inferred}"
-									data-lift="rdf.ref?to=href"><span
-									data-lift="rdf.label"></span></a> <span data-if="inferred"><i
+								<a
+									href="{app}/describe?model={model}&resource={}&inferred={inferred}"
+									data-lift="rdf.ref?to=href"><span data-lift="rdf.label"></span></a>
+								<span data-if="inferred"><i
 									class="glyphicon glyphicon-share-alt" style="opacity: 0.5"></i></span>
 							</div>
 						</div>
@@ -66,7 +76,8 @@
 							content="?oLiteral" data-if="?oLiteral"
 							data-filter="isLiteral(?oLiteral)" data-t="literalValue">
 							<div class="col-sm-12">
-								<span data-lift="rdf.label" style="white-space: pre-wrap;"></span> <span data-if="inferred"><i
+								<span data-lift="rdf.label" style="white-space: pre-wrap;"></span>
+								<span data-if="inferred"><i
 									class="glyphicon glyphicon-share-alt" style="opacity: 0.5"></i></span>
 							</div>
 						</div>
@@ -89,7 +100,8 @@
 				</div>
 			</div>
 		</section>
-		<a href="javascript:void(0)" class="show-inverse-properties"><i class="glyphicon glyphicon-arrow-left"></i> Show inverse properties</a>
+		<a href="javascript:void(0)" class="show-inverse-properties"><i
+			class="glyphicon glyphicon-arrow-left"></i> Show inverse properties</a>
 	</div>
 	<!-- show relevant properties for classes -->
 	<div about="?this" typeof="rdfs:Class" class="optional"
@@ -97,8 +109,8 @@
 		<h4>Relevant class properties</h4>
 		<section>
 			<!-- query relevant properties -->
-			<span about="?this" rel="rdfs:subClassOf" class="clearable">
-				<span rel="owl:onProperty" resource="?classProperty"></span>
+			<span about="?this" rel="rdfs:subClassOf" class="clearable"> <span
+				rel="owl:onProperty" resource="?classProperty"></span>
 			</span>
 			<ul about="?classProperty">
 				<li><a href="{app}/describe?model={model}&resource={}"
