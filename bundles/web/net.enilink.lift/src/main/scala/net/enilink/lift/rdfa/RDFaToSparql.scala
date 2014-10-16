@@ -329,7 +329,14 @@ class RDFaToSparqlParser(e: xml.Elem, base: String, varResolver: Option[Variable
     } else {
       // content="?someVar"
       literal1 match {
-        case PlainLiteral(variable(l), _) => literal1 = createVariable(l).get
+        case PlainLiteral(variable(l), _) => {
+          literal1 = createVariable(l).get
+          l match {
+            // replace anonymous variable
+            case "?" | "$" => e1 = e1.copy(attributes = e1.attributes.append(new UnprefixedAttribute("content", literal1.toString, Null)))
+            case _ =>
+          }
+        }
         case _ =>
       }
     }

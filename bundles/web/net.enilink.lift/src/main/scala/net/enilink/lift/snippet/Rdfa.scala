@@ -56,6 +56,11 @@ object ParamsHelper {
 object Search extends SparqlHelper with SparqlExtractor {
   import RdfHelpers._
 
+  val ESCAPE_CHARS = java.util.regex.Pattern.compile("[\\[.{(*+?^$|]")
+  def patternToRegex(pattern: String, flags: Int = 0) = {
+    ESCAPE_CHARS.matcher(pattern).replaceAll("\\\\$0").replace("\\*", ".*").replace("\\?", ".")
+  }
+
   /**
    * Generates an Ajax function for auto-completion that can be executed by using a named Javascript function.
    */
@@ -65,13 +70,13 @@ object Search extends SparqlHelper with SparqlExtractor {
      *
      * TODO Maybe this should directly be integrated into the SPARQL query to get all results?!
      */
-    def toTokens(query: String, v: Any): Seq[String] = {
+    def toTokens(v: Any): Seq[String] = {
       val splitRegex = "[^\\p{L}\\d_]+"
       (v match {
         case ref: IReference => (if (ref.getURI != null) ref.getURI.segments.toList ++ List(ref.getURI.localPart) else Nil) ++ List(ModelUtil.getLabel(ref))
         case literal if literal != null => List(literal.toString)
         case _ => Nil
-      }).flatMap(_.split(splitRegex)).filter(_.toLowerCase.contains(query))
+      }).flatMap(_.split(splitRegex))
     }
     val origParams = QueryParams.get
     val runWithContext: (=> Any) => Any = captureRdfContext(ns)
@@ -90,9 +95,10 @@ object Search extends SparqlHelper with SparqlExtractor {
                 val queryParams = origParams ++ globalQueryParameters ++ bindParams(extractParams(ns)) ++ bindingsToMap(fragment.bindings)
                 val sparql = sparqlFromRdfa.getQuery(bindingName, 0, 1000)
                 val results = withParameters(em.createQuery(sparql), queryParams).evaluate
-                results.iterator.flatMap(toTokens(query.toLowerCase, _))
+                val queryRegex = patternToRegex(query.toLowerCase).r
+                results.iterator.flatMap(toTokens(query.toLowerCase, _).filter(token => queryRegex.findFirstIn(token).isDefined))
               }
-              JsonResponse(JArray(keywords.toSet[String].map(JString(_)).toList))
+              JsonResponse(JArray(keywords.toSet[String].toList.sorted.map(JString(_))))
             }
             case _ => default
           }
