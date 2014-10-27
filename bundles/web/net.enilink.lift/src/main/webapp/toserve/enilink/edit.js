@@ -178,6 +178,7 @@ enilink = $.extend(window.enilink || {}, {
 						d.reject(result.msg);
 						resultDeferred.reject(result.msg);
 					} else {
+						target.trigger("enilink-data-change");
 						d.resolve(result);
 					}
 				});
@@ -260,6 +261,7 @@ enilink = $.extend(window.enilink || {}, {
 							d.reject(result.msg);
 							resultDeferred.reject(result.msg);
 						} else {
+							self.trigger("enilink-data-change");
 							d.resolve(result);
 						}
 					});
@@ -392,6 +394,7 @@ enilink = $.extend(window.enilink || {}, {
 				});
 			}
 			hideButtons();
+			target.trigger("enilink-data-change");
 		}
 		$("#buttons .button-remove").click(remove);
 
