@@ -257,6 +257,7 @@ class JsonCallHandler {
                     } yield {
                       import net.enilink.lift.rdf._
                       // println("Template: " + template)
+                      // TODO check if template already got an rdfa root snippet
                       val wrappedTemplate = <div about="?this" data-lift="rdfa">{ template }</div>
                       val resultValue = cmdResult.flatMap(_.getReturnValues.headOption)
                       val vars = new LinkedHashSet[Variable]()
