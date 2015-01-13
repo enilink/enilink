@@ -309,7 +309,7 @@ class ModelSetManager {
 		// into the database
 		IModelSet.Internal modelSet = (IModelSet.Internal) metaDataModel
 				.getManager().find(msUri);
-		modelSet.create();
+		modelSet = modelSet.create();
 		return modelSet;
 	}
 
