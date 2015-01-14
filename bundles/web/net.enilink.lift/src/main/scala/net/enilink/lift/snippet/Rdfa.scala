@@ -2,6 +2,7 @@ package net.enilink.lift.snippet
 
 import scala.xml._
 import net.enilink.komma.core.IEntityManager
+import net.enilink.komma.core.IValue
 import net.enilink.lift.rdfa.SparqlFromRDFa
 import net.liftweb.common.Box
 import net.liftweb.common.Empty
@@ -94,7 +95,7 @@ object Search extends SparqlHelper with SparqlExtractor {
                 val sparqlFromRdfa = extractSparql(nsWithPatterns)
                 val queryParams = origParams ++ globalQueryParameters ++ bindParams(extractParams(ns)) ++ bindingsToMap(fragment.bindings)
                 val sparql = sparqlFromRdfa.getQuery(bindingName, 0, 1000)
-                val results = withParameters(em.createQuery(sparql), queryParams).evaluate
+                val results = withParameters(em.createQuery(sparql), queryParams).evaluateRestricted(classOf[IValue])
                 val queryRegex = patternToRegex(query.toLowerCase).r
                 results.iterator.flatMap(toTokens(query.toLowerCase, _).filter(token => queryRegex.findFirstIn(token).isDefined))
               }
