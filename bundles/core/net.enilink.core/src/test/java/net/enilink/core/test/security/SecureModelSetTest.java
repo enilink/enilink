@@ -83,12 +83,14 @@ public class SecureModelSetTest {
 		IModelSetFactory factory = Guice.createInjector(
 				new ModelSetModule(module)).getInstance(IModelSetFactory.class);
 		IGraph config = new LinkedHashGraph();
-		config.add(new Statement(URIs.createURI("test:modelSet"),
-				RDF.PROPERTY_TYPE, MODELS.TYPE_MODELSET));
-		config.add(new Statement(URIs.createURI("test:modelSet"),
-				MODELS.NAMESPACE_URI.appendLocalPart("inference"), false));
-		modelSet = factory.createModelSet(config,
+		URI msUri = URIs.createURI("test:modelSet");
+		config.add(msUri, RDF.PROPERTY_TYPE, MODELS.TYPE_MODELSET);
+		config.add(msUri, RDF.PROPERTY_TYPE,
 				MODELS.NAMESPACE_URI.appendLocalPart("MemoryModelSet"));
+		config.add(msUri, MODELS.NAMESPACE_URI.appendLocalPart("inference"),
+				false);
+
+		modelSet = factory.createModelSet(msUri, config);
 
 		model1 = modelSet.createModel(URIs
 				.createURI("http://enilink.net/test/model1"));

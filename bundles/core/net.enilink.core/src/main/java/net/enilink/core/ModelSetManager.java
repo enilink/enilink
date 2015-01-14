@@ -136,6 +136,10 @@ class ModelSetManager {
 		config = graph[0];
 	}
 
+	private static final URI META_MODELSET = URIs
+			.createURI("urn:enilink:metadata");
+	private static final URI DATA_MODELSET = URIs.createURI("urn:enilink:data");
+
 	private UnitOfWork uow = new UnitOfWork();
 	private IModelSet modelSet;
 
@@ -265,7 +269,7 @@ class ModelSetManager {
 
 		Injector injector = Guice.createInjector(
 				createModelSetGuiceModule(module), new ContextProviderModule());
-		URI msUri = URIs.createURI("urn:enilink:metadata");
+		URI msUri = META_MODELSET;
 		IGraph graph = createConfig(msUri);
 		if (!graph.contains(msUri,
 				MODELS.NAMESPACE_URI.appendLocalPart("repository"), null)) {
@@ -275,7 +279,7 @@ class ModelSetManager {
 		}
 
 		IModelSetFactory factory = injector.getInstance(IModelSetFactory.class);
-		IModelSet metaModelSet = factory.createModelSet(graph);
+		IModelSet metaModelSet = factory.createModelSet(msUri, graph);
 
 		// include model behaviors into meta model set
 		metaModelSet.getModule().includeModule(createDataModelSetModule());
@@ -283,15 +287,9 @@ class ModelSetManager {
 	}
 
 	protected IModelSet createModelSet(IModel metaDataModel) {
-		URI msUri = URIs.createURI("urn:enilink:data");
+		URI msUri = DATA_MODELSET;
 
 		IGraph graph = createConfig(msUri);
-		if (!graph.contains(msUri,
-				MODELS.NAMESPACE_URI.appendLocalPart("repository"), null)) {
-			graph.add(msUri,
-					MODELS.NAMESPACE_URI.appendLocalPart("repository"),
-					"enilink");
-		}
 		// remove old config
 		metaDataModel.getManager().remove(
 				WrappedIterator.create(
@@ -321,19 +319,24 @@ class ModelSetManager {
 				createModelSetGuiceModule(module), new ContextProviderModule());
 		IModelSetFactory factory = injector.getInstance(IModelSetFactory.class);
 
-		URI msUri = URIs.createURI("urn:enilink:data");
+		URI msUri = DATA_MODELSET;
 		IGraph graph = createConfig(msUri);
-		graph.add(msUri, MODELS.NAMESPACE_URI.appendFragment("inference"),
-				false);
-		IModelSet modelSet = factory.createModelSet(graph,
-				MODELS.NAMESPACE_URI.appendLocalPart(//
-						// "OwlimModelSet" //
-						"MemoryModelSet" //
-						// "VirtuosoModelSet" //
-						// "AGraphModelSet" //
-						// "RemoteModelSet" //
-						),
+		if (config == null) {
+			// config file was not specified
+			graph.add(msUri, MODELS.NAMESPACE_URI.appendFragment("inference"),
+					false);
+			graph.add(msUri, RDF.PROPERTY_TYPE,
+					MODELS.NAMESPACE_URI.appendLocalPart(//
+							// "OwlimModelSet" //
+							"MemoryModelSet" //
+							// "VirtuosoModelSet" //
+							// "AGraphModelSet" //
+							// "RemoteModelSet" //
+							));
+		}
+		graph.add(msUri, RDF.PROPERTY_TYPE,
 				MODELS.NAMESPACE_URI.appendLocalPart("ProjectModelSet"));
+		IModelSet modelSet = factory.createModelSet(msUri, graph);
 		return modelSet;
 	}
 
@@ -357,10 +360,8 @@ class ModelSetManager {
 		if (modelSet instanceof IProjectModelSet) {
 			IProject project = ResourcesPlugin.getWorkspace().getRoot()
 					.getProject("models");
-			System.out
-					.println("Looking for models in: "
-							+ ResourcesPlugin.getWorkspace().getRoot()
-									.getLocationURI());
+			System.out.println("Looking for models in: "
+					+ project.getLocation());
 			try {
 				if (!project.exists()) {
 					project.create(null);
@@ -392,8 +393,11 @@ class ModelSetManager {
 					new PrivilegedAction<Object>() {
 						@Override
 						public Object run() {
-							if (config == null) {
-								// create default memory repository
+
+							if (config == null
+									|| !config.contains(META_MODELSET, null,
+											null)) {
+								// create only a data modelset
 								modelSet = createModelSet();
 							} else {
 								IModelSet metaModelSet = createMetaModelSet();
