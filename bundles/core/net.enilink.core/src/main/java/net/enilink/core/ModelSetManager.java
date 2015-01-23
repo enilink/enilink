@@ -1,9 +1,5 @@
 package net.enilink.core;
 
-import java.io.BufferedInputStream;
-import java.io.InputStream;
-import java.nio.file.Files;
-import java.nio.file.Paths;
 import java.security.PrivilegedAction;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -40,19 +36,15 @@ import net.enilink.komma.core.Properties;
 import net.enilink.komma.core.Statement;
 import net.enilink.komma.core.URI;
 import net.enilink.komma.core.URIs;
-import net.enilink.komma.core.visitor.IDataVisitor;
 import net.enilink.komma.em.CacheModule;
 import net.enilink.komma.em.CachingEntityManagerModule;
 import net.enilink.komma.em.util.UnitOfWork;
 import net.enilink.komma.model.IModel;
 import net.enilink.komma.model.IModelSet;
 import net.enilink.komma.model.IModelSetFactory;
-import net.enilink.komma.model.IURIConverter;
 import net.enilink.komma.model.MODELS;
 import net.enilink.komma.model.ModelPlugin;
 import net.enilink.komma.model.ModelSetModule;
-import net.enilink.komma.model.ModelUtil;
-import net.enilink.komma.model.base.ExtensibleURIConverter;
 import net.enilink.komma.model.base.IURIMapRule;
 import net.enilink.komma.model.base.SimpleURIMapRule;
 import net.enilink.komma.workbench.IProjectModelSet;
@@ -84,57 +76,6 @@ class ModelSetManager {
 			.getLogger(ModelSetManager.class);
 
 	public static final ModelSetManager INSTANCE = new ModelSetManager();
-	public static final IGraph config;
-	static {
-		final IGraph[] graph = { null };
-		String configName = System.getProperty("net.enilink.config");
-		if (configName != null) {
-			URI configUri = null;
-			try {
-				configUri = URIs.createURI(configName);
-			} catch (IllegalArgumentException iae) {
-
-			}
-			if (configUri == null && Files.exists(Paths.get(configName))) {
-				configUri = URIs.createFileURI(configName);
-			}
-			if (configUri != null) {
-				graph[0] = new LinkedHashGraph();
-				try {
-					IURIConverter uriConverter = new ExtensibleURIConverter();
-					try (InputStream in = new BufferedInputStream(
-							uriConverter.createInputStream(configUri))) {
-						ModelUtil.readData(
-								in,
-								configUri.toString(),
-								(String) uriConverter.contentDescription(
-										configUri, null).get(
-										IURIConverter.ATTRIBUTE_MIME_TYPE),
-								new IDataVisitor<Void>() {
-									@Override
-									public Void visitBegin() {
-										return null;
-									}
-
-									@Override
-									public Void visitEnd() {
-										return null;
-									}
-
-									@Override
-									public Void visitStatement(IStatement stmt) {
-										graph[0].add(stmt);
-										return null;
-									}
-								});
-					}
-				} catch (Exception e) {
-					log.error("Unable to read config file", e);
-				}
-			}
-		}
-		config = graph[0];
-	}
 
 	private static final URI META_MODELSET = URIs
 			.createURI("urn:enilink:metadata");
@@ -233,24 +174,22 @@ class ModelSetManager {
 		return module;
 	}
 
-	protected IGraph createConfig(URI modelSet) {
+	protected IGraph createModelSetConfig(Config config, URI modelSet) {
 		IGraph graph = new LinkedHashGraph();
 		graph.add(modelSet, RDF.PROPERTY_TYPE, MODELS.TYPE_MODELSET);
 
-		if (config != null) {
-			// add data to config of current model set
-			Set<IReference> seen = new HashSet<>();
-			Queue<IReference> queue = new LinkedList<>();
-			queue.add(modelSet);
-			while (!queue.isEmpty()) {
-				IReference s = queue.remove();
-				if (seen.add(s)) {
-					IGraph about = config.filter(s, null, null);
-					graph.addAll(about);
-					for (Object o : about.objects()) {
-						if (o instanceof IReference && !seen.contains(o)) {
-							queue.add((IReference) o);
-						}
+		// add data to config of current model set
+		Set<IReference> seen = new HashSet<>();
+		Queue<IReference> queue = new LinkedList<>();
+		queue.add(modelSet);
+		while (!queue.isEmpty()) {
+			IReference s = queue.remove();
+			if (seen.add(s)) {
+				IGraph about = config.filter(s, null, null);
+				graph.addAll(about);
+				for (Object o : about.objects()) {
+					if (o instanceof IReference && !seen.contains(o)) {
+						queue.add((IReference) o);
 					}
 				}
 			}
@@ -259,7 +198,7 @@ class ModelSetManager {
 		return graph;
 	}
 
-	protected IModelSet createMetaModelSet() {
+	protected IModelSet createMetaModelSet(Config config) {
 		KommaModule module = ModelPlugin.createModelSetModule(getClass()
 				.getClassLoader());
 		module.addBehaviour(OwlimSeModelSetSupport.class);
@@ -270,7 +209,7 @@ class ModelSetManager {
 		Injector injector = Guice.createInjector(
 				createModelSetGuiceModule(module), new ContextProviderModule());
 		URI msUri = META_MODELSET;
-		IGraph graph = createConfig(msUri);
+		IGraph graph = createModelSetConfig(config, msUri);
 		if (!graph.contains(msUri,
 				MODELS.NAMESPACE_URI.appendLocalPart("repository"), null)) {
 			graph.add(msUri,
@@ -286,10 +225,10 @@ class ModelSetManager {
 		return metaModelSet;
 	}
 
-	protected IModelSet createModelSet(IModel metaDataModel) {
+	protected IModelSet createModelSet(Config config, IModel metaDataModel) {
 		URI msUri = DATA_MODELSET;
 
-		IGraph graph = createConfig(msUri);
+		IGraph graph = createModelSetConfig(config, msUri);
 		// remove old config
 		metaDataModel.getManager().remove(
 				WrappedIterator.create(
@@ -311,7 +250,7 @@ class ModelSetManager {
 		return modelSet;
 	}
 
-	protected IModelSet createModelSet() {
+	protected IModelSet createModelSet(Config config) {
 		KommaModule module = createDataModelSetModule();
 		module.includeModule(new AuthModule());
 
@@ -320,8 +259,9 @@ class ModelSetManager {
 		IModelSetFactory factory = injector.getInstance(IModelSetFactory.class);
 
 		URI msUri = DATA_MODELSET;
-		IGraph graph = createConfig(msUri);
-		if (config == null) {
+		boolean hasConfig = config.contains(msUri, null, null);
+		IGraph graph = createModelSetConfig(config, msUri);
+		if (!hasConfig) {
 			// config file was not specified
 			graph.add(msUri, MODELS.NAMESPACE_URI.appendFragment("inference"),
 					false);
@@ -389,62 +329,69 @@ class ModelSetManager {
 
 	public synchronized IModelSet getModelSet() {
 		if (modelSet == null) {
-			Subject.doAs(SecurityUtil.SYSTEM_USER_SUBJECT,
-					new PrivilegedAction<Object>() {
-						@Override
-						public Object run() {
-
-							if (config == null
-									|| !config.contains(META_MODELSET, null,
+			return new UseService<Config, IModelSet>(Config.class) {
+				@Override
+				protected IModelSet withService(final Config config) {
+					return Subject.doAs(SecurityUtil.SYSTEM_USER_SUBJECT,
+							new PrivilegedAction<IModelSet>() {
+								@Override
+								public IModelSet run() {
+									IModelSet modelSet;
+									if (!config.contains(META_MODELSET, null,
 											null)) {
-								// create only a data modelset
-								modelSet = createModelSet();
-							} else {
-								IModelSet metaModelSet = createMetaModelSet();
-								IModel metaDataModel = metaModelSet.createModel(URIs
-										.createURI("urn:enilink:metadata"));
-								modelSet = createModelSet(metaDataModel);
-							}
-							// register globally readable models
-							modelSet.getModule().addReadableGraph(
-									SecurityUtil.USERS_MODEL);
-							// register some namespace
-							modelSet.getModule().addNamespace("foaf",
-									FOAF.NAMESPACE_URI);
-							if (config == null
-									|| "all".equals(System
-											.getProperty("net.enilink.acl.anonymous"))) {
-								IEntityManager em = modelSet
-										.getMetaDataManager();
-								Authorization auth = em.createNamed(
-										URIs.createURI("urn:auth:anonymousAll"),
-										Authorization.class);
-								auth.setAclAccessToClass(em.find(
-										MODELS.TYPE_MODEL,
-										net.enilink.vocab.rdfs.Class.class));
-								auth.setAclAgent(em.find(
-										SecurityUtil.UNKNOWN_USER, Agent.class));
-								auth.getAclMode()
-										.add(em.find(
-												WEBACL.MODE_READ,
-												net.enilink.vocab.rdfs.Class.class));
-								auth.getAclMode()
-										.add(em.find(
-												WEBACL.MODE_WRITE,
-												net.enilink.vocab.rdfs.Class.class));
-								auth.getAclMode()
-										.add(em.find(
-												WEBACL.MODE_CONTROL,
-												net.enilink.vocab.rdfs.Class.class));
-							}
-							modelSet.getMetaDataManager().createNamed(
-									FOAF.TYPE_AGENT, RDFS.TYPE_CLASS);
-							modelSet.getMetaDataManager().createNamed(
-									SecurityUtil.UNKNOWN_USER, FOAF.TYPE_AGENT);
-							createModels(modelSet);
-							return null;
-						}
-					});
+										// create only a data modelset
+										modelSet = createModelSet(config);
+									} else {
+										IModelSet metaModelSet = createMetaModelSet(config);
+										IModel metaDataModel = metaModelSet.createModel(URIs
+												.createURI("urn:enilink:metadata"));
+										modelSet = createModelSet(config,
+												metaDataModel);
+									}
+									// register globally readable models
+									modelSet.getModule().addReadableGraph(
+											SecurityUtil.USERS_MODEL);
+									// register some namespace
+									modelSet.getModule().addNamespace("foaf",
+											FOAF.NAMESPACE_URI);
+									if (config.isEmpty()
+											|| "all".equals(System
+													.getProperty("net.enilink.acl.anonymous"))) {
+										IEntityManager em = modelSet
+												.getMetaDataManager();
+										Authorization auth = em.createNamed(
+												URIs.createURI("urn:auth:anonymousAll"),
+												Authorization.class);
+										auth.setAclAccessToClass(em
+												.find(MODELS.TYPE_MODEL,
+														net.enilink.vocab.rdfs.Class.class));
+										auth.setAclAgent(em.find(
+												SecurityUtil.UNKNOWN_USER,
+												Agent.class));
+										auth.getAclMode()
+												.add(em.find(
+														WEBACL.MODE_READ,
+														net.enilink.vocab.rdfs.Class.class));
+										auth.getAclMode()
+												.add(em.find(
+														WEBACL.MODE_WRITE,
+														net.enilink.vocab.rdfs.Class.class));
+										auth.getAclMode()
+												.add(em.find(
+														WEBACL.MODE_CONTROL,
+														net.enilink.vocab.rdfs.Class.class));
+									}
+									modelSet.getMetaDataManager().createNamed(
+											FOAF.TYPE_AGENT, RDFS.TYPE_CLASS);
+									modelSet.getMetaDataManager().createNamed(
+											SecurityUtil.UNKNOWN_USER,
+											FOAF.TYPE_AGENT);
+									createModels(modelSet);
+									return modelSet;
+								}
+							});
+				}
+			}.getResult();
 		}
 		return modelSet;
 	}
