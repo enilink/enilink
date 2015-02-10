@@ -31,7 +31,7 @@ object KeepQueryParameters {
 
 /**
  * Insert this LocParam into your menu if you want new application
- * menu items to be inserted at the same leveland after the item
+ * menu items to be inserted at the same level and after the item
  */
 final case object AddAppMenusAfter extends Loc.AnyLocParam
 
@@ -40,6 +40,18 @@ final case object AddAppMenusAfter extends Loc.AnyLocParam
  * application menu items to be children of that menu
  */
 final case object AddAppMenusUnder extends Loc.AnyLocParam
+
+/**
+ * Insert this LocParam into your menu if you want new 
+ * menu items to be inserted at the same level and after the item
+ */
+final case class AddMenusAfter(val app : String) extends Loc.AnyLocParam
+
+/**
+ * Insert this LocParam into your menu if you want the
+ * menu items to be children of that menu
+ */
+final case class AddMenusUnder(val app : String)  extends Loc.AnyLocParam
 
 /**
  * This location value marks a location as the root of an application sitemap.

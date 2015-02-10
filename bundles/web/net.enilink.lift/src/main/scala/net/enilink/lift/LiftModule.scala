@@ -155,7 +155,7 @@ class LiftModule extends Logger {
     }
 
     Globals.contextModelRules.append {
-      case _ => S.param("model").flatMap { name =>
+      case _ if S.param("model").isDefined => S.param("model").flatMap { name =>
         try {
           Full(URIs.createURI(name)).filterNot(_.isRelative)
         } catch {
@@ -166,7 +166,7 @@ class LiftModule extends Logger {
 
     val bnode = "^(_:.*)".r
     Globals.contextResourceRules.append {
-      case _ => S.param("resource").flatMap {
+      case _ if S.param("resource").isDefined => S.param("resource").flatMap {
         case bnode(id) => Full(new BlankNode(id))
         case other => try {
           Full(URIs.createURI(other)).filterNot(_.isRelative)

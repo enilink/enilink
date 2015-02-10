@@ -80,11 +80,21 @@ object Menus {
       Menu(DataLoc("enilink." + name, new Link(path), linkText, Full(ENILINK_APPLICATION), params: _*)))
   }
 
-  private val MenuAfter = SiteMap.buildMenuMatcher(_ == AddAppMenusAfter)
-  private val MenuUnder = SiteMap.buildMenuMatcher(_ == AddAppMenusUnder)
+  def sitemapMutator(menus: List[Menu], app: String): SiteMap => SiteMap = {
+    val TheApp = app
+    val MenuAfter = SiteMap.buildMenuMatcher { case AddMenusAfter(TheApp) => true case _ => false}
+    val MenuUnder = SiteMap.buildMenuMatcher { case AddMenusUnder(TheApp) => true case _ => false}
+    SiteMap.sitemapMutator {
+      case MenuAfter(menu) => menu :: menus
+      case MenuUnder(menu) => List(menu.rebuild(_ ::: menus))
+    }(s => s)
+  }
+
+  private val AppMenuAfter = SiteMap.buildMenuMatcher(_ == AddAppMenusAfter)
+  private val AppMenuUnder = SiteMap.buildMenuMatcher(_ == AddAppMenusUnder)
 
   def sitemapMutator(menus: List[Menu]): SiteMap => SiteMap = SiteMap.sitemapMutator {
-    case MenuAfter(menu) => menu :: menus
-    case MenuUnder(menu) => List(menu.rebuild(_ ::: menus))
+    case AppMenuAfter(menu) => menu :: menus
+    case AppMenuUnder(menu) => List(menu.rebuild(_ ::: menus))
   }(SiteMap.addMenusAtEndMutator(menus))
 }

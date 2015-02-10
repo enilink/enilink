@@ -32,13 +32,20 @@ import org.osgi.util.tracker.ServiceTracker
 import net.enilink.lift.Activator
 import org.osgi.framework.FrameworkUtil
 import net.enilink.lift.sitemap.Menus
+import net.enilink.core.Config
 
 /**
  * A registry for global variables which are shared throughout the application.
  */
 object Globals extends Factory {
+  private val configTracker = new ServiceTracker[Config, Config](FrameworkUtil.getBundle(getClass).getBundleContext, classOf[Config], null)
+  configTracker.open
+
   private val modelSetTracker = new ServiceTracker[IModelSet, IModelSet](FrameworkUtil.getBundle(getClass).getBundleContext, classOf[IModelSet], null)
   modelSetTracker.open
+
+  implicit val config = new FactoryMaker(() => Empty: Box[Config]) {}
+  config.default.set(() => Box.legacyNullTest(configTracker.getService))
 
   implicit val time = new FactoryMaker(Helpers.now _) {}
 
@@ -101,6 +108,14 @@ object Globals extends Factory {
     val path = Box.legacyNullTest(System.getProperty("net.enilink.filestore.path")) map (Paths.get(_)) openOr Platform.getLocation.toFile.toPath.resolve("files")
     new FileStore(path)
   }) {}
+
+  private[lift] def close {
+    contextModelSet.default.set(Empty)
+
+    // close trackers
+    modelSetTracker.close
+    configTracker.close
+  }
 }
 
 // extractor to test if access to context model is allowed
