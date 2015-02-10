@@ -4,22 +4,18 @@ import java.util.Collections;
 import java.util.Map;
 import java.util.WeakHashMap;
 
-import net.enilink.core.security.ISecureModelSet;
-import net.enilink.core.security.SecurePropertySetFactory;
-import net.enilink.core.security.SecurityUtil;
-
-import org.aopalliance.intercept.MethodInvocation;
-
-import net.enilink.composition.annotations.ParameterTypes;
 import net.enilink.composition.annotations.Precedes;
 import net.enilink.composition.properties.PropertySetFactory;
 import net.enilink.composition.traits.Behaviour;
-
-import com.google.inject.Inject;
-
+import net.enilink.core.security.ISecureModelSet;
+import net.enilink.core.security.SecurePropertySetFactory;
+import net.enilink.core.security.SecurityUtil;
 import net.enilink.komma.common.adapter.AdapterSet;
 import net.enilink.komma.common.adapter.IAdapterFactory;
 import net.enilink.komma.common.adapter.IAdapterSet;
+import net.enilink.komma.core.EntityVar;
+import net.enilink.komma.core.IReference;
+import net.enilink.komma.core.URI;
 import net.enilink.komma.edit.KommaEditPlugin;
 import net.enilink.komma.edit.command.EditingDomainCommandStack;
 import net.enilink.komma.edit.domain.AdapterFactoryEditingDomain;
@@ -28,9 +24,8 @@ import net.enilink.komma.edit.provider.ReflectiveItemProviderAdapterFactory;
 import net.enilink.komma.em.concepts.IClass;
 import net.enilink.komma.model.IModel;
 import net.enilink.komma.model.IModelSet;
-import net.enilink.komma.core.EntityVar;
-import net.enilink.komma.core.IReference;
-import net.enilink.komma.core.URI;
+
+import com.google.inject.Inject;
 
 @Precedes(IModelSet.class)
 public abstract class SessionModelSetSupport implements IModelSet.Internal,
@@ -120,11 +115,6 @@ public abstract class SessionModelSetSupport implements IModelSet.Internal,
 			}
 		}
 		return adapterSet;
-	}
-
-	@ParameterTypes({})
-	public void dispose(MethodInvocation invocation) {
-		// do not dispose this model set
 	}
 
 	protected void initializeAdapters() {

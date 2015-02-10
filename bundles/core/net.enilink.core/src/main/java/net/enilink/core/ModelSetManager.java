@@ -329,7 +329,7 @@ class ModelSetManager {
 
 	public synchronized IModelSet getModelSet() {
 		if (modelSet == null) {
-			return new UseService<Config, IModelSet>(Config.class) {
+			modelSet = new UseService<Config, IModelSet>(Config.class) {
 				@Override
 				protected IModelSet withService(final Config config) {
 					return Subject.doAs(SecurityUtil.SYSTEM_USER_SUBJECT,
@@ -392,6 +392,8 @@ class ModelSetManager {
 							});
 				}
 			}.getResult();
+			// close initial unit of work
+			getUnitOfWork().end();
 		}
 		return modelSet;
 	}
