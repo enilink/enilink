@@ -52,6 +52,7 @@ class Rdf extends DispatchSnippet with RDFaTemplates {
       case _ => method match {
         // simply return template content
         case "label" | "manchester" => ((n: NodeSeq) => n)
+        case "model" => execMethod(null, method)
         case _ => ClearNodes
       }
     }
@@ -78,6 +79,10 @@ class Rdf extends DispatchSnippet with RDFaTemplates {
 
   private def execMethod(target: Any, method: String) = {
     def runMethod: PartialFunction[String, String] = {
+      case "model" => target match {
+        case o: IObject => o.getModel.toString
+        case _ => Globals.contextModel.vend map (_.toString) openOr ""
+      }
       case "pname" => ModelUtil.getPName(target)
       case "name" => target match {
         case ref: IReference if ref.getURI != null => ref.getURI.localPart

@@ -27,8 +27,9 @@ import net.liftweb.json.DefaultFormats
 import net.liftweb.json._
 import net.liftweb.util.JsonCommand
 import net.enilink.lift.util.Globals
+import net.liftweb.http.Req
 
-case class RenderInput(what: String, template: Option[String], bind: Option[JObject])
+case class RenderInput(what: Option[String], template: Option[String], bind: Option[JObject])
 
 /**
  * Snippets for embedding of JS scripts.
@@ -66,12 +67,14 @@ object JS extends DispatchSnippet with SparqlHelper {
           paramMap map { QueryParams.doWith(_)(render(ns)) } getOrElse render(ns)
         }
 
-        val isXml = "\\s*<".r.findPrefixMatchOf(what).isDefined
+        val isXml = what.exists("\\s*<".r.findPrefixMatchOf(_).isDefined)
+        Req.parsePath("")
+        lazy val parsePath = what.map(Req.parsePath(_)) orElse S.originalRequest.map(_.path)
         (what match {
-          case xml if isXml =>
+          case Some(xml) if isXml =>
             S.htmlProperties.htmlParser(new ByteArrayInputStream(xml.getBytes("UTF-8"))) flatMap (renderWithParams(_))
-          case path => {
-            val pathList = path.stripPrefix("/").split("/").toList
+          case other => parsePath map { path =>
+            val pathList = path.partPath
             withAppFor(pathList) {
               find(pathList, templateName) map { ns =>
                 import net.liftweb.util.Helpers._
@@ -83,13 +86,13 @@ object JS extends DispatchSnippet with SparqlHelper {
                 else ns
               } flatMap (renderWithParams(_))
             }
-          }
+          } getOrElse Empty
         }) map {
           case (ns, script) => {
             import net.liftweb.util.Helpers._
             // annotate result with template path for later invocations of render
             val nsWithPath = ns map {
-              case e: Elem if !isXml => e % ("data-t-path" -> what)
+              case e: Elem if !isXml => e % ("data-t-path" -> parsePath.map(_.partPath.mkString("/")).getOrElse(""))
               case other => other
             }
             val w = new java.io.StringWriter
