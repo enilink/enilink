@@ -14,6 +14,7 @@ import net.enilink.komma.core.URI
 import net.enilink.komma.model.IModel
 import net.enilink.komma.model.IObject
 import net.enilink.lift.files.FileService
+import net.enilink.lift.ldp.LDPService
 import net.enilink.lift.html.Html5ParserWithRDFaPrefixes
 import net.enilink.lift.util.Globals
 import net.enilink.lift.util.NotAllowedModel
@@ -138,6 +139,9 @@ class LiftModule extends Logger {
         List("Cache-Control" -> "private", "Pragma" -> "")
       case other => defaultHeaders(other)
     }
+
+    // register REST service for Linked Data Platform support
+    LiftRules.dispatch.append(LDPService)
 
     // dispatch function for checking access to context model
     LiftRules.dispatch.append {
