@@ -218,7 +218,7 @@ class LiftModule extends Logger {
                 // the attribute lookup may cause a NPE if called on session shutdown
                 // since Lift initializes even unused sessions before shutting them down
                 S.containerSession.flatMap(_.attribute("javax.security.auth.subject") match {
-                  case Full(s: Subject) => Full(Subject.doAs(s, new PrivilegedAction[T] {
+                  case s: Subject => Full(Subject.doAs(s, new PrivilegedAction[T] {
                     override def run = f
                   }))
                   case _ => None

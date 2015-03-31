@@ -72,8 +72,10 @@ object Globals extends Factory {
   })
 
   implicit val applicationPath = new FactoryMaker(() => {
-    S.getRequestHeader("X-Forwarded-For") match {
-      // this is a virtual host hence application is at "/"
+    S.getRequestHeader("VND.eniLINK.dropAppPath") match {
+      // this is flagged to drop the application path, which is then at "/"
+      // example: application behind proxied virtual host for that app only
+      // for choice of header, see RFC 6648 and RFC 4288
       case Full(_) => "/"
       case _ => application.vend.dmap("/")(_.path.mkString("/", "/", "") match {
         case "/" => "/"
