@@ -72,7 +72,7 @@ public class AccountHelper {
 			throw new IllegalArgumentException(
 					"A user with this name already exists.");
 		}
-		if (hasUserWithEmail(em, emailAddress)) {
+		if (emailAddress != null && hasUserWithEmail(em, emailAddress)) {
 			throw new IllegalArgumentException(
 					"A user with this email address already exists.");
 		}
@@ -81,7 +81,9 @@ public class AccountHelper {
 		IResource user = em.createNamed(userId, FOAF.TYPE_AGENT).as(
 				IResource.class);
 		user.addProperty(FOAF.PROPERTY_NICK, username);
-		user.addProperty(FOAF.PROPERTY_MBOX, getMailboxURI(emailAddress));
+		if (emailAddress != null) {
+			user.addProperty(FOAF.PROPERTY_MBOX, getMailboxURI(emailAddress));
+		}
 		if (encodedPassword != null) {
 			user.addProperty(AUTH.PROPERTY_PASSWORD, encodedPassword);
 		}
