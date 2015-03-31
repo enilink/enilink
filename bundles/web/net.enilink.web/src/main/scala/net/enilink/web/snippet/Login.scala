@@ -109,11 +109,11 @@ class Login {
   })
 
   val SUBJECT_KEY = "javax.security.auth.subject";
-  def getSubjectFromSession: Box[Subject] = S.session.flatMap(_.httpSession).flatMap(_.attribute(SUBJECT_KEY) match {
+  def getSubjectFromSession: Box[Subject] = S.containerSession.flatMap(_.attribute(SUBJECT_KEY) match {
     case s: Subject => Full(s)
     case _ => Empty
   })
-  def saveSubjectToSession(s: Subject) = S.session.flatMap(_.httpSession).foreach(_.setAttribute(SUBJECT_KEY, s))
+  def saveSubjectToSession(s: Subject) = S.containerSession.foreach(_.setAttribute(SUBJECT_KEY, s))
 
   def isLinkIdentity = S.attr("mode").exists(_ == "link") && Globals.contextUser.vend != SecurityUtil.UNKNOWN_USER
 
@@ -141,22 +141,35 @@ class Login {
   def createMethodButtons(currentMethod: (String, String)) = {
     <div class="clearfix" style="margin-bottom: 20px">
       <input type="hidden" id="method" name="method" value={ currentMethod._2 }/>
-      <div class="btn-group pull-right">
-        <a class="btn dropdown-toggle" data-toggle="dropdown" href="#">
-          { currentMethod._1 }
-          <span class="caret"></span>
-        </a>
-        <ul class="dropdown-menu">
-          {
-            LoginDataHelpers.loginMethods.filter(_ != currentMethod).flatMap {
-              case (label, name) =>
-                <li><a href="javascript:void(0)" onclick={
-                  (SetValById("method", name) & Run("$('#login-form').submit()")).toJsCmd
-                }>{ label }</a></li>
-            }
+      <ul class="nav nav-pills pull-right">
+        {
+          LoginDataHelpers.loginMethods.size match {
+            case s if (s > 1) =>
+              <li class="dropdown">
+                <a class="dropdown-toggle" data-toggle="dropdown" href="#">
+                  { currentMethod._1 }
+                  <span class="caret"></span>
+                </a>
+                <ul class="dropdown-menu">
+                  {
+                    LoginDataHelpers.loginMethods.filter(_ != currentMethod).flatMap {
+                      case (label, name) =>
+                        <li><a href="javascript:void(0)" onclick={
+                          (SetValById("method", name) & Run("$('#login-form').submit()")).toJsCmd
+                        }>{ label }</a></li>
+                    }
+                  }
+                </ul>
+              </li>
+            case _ =>
+              <li class="disabled">
+                <a href="#">
+                  { currentMethod._1 }
+                </a>
+              </li>
           }
-        </ul>
-      </div>
+        }
+      </ul>
     </div>
   }
 
