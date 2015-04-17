@@ -141,7 +141,7 @@ class LiftModule extends Logger {
     }
 
     // register REST service for Linked Data Platform support
-    LiftRules.dispatch.append(LDPService)
+    // LiftRules.dispatch.append(LDPService)
 
     // dispatch function for checking access to context model
     LiftRules.dispatch.append {
@@ -155,6 +155,7 @@ class LiftModule extends Logger {
     ResourceServer.allow {
       case (("enilink" | "typeaheadjs" | "require" | "orion" | "select2" | "fileupload" | "flight") :: _) => true
       case (("bootstrap" | "bootstrap-editable") :: _) | (_ :: "bootstrap" :: _) => true
+      case "material-design-iconic-font" ::_ => true
       case rdfa @ ("rdfa" :: _) if rdfa.last.endsWith(".js") => true
     }
 

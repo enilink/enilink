@@ -10,7 +10,7 @@
 </head>
 <body>
 	<header role="banner">
-		<div class="navbar navbar-inverse navbar-static-top">
+		<div class="navbar navbar-default navbar-static-top">
 			<div class="container">
 				<div class="navbar-header">
 					<button type="button" class="navbar-toggle" data-toggle="collapse"
@@ -19,15 +19,21 @@
 							class="icon-bar"></span> <span class="icon-bar"></span> <span
 							class="icon-bar"></span>
 					</button>
-					<a class="navbar-brand" href="#"><img
-						src="/images/enilink-grayscale.png"></img></a>
+					<a class="navbar-brand" href="#"><img src="/images/enilink-grayscale-dark.png"></img></a>
 				</div>
 				<nav class="navbar-main collapse navbar-collapse" role="navigation">
 					<span data-lift="bs.menu"></span>
 				</nav>
 			</div>
 		</div>
-		<span data-lift="bs.submenu"></span>
+		<nav
+			class="navbar-main subnav navbar navbar-static-top navbar-default collapse navbar-collapse"
+			role="navigation" data-lift="bs.submenu">
+			<div class="container">
+				<ul class="nav navbar-nav">
+				</ul>
+			</div>
+		</nav>
 		<div style="position: fixed; top: 20px; right: 0px; z-index: 9999">
 			<img alt="" id="ajax-loader" src="/images/ajax-loader.gif"
 				style="float: left; margin-right: 25px; display: none"></img>
@@ -35,7 +41,7 @@
 		</div>
 	</header>
 	<script data-lift="JS.bootstrap"></script>
-	
+
 	<div class="container">
 		<div style="position: relative">
 			<div id="notification-area"
@@ -55,7 +61,7 @@
 		<div>
 			<hr></hr>
 			<footer role="contentinfo">
-				<p>&copy; Fraunhofer IWU 2014</p>
+				<p>&copy; Fraunhofer IWU 2015</p>
 			</footer>
 		</div>
 	</div>

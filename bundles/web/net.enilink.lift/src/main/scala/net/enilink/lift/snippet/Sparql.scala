@@ -153,7 +153,10 @@ class Sparql extends SparqlHelper with RDFaTemplates {
                     result
                   case _ => n1
                 }
-            } openOr n
+            } openOr {
+              // ensure at least one template iteration with empty binding set
+              renderTuples(rdfCtx, ClearClearable(n), List((new LinkedHashBindings[Object], false)).toIterator)
+            }
           case _ => n
         }
         case _ => n

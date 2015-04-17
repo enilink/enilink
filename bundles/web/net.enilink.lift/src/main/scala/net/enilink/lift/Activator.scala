@@ -1,11 +1,13 @@
 package net.enilink.lift
 
 import java.io.File
+import java.security.PrivilegedAction
 import java.util.concurrent.atomic.AtomicReference
+
 import scala.Option.option2Iterable
-import scala.collection.mutable.LinkedHashMap
 import scala.collection.JavaConversions.asScalaSet
-import scala.collection.JavaConversions.collectionAsScalaIterable
+import scala.collection.mutable.LinkedHashMap
+
 import org.eclipse.equinox.http.servlet.ExtendedHttpService
 import org.osgi.framework.Bundle
 import org.osgi.framework.BundleActivator
@@ -15,8 +17,9 @@ import org.osgi.framework.ServiceReference
 import org.osgi.framework.ServiceRegistration
 import org.osgi.service.http.HttpContext
 import org.osgi.util.tracker.BundleTracker
-import org.osgi.util.tracker.BundleTrackerCustomizer
 import org.osgi.util.tracker.ServiceTracker
+
+import javax.security.auth.Subject
 import javax.servlet.FilterChain
 import javax.servlet.ServletRequest
 import javax.servlet.ServletResponse
@@ -25,9 +28,11 @@ import javax.servlet.http.HttpServletResponse
 import net.enilink.core.IContext
 import net.enilink.core.IContextProvider
 import net.enilink.core.ISession
+import net.enilink.core.security.SecurityUtil
 import net.enilink.lift.sitemap.Application
 import net.enilink.lift.util.Globals
 import net.liftweb.common.Box
+import net.liftweb.common.Box.box2Iterable
 import net.liftweb.common.Box.box2Option
 import net.liftweb.common.Box.option2Box
 import net.liftweb.common.Empty
@@ -42,9 +47,6 @@ import net.liftweb.http.S
 import net.liftweb.osgi.OsgiBootable
 import net.liftweb.sitemap.SiteMap
 import net.liftweb.util.ClassHelpers
-import net.enilink.core.security.SecurityUtil
-import java.security.PrivilegedAction
-import javax.security.auth.Subject
 
 object Activator {
   val SERVICE_KEY_HTTP_PORT = "http.port"
@@ -53,8 +55,7 @@ object Activator {
 }
 
 class Activator extends BundleActivator with Loggable {
-  private var bundleTracker: BundleTracker[LiftBundleConfig] = _
-  private var liftBundles: LiftBundles = new LiftBundles
+  private var bundleTracker: LiftBundleTracker = null
   private val httpServiceHolder = new AtomicReference[ExtendedHttpService]
   private var context: BundleContext = _
 
@@ -86,10 +87,7 @@ class Activator extends BundleActivator with Loggable {
     }
   }
 
-  // uses a linked hash map to ensure that bundle order is preserved
-  class LiftBundles extends BundleTrackerCustomizer[LiftBundleConfig] with Loggable {
-    private val bundles = new LinkedHashMap[Bundle, LiftBundleConfig]
-
+  class LiftBundleTracker extends BundleTracker[LiftBundleConfig](this.context, Bundle.STARTING | Bundle.ACTIVE, null) with Loggable {
     override def addingBundle(bundle: Bundle, event: BundleEvent) = {
       val headers = bundle.getHeaders
       val moduleStr = Box.legacyNullTest(headers.get("Lift-Module"))
@@ -108,49 +106,43 @@ class Activator extends BundleActivator with Loggable {
             case cnfe: ClassNotFoundException => logger.error("Lift-Module class " + m + " of bundle " + bundle.getSymbolicName + " not found."); None
           }
         }
-        val config = new LiftBundleConfig(module, packages)
-        // boot bundle as system user to allow modifications of RDF data
-        Subject.doAs(SecurityUtil.SYSTEM_USER_SUBJECT, new PrivilegedAction[Unit]() {
-          def run {
-            bootBundle(bundle, config)
-          }
-        })
-        bundles.put(bundle, config)
+        val startLevel = module flatMap { m => ClassHelpers.createInvoker("startLevel", m) flatMap (_()) } map {
+          case i: Int => i
+          case o => o.toString.toInt
+        }
+        val config = new LiftBundleConfig(module, packages, startLevel openOr 0)
         config
       } else null
     }
 
     override def removedBundle(bundle: Bundle, event: BundleEvent, config: LiftBundleConfig) {
       // TODO unboot bundle
-      bundles.remove(bundle)
     }
 
     override def modifiedBundle(bundle: Bundle, event: BundleEvent, config: LiftBundleConfig) {
     }
-
-    def bootBundle(bundle: Bundle, config: LiftBundleConfig) {
-      config.module map { m =>
-        try {
-          try {
-            ClassHelpers.createInvoker("boot", m) map (_())
-            config.sitemapMutator = ClassHelpers.createInvoker("sitemapMutator", m).flatMap {
-              f => f().map(_.asInstanceOf[SiteMap => SiteMap])
-            }
-            logger.debug("Lift-powered bundle " + bundle.getSymbolicName + " booted.")
-          } catch {
-            case e: Throwable => logger.error("Error while booting Lift-powered bundle " + bundle.getSymbolicName, e)
-          }
-        } catch {
-          case cnfe: ClassNotFoundException => // ignore
-        }
-      }
-    }
-
-    def get = bundles.iterator
   }
 
   var liftStarted = false
   var httpServiceTracker: HttpServiceTracker = null
+
+  def bootBundle(bundle: Bundle, config: LiftBundleConfig) {
+    config.module map { m =>
+      try {
+        try {
+          ClassHelpers.createInvoker("boot", m) map (_())
+          config.sitemapMutator = ClassHelpers.createInvoker("sitemapMutator", m).flatMap {
+            f => f().map(_.asInstanceOf[SiteMap => SiteMap])
+          }
+          logger.debug("Lift-powered bundle " + bundle.getSymbolicName + " booted.")
+        } catch {
+          case e: Throwable => logger.error("Error while booting Lift-powered bundle " + bundle.getSymbolicName, e)
+        }
+      } catch {
+        case cnfe: ClassNotFoundException => // ignore
+      }
+    }
+  }
 
   def initLift {
     // allow duplicate link names
@@ -162,21 +154,48 @@ class Activator extends BundleActivator with Loggable {
     // Force the request to be UTF-8
     LiftRules.early.append(_.setCharacterEncoding("UTF-8"))
 
+    val bundles = bundleTracker.getTracked.entrySet.toSeq.sortBy(_.getValue.startLevel)
+
+    bundles foreach { entry =>
+      // boot bundle as system user to allow modifications of RDF data
+      Subject.doAs(SecurityUtil.SYSTEM_USER_SUBJECT, new PrivilegedAction[Unit]() {
+        def run {
+          bootBundle(entry.getKey, entry.getValue)
+        }
+      })
+    }
+
     // set the sitemap function
     // applies chained mutators from all lift bundles to an empty sitemap
     LiftRules.setSiteMapFunc(() => Box.legacyNullTest(bundleTracker).map { tracker =>
-      val siteMapMutator = liftBundles.get.map(_._2).foldLeft((sm: SiteMap) => sm) {
+      val siteMapMutator = bundles.map(_.getValue).foldLeft((sm: SiteMap) => sm) {
         (prev, config) => config.sitemapMutator match { case Full(m) => prev.andThen(m) case _ => prev }
       }
       siteMapMutator(SiteMap())
     } openOr SiteMap())
+
+    // attach to HTTP service
+    httpServiceTracker = new HttpServiceTracker(context)
+    httpServiceTracker.open
   }
 
   def start(context: BundleContext) {
     this.context = context
-    bundleTracker = new BundleTracker[LiftBundleConfig](context, Bundle.RESOLVED | Bundle.STARTING | Bundle.ACTIVE | Bundle.STOPPING, liftBundles)
-    bundleTracker.open
 
+    val bundlesToStart = this.context.getBundles filter { bundle =>
+      val headers = bundle.getHeaders
+      val moduleStr = Box.legacyNullTest(headers.get("Lift-Module"))
+      val packageStr = Box.legacyNullTest(headers.get("Lift-Packages"))
+      moduleStr.isDefined || packageStr.isDefined
+    }
+
+    bundlesToStart filter (_ != context.getBundle) foreach { bundle =>
+      bundle.start(Bundle.START_TRANSIENT)
+    }
+
+    bundleTracker = new LiftBundleTracker
+    bundleTracker.open
+    
     initLift
 
     contextServiceReg = context.registerService(classOf[IContextProvider],
@@ -192,9 +211,6 @@ class Activator extends BundleActivator with Loggable {
         }
         def get = S.session.flatMap(_.httpSession.map(_ => context)) getOrElse null
       }, null)
-
-    httpServiceTracker = new HttpServiceTracker(context)
-    httpServiceTracker.open
   }
 
   def stop(context: BundleContext) {
@@ -254,7 +270,7 @@ class Activator extends BundleActivator with Loggable {
   /**
    * Configuration of a Lift-powered bundle.
    */
-  case class LiftBundleConfig(module: Box[AnyRef], packages: Seq[String]) {
+  case class LiftBundleConfig(module: Box[AnyRef], packages: Seq[String], startLevel: Int) {
     var sitemapMutator: Box[SiteMap => SiteMap] = None
     def mapResource(s: String) = s.replaceAll("//", "/")
   }

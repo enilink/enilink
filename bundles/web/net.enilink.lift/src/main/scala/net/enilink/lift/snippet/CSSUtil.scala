@@ -10,11 +10,7 @@ import net.enilink.lift.util.Globals
 /**
  * Display Bootstrap CSS headers
  */
-object CSSUtil extends DispatchSnippet {
-  def dispatch: DispatchIt = {
-    case "bootstrap" => _ => bootstrap
-  }
-
+object CSSUtil {
   def bootstrap: NodeSeq = {
     // allow application specific versions of Bootstrap
     val prefix = "/" + LiftRules.resourceServerPath + Globals.applicationPath.vend + "bootstrap/css/"
@@ -23,7 +19,7 @@ object CSSUtil extends DispatchSnippet {
         prefix + "bootstrap.min.css"
       } type="text/css"/>
       <link rel="stylesheet" href={
-        prefix + "bootstrap-theme.min.css"
+        prefix + "bootstrap-enilink.css"
       } type="text/css"/>
       <link rel="stylesheet" href={
         prefix + "typeahead-bootstrap.css"
@@ -32,5 +28,11 @@ object CSSUtil extends DispatchSnippet {
         prefix + "bootstrap-custom.css"
       } type="text/css"/>
     </xml:group>
+  }
+
+  def materialDesignIcons: NodeSeq = {
+    <link rel="stylesheet" href={
+      "/" + LiftRules.resourceServerPath + "/material-design-iconic-font/css/material-design-iconic-font.css"
+    } type="text/css" data-lift="head"/>
   }
 }

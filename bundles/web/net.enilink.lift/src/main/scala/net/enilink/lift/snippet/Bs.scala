@@ -4,6 +4,7 @@ import scala.xml.NodeSeq
 import net.liftweb.http.DispatchSnippet
 import net.liftweb.http.LiftRules
 import net.liftweb.http.S
+import net.liftweb.util.Helpers._
 import scala.xml.Text
 import net.liftweb.sitemap.MenuItem
 import net.liftweb.common.Full
@@ -21,7 +22,7 @@ object Bs extends DispatchSnippet {
 
   def dispatch: DispatchIt = {
     case "menu" => _ => menu
-    case "submenu" => _ => submenu
+    case "submenu" => ns => submenu(ns)
     case "alert" => ns => S.withAttrs(alertAttrs)(Msg.render(ns))
     case "feedback" => ns => S.withAttrs(feedbackAttrs)(Msg.render(ns))
   }
@@ -98,22 +99,16 @@ object Bs extends DispatchSnippet {
     <ul class="nav navbar-nav pull-right"> { for (item <- items.filter(pullRight(_))) yield renderItem(item) } </ul>
   }
 
-  def submenu: NodeSeq = {
+  def submenu(ns: NodeSeq): NodeSeq = {
     menuEntries.find { e => e.path && !e.kids.isEmpty } match {
       case Some(item) => {
-        <nav class="navbar-main subnav navbar navbar-static-top navbar-default collapse navbar-collapse" role="navigation">
-          <div class="container">
-            <ul class="nav navbar-nav">
-              {
-                for (kid <- item.kids) yield {
-                  var styles = kid.cssClass openOr ""
-                  if (kid.current || kid.path) styles += " active"
-                  <li class={ styles }><a href={ kid.uri }>{ kid.text }</a></li>
-                }
-              }
-            </ul>
-          </div>
-        </nav>
+        ("ul *" #> {
+          for (kid <- item.kids) yield {
+            var styles = kid.cssClass openOr ""
+            if (kid.current || kid.path) styles += " active"
+            <li class={ styles }><a href={ kid.uri }>{ kid.text }</a></li>
+          }
+        }) apply (ns)
       }
       case _ => NodeSeq.Empty
     }
