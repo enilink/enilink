@@ -48,6 +48,15 @@ import net.liftweb.common.Full
 import net.liftweb.http.RequestVar
 import net.enilink.komma.core.IReference
 import scala.language.postfixOps
+import scala.xml.Elem
+import net.liftweb.http.DispatchSnippet
+import scala.xml.UnprefixedAttribute
+import scala.xml.Node
+import scala.xml.MetaData
+import net.liftweb.builtin.snippet.Head
+import scala.xml.Group
+import scala.xml.Text
+import scala.xml.Null
 
 /**
  * A class that's instantiated early and run.  It allows the application
@@ -76,7 +85,57 @@ class LiftModule extends Logger {
     }
   }
 
+  def rewriteApplicationPaths {
+    LiftRules.urlDecorate.append {
+      case url => fixUrl(url)
+    }
+
+    def fixAttrValue(url: Seq[Node]): Seq[Node] = url map {
+      case Text(t) => Text(fixUrl(t))
+      case other => other
+    }
+
+    def fixAttrs(attrs: MetaData, toFix: String): MetaData = attrs match {
+      case Null => Null
+      case u: UnprefixedAttribute if u.key == toFix =>
+        new UnprefixedAttribute(toFix, fixAttrValue(attrs.value), fixAttrs(attrs.next, toFix))
+      case _ => attrs.copy(fixAttrs(attrs.next, toFix))
+    }
+
+    def fixNodeSeq(ns: NodeSeq): NodeSeq = {
+      ns.flatMap {
+        case Group(nodes) => Group(fixNodeSeq(nodes))
+        case e: Elem if e.label == "script" => e.copy(attributes = fixAttrs(e.attributes, "src"))
+        case e: Elem if e.label == "link" => e.copy(attributes = fixAttrs(e.attributes, "href"))
+      }
+    }
+
+    def fixUrl(url: String): String = {
+      // the magic should happen here
+      println(url)
+      url
+    }
+
+    object NewHead extends DispatchSnippet {
+      def dispatch: DispatchIt = {
+        case _ => render _
+      }
+
+      def render(ns: NodeSeq): NodeSeq = {
+        Head.render(fixNodeSeq(ns))
+      }
+    }
+
+    LiftRules.snippetDispatch.prepend {
+      Map(
+        "Head" -> NewHead,
+        "head" -> NewHead)
+    }
+  }
+
   def boot {
+    rewriteApplicationPaths
+    
     // set context user from UserPrincipal contained in the HTTP session after successful login
     Globals.contextUser.default.set(() => {
       Subject.getSubject(AccessController.getContext()) match {
