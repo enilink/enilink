@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project
+	xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd"
+	xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+	<modelVersion>4.0.0</modelVersion>
+	<groupId>net.enilink</groupId>
+	<artifactId>platform-core-feature</artifactId>
+	<version>0.0.1-SNAPSHOT</version>
+	<packaging>pom</packaging>
+
+	<modules>
+		<module>../../../komma/komma-releng/komma-edit-feature</module>
+
+		<module>../../net.enilink.auth</module>
+		<module>../../net.enilink.core</module>
+		<module>../../net.enilink.lift</module>
+		<module>../../net.enilink.security</module>
+		<module>../../net.enilink.security.openid</module>
+		<module>../../net.enilink.web</module>
+		<module>../../net.liftweb</module>
+
+		<module>../../platform-features/net.enilink.features.platform.core</module>
+	</modules>
+</project>
