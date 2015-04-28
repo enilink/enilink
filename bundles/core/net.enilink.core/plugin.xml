@@ -26,4 +26,29 @@
             class="net.enilink.core.jaas.EnilinkLoginModule">
       </loginModule>
    </extension>
+   <extension
+         id="product"
+         point="org.eclipse.core.runtime.products">
+      <product
+            application="net.enilink.core.application"
+            name="enilink">
+         <property
+               name="appName"
+               value="enilink">
+         </property>
+      </product>
+   </extension>
+   <extension
+         id="application"
+         name="eniLINK Application"
+         point="org.eclipse.core.runtime.applications">
+      <application
+            cardinality="singleton-global"
+            thread="main"
+            visible="true">
+         <run
+               class="net.enilink.core.eclipse.Application">
+         </run>
+      </application>
+   </extension>
 </plugin>
