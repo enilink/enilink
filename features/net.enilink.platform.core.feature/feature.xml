@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <feature
-      id="net.enilink.features.platform.core"
+      id="net.enilink.platform.core.feature"
       label="eniLINK Platform Core"
       version="1.1.0.qualifier"
       provider-name="enilink.net">
@@ -79,6 +79,13 @@
 
    <plugin
          id="net.enilink.security.openid"
+         download-size="0"
+         install-size="0"
+         version="0.0.0"
+         unpack="false"/>
+
+   <plugin
+         id="net.enilink.web"
          download-size="0"
          install-size="0"
          version="0.0.0"

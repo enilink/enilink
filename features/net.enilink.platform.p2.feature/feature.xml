@@ -1,171 +1,181 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <feature
-      id="net.enilink.features.platform.standalone"
-      label="eniLINK Platform Standalone"
+      id="net.enilink.platform.p2.feature"
+      label="eniLINK Platform P2 Support"
       version="1.1.0.qualifier"
       provider-name="enilink.net">
 
    <description>
-      eniLINK Platform Core
+      eniLINK Platform P2 support
    </description>
 
    <copyright>
       Copyright (c) 2015 Fraunhofer IWU.
    </copyright>
 
-   <includes
-         id="net.enilink.features.platform.core"
-         version="0.0.0"/>
-
-   <includes
-         id="net.enilink.komma.edit.feature"
-         version="0.0.0"/>
-
-   <includes
-         id="net.enilink.komma.feature"
-         version="0.0.0"/>
-
    <plugin
-         id="org.apache.commons.fileupload"
+         id="org.eclipse.equinox.p2.artifact.repository"
          download-size="0"
          install-size="0"
          version="0.0.0"
          unpack="false"/>
 
    <plugin
-         id="org.junit"
-         download-size="0"
-         install-size="0"
-         version="0.0.0"/>
-
-   <plugin
-         id="org.hamcrest.core"
+         id="org.eclipse.equinox.p2.console"
          download-size="0"
          install-size="0"
          version="0.0.0"
          unpack="false"/>
 
    <plugin
-         id="org.eclipse.equinox.http.jetty"
+         id="org.eclipse.equinox.p2.core"
          download-size="0"
          install-size="0"
          version="0.0.0"
          unpack="false"/>
 
    <plugin
-         id="org.eclipse.equinox.console"
+         id="org.eclipse.equinox.p2.director"
          download-size="0"
          install-size="0"
          version="0.0.0"
          unpack="false"/>
 
    <plugin
-         id="org.apache.felix.gogo.shell"
+         id="org.eclipse.equinox.p2.director.app"
          download-size="0"
          install-size="0"
          version="0.0.0"
          unpack="false"/>
 
    <plugin
-         id="org.eclipse.core.resources"
+         id="org.eclipse.equinox.p2.directorywatcher"
          download-size="0"
          install-size="0"
          version="0.0.0"
          unpack="false"/>
 
    <plugin
-         id="org.eclipse.core.runtime"
+         id="org.eclipse.equinox.p2.discovery"
          download-size="0"
          install-size="0"
          version="0.0.0"
          unpack="false"/>
 
    <plugin
-         id="org.eclipse.core.filesystem"
+         id="org.eclipse.equinox.p2.engine"
          download-size="0"
          install-size="0"
          version="0.0.0"
          unpack="false"/>
 
    <plugin
-         id="org.scala-lang.modules.scala-parser-combinators"
+         id="org.eclipse.equinox.p2.metadata"
          download-size="0"
          install-size="0"
          version="0.0.0"
          unpack="false"/>
 
    <plugin
-         id="org.scala-lang.modules.scala-xml"
+         id="org.eclipse.equinox.p2.extensionlocation"
          download-size="0"
          install-size="0"
          version="0.0.0"
          unpack="false"/>
 
    <plugin
-         id="org.scala-lang.scala-actors"
+         id="org.eclipse.equinox.p2.garbagecollector"
          download-size="0"
          install-size="0"
          version="0.0.0"
          unpack="false"/>
 
    <plugin
-         id="org.scala-lang.scala-compiler"
+         id="org.eclipse.equinox.p2.installer"
          download-size="0"
          install-size="0"
          version="0.0.0"
          unpack="false"/>
 
    <plugin
-         id="org.scala-lang.scala-library"
+         id="org.eclipse.equinox.p2.jarprocessor"
          download-size="0"
          install-size="0"
          version="0.0.0"
          unpack="false"/>
 
    <plugin
-         id="org.scala-lang.scala-reflect"
+         id="org.eclipse.equinox.p2.metadata.repository"
          download-size="0"
          install-size="0"
          version="0.0.0"
          unpack="false"/>
 
    <plugin
-         id="org.eclipse.osgi"
+         id="org.eclipse.equinox.p2.operations"
          download-size="0"
          install-size="0"
          version="0.0.0"
          unpack="false"/>
 
    <plugin
-         id="org.eclipse.equinox.common"
+         id="org.eclipse.equinox.p2.reconciler.dropins"
          download-size="0"
          install-size="0"
          version="0.0.0"
          unpack="false"/>
 
    <plugin
-         id="org.eclipse.equinox.app"
+         id="org.eclipse.equinox.p2.repository"
          download-size="0"
          install-size="0"
          version="0.0.0"
          unpack="false"/>
 
    <plugin
-         id="org.eclipse.equinox.preferences"
+         id="org.eclipse.equinox.p2.touchpoint.eclipse"
          download-size="0"
          install-size="0"
          version="0.0.0"
          unpack="false"/>
 
    <plugin
-         id="org.eclipse.equinox.registry"
+         id="org.eclipse.equinox.p2.publisher"
          download-size="0"
          install-size="0"
          version="0.0.0"
          unpack="false"/>
 
    <plugin
-         id="org.eclipse.core.jobs"
+         id="org.eclipse.equinox.p2.publisher.eclipse"
+         download-size="0"
+         install-size="0"
+         version="0.0.0"
+         unpack="false"/>
+
+   <plugin
+         id="org.sat4j.core"
+         download-size="0"
+         install-size="0"
+         version="0.0.0"
+         unpack="false"/>
+
+   <plugin
+         id="org.sat4j.pb"
+         download-size="0"
+         install-size="0"
+         version="0.0.0"
+         unpack="false"/>
+
+   <plugin
+         id="org.eclipse.equinox.simpleconfigurator"
+         download-size="0"
+         install-size="0"
+         version="0.0.0"
+         unpack="false"/>
+
+   <plugin
+         id="org.eclipse.equinox.simpleconfigurator.manipulator"
          download-size="0"
          install-size="0"
          version="0.0.0"
