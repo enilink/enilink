@@ -9,7 +9,9 @@
 	<packaging>pom</packaging>
 
 	<modules>
-		<module>../platform-core-feature</module>
-		<module>../../platform-features/net.enilink.platform.standalone.feature</module>
+		<!-- module>../platform-core-feature</module -->
+		<module>../../../komma/komma-releng/komma-rap-feature</module>
+
+		<module>../../platform-features/net.enilink.platform.rap.feature</module>
 	</modules>
 </project>

@@ -19,6 +19,6 @@
 		<module>../../net.enilink.web</module>
 		<module>../../net.liftweb</module>
 
-		<module>../../platform-features/net.enilink.features.platform.core</module>
+		<module>../../platform-features/net.enilink.platform.core.feature</module>
 	</modules>
 </project>

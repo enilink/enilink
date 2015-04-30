@@ -4,12 +4,13 @@
 	xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
 	<modelVersion>4.0.0</modelVersion>
 	<groupId>net.enilink</groupId>
-	<artifactId>platform-standalone-feature</artifactId>
+	<artifactId>platform-product</artifactId>
 	<version>0.0.1-SNAPSHOT</version>
 	<packaging>pom</packaging>
 
 	<modules>
-		<module>../platform-core-feature</module>
-		<module>../../platform-features/net.enilink.platform.standalone.feature</module>
+		<module>../platform-standalone-feature</module>
+		<module>../platform-p2-feature</module>
+		<module>../../platform-features/net.enilink.platform.product</module>
 	</modules>
 </project>
