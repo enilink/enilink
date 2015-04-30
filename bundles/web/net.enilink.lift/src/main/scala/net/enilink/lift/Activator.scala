@@ -3,11 +3,9 @@ package net.enilink.lift
 import java.io.File
 import java.security.PrivilegedAction
 import java.util.concurrent.atomic.AtomicReference
-
 import scala.Option.option2Iterable
 import scala.collection.JavaConversions.asScalaSet
 import scala.collection.mutable.LinkedHashMap
-
 import org.eclipse.equinox.http.servlet.ExtendedHttpService
 import org.osgi.framework.Bundle
 import org.osgi.framework.BundleActivator
@@ -18,7 +16,6 @@ import org.osgi.framework.ServiceRegistration
 import org.osgi.service.http.HttpContext
 import org.osgi.util.tracker.BundleTracker
 import org.osgi.util.tracker.ServiceTracker
-
 import javax.security.auth.Subject
 import javax.servlet.FilterChain
 import javax.servlet.ServletRequest
@@ -47,6 +44,7 @@ import net.liftweb.http.S
 import net.liftweb.osgi.OsgiBootable
 import net.liftweb.sitemap.SiteMap
 import net.liftweb.util.ClassHelpers
+import net.liftweb.util.Props
 
 object Activator {
   val SERVICE_KEY_HTTP_PORT = "http.port"
@@ -116,7 +114,15 @@ class Activator extends BundleActivator with Loggable {
     }
 
     override def removedBundle(bundle: Bundle, event: BundleEvent, config: LiftBundleConfig) {
-      // TODO unboot bundle
+      config.module.map { module =>
+        try {
+          logger.debug("Stopping Lift-powered bundle " + bundle.getSymbolicName + ".")
+          ClassHelpers.createInvoker("shutdown", module) map (_())
+          logger.debug("Lift-powered bundle " + bundle.getSymbolicName + " stopped.")
+        } catch {
+          case e: Throwable => logger.error("Error while stopping Lift-powered bundle " + bundle.getSymbolicName, e)
+        }
+      }
     }
 
     override def modifiedBundle(bundle: Bundle, event: BundleEvent, config: LiftBundleConfig) {
@@ -195,7 +201,7 @@ class Activator extends BundleActivator with Loggable {
 
     bundleTracker = new LiftBundleTracker
     bundleTracker.open
-    
+
     initLift
 
     contextServiceReg = context.registerService(classOf[IContextProvider],
@@ -214,6 +220,20 @@ class Activator extends BundleActivator with Loggable {
   }
 
   def stop(context: BundleContext) {
+    if (bundleTracker != null) {
+      bundleTracker.close
+      bundleTracker = null
+    }
+    // shutdown configuration
+    Globals.close
+    if (liftServiceReg != null) {
+      liftServiceReg.unregister
+      liftServiceReg = null
+    }
+    if (contextServiceReg != null) {
+      contextServiceReg.unregister
+      contextServiceReg = null
+    }
     httpServiceHolder.get match {
       case null =>
       case httpService => {
@@ -224,30 +244,6 @@ class Activator extends BundleActivator with Loggable {
       httpServiceTracker.close
       httpServiceTracker = null
     }
-    if (contextServiceReg != null) {
-      contextServiceReg.unregister
-      contextServiceReg = null
-    }
-    if (liftServiceReg != null) {
-      liftServiceReg.unregister
-      liftServiceReg = null
-    }
-    if (bundleTracker != null) {
-      bundleTracker.getTracked.entrySet.toSeq.view foreach { entry =>
-        entry.getValue.module.map { module =>
-          try {
-            ClassHelpers.createInvoker("shutdown", module) map (_())
-            logger.debug("Lift-powered bundle " + entry.getKey.getSymbolicName + " stopped.")
-          } catch {
-            case e: Throwable => logger.error("Error while stopping Lift-powered bundle " + entry.getKey.getSymbolicName, e)
-          }
-        }
-      }
-      bundleTracker.close
-      bundleTracker = null
-    }
-    // shutdown configuration
-    Globals.close
     this.context = null
   }
 
