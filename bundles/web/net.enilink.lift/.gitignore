@@ -3,3 +3,5 @@ target/
 target-maven/
 bin/
 /.cache
+/.cache-main
+/.cache-tests
