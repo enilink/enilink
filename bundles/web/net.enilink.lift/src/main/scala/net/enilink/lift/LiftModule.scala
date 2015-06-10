@@ -3,22 +3,19 @@ package net.enilink.lift
 import java.security.AccessController
 import java.security.PrivilegedAction
 import java.util.Locale
+import scala.language.postfixOps
 import scala.xml.NodeSeq
 import javax.security.auth.Subject
 import net.enilink.auth.UserPrincipal
-import net.enilink.auth.UserPrincipal
-import net.enilink.core.ModelSetManager
 import net.enilink.komma.core.BlankNode
 import net.enilink.komma.core.IUnitOfWork
-import net.enilink.komma.core.URI
-import net.enilink.komma.model.IModel
-import net.enilink.komma.model.IObject
+import net.enilink.komma.core.URIs
 import net.enilink.lift.files.FileService
-import net.enilink.lift.ldp.LDPService
 import net.enilink.lift.html.Html5ParserWithRDFaPrefixes
+import net.enilink.lift.util.CurrentContext
 import net.enilink.lift.util.Globals
 import net.enilink.lift.util.NotAllowedModel
-import net.liftweb.common.Box
+import net.liftweb.common.Box.option2Box
 import net.liftweb.common.Empty
 import net.liftweb.common.Full
 import net.liftweb.common.Logger
@@ -26,37 +23,23 @@ import net.liftweb.http.ForbiddenResponse
 import net.liftweb.http.Html5Properties
 import net.liftweb.http.LiftRules
 import net.liftweb.http.LiftRulesMocker.toLiftRules
+import net.liftweb.http.NoticeType
 import net.liftweb.http.OnDiskFileParamHolder
 import net.liftweb.http.Req
 import net.liftweb.http.ResourceServer
 import net.liftweb.http.S
 import net.liftweb.http.js.jquery.JQueryArtifacts
 import net.liftweb.util.DynoVar
+import net.liftweb.util.Helpers.intToTimeSpanBuilder
+import net.liftweb.util.Helpers.strToSuperArrowAssoc
 import net.liftweb.util.LRU
 import net.liftweb.util.LoanWrapper
 import net.liftweb.util.Props
 import net.liftweb.util.TemplateCache
-import net.liftweb.util.Helpers._
 import net.liftweb.util.Vendor.funcToVendor
 import net.liftweb.util.Vendor.valToVendor
-import net.liftweb.http.NoticeType
-import net.enilink.komma.core.URIs
-import net.enilink.komma.model.IModelAware
+import net.liftweb.common.Box
 import net.enilink.lift.util.RdfContext
-import net.enilink.lift.util.CurrentContext
-import net.liftweb.common.Full
-import net.liftweb.http.RequestVar
-import net.enilink.komma.core.IReference
-import scala.language.postfixOps
-import scala.xml.Elem
-import net.liftweb.http.DispatchSnippet
-import scala.xml.UnprefixedAttribute
-import scala.xml.Node
-import scala.xml.MetaData
-import net.liftweb.builtin.snippet.Head
-import scala.xml.Group
-import scala.xml.Text
-import scala.xml.Null
 
 /**
  * A class that's instantiated early and run.  It allows the application
@@ -85,56 +68,9 @@ class LiftModule extends Logger {
     }
   }
 
-  def rewriteApplicationPaths {
-    LiftRules.urlDecorate.append {
-      case url => fixUrl(url)
-    }
-
-    def fixAttrValue(url: Seq[Node]): Seq[Node] = url map {
-      case Text(t) => Text(fixUrl(t))
-      case other => other
-    }
-
-    def fixAttrs(attrs: MetaData, toFix: String): MetaData = attrs match {
-      case Null => Null
-      case u: UnprefixedAttribute if u.key == toFix =>
-        new UnprefixedAttribute(toFix, fixAttrValue(attrs.value), fixAttrs(attrs.next, toFix))
-      case _ => attrs.copy(fixAttrs(attrs.next, toFix))
-    }
-
-    def fixNodeSeq(ns: NodeSeq): NodeSeq = {
-      ns.flatMap {
-        case Group(nodes) => Group(fixNodeSeq(nodes))
-        case e: Elem if e.label == "script" => e.copy(attributes = fixAttrs(e.attributes, "src"))
-        case e: Elem if e.label == "link" => e.copy(attributes = fixAttrs(e.attributes, "href"))
-      }
-    }
-
-    def fixUrl(url: String): String = {
-      // the magic should happen here
-      println(url)
-      url
-    }
-
-    object NewHead extends DispatchSnippet {
-      def dispatch: DispatchIt = {
-        case _ => render _
-      }
-
-      def render(ns: NodeSeq): NodeSeq = {
-        Head.render(fixNodeSeq(ns))
-      }
-    }
-
-    LiftRules.snippetDispatch.prepend {
-      Map(
-        "Head" -> NewHead,
-        "head" -> NewHead)
-    }
-  }
-
   def boot {
-    rewriteApplicationPaths
+    // enable this to rewrite application paths (WIP)
+    // ApplicationPaths.rewriteApplicationPaths
     
     // set context user from UserPrincipal contained in the HTTP session after successful login
     Globals.contextUser.default.set(() => {
