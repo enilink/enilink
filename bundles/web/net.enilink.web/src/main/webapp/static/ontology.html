@@ -60,7 +60,7 @@ ul {
 				</section>
 				<section class="row">
 					<div class="col-md-6 optional"
-						data-filter="isIri(?c) && regex(str(?c), concat(str(?this), &quot;[/#][^/#]+$&quot;))">
+						data-filter="isIri(?c) && regex(str(?c), concat(str(?this), &quot;[#]?[^/#]+$&quot;))">
 						<h3>Classes</h3>
 						<ul data-lift="tree">
 							<li about="?c" class="asc">
@@ -72,7 +72,7 @@ ul {
 								<ul data-if="?sub">
 									<li class="optional child" rev="rdfs:subClassOf"
 										resource="?sub"
-										data-filter="isIri(?sub) && regex(str(?sub), concat(str(?this), &quot;[/#][^/#]+$&quot;))"></li>
+										data-filter="isIri(?sub) && regex(str(?sub), concat(str(?this), &quot;[#]?[^/#]+$&quot;))"></li>
 								</ul>
 							</li>
 						</ul>
@@ -81,7 +81,7 @@ ul {
 						<h3>Properties</h3>
 						<ul data-lift="tree">
 							<li about="?p" class="asc union optional"
-								data-filter="regex(str(?p), concat(str(?this), &quot;[/#][^/#]+$&quot;))">
+								data-filter="regex(str(?p), concat(str(?this), &quot;[#]?[^/#]+$&quot;))">
 								<div class="clearable union" rel="rdf:type">
 									<span resource="rdf:Property"></span> <span
 										resource="owl:ObjectProperty"></span> <span
