@@ -42,7 +42,13 @@ import net.liftweb.util.DynoVar
 import scala.util.DynamicVariable
 import net.enilink.komma.model.ModelUtil
 
+/**
+ * Helper object for query parameters.
+ */
 object ParamsHelper {
+  /**
+   * Returns a map of current query parameters excluding the parameters contained in `filter`.
+   */
   def params(filter: Set[String] = Set.empty) = {
     def include = S.session.map(session => {
       name: String => !(filter.contains(name) || name.matches("^F[0-9].*")) //|| session.findFunc(name).isDefined) // requires Lift 2.5

@@ -13,7 +13,7 @@ import net.liftweb.common.Empty
 
 /**
  * If this parameter is included, the item will not be visible in the menu if it is inactive,
- * but will still be accessable.
+ * but will still be accessible.
  */
 case object HideIfInactive extends Loc.AnyLocParam
 

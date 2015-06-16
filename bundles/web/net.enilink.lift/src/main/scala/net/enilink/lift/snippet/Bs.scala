@@ -13,6 +13,7 @@ import net.enilink.lift.sitemap.Application
 import net.liftweb.builtin.snippet.Msg
 import net.enilink.lift.util.Globals
 import net.enilink.lift.sitemap.HideIfInactive
+import net.enilink.lift.sitemap.Application
 
 object Bs extends DispatchSnippet {
   val alertAttrs = S.mapToAttrs(List("errorClass" -> "alert alert-danger",
@@ -29,7 +30,9 @@ object Bs extends DispatchSnippet {
 
   private def hidden(loc: Loc[_], path: List[Loc[_]]) = loc.hidden || loc.params.contains(HideIfInactive) && !path.contains(loc)
 
-  private def menuEntries = {
+  private def isApplication(loc: Loc[_]) = loc.defaultValue.exists(_.isInstanceOf[Application])
+
+  private def menuEntries(submenu: Boolean) = {
     val result =
       (for {
         sm <- LiftRules.siteMap;
@@ -39,16 +42,30 @@ object Bs extends DispatchSnippet {
           case _ => Nil
         };
         app = Globals.application.vend getOrElse null
-      } yield sm.kids.flatMap {
-        // create only items for current application
-        kid =>
-          if (hidden(kid.loc, path)) Nil else kid.loc.currentValue match {
-            case Full(someApp: Application) => if (someApp == app) {
-              // skip application root locations
-              if (kid.loc.link.uriList == app.path) kid.kids.flatMap(_.makeMenuItem(path)) else kid.makeMenuItem(path)
-            } else Nil
-            case _ => kid.makeMenuItem(path)
+      } yield {
+        val entries = path.reverse match {
+          case current :: parent :: xs => {
+            if (submenu) {
+              if (isApplication(parent)) current.menu.kids else parent.menu.kids
+            } else xs match {
+              case elem :: _ => elem.menu.kids
+              case _ => sm.kids
+            }
           }
+          case _ :: Nil | Nil => if (submenu) Nil else sm.kids
+        }
+
+        entries flatMap {
+          // create only items for current application
+          kid =>
+            if (hidden(kid.loc, path)) Nil else kid.loc.currentValue match {
+              case Full(someApp: Application) => if (someApp == app) {
+                // skip application root locations
+                if (kid.loc.link.uriList == app.path) kid.kids.flatMap(_.makeMenuItem(path)) else kid.makeMenuItem(path)
+              } else Nil
+              case _ => kid.makeMenuItem(path)
+            }
+        }
       }) openOr Nil
     result
   }
@@ -93,24 +110,22 @@ object Bs extends DispatchSnippet {
           </li>
       }
     }
-    val items = menuEntries
+    val items = menuEntries(false)
     def pullRight(item: MenuItem) = item.cssClass.exists(_ == "pull-right")
     <ul class="nav navbar-nav"> { for (item <- items.filterNot(pullRight(_))) yield renderItem(item) } </ul>
     <ul class="nav navbar-nav pull-right"> { for (item <- items.filter(pullRight(_))) yield renderItem(item) } </ul>
   }
 
   def submenu(ns: NodeSeq): NodeSeq = {
-    menuEntries.find { e => e.path && !e.kids.isEmpty } match {
-      case Some(item) => {
-        ("ul *" #> {
-          for (kid <- item.kids) yield {
-            var styles = kid.cssClass openOr ""
-            if (kid.current || kid.path) styles += " active"
-            <li class={ styles }><a href={ kid.uri }>{ kid.text }</a></li>
-          }
-        }) apply (ns)
-      }
-      case _ => NodeSeq.Empty
+    val entries = menuEntries(true)
+    if (entries.isEmpty) Nil else {
+      ("ul *" #> {
+        for (kid <- entries) yield {
+          var styles = kid.cssClass openOr ""
+          if (kid.current || kid.path) styles += " active"
+          <li class={ styles }><a href={ kid.uri }>{ kid.text }</a></li>
+        }
+      }) apply (ns)
     }
   }
 }

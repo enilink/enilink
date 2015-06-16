@@ -197,7 +197,7 @@ class LiftModule extends Logger {
             val model = S.request.flatMap(req => Globals.contextModelRules.toList.find(_.isDefinedAt(req)) match {
               case Some(f) => f(req)
               case _ => Empty
-            }).flatMap(uri => Box.legacyNullTest(modelSet.getModel(uri, false))) or Globals.contextModel.vend
+            }).flatMap(uri => Full(modelSet.getModel(uri, false))) or Globals.contextModel.vend filterNot (_ == null)
 
             val rdfContext = (S.request.flatMap(req => Globals.contextResourceRules.toList.find(_.isDefinedAt(req)) match {
               case Some(f) => f(req)
