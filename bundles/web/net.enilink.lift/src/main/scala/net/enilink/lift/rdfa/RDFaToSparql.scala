@@ -280,7 +280,7 @@ class RDFaToSparqlParser(e: xml.Elem, base: String, varResolver: Option[Variable
 
   def toString(n: Node): String = {
     n match {
-      case PlainLiteral(s, lang) => "\"" + s + "\"" + (lang match { case Some(l) => "@" + l case None => "" })
+      case PlainLiteral(s, lang) => "\"" + s + "\"" + (lang match { case Some(l) => "@" + l.name case None => "" })
       case TypedLiteral(lex, dt) => "\"" + lex + "\"^^" + toString(dt)
       case XmlLiteral(content) => "\"" + content + "\"^^" + toString(Label(Vocabulary.XMLLiteral))
       case Label(uri) => "<" + uri + ">"

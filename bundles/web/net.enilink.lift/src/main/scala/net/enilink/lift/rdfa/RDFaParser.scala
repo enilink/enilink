@@ -70,7 +70,7 @@ class RDFaParser()(implicit val s: Scope = new Scope()) extends CURIE with RDFaU
     val eWithPrefixes = if (hasPrefixMappings) e.copy(scope = namespaces) else e
 
     // step 3. [current language]
-    val lang2 = eWithPrefixes \ "@{http://www.w3.org/XML/1998/namespace}lang"
+    val lang2 = eWithPrefixes \ "@lang"
     val lang = {
       if (lang2.isEmpty) lang1
       else if (lang2.text == "") null
