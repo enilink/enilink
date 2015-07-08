@@ -47,7 +47,9 @@ object ParamsHelper {
     def include = S.session.map(session => {
       name: String => !(filter.contains(name) || name.matches("^F[0-9].*")) //|| session.findFunc(name).isDefined) // requires Lift 2.5
     }) openOr ((name: String) => !filter.contains(name))
-    S.request.map(_._params.collect { case (name, value :: Nil) if include(name) => (name, value) }) openOr Map.empty
+    // TODO: check best practices wrt. HPP (HTTP Parameter Pollution) ie. what to do about multiple values for a single parameter
+    // currently, the first entry of the list is used, the others are discarded
+    S.request.map(_.params.collect { case (name, value :: _) if include(name) => (name, value) }) openOr Map.empty
   }
 }
 
