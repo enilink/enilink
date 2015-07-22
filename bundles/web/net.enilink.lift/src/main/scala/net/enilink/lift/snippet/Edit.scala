@@ -103,7 +103,7 @@ class JsonCallHandler {
     case _ => None
   }
 
-  def removeResources(resources: List[String]) = {
+  def removeResources(resources: List[String], gc: Boolean = false) = {
     (for (model <- model; em = model.getManager; transaction = em.getTransaction) yield {
       transaction.begin
       try {
@@ -111,7 +111,9 @@ class JsonCallHandler {
           val ref = if (resource.startsWith("_:")) em.createReference(resource)
           else if (resource.startsWith("<") && resource.endsWith(">")) URIs.createURI(resource.substring(1, resource.length - 1))
           else URIs.createURI(resource)
-          em.removeRecursive(ref, true);
+          if (!(gc && em.hasMatchAsserted(null, null, ref))) {
+            em.removeRecursive(ref, true)
+          }
         }
         transaction.commit
         JBool(true)
@@ -124,6 +126,9 @@ class JsonCallHandler {
   def apply: PartialFunction[JValue, Any] = {
     case JsonCommand("removeResource", _, JArray(resources)) => removeResources(resources.map(_.values.toString))
     case JsonCommand("removeResource", _, JString(resource)) => removeResources(List(resource))
+
+    case JsonCommand("gcResource", _, JArray(resources)) => removeResources(resources.map(_.values.toString), true)
+    case JsonCommand("gcResource", _, JString(resource)) => removeResources(List(resource), true)
 
     case JsonCommand("blankNode", _, _) => {
       ((for (model <- model; em = model.getManager) yield JString(em.createReference.toString)) openOr JString(new BlankNode().toString))
@@ -403,6 +408,7 @@ class Edit extends DispatchSnippet {
           ("namespace", AnonFunc("prefix, callback, model", handler.call("namespace", JsVar("prefix"), JsVar("callback"), modelParam))), //
           ("namespaces", AnonFunc("callback, model", handler.call("namespaces", JsRaw("null"), JsVar("callback"), modelParam))), //
           ("removeResource", AnonFunc("resource, callback, model", handler.call("removeResource", JsVar("resource"), JsVar("callback"), modelParam))), //
+          ("gcResource", AnonFunc("resource, callback, model", handler.call("gcResource", JsVar("resource"), JsVar("callback"), modelParam))), //
           ("updateTriples", AnonFunc("add, remove, callback, model",
             JsRaw("""var params;
 if (add && (add.add !== undefined || add.remove !== undefined)) {

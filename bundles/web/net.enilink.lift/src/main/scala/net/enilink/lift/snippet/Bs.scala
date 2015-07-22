@@ -78,7 +78,7 @@ object Bs extends DispatchSnippet {
 
       var styles = item.cssClass openOr ""
       if (item.current || item.path) styles += " active"
-      item.kids match {
+      item.kids filterNot { kid => kid.info.exists(_.exists(_() == HideIfInactive)) } match {
         case Nil =>
           // item has no kids, show it as a link
           <li class={ styles }><a href={ item.uri }>{ item.text }</a></li>
