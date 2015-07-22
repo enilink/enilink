@@ -1,0 +1,38 @@
+<div class="search-form">
+	<script type="text/javascript" data-lift="head">
+		$(function() {
+			var queryInput = $('input.search-query').not('.tt-input, .tt-hint')
+					.each(
+							function() {
+								var self = $(this);
+								var sourceFunc = eval("("
+										+ self.attr("data-source") + ")");
+								var timeoutID;
+								self.typeahead({
+									minLength : 2
+								}, {
+									source : function(query, cb) {
+										if (timeoutID) {
+											clearTimeout(timeoutID);
+										}
+										timeoutID = setTimeout(function() {
+											sourceFunc(query, cb);
+										}, 1000);
+									},
+									displayKey : function(v) {
+										return v;
+									}
+								});
+							});
+		});
+	</script>
+	<form method="get" action="" class="form-inline">
+		<div class="form-group">
+			<input class="search-query form-control" type="text"
+				placeholder="Search..." autocomplete="off"></input>
+		</div>
+		<button type="submit" class="btn btn-primary">
+			<i class="glyphicon glyphicon-search"></i>
+		</button>
+	</form>
+</div>

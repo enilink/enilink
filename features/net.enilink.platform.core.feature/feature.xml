@@ -1,0 +1,94 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<feature
+      id="net.enilink.platform.core.feature"
+      label="eniLINK Platform Core"
+      version="1.1.0.qualifier"
+      provider-name="enilink.net">
+
+   <description>
+      eniLINK Platform Core
+   </description>
+
+   <copyright>
+      Copyright (c) 2015 Fraunhofer IWU.
+   </copyright>
+
+   <requires>
+      <import plugin="org.eclipse.core.runtime"/>
+      <import plugin="net.enilink.komma.edit"/>
+      <import plugin="net.enilink.komma.workbench"/>
+      <import plugin="net.enilink.komma.literals"/>
+      <import plugin="com.google.guava"/>
+      <import plugin="com.google.inject"/>
+      <import plugin="net.enilink.composition.properties.komma"/>
+      <import plugin="org.aopalliance"/>
+      <import plugin="net.enilink.commons.util"/>
+      <import plugin="org.eclipse.core.resources"/>
+      <import plugin="org.junit"/>
+      <import plugin="net.enilink.commons.logging"/>
+      <import plugin="org.scala-lang.scala-library"/>
+      <import plugin="org.scala-lang.modules.scala-parser-combinators"/>
+      <import plugin="org.scala-lang.modules.scala-xml"/>
+      <import plugin="net.enilink.komma.model"/>
+      <import plugin="org.eclipse.core.commands"/>
+      <import plugin="javax.servlet"/>
+      <import plugin="org.eclipse.equinox.http.servlet"/>
+      <import plugin="org.eclipse.osgi"/>
+      <import plugin="org.eclipse.osgi.services"/>
+      <import plugin="org.scala-lang.scala-reflect"/>
+      <import plugin="org.scala-lang.scala-compiler"/>
+      <import plugin="javax.mail"/>
+      <import plugin="org.apache.commons.fileupload"/>
+      <import plugin="net.enilink.vocab.foaf"/>
+   </requires>
+
+   <plugin
+         id="net.enilink.core"
+         download-size="0"
+         install-size="0"
+         version="0.0.0"
+         unpack="false"/>
+
+   <plugin
+         id="net.enilink.lift"
+         download-size="0"
+         install-size="0"
+         version="0.0.0"
+         unpack="false"/>
+
+   <plugin
+         id="net.liftweb"
+         download-size="0"
+         install-size="0"
+         version="0.0.0"
+         unpack="false"/>
+
+   <plugin
+         id="net.enilink.auth"
+         download-size="0"
+         install-size="0"
+         version="0.0.0"
+         unpack="false"/>
+
+   <plugin
+         id="net.enilink.security"
+         download-size="0"
+         install-size="0"
+         version="0.0.0"
+         unpack="false"/>
+
+   <plugin
+         id="net.enilink.security.openid"
+         download-size="0"
+         install-size="0"
+         version="0.0.0"
+         unpack="false"/>
+
+   <plugin
+         id="net.enilink.web"
+         download-size="0"
+         install-size="0"
+         version="0.0.0"
+         unpack="false"/>
+
+</feature>

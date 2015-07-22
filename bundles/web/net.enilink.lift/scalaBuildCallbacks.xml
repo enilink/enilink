@@ -1,0 +1,74 @@
+<project name="Build specific targets and properties" xmlns:rsel="antlib:org.apache.tools.ant.types.resources.selectors">
+	<property name="log.file" value="scalaBuildCallbacks.log" />
+
+	<target name="pre.clean" />
+	<target name="post.clean" />
+	<target name="pre.@dot" />
+	<target name="post.@dot" />
+	<target name="pre.build.jars" />
+	<target name="post.build.jars" />
+	<target name="pre.gather.bin.parts" />
+	<target name="post.gather.bin.parts" />
+	<target name="pre.gather.logs" />
+	<target name="post.gather.logs" />
+	<target name="post.compile.@dot">
+		<!-- find eclipse.home -->
+		<!-- echoproperties destfile="${log.file}" / -->
+		<pathconvert property="scala_library_bundle">
+			<last>
+				<fileset dir="${eclipse.home}/plugins">
+					<include name="org.scala-lang.scala-library_*" />
+				</fileset>
+			</last>
+		</pathconvert>
+		<echo message="Using Scala Library Bundle: ${scala_library_bundle}" />
+		<!-- find scala compiler -->
+		<pathconvert property="scala_compiler_bundle">
+			<last>
+				<fileset dir="${eclipse.home}/plugins">
+					<include name="org.scala-lang.scala-compiler_*" />
+				</fileset>
+			</last>
+		</pathconvert>
+		<echo message="Using Scala Compiler Bundle: ${scala_compiler_bundle}" />
+		<!-- find scala reflect -->
+		<pathconvert property="scala_reflect_bundle">
+			<last>
+				<fileset dir="${eclipse.home}/plugins">
+					<include name="org.scala-lang.scala-reflect_*" />
+				</fileset>
+			</last>
+		</pathconvert>
+		<echo message="Using Scala Compiler Bundle: ${scala_reflect_bundle}" />
+		<!-- 
+			define scalac task -->
+		<taskdef resource="scala/tools/ant/antlib.xml">
+			<classpath>
+				<pathelement location="${scala_compiler_bundle}" />
+				<pathelement location="${scala_reflect_bundle}" />
+				<pathelement location="${scala_library_bundle}" />
+			</classpath>
+		</taskdef>
+		<!-- create classpath -->
+		<pathconvert property="my.classpath">
+			<restrict>
+				<path>
+					<path refid="@dot.classpath" />
+					<pathelement location="${target.folder}" />
+					<pathelement location="${scala_library_bundle}" />
+				</path>
+				<!-- remove libraries from classpath that don't exist (optional) -->
+				<rsel:exists />
+			</restrict>
+		</pathconvert>
+		<mkdir dir="${target.folder}" />
+		<property name="scala.src" location="${plugin.destination}/${source.folder1}" />
+		<scalac srcdir="${scala.src}" destdir="${target.folder}" classpath="${my.classpath}" encoding="UTF-8">
+			<include name="**/*.scala" />
+		</scalac>
+		<!-- delete scala source files in output folder -->
+		<delete>
+			<fileset dir="${target.folder}" includes="**/*.scala" />
+		</delete>
+	</target>
+</project>

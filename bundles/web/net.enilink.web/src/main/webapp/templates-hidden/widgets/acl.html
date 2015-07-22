@@ -1,0 +1,27 @@
+<div prefix="acl: http://www.w3.org/ns/auth/acl#" class="acl-widget">
+	<script src="/enilink/js/widgets/acl.js" type="text/javascript" data-lift="head"></script>
+	<h4>
+		<lift:bind name="acl.modeName"></lift:bind>
+	</h4>
+	<div class="acl-mode" style="display: none;">
+		<lift:bind name="acl.mode"></lift:bind>
+	</div>
+	<div data-t="acl-content">
+		<div about="?" class="optional">
+			<div class="clearable">
+				<div rel="acl:mode">
+					<lift:bind name="acl.mode"></lift:bind>
+				</div>
+				<div rel="acl:accessTo" resource="?this"></div>
+			</div>
+			<div rel="acl:agent" resource="?">
+				<span data-lift="rdf.name"></span> <a
+					class="btn-delete-acl btn-hover" href="javascript://"><i
+					class="glyphicon glyphicon-trash"></i></a>
+			</div>
+		</div>
+	</div>
+	<div class="btn-add-acl btn-hover">
+		<i class="glyphicon glyphicon-plus"></i>
+	</div>
+</div>

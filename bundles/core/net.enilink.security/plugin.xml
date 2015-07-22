@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<?eclipse version="3.4"?>
+<plugin>
+	<extension
+			id="net.enilink.security.dummyLoginModule"
+			point="org.eclipse.equinox.security.loginModule">
+		<loginModule
+			class="net.enilink.security.modules.DummyLoginModule"
+			description="Dummy LoginModule">
+		</loginModule>
+	</extension>
+
+	<extension
+			point="org.eclipse.equinox.security.callbackHandlerMapping">
+		<callbackHandlerMapping
+			callbackHandlerId="net.enilink.security.callbackHandler"
+			configName="DUMMY">
+		</callbackHandlerMapping>
+	</extension>
+ <extension
+       point="org.eclipse.equinox.security.callbackHandlerMapping">
+    <callbackHandlerMapping
+          callbackHandlerId="net.enilink.security.callbackHandler"
+          configName="CMIS">
+    </callbackHandlerMapping>
+ </extension>
+</plugin>

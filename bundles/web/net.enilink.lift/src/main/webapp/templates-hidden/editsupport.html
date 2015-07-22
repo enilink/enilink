@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html>
+<body class="lift:content_id=main">
+	<div id="main">
+		<script data-lift="JS.rdfa"></script>
+
+		<link href="/classpath/bootstrap-editable/css/bootstrap-editable.css"
+			rel="stylesheet" data-lift="head">
+		<script src="/classpath/bootstrap-editable/js/bootstrap-editable.js"
+			data-lift="head"></script>
+		<link href="/classpath/orion/built-editor.css" rel="stylesheet"
+			data-lift="head">
+		<script src="/classpath/orion/editable/editable-input-orion.js"
+			data-lift="head"></script>
+		<script src="/classpath/typeaheadjs/editable/typeaheadjs.js" data-lift="head"></script>
+		<style>
+.editable-popup .editableform {
+	min-width: 300px;
+}
+
+.editableform .form-control, .editable-form-control,.editable-container.editable-inline,.editable-container.editable-inline>*
+	{
+	width: 100%;
+}
+
+.editable-input {
+	width: 100%;
+	margin-bottom: 5px;
+}
+
+.editable-lang {
+	margin-bottom: 5px;
+}
+
+.editable-buttons {
+	margin-left: 0;
+}
+
+.editable-buttons > .btn {
+	margin-bottom: 5px;
+}
+
+.editable-buttons .editable-submit {
+    margin-right: 5px;
+}
+
+.editable-buttons .editable-cancel {
+    margin-left: 0;
+}
+</style>
+		<script src="/classpath/enilink/edit.js" data-lift="head"></script>
+		<style type="text/css" data-lift="head">
+/* highlight emphasized proposals */
+.contentassist .proposal-emphasis {
+	font-weight: bold;
+}
+
+/* make buttons slightly transparent */
+[data-add] {
+	opacity: 0.3;
+	cursor: pointer;
+}
+
+#buttons .btn {
+	opacity: 0.6
+}
+
+#buttons .btn:hover,[data-add]:hover {
+	opacity: 1
+}
+</style>
+		<div id="buttons" class="btn-toolbar" style="display: none">
+			<div class="btn-group">
+				<button class="btn btn-default btn-xs button-edit" title="Edit">
+					<i class="glyphicon glyphicon-edit"></i>
+				</button>
+				<button class="btn btn-default btn-xs button-remove" title="Remove">
+					<i class="glyphicon glyphicon-remove"></i>
+				</button>
+				<button class="btn btn-default btn-xs button-show" title="Show RDF">
+					<i class="glyphicon glyphicon-eye-open"></i>
+				</button>
+			</div>
+		</div>
+		<div data-lift="Edit"></div>
+	</div>
+</body>
+</html>

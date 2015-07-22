@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta content="text/html; charset=UTF-8" http-equiv="content-type" />
+<title>Home</title>
+</head>
+<body class="lift:content_id=main">
+	<div id="main" data-lift="surround?with=default;at=content">
+		<script data-lift="JS.templates"></script>
+		<script type="text/javascript" data-lift="head">
+			$(function() {
+				$("[data-tab]").each(function() {
+					var self = $(this);
+					self.css("cursor", "pointer");
+					self.click(function() {
+						var li = self.closest("li");
+						var active = li.closest("ul").find(".active");
+						active.removeClass("active");
+						li.addClass("active");
+						$(active.find("a").attr("data-tab")).hide();
+						$(self.attr("data-tab")).show();
+					});
+				});
+			});
+		</script>
+		<style>
+#tabs>li>a {
+	padding: 5px 10px;
+}
+
+#tabs>li {
+	float:none;
+	display: inline-block;
+	vertical-align: bottom;
+}
+
+#tabs {
+	margin-bottom: 20px;
+}
+</style>
+		<ul id="tabs" class="nav nav-tabs">
+			<li style="margin-right: 25px;"><h3>
+					<span data-lift="rdf.label"></span> <small>&lt;<span
+						data-lift="rdf.ref"></span>&gt;
+					</small>
+				</h3></li>
+			<li class="active"><a data-tab="#properties-tab"><span
+					data-lift="loc.properties"></span></a></li>
+			<li><a data-tab="#acl-tab">ACL</a></li>
+		</ul>
+		<div id="properties-tab"><div data-lift="embed?what=widgets/properties"></div></div>
+		<div id="acl-tab" style="display: none">
+			<style data-lift="head">
+.acl-widget {
+	padding: 5px 10px;
+	margin-bottom: 10px
+}
+
+.acl-widget h4 {
+	padding-bottom: 5px;
+}
+
+.acl-append {
+	background-color: #DFF0D8;
+}
+
+.acl-append h4 {
+	color: #3C763D;
+	border-bottom: 1px solid #3C763D
+}
+
+.acl-write {
+	background-color: #D9EDF7;
+}
+
+.acl-write h4 {
+	color: #31708F;
+	border-bottom: 1px solid #31708F
+}
+
+.acl-control {
+	background-color: #F2DEDE;
+}
+
+.acl-control h4 {
+	color: #A94442;
+	border-bottom: 1px solid #A94442
+}
+</style>
+			<div data-lift="rdfa" prefix="acl: http://www.w3.org/ns/auth/acl#">
+				<div class="row">
+					<div class="col-sm-4">
+						<div class="acl-widget acl-append">
+							<div data-embed="widgets/acl">
+								<lift:bind-at name="acl.modeName">Append</lift:bind-at>
+								<lift:bind-at name="acl.mode">
+									<span resource="acl:Append"></span>
+								</lift:bind-at>
+							</div>
+						</div>
+					</div>
+					<div class="col-sm-4">
+						<div class="acl-widget acl-write">
+							<div data-embed="widgets/acl">
+								<lift:bind-at name="acl.modeName">Write</lift:bind-at>
+								<lift:bind-at name="acl.mode">
+									<span resource="acl:Write"></span>
+								</lift:bind-at>
+							</div>
+						</div>
+					</div>
+					<div class="col-sm-4">
+						<div class="acl-widget acl-control">
+							<div data-embed="widgets/acl">
+								<lift:bind-at name="acl.modeName">Control</lift:bind-at>
+								<lift:bind-at name="acl.mode">
+									<span resource="acl:Control"></span>
+								</lift:bind-at>
+							</div>
+						</div>
+					</div>
+				</div>
+			</div>
+		</div>
+
+		<div data-lift="embed?what=editsupport"></div>
+</body>
+</html>

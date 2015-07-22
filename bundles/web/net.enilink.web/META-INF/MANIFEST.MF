@@ -1,0 +1,20 @@
+Manifest-Version: 1.0
+Bundle-ManifestVersion: 2
+Bundle-Name: enilink.net Website
+Bundle-SymbolicName: net.enilink.web;singleton:=true
+Bundle-Version: 1.0.0.qualifier
+Lift-Module: net.enilink.web.LiftModule
+Lift-Packages: net.enilink.web
+Bundle-ClassPath: .
+Require-Bundle: net.enilink.core,
+ net.enilink.lift,
+ net.enilink.auth,
+ net.enilink.komma.model,
+ org.eclipse.core.runtime
+Bundle-ActivationPolicy: lazy
+Import-Package: com.google.inject,
+ net.enilink.security.callbacks,
+ net.enilink.vocab.foaf,
+ org.eclipse.core.resources,
+ org.eclipse.equinox.security.auth
+Export-Package: net.enilink.web.rest

@@ -1,0 +1,13 @@
+@prefix models: <http://enilink.net/vocab/komma/models#> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+@prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+
+<urn:enilink:metadata> a models:StardogModelSet ;
+	models:inference true ;
+	models:server <snarl://localhost:5820> ;
+	models:repository "enilink-meta" .
+
+<urn:enilink:data> a models:StardogModelSet ; 
+	models:inference true ;
+	models:server <snarl://localhost:5820> ;
+	models:repository "enilink" .

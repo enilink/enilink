@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta content="text/html; charset=UTF-8" http-equiv="content-type" />
+<title>Home</title>
+</head>
+<body class="lift:content_id=main"
+	prefix="
+	rdf: http://www.w3.org/1999/02/22-rdf-syntax-ns#
+	owl: http://www.w3.org/2002/07/owl#
+	rdfs: http://www.w3.org/2000/01/rdf-schema#
+	models: http://enilink.net/vocab/komma/models#
+	acl: http://www.w3.org/ns/auth/acl#
+	">
+	<div id="main" data-lift="surround?with=default;at=content">
+		<style data-lift="head" type="text/css">
+.model {
+	margin-top: 15px;
+	padding-left: 10px;
+	border-left: 2px solid #C5C5C5;
+}
+
+.model:hover {
+	border-color: grey;
+}
+</style>
+		<div data-lift="rdfa?target=meta">
+			<h3>Models</h3>
+			<div class="search-form"></div>
+			<div class="search-patterns" data-for="?model" data-param="q"></div>
+			<div about="?model" typeof="models:Model" class="asc model">
+				<div class="row">
+					<div class="col-md-12">
+						<strong><a href="?model={}" data-lift="rdf.ref?to=href">&lt;<span
+								data-lift="rdf.ref"></span>&gt;
+						</a></strong> <span class="optional" rel="acl:owner" resource="?">by <span
+							data-lift="rdf.label"></span></span>
+						<!-- div data-lift="rdf.getOntology"><div data-lift="rdf.getOwlImports"></div></div -->
+					</div>
+				</div>
+				<div class="optional union">
+					<div class="row" data-if="?label">
+						<div class="col-md-12">
+							<div class="col-md-12" property="rdfs:label" content="?label"
+								data-lift="rdf.label"></div>
+						</div>
+					</div>
+					<div class="row" data-if="?comment">
+						<div class="col-md-12" property="rdfs:comment" content="?comment"
+							data-lift="rdf.label"></div>
+					</div>
+				</div>
+			</div>
+			<div data-for="?model" class="acl"></div>
+			<div data-for="?model" class="paginator"></div>
+		</div>
+</body>
+</html>

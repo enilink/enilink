@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta content="text/html; charset=UTF-8" http-equiv="content-type" />
+<title>Profile</title>
+</head>
+<body class="lift:content_id=main"
+	prefix="
+	rdf: http://www.w3.org/1999/02/22-rdf-syntax-ns#
+	owl: http://www.w3.org/2002/07/owl#
+	rdfs: http://www.w3.org/2000/01/rdf-schema#
+	foaf: http://xmlns.com/foaf/0.1/">
+	<div id="main" data-lift="surround?with=default;at=content">
+		<h2>
+			Welcome <span data-lift="user.name"></span>
+		</h2>
+		<div about="?currentUser" data-lift="rdfa"
+			data-model="enilink:model:users" data-t="public-profile">
+			<h3>
+				Public profile <small><a
+					href="{app}/describe?model={model}&resource={}"
+					data-lift="rdf.ref?to=href">describe me</a></small>
+			</h3>
+			<section>
+				<div class="row optional">
+					<div class="col-md-5">Name</div>
+					<div class="col-md-7">
+						<div class="editable keep" property="foaf:name"
+							data-lift="rdf.label" content="?name"></div>
+					</div>
+				</div>
+			</section>
+		</div>
+		<div about="?currentUser" data-lift="rdfa?target=meta">
+			<h3>Private data</h3>
+			<section>
+				<div class="row optional">
+					<div class="col-md-5">External IDs</div>
+					<div class="col-md-7">
+						<div class="row" rel="http://enilink.net/vocab/auth#externalId"
+							resource="?externalId">
+							<div data-lift="rdf.ref" class="col-md-12"></div>
+						</div>
+					</div>
+				</div>
+			</section>
+		</div>
+
+		<div data-lift="embed?what=editsupport"></div>
+	</div>
+</body>
+</html>

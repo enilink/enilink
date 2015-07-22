@@ -1,0 +1,90 @@
+.subnav .navbar-nav>li>a {
+	color: #737373;
+}
+
+.subnav .navbar-nav>li>a
+	{
+	border: 0 solid transparent;
+	border-bottom-width: 2px;
+}
+
+.subnav .navbar-nav>.active>a, .subnav .navbar-nav>li:hover>a
+	{
+	color: black;
+	background-color: transparent;
+	border: 0 solid #009474;
+	border-bottom-width: 2px;
+}
+
+.subnav {
+	background-color: #f4f4f4;
+}
+
+.subnav.navbar-static-top {
+	margin-top: -20px;
+}
+
+#notification-area ul {
+	list-style: none outside none;
+}
+
+/** add language tags to literals */
+div[lang],span[lang] {
+	position: relative;
+}
+
+div[lang]::before,span[lang]::before,div[lang]:before,span[lang]:before
+	{
+	content: " @" attr(lang);
+	position: absolute;
+	right: 0px;
+	top: 0px;
+	opacity: 0.5;
+}
+
+[content=""]::after {
+	/* Non-breaking space */
+	content: "\00a0"
+}
+
+[data-content-empty]::after {
+	content: "Empty";
+	color: firebrick;
+	font-style: italic;
+}
+
+.btn-hover {
+	opacity: 0.3;
+	cursor: pointer;
+}
+
+.btn-hover:hover {
+	opacity: 1.0;
+}
+
+.focused {
+	background-color: rgba(82, 168, 236, 0.3);
+}
+
+.pagination a {
+	line-height: 24px;
+}
+
+.popover,.popover-inner {
+	width: auto;
+	max-width: none;
+}
+
+.edit_error_class {
+	display: block;
+	color: red;
+}
+
+.search-form input[type=text] {
+	/*width: 300px;*/
+	
+}
+
+.search-form {
+	margin-bottom: 20px;
+}
