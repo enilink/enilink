@@ -8,9 +8,17 @@
 	<version>0.0.1-SNAPSHOT</version>
 	<packaging>pom</packaging>
 
-	<modules>
-		<!-- module>../../../komma/komma-releng/komma-edit-feature</module -->
+	<profiles>
+		<profile>
+			<!-- allows to include KOMMA built from source -->
+			<id>komma-source</id>
+			<modules>
+				<module>../../../komma-rdf/releng/komma-edit-feature</module>
+			</modules>
+		</profile>
+	</profiles>
 
+	<modules>
 		<module>../../bundles/core/net.enilink.auth</module>
 		<module>../../bundles/core/net.enilink.core</module>
 		<module>../../bundles/web/net.enilink.lift</module>
