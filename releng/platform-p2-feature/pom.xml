@@ -9,6 +9,6 @@
 	<packaging>pom</packaging>
 
 	<modules>
-		<module>../../platform-features/net.enilink.platform.p2.feature</module>
+		<module>../../features/net.enilink.platform.p2.feature</module>
 	</modules>
 </project>

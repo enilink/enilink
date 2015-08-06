@@ -7,7 +7,7 @@
 		<groupId>net.enilink</groupId>
 		<artifactId>platform-parent</artifactId>
 		<version>0.0.1-SNAPSHOT</version>
-		<relativePath>../platform-releng/pom.xml</relativePath>
+		<relativePath>../releng/pom.xml</relativePath>
 	</parent>
 	<groupId>net.enilink</groupId>
 	<artifactId>platform-features</artifactId>

@@ -9,16 +9,15 @@
 	<packaging>pom</packaging>
 
 	<modules>
-		<module>../../../komma/komma-releng/komma-edit-feature</module>
+		<!-- module>../../../komma/komma-releng/komma-edit-feature</module -->
 
-		<module>../../net.enilink.auth</module>
-		<module>../../net.enilink.core</module>
-		<module>../../net.enilink.lift</module>
-		<module>../../net.enilink.security</module>
-		<module>../../net.enilink.security.openid</module>
-		<module>../../net.enilink.web</module>
-		<module>../../net.liftweb</module>
+		<module>../../bundles/core/net.enilink.auth</module>
+		<module>../../bundles/core/net.enilink.core</module>
+		<module>../../bundles/web/net.enilink.lift</module>
+		<module>../../bundles/core/net.enilink.security</module>
+		<module>../../bundles/web/net.enilink.web</module>
+		<module>../../libraries/net.liftweb</module>
 
-		<module>../../platform-features/net.enilink.platform.core.feature</module>
+		<module>../../features/net.enilink.platform.core.feature</module>
 	</modules>
 </project>
