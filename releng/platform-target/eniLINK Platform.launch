@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<launchConfiguration type="org.eclipse.pde.ui.RuntimeWorkbench">
+<booleanAttribute key="append.args" value="true"/>
+<stringAttribute key="application" value="net.enilink.lift.application"/>
+<booleanAttribute key="askclear" value="true"/>
+<booleanAttribute key="automaticAdd" value="false"/>
+<booleanAttribute key="automaticValidate" value="false"/>
+<stringAttribute key="bad_container_name" value="/linkedfactory.server.rest/service.launch"/>
+<stringAttribute key="bootstrap" value=""/>
+<stringAttribute key="checked" value="[NONE]"/>
+<booleanAttribute key="clearConfig" value="false"/>
+<booleanAttribute key="clearws" value="false"/>
+<booleanAttribute key="clearwslog" value="false"/>
+<stringAttribute key="configLocation" value="${workspace_loc}/.metadata/.plugins/org.eclipse.pde.core/eniLINK Platform"/>
+<booleanAttribute key="default" value="false"/>
+<booleanAttribute key="includeOptional" value="false"/>
+<stringAttribute key="location" value="${workspace_loc}/../runtime-enilink-platform"/>
+<booleanAttribute key="org.eclipse.jdt.launching.ATTR_USE_START_ON_FIRST_THREAD" value="true"/>
+<stringAttribute key="org.eclipse.jdt.launching.JRE_CONTAINER" value="org.eclipse.jdt.launching.JRE_CONTAINER/org.eclipse.jdt.internal.debug.ui.launcher.StandardVMType/JavaSE-1.7"/>
+<stringAttribute key="org.eclipse.jdt.launching.PROGRAM_ARGUMENTS" value="-os ${target.os} -ws ${target.ws} -arch ${target.arch} -nl ${target.nl} -consoleLog -console"/>
+<stringAttribute key="org.eclipse.jdt.launching.SOURCE_PATH_PROVIDER" value="org.eclipse.pde.ui.workbenchClasspathProvider"/>
+<stringAttribute key="org.eclipse.jdt.launching.VM_ARGUMENTS" value="-Dosgi.noShutdown=true &#10;-Dorg.osgi.service.http.port=10080&#10;-Dorg.eclipse.equinox.http.jetty.context.sessioninactiveinterval=200&#10;-Dnet.enilink.config=${workspace_loc:platform-target/configurations/persistent.ttl}&#10;-Dnet.enilink.acl.anonymous=all&#10;-Dnet.enilink.logger.rootLevel=WARN&#10;-Drun.mode=development"/>
+<stringAttribute key="pde.version" value="3.3"/>
+<stringAttribute key="product" value=""/>
+<stringAttribute key="selected_target_plugins" value="com.ibm.icu@default:default,javax.activation@default:default,javax.mail@default:default,javax.servlet@default:default,javax.xml@default:default,org.apache.ant@default:default,org.apache.commons.codec@default:default,org.apache.commons.fileupload@default:default,org.apache.commons.httpclient@default:default,org.apache.commons.logging@default:default,org.apache.felix.gogo.command@default:default,org.apache.felix.gogo.runtime@default:default,org.apache.felix.gogo.shell@default:default,org.eclipse.ant.core@default:default,org.eclipse.compare.core@default:default,org.eclipse.core.commands@default:default,org.eclipse.core.contenttype@default:default,org.eclipse.core.databinding.observable@default:default,org.eclipse.core.databinding.property@default:default,org.eclipse.core.databinding@default:default,org.eclipse.core.expressions@default:default,org.eclipse.core.filesystem.java7@default:false,org.eclipse.core.filesystem.linux.x86_64@default:false,org.eclipse.core.filesystem@default:default,org.eclipse.core.jobs@default:default,org.eclipse.core.resources@default:default,org.eclipse.core.runtime.compatibility.registry@default:false,org.eclipse.core.runtime@default:true,org.eclipse.core.variables@default:default,org.eclipse.emf.common@default:default,org.eclipse.emf.ecore.change@default:default,org.eclipse.emf.ecore.xmi@default:default,org.eclipse.emf.ecore@default:default,org.eclipse.equinox.app@default:default,org.eclipse.equinox.common@2:true,org.eclipse.equinox.console@default:default,org.eclipse.equinox.ds@1:true,org.eclipse.equinox.http.jetty@default:true,org.eclipse.equinox.http.servlet@default:default,org.eclipse.equinox.preferences@default:default,org.eclipse.equinox.registry@default:default,org.eclipse.equinox.security@default:default,org.eclipse.equinox.util@default:default,org.eclipse.help@default:default,org.eclipse.jetty.continuation@default:default,org.eclipse.jetty.http@default:default,org.eclipse.jetty.io@default:default,org.eclipse.jetty.security@default:default,org.eclipse.jetty.server@default:default,org.eclipse.jetty.servlet@default:default,org.eclipse.jetty.util@default:default,org.eclipse.osgi.compatibility.state@default:false,org.eclipse.osgi.services@default:default,org.eclipse.osgi@-1:true,org.eclipse.team.core@default:default,org.hamcrest.core@default:default,org.junit@default:default,org.scala-lang.modules.scala-parser-combinators@default:default,org.scala-lang.modules.scala-xml@default:default,org.scala-lang.scala-actors@default:default,org.scala-lang.scala-compiler@default:default,org.scala-lang.scala-library@default:default,org.scala-lang.scala-reflect@default:default,org.slf4j.api@default:default"/>
+<stringAttribute key="selected_workspace_plugins" value="ch.qos.logback.slf4j@default:false,ch.qos.logback@default:default,com.google.guava@default:default,com.google.inject@default:default,net.enilink.auth@default:default,net.enilink.commons.iterator@default:default,net.enilink.commons.logging@default:default,net.enilink.commons.util@default:default,net.enilink.composition.cache@default:default,net.enilink.composition.properties.komma@default:default,net.enilink.composition.properties@default:default,net.enilink.composition@default:default,net.enilink.core@default:default,net.enilink.komma.common@default:default,net.enilink.komma.core@default:default,net.enilink.komma.dm@default:default,net.enilink.komma.edit@default:default,net.enilink.komma.em@default:default,net.enilink.komma.literals@default:default,net.enilink.komma.model@default:default,net.enilink.komma.owl.edit@default:default,net.enilink.komma.parser@default:default,net.enilink.komma.query@default:default,net.enilink.komma.rdfs.edit@default:default,net.enilink.komma.sesame@default:default,net.enilink.komma.workbench@default:default,net.enilink.lift@default:true,net.enilink.security@default:default,net.enilink.vocab.foaf@default:default,net.enilink.vocab.komma@default:default,net.enilink.vocab.owl@default:default,net.enilink.vocab.rdfs@default:default,net.enilink.web@default:default,net.liftweb*1.0.0.qualifier@default:default,org.aopalliance@default:default,org.apache.commons.io@default:default,org.infinispan@default:default,org.objectweb.asm@default:default,org.openrdf.sesame@default:default,org.parboiled@default:default"/>
+<booleanAttribute key="show_selected_only" value="false"/>
+<stringAttribute key="templateConfig" value="${target_home}/configuration/config.ini"/>
+<booleanAttribute key="tracing" value="false"/>
+<booleanAttribute key="useCustomFeatures" value="false"/>
+<booleanAttribute key="useDefaultConfig" value="true"/>
+<booleanAttribute key="useDefaultConfigArea" value="true"/>
+<booleanAttribute key="useProduct" value="false"/>
+</launchConfiguration>

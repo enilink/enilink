@@ -7,6 +7,7 @@ Bundle-RequiredExecutionEnvironment: JavaSE-1.7
 Export-Package: net.enilink.auth,
  net.enilink.vocab.acl,
  net.enilink.vocab.auth
-Import-Package: org.osgi.framework
+Import-Package: org.apache.commons.codec.binary;version="1.6.0",
+ org.osgi.framework
 Require-Bundle: net.enilink.komma.model,
  net.enilink.vocab.foaf;visibility:=reexport

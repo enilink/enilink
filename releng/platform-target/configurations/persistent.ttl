@@ -1,0 +1,9 @@
+@prefix owl: <http://www.w3.org/2002/07/owl#> .
+@prefix models: <http://enilink.net/vocab/komma/models#> .
+
+<> a owl:Ontology .
+#	owl:imports <platform:/plugin/net.enilink.core/resources/enilink-memory.ttl> .
+
+<urn:enilink:data> a models:PersistentModelSet ; 
+	models:inference false ; 
+	models:repository <workspace:/data/> .
