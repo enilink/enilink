@@ -2,14 +2,14 @@
 
 This is the main repository for the eniLINK Platform project.
 
-Enilink is a web platform for linked data applications based on the http://github.com/komma/komma-rdf[KOMMA] framework
+Enilink is a web platform for linked data applications based on the http://github.com/komma/komma[KOMMA] framework
 and http://liftweb.net[Lift].
 
 == Get the sources
 
 [source,text]
 ----
-git clone --recursive https://github.com/enilink/enilink-platform
+git clone --recursive https://github.com/enilink/enilink
 ----
 
 NOTE: The `--recursive` option is required to fetch the git submodules that are contained within the eniLINK Platform repository.
