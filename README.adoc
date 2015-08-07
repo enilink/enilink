@@ -1,8 +1,6 @@
 = eniLINK Platform
 
-This is the main repository for the eniLINK Platform project.
-
-Enilink is a web platform for linked data applications based on the http://github.com/komma/komma[KOMMA] framework
+eniLINK is a web platform for linked data applications based on the http://github.com/komma/komma[KOMMA] framework
 and http://liftweb.net[Lift].
 
 == Get the sources
