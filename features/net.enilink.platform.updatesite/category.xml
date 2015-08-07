@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<site>
+   <feature url="features/net.enilink.platform.core.feature_1.1.0.qualifier.jar" id="net.enilink.platform.core.feature" version="1.1.0.qualifier">
+      <category name="enilink"/>
+   </feature>
+   <feature url="features/net.enilink.platform.p2.feature_1.1.0.qualifier.jar" id="net.enilink.platform.p2.feature" version="1.1.0.qualifier">
+      <category name="enilink"/>
+   </feature>
+   <feature url="features/net.enilink.platform.standalone.feature_1.1.0.qualifier.jar" id="net.enilink.platform.standalone.feature" version="1.1.0.qualifier">
+      <category name="enilink"/>
+   </feature>
+   <category-def name="enilink" label="eniLINK Platform"/>
+</site>

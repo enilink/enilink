@@ -22,10 +22,7 @@
       <import plugin="com.google.inject"/>
       <import plugin="net.enilink.composition.properties.komma"/>
       <import plugin="org.aopalliance"/>
-      <import plugin="net.enilink.commons.util"/>
       <import plugin="org.eclipse.core.resources"/>
-      <import plugin="org.junit"/>
-      <import plugin="net.enilink.commons.logging"/>
       <import plugin="org.scala-lang.scala-library"/>
       <import plugin="org.scala-lang.modules.scala-parser-combinators"/>
       <import plugin="org.scala-lang.modules.scala-xml"/>
@@ -40,6 +37,10 @@
       <import plugin="javax.mail"/>
       <import plugin="org.apache.commons.fileupload"/>
       <import plugin="net.enilink.vocab.foaf"/>
+      <import plugin="org.apache.commons.codec"/>
+      <import plugin="org.slf4j.api"/>
+      <import plugin="net.liftweb" version="2.6.0" match="greaterOrEqual"/>
+      <import plugin="org.eclipse.equinox.security"/>
    </requires>
 
    <plugin

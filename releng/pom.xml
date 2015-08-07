@@ -87,7 +87,7 @@
 		<repository>
 			<id>komma</id>
 			<layout>p2</layout>
-			<url>http://komma.enilink.net/updates/1.1.0/</url>
+			<url>http://komma.enilink.net/snapshots/1.2.0/</url>
 		</repository>
 		<repository>
 			<id>mars</id>
