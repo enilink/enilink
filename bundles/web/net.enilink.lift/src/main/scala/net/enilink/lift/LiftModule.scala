@@ -6,7 +6,7 @@ import java.util.Locale
 import scala.language.postfixOps
 import scala.xml.NodeSeq
 import javax.security.auth.Subject
-import net.enilink.auth.UserPrincipal
+import net.enilink.auth.EnilinkPrincipal
 import net.enilink.komma.core.BlankNode
 import net.enilink.komma.core.IUnitOfWork
 import net.enilink.komma.core.URIs
@@ -72,11 +72,11 @@ class LiftModule extends Logger {
     // enable this to rewrite application paths (WIP)
     // ApplicationPaths.rewriteApplicationPaths
     
-    // set context user from UserPrincipal contained in the HTTP session after successful login
+    // set context user from EnilinkPrincipal contained in the HTTP session after successful login
     Globals.contextUser.default.set(() => {
       Subject.getSubject(AccessController.getContext()) match {
         case s: Subject =>
-          val userPrincipals = s.getPrincipals(classOf[UserPrincipal])
+          val userPrincipals = s.getPrincipals(classOf[EnilinkPrincipal])
           if (!userPrincipals.isEmpty) userPrincipals.iterator.next.getId else Globals.UNKNOWN_USER
         case _ => Globals.UNKNOWN_USER
       }

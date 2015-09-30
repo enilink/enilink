@@ -5,7 +5,7 @@ import net.enilink.komma.em.concepts.IResource
 import net.enilink.komma.core.URIs
 import javax.security.auth.Subject
 import net.enilink.auth.AccountHelper
-import net.enilink.auth.UserPrincipal
+import net.enilink.auth.EnilinkPrincipal
 import net.enilink.core.ModelSetManager
 import net.enilink.vocab.foaf.FOAF
 import net.liftweb.common.Box
@@ -37,7 +37,7 @@ class Register extends Login {
         val user = AccountHelper.createUser(em, name, email)
         // link external IDs
         AccountHelper.linkExternalIds(em, user, externalIds)
-        s.getPrincipals.add(new UserPrincipal(user.getURI))
+        s.getPrincipals.add(new EnilinkPrincipal(user.getURI))
         S.notice("Your user account was successfully created.")
       } catch {
         case e: IllegalArgumentException => S.error("A user with the selected name or email address already exists.")
@@ -111,7 +111,7 @@ class Register extends Login {
     if (isLinkIdentity) {
       val currentUser = Globals.contextUser.vend
       if (currentUser != Globals.UNKNOWN_USER) {
-        val userPrincipals = s.getPrincipals(classOf[UserPrincipal])
+        val userPrincipals = s.getPrincipals(classOf[EnilinkPrincipal])
         if (userPrincipals.isEmpty) {
           // simply link new external ids to existing id
           AccountHelper.linkExternalIds(getEntityManager, currentUser, AccountHelper.getExternalIds(s))
