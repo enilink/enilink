@@ -4,7 +4,7 @@ import java.io.File
 import java.security.PrivilegedAction
 import java.util.concurrent.atomic.AtomicReference
 import scala.Option.option2Iterable
-import scala.collection.JavaConversions.asScalaSet
+import scala.collection.JavaConversions._
 import scala.collection.mutable.LinkedHashMap
 import org.eclipse.equinox.http.servlet.ExtendedHttpService
 import org.osgi.framework.Bundle
@@ -45,6 +45,23 @@ import net.liftweb.osgi.OsgiBootable
 import net.liftweb.sitemap.SiteMap
 import net.liftweb.util.ClassHelpers
 import net.liftweb.util.Props
+import org.osgi.framework.wiring.FrameworkWiring
+import org.osgi.framework.FrameworkUtil
+import java.util.concurrent.Executors
+import java.util.concurrent.TimeUnit
+import net.enilink.komma.core.URI
+import net.liftweb.util.Schedule
+import scala.reflect.api.Names
+import scala.reflect.api.Symbols
+import java.util.concurrent.ExecutorService
+import net.liftweb.actor.LiftActor
+import java.nio.file.FileSystems
+import org.eclipse.osgi.service.datalocation.Location
+import java.nio.file.Paths
+import java.nio.file.StandardWatchEventKinds
+import java.nio.file.WatchKey
+import java.nio.file.Files
+import java.nio.file.Path
 
 object Activator {
   val SERVICE_KEY_HTTP_PORT = "http.port"
@@ -59,17 +76,21 @@ class Activator extends BundleActivator with Loggable {
 
   private var contextServiceReg: ServiceRegistration[_] = _
   private var liftServiceReg: ServiceRegistration[_] = _
+  private var liftFilter: OsgiLiftFilter = _
+
+  private var dirWatcher: DirWatcher = _
 
   class HttpServiceTracker(context: BundleContext) extends ServiceTracker[ExtendedHttpService, ExtendedHttpService](context, classOf[ExtendedHttpService].getName, null) {
     override def addingService(serviceRef: ServiceReference[ExtendedHttpService]) = {
       val httpService = super.addingService(serviceRef)
       if ((httpServiceHolder getAndSet httpService) == null) {
         liftStarted = true
+        liftFilter = new OsgiLiftFilter
 
         // create a default context to share between registrations
         val httpContext = new LiftHttpContext(httpService.createDefaultHttpContext())
         httpService.registerResources("/", "/", httpContext)
-        httpService.registerFilter("/", OsgiLiftFilter, null, httpContext)
+        httpService.registerFilter("/", liftFilter, null, httpContext)
 
         liftServiceReg = context.registerService(classOf[LiftService], new LiftService() {
           override def port() = {
@@ -85,47 +106,73 @@ class Activator extends BundleActivator with Loggable {
     }
   }
 
-  class LiftBundleTracker extends BundleTracker[LiftBundleConfig](this.context, Bundle.STARTING | Bundle.ACTIVE, null) with Loggable {
+  class LiftBundleTracker extends BundleTracker[LiftBundleConfig](this.context, Bundle.INSTALLED | Bundle.RESOLVED | Bundle.STARTING | Bundle.STOPPING | Bundle.ACTIVE, null) with Loggable {
+    var rebooting = false
     override def addingBundle(bundle: Bundle, event: BundleEvent) = {
       val headers = bundle.getHeaders
       val moduleStr = Box.legacyNullTest(headers.get("Lift-Module"))
       val packageStr = Box.legacyNullTest(headers.get("Lift-Packages"))
       if (moduleStr.isDefined || packageStr.isDefined) {
-        val packages = packageStr.map(_.split("\\s,\\s")) openOr Array.empty
         if (!liftStarted) {
-          // add packages to search path
-          packages filterNot (_.isEmpty) foreach (LiftRules.addToPackages(_))
-        }
-        val module = moduleStr flatMap { m =>
-          try {
-            val clazz = bundle loadClass m
-            Full(clazz.newInstance.asInstanceOf[AnyRef])
-          } catch {
-            case cnfe: ClassNotFoundException => logger.error("Lift-Module class " + m + " of bundle " + bundle.getSymbolicName + " not found."); None
+          logger.info("Lift module: " + bundle.getSymbolicName + " (" + bundle.getVersion + ")")
+          // track bundle immediately
+          val packages = packageStr.map(_.split("\\s,\\s")) openOr Array.empty
+          val module = moduleStr.filter(_.trim.nonEmpty).flatMap { m =>
+            try {
+              val clazz = bundle loadClass m
+              Full(clazz.newInstance.asInstanceOf[AnyRef])
+            } catch {
+              case cnfe: ClassNotFoundException => logger.error("Lift-Module class " + m + " of bundle " + bundle.getSymbolicName + " not found."); None
+            }
           }
+          val startLevel = module flatMap { m => ClassHelpers.createInvoker("startLevel", m) flatMap (_()) } map {
+            case i: Int => i
+            case o => o.toString.toInt
+          }
+          val config = new LiftBundleConfig(module, packages, startLevel openOr 0)
+          config
+        } else {
+          rebootLift
+          null
         }
-        val startLevel = module flatMap { m => ClassHelpers.createInvoker("startLevel", m) flatMap (_()) } map {
-          case i: Int => i
-          case o => o.toString.toInt
-        }
-        val config = new LiftBundleConfig(module, packages, startLevel openOr 0)
-        config
       } else null
     }
 
-    override def removedBundle(bundle: Bundle, event: BundleEvent, config: LiftBundleConfig) {
-      config.module.map { module =>
-        try {
-          logger.debug("Stopping Lift-powered bundle " + bundle.getSymbolicName + ".")
-          ClassHelpers.createInvoker("shutdown", module) map (_())
-          logger.debug("Lift-powered bundle " + bundle.getSymbolicName + " stopped.")
-        } catch {
-          case e: Throwable => logger.error("Error while stopping Lift-powered bundle " + bundle.getSymbolicName, e)
-        }
+    def rebootLift {
+      if (!rebooting) {
+        logger.debug("Rebooting Lift")
+        rebooting = true
+        // reboot net.enilink.lift and dependent bundles with short delay
+        Executors.newSingleThreadScheduledExecutor.schedule(new Runnable {
+          def run {
+            val liftBundle = FrameworkUtil.getBundle(classOf[LiftRules])
+            val enilinkCore = FrameworkUtil.getBundle(classOf[IContextProvider])
+            val systemBundle = context.getBundle(0)
+            val frameworkWiring = systemBundle.adapt(classOf[FrameworkWiring])
+            frameworkWiring.refreshBundles(enilinkCore :: liftBundle :: context.getBundle :: Nil)
+          }
+        }, 2, TimeUnit.SECONDS)
       }
     }
 
+    override def removedBundle(bundle: Bundle, event: BundleEvent, config: LiftBundleConfig) {
+    }
+
     override def modifiedBundle(bundle: Bundle, event: BundleEvent, config: LiftBundleConfig) {
+      val systemShutdown = context.getBundle(0).getState == Bundle.STOPPING
+      if (event.getType == BundleEvent.STOPPING) {
+        config.module.map { module =>
+          try {
+            logger.debug("Stopping Lift-powered bundle " + bundle.getSymbolicName + ".")
+            ClassHelpers.createInvoker("shutdown", module) map (_())
+            logger.debug("Lift-powered bundle " + bundle.getSymbolicName + " stopped.")
+          } catch {
+            case e: Throwable => logger.error("Error while stopping Lift-powered bundle " + bundle.getSymbolicName, e)
+          }
+          // this is required if the module made changes to LiftRules or another global object
+          rebootLift
+        }
+      }
     }
   }
 
@@ -133,6 +180,9 @@ class Activator extends BundleActivator with Loggable {
   var httpServiceTracker: HttpServiceTracker = null
 
   def bootBundle(bundle: Bundle, config: LiftBundleConfig) {
+    // add packages to search path
+    config.packages filterNot (_.isEmpty) foreach (LiftRules.addToPackages(_))
+    // boot lift module
     config.module map { m =>
       try {
         try {
@@ -161,7 +211,6 @@ class Activator extends BundleActivator with Loggable {
     LiftRules.early.append(_.setCharacterEncoding("UTF-8"))
 
     val bundles = bundleTracker.getTracked.entrySet.toSeq.sortBy(_.getValue.startLevel)
-
     bundles foreach { entry =>
       // boot bundle as system user to allow modifications of RDF data
       Subject.doAs(SecurityUtil.SYSTEM_USER_SUBJECT, new PrivilegedAction[Unit]() {
@@ -183,6 +232,59 @@ class Activator extends BundleActivator with Loggable {
     // attach to HTTP service
     httpServiceTracker = new HttpServiceTracker(context)
     httpServiceTracker.open
+  }
+
+  class DirWatcher(path: Path, reconciler: Bundle) extends LiftActor {
+    import net.liftweb.util.Helpers._
+
+    @volatile var open = true
+
+    final val watchService = FileSystems.getDefault.newWatchService
+    path.register(watchService, StandardWatchEventKinds.ENTRY_CREATE, StandardWatchEventKinds.ENTRY_MODIFY, StandardWatchEventKinds.ENTRY_DELETE)
+
+    startCheck
+
+    protected def messageHandler: PartialFunction[Any, Unit] = {
+      case "check" => {
+        watchService.poll match {
+          case null =>
+          case wk: WatchKey => {
+            if (wk.pollEvents.nonEmpty) {
+              logger.debug("Change of dropins detected - stopping " + reconciler.getSymbolicName)
+              reconciler.stop(Bundle.STOP_TRANSIENT)
+              // catch any exceptions here - TODO investigate why this throws some exceptions 
+              tryo { reconciler.start(Bundle.START_TRANSIENT) }
+              logger.debug("Change of dropins detected - restarted " + reconciler.getSymbolicName)
+            }
+            wk.reset
+          }
+        }
+        if (open) startCheck
+      }
+    }
+
+    def startCheck {
+      Schedule.schedule(this, "check", 5 seconds)
+    }
+
+    def close {
+      watchService.close
+      open = false
+    }
+  }
+
+  def watchDropins {
+    def getEclipseHome = {
+      val locService = context.getServiceReferences(classOf[Location], Location.ECLIPSE_HOME_FILTER).headOption.map(context.getService(_))
+      locService.filterNot(_ == null).map { eclipseHome => Paths.get(eclipseHome.getURL.toURI) }
+    }
+    // register directory watcher for dropins
+    val dropins = getEclipseHome.map(_.resolve("dropins")).filter { p => Files.exists(p) }
+    val reconciler = context.getBundles.filter(_.getSymbolicName == "org.eclipse.equinox.p2.reconciler.dropins").headOption
+    for (r <- reconciler; p <- dropins) {
+      logger.info("Dropins directory: " + p)
+      dirWatcher = new DirWatcher(p, r)
+    }
   }
 
   def start(context: BundleContext) {
@@ -217,9 +319,14 @@ class Activator extends BundleActivator with Loggable {
         }
         def get = S.session.flatMap(_.httpSession.map(_ => context)) getOrElse null
       }, null)
+
+    watchDropins
   }
 
   def stop(context: BundleContext) {
+    if (dirWatcher != null) {
+      dirWatcher = null
+    }
     if (bundleTracker != null) {
       bundleTracker.close
       bundleTracker = null
@@ -234,11 +341,15 @@ class Activator extends BundleActivator with Loggable {
       contextServiceReg.unregister
       contextServiceReg = null
     }
-    httpServiceHolder.get match {
-      case null =>
-      case httpService => {
-        httpService.unregisterFilter(OsgiLiftFilter)
+    if (liftFilter != null) {
+      httpServiceHolder.get match {
+        case null =>
+        case httpService => {
+          httpService.unregisterFilter(liftFilter)
+        }
       }
+      liftFilter.shutdown
+      liftFilter = null
     }
     if (httpServiceTracker != null) {
       httpServiceTracker.close
@@ -250,7 +361,7 @@ class Activator extends BundleActivator with Loggable {
   /**
    * Special LiftFilter for lift-osgi bundle: Set OsgiBootable.
    */
-  private object OsgiLiftFilter extends LiftFilter {
+  private class OsgiLiftFilter extends LiftFilter {
     override def bootLift(loader: Box[String]) {
       super.bootLift(Full(classOf[OsgiBootable].getName))
     }
@@ -261,6 +372,22 @@ class Activator extends BundleActivator with Loggable {
 
     // any request that is not handled by a specific servlet is handled by Lift
     def isLiftRequest(req: HttpServletRequest) = req.getServletPath == ""
+
+    def shutdown {
+      // access private schedule service field by reflection
+      val serviceField = Schedule.getClass.getDeclaredFields.filter { f => f.getName == "service" || f.getName.endsWith("$$service") }.headOption
+      val service = serviceField.map { f =>
+        f.setAccessible(true)
+        f.get(Schedule).asInstanceOf[ExecutorService]
+      }
+
+      // destroy lift servlet
+      terminate
+
+      // ensure that schedule service is really canceled
+      // Lift calls only shutdown that does not cancel already enqueued tasks
+      service.foreach(_.shutdownNow)
+    }
   }
 
   /**

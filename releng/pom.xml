@@ -10,8 +10,31 @@
 	<properties>
 		<tycho-version>0.22.0</tycho-version>
 	</properties>
+	<profiles>
+		<profile>
+			<id>x86</id>
+			<build>
+				<plugins>
+					<plugin>
+						<groupId>org.eclipse.tycho</groupId>
+						<artifactId>target-platform-configuration</artifactId>
+						<configuration>
+							<environments>
+								<environment>
+									<os>win32</os>
+									<ws>win32</ws>
+									<arch>x86</arch>
+								</environment>
+							</environments>
+						</configuration>
+					</plugin>
+				</plugins>
+			</build>
+		</profile>
+	</profiles>
 	<build>
 		<directory>target-maven</directory>
+	
 		<plugins>
 			<plugin>
 				<groupId>org.eclipse.tycho</groupId>
