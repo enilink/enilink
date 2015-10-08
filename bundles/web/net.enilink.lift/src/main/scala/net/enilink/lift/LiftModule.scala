@@ -3,10 +3,13 @@ package net.enilink.lift
 import java.security.AccessController
 import java.security.PrivilegedAction
 import java.util.Locale
+
 import scala.language.postfixOps
 import scala.xml.NodeSeq
+
 import javax.security.auth.Subject
-import net.enilink.auth.UserPrincipal
+
+import net.enilink.auth.EnilinkPrincipal
 import net.enilink.komma.core.BlankNode
 import net.enilink.komma.core.IUnitOfWork
 import net.enilink.komma.core.URIs
@@ -15,6 +18,8 @@ import net.enilink.lift.html.Html5ParserWithRDFaPrefixes
 import net.enilink.lift.util.CurrentContext
 import net.enilink.lift.util.Globals
 import net.enilink.lift.util.NotAllowedModel
+import net.enilink.lift.util.RdfContext
+import net.liftweb.common.Box
 import net.liftweb.common.Box.option2Box
 import net.liftweb.common.Empty
 import net.liftweb.common.Full
@@ -38,8 +43,6 @@ import net.liftweb.util.Props
 import net.liftweb.util.TemplateCache
 import net.liftweb.util.Vendor.funcToVendor
 import net.liftweb.util.Vendor.valToVendor
-import net.liftweb.common.Box
-import net.enilink.lift.util.RdfContext
 
 /**
  * A class that's instantiated early and run.  It allows the application
@@ -71,12 +74,12 @@ class LiftModule extends Logger {
   def boot {
     // enable this to rewrite application paths (WIP)
     // ApplicationPaths.rewriteApplicationPaths
-    
-    // set context user from UserPrincipal contained in the HTTP session after successful login
+
+    // set context user from EnilinkPrincipal contained in the HTTP session after successful login
     Globals.contextUser.default.set(() => {
       Subject.getSubject(AccessController.getContext()) match {
         case s: Subject =>
-          val userPrincipals = s.getPrincipals(classOf[UserPrincipal])
+          val userPrincipals = s.getPrincipals(classOf[EnilinkPrincipal])
           if (!userPrincipals.isEmpty) userPrincipals.iterator.next.getId else Globals.UNKNOWN_USER
         case _ => Globals.UNKNOWN_USER
       }
