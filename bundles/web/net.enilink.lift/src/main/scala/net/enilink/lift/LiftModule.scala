@@ -72,6 +72,12 @@ class LiftModule extends Logger {
     // enable this to rewrite application paths (WIP)
     // ApplicationPaths.rewriteApplicationPaths
     
+    // remove X-Frame-Options for now to allow embedding via iframe
+    val supplementalHeaders = LiftRules.supplementalHeaders.vend
+    LiftRules.supplementalHeaders.default.set(() => {
+      supplementalHeaders.filter { case (key, _) => key != "X-Frame-Options" }
+    })
+    
     // set context user from UserPrincipal contained in the HTTP session after successful login
     Globals.contextUser.default.set(() => {
       Subject.getSubject(AccessController.getContext()) match {
