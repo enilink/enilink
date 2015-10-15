@@ -13,7 +13,6 @@ import java.util.Set;
 
 import javax.security.auth.Subject;
 
-import net.enilink.auth.AuthModule;
 import net.enilink.commons.iterator.IMap;
 import net.enilink.commons.iterator.WrappedIterator;
 import net.enilink.composition.properties.PropertySetFactory;
@@ -49,6 +48,7 @@ import net.enilink.komma.model.base.IURIMapRule;
 import net.enilink.komma.model.base.SimpleURIMapRule;
 import net.enilink.komma.workbench.IProjectModelSet;
 import net.enilink.komma.workbench.ProjectModelSetSupport;
+import net.enilink.security.auth.AuthModule;
 import net.enilink.vocab.acl.Authorization;
 import net.enilink.vocab.acl.ENILINKACL;
 import net.enilink.vocab.acl.WEBACL;

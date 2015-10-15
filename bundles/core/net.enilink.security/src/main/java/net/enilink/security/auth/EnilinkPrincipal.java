@@ -1,4 +1,4 @@
-package net.enilink.auth;
+package net.enilink.security.auth;
 
 import java.security.Principal;
 
@@ -8,7 +8,7 @@ import net.enilink.komma.core.URI;
  * A user principal identified by a username or an account.
  * 
  */
-public final class UserPrincipal implements Principal, java.io.Serializable {
+public final class EnilinkPrincipal implements Principal, java.io.Serializable {
 	private static final long serialVersionUID = 2448244491009895974L;
 
 	/**
@@ -26,7 +26,7 @@ public final class UserPrincipal implements Principal, java.io.Serializable {
 	 * @exception NullPointerException
 	 *                If the <code>name</code> is <code>null</code>.
 	 */
-	public UserPrincipal(URI id) {
+	public EnilinkPrincipal(URI id) {
 		if (id == null) {
 			throw new NullPointerException("null id is illegal");
 		}
@@ -44,8 +44,8 @@ public final class UserPrincipal implements Principal, java.io.Serializable {
 		if (this == object) {
 			return true;
 		}
-		if (object instanceof UserPrincipal) {
-			return id.equals(((UserPrincipal) object).getId());
+		if (object instanceof EnilinkPrincipal) {
+			return id.equals(((EnilinkPrincipal) object).getId());
 		}
 		return false;
 	}

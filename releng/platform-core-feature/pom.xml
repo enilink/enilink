@@ -19,7 +19,6 @@
 	</profiles>
 
 	<modules>
-		<module>../../bundles/core/net.enilink.auth</module>
 		<module>../../bundles/core/net.enilink.core</module>
 		<module>../../bundles/web/net.enilink.lift</module>
 		<module>../../bundles/core/net.enilink.security</module>

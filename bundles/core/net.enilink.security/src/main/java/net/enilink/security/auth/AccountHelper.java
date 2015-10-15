@@ -1,4 +1,4 @@
-package net.enilink.auth;
+package net.enilink.security.auth;
 
 import java.security.MessageDigest;
 import java.security.Principal;
@@ -190,7 +190,7 @@ public class AccountHelper {
 	public static List<URI> getExternalIds(Subject subject) {
 		List<URI> externalIds = new ArrayList<URI>();
 		for (Principal principal : subject.getPrincipals()) {
-			if (!(principal instanceof Group || principal instanceof UserPrincipal)) {
+			if (!(principal instanceof Group || principal instanceof EnilinkPrincipal)) {
 				URI externalId = URIs.createURI("enilink:jaas:principal:"
 						+ principal.getClass().getName() + ":"
 						+ URIs.encodeOpaquePart(principal.toString(), false));

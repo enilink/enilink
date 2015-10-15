@@ -1,4 +1,4 @@
-package net.enilink.auth;
+package net.enilink.security.auth;
 
 import net.enilink.vocab.acl.Authorization;
 import net.enilink.vocab.foaf.FoafModule;

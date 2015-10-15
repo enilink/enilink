@@ -7,12 +7,12 @@ import java.util.Set;
 
 import javax.security.auth.Subject;
 
-import net.enilink.auth.UserPrincipal;
 import net.enilink.komma.core.IEntityManager;
 import net.enilink.komma.core.IReference;
 import net.enilink.komma.core.URI;
 import net.enilink.komma.core.URIs;
 import net.enilink.komma.em.concepts.IResource;
+import net.enilink.security.auth.EnilinkPrincipal;
 import net.enilink.vocab.acl.WEBACL;
 import net.enilink.vocab.foaf.Group;
 
@@ -78,7 +78,7 @@ public class SecurityUtil {
 	 */
 	public static Subject subjectForUser(URI user) {
 		return new Subject(true,
-				Collections.singleton(new UserPrincipal(user)),
+				Collections.singleton(new EnilinkPrincipal(user)),
 				Collections.emptySet(), Collections.emptySet());
 	}
 
@@ -116,8 +116,8 @@ public class SecurityUtil {
 			s = Subject.getSubject(AccessController.getContext());
 		}
 		if (s != null) {
-			Set<UserPrincipal> principals = s
-					.getPrincipals(UserPrincipal.class);
+			Set<EnilinkPrincipal> principals = s
+					.getPrincipals(EnilinkPrincipal.class);
 			if (!principals.isEmpty()) {
 				return principals.iterator().next().getId();
 			}

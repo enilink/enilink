@@ -8,7 +8,7 @@ Lift-Packages: net.enilink.web
 Bundle-ClassPath: .
 Require-Bundle: net.enilink.core,
  net.enilink.lift,
- net.enilink.auth,
+ net.enilink.security,
  net.enilink.komma.model,
  org.eclipse.core.runtime
 Bundle-ActivationPolicy: lazy

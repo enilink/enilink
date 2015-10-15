@@ -17,7 +17,6 @@ import java.util.List;
 
 import javax.security.auth.Subject;
 
-import net.enilink.auth.AuthModule;
 import net.enilink.core.security.ISecureEntity;
 import net.enilink.core.security.SecureEntitySupport;
 import net.enilink.core.security.SecureModelSetSupport;
@@ -38,6 +37,7 @@ import net.enilink.komma.model.IModelSetFactory;
 import net.enilink.komma.model.MODELS;
 import net.enilink.komma.model.ModelPlugin;
 import net.enilink.komma.model.ModelSetModule;
+import net.enilink.security.auth.AuthModule;
 import net.enilink.vocab.acl.Authorization;
 import net.enilink.vocab.acl.ENILINKACL;
 import net.enilink.vocab.acl.WEBACL;

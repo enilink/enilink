@@ -1,14 +1,20 @@
 Manifest-Version: 1.0
 Bundle-ManifestVersion: 2
-Bundle-Name: eniLINK platform security basics
+Bundle-Name: eniLINK platform security and authentication support
 Bundle-SymbolicName: net.enilink.security;singleton:=true
 Bundle-Version: 1.1.0.qualifier
 Bundle-ActivationPolicy: lazy
-Bundle-RequiredExecutionEnvironment: JavaSE-1.6
+Bundle-RequiredExecutionEnvironment: JavaSE-1.7
 Import-Package: javax.security.auth,
  javax.security.auth.callback,
  javax.security.auth.login,
  javax.security.auth.spi,
+ org.apache.commons.codec.binary;version="1.6.0",
  org.osgi.framework;version="1.3.0"
-Export-Package: net.enilink.security.callbacks,
- net.enilink.security.modules
+Export-Package:  net.enilink.security.auth,
+ net.enilink.security.callbacks,
+ net.enilink.security.modules,
+ net.enilink.vocab.acl,
+ net.enilink.vocab.auth
+Require-Bundle: net.enilink.komma.model,
+ net.enilink.vocab.foaf;visibility:=reexport
