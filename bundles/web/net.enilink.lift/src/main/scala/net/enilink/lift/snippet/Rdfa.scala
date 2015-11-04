@@ -41,6 +41,7 @@ import net.liftweb.util.CanBind._
 import net.liftweb.util.DynoVar
 import scala.util.DynamicVariable
 import net.enilink.komma.model.ModelUtil
+import java.util.regex.Pattern
 
 /**
  * Helper object for query parameters.
@@ -105,7 +106,7 @@ object Search extends SparqlHelper with SparqlExtractor {
                 val sparql = sparqlFromRdfa.getQuery(bindingName, 0, 1000)
                 val results = withParameters(em.createQuery(sparql), queryParams).evaluateRestricted(classOf[IValue])
                 val queryRegex = patternToRegex(query.toLowerCase).r
-                results.iterator.flatMap(toTokens(query.toLowerCase, _).filter(token => queryRegex.findFirstIn(token).isDefined))
+                results.iterator.flatMap(toTokens(_).filter(token => queryRegex.findFirstIn(token.toLowerCase).isDefined)) ++ toTokens(query.toLowerCase)
               }
               JsonResponse(JArray(keywords.toSet[String].toList.sorted.map(JString(_))))
             }
