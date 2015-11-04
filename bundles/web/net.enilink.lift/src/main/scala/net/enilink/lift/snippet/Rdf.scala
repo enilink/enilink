@@ -40,6 +40,7 @@ import net.enilink.lift.util.CurrentContext
 import net.enilink.lift.util.RdfContext
 import net.liftweb.util.PassThru
 import javax.xml.datatype.XMLGregorianCalendar
+import java.text.SimpleDateFormat
 
 class Rdf extends DispatchSnippet with RDFaTemplates {
   def dispatch: DispatchIt = {
@@ -59,18 +60,20 @@ class Rdf extends DispatchSnippet with RDFaTemplates {
     }
   }
 
+  private def userFormat: Box[DateFormat] = S.attr("format") flatMap (f => tryo { new SimpleDateFormat(f) })
+
   private def toLabel(target: Any, useLabelForVocab: Boolean = false) = target match {
     case _: IClass => toManchester(target)
     case l: ILiteral => l.getDatatype match {
       case XMLSCHEMA.TYPE_STRING | null => ModelUtil.getLabel(target, useLabelForVocab)
       case _ => Globals.contextModel.vend.map {
-        lazy val locale = S.locale 
+        lazy val locale = S.locale
         _.getManager.toInstance(l) match {
           case n: Number => NumberFormat.getInstance(Locale.ENGLISH).format(n) // TODO use S.locale if client-side (x-editable) supports localized editing
-          case t: Time => DateFormat.getTimeInstance(DateFormat.SHORT, locale).format(t)
-          case d @ (_: Date | _: java.sql.Date) => DateFormat.getDateInstance(DateFormat.SHORT, locale).format(d)
+          case t: Time => (userFormat openOr DateFormat.getTimeInstance(DateFormat.SHORT, locale)).format(t)
+          case d @ (_: Date | _: java.sql.Date) => (userFormat openOr DateFormat.getDateInstance(DateFormat.SHORT, locale)).format(d)
           case xgc: XMLGregorianCalendar => {
-            val formatter = DateFormat.getDateTimeInstance(DateFormat.SHORT, DateFormat.SHORT, locale)
+            val formatter = userFormat openOr DateFormat.getDateTimeInstance(DateFormat.SHORT, DateFormat.SHORT, S.locale)
             formatter.setTimeZone(xgc.getTimeZone(xgc.getTimezone))
             formatter.format(xgc.toGregorianCalendar.getTime)
           }
