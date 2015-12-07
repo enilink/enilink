@@ -6,15 +6,10 @@
 	<parent>
 		<groupId>net.enilink</groupId>
 		<artifactId>platform-parent</artifactId>
-		<version>0.0.1-SNAPSHOT</version>
-		<relativePath>../releng/pom.xml</relativePath>
+		<version>1.1.0-SNAPSHOT</version>
 	</parent>
 	<groupId>net.enilink</groupId>
 	<artifactId>platform-features</artifactId>
-	<version>0.0.1-SNAPSHOT</version>
+	<version>1.1.0-SNAPSHOT</version>
 	<packaging>pom</packaging>
-	<modules>
-		<module>net.enilink.features.platform.core</module>
-		<module>net.enilink.features.platform.standalone</module>
-	</modules>
 </project>
