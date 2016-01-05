@@ -23,7 +23,7 @@ esac
 shift # past argument or value
 done
 
-mvn -Dtycho.mode=maven org.eclipse.tycho:tycho-versions-plugin:0.23.0:set-version -DnewVersion=$RELEASEVERSION
+mvn -P prepare-release -Dtycho.mode=maven org.eclipse.tycho:tycho-versions-plugin:0.23.0:set-version -DnewVersion=$RELEASEVERSION
 
 git commit -a -m "prepare release $RELEASEVERSION"
 git tag v$RELEASEVERSION
@@ -32,7 +32,7 @@ git commit -a -m "prepare release $RELEASEVERSION"
 git tag v$RELEASEVERSION
 popd
 
-mvn -Dtycho.mode=maven org.eclipse.tycho:tycho-versions-plugin:0.23.0:set-version -DnewVersion=$DEVELOPMENTVERSION
+mvn -P prepare-release -Dtycho.mode=maven org.eclipse.tycho:tycho-versions-plugin:0.23.0:set-version -DnewVersion=$DEVELOPMENTVERSION
 
 git commit -a -m "prepare for next development iteration"
 pushd libraries

@@ -31,6 +31,12 @@
 				</plugins>
 			</build>
 		</profile>
+		<profile>
+			<id>prepare-release</id>
+			<modules>
+				<module>features/net.enilink.platform.product</module>
+			</modules>
+		</profile>
 	</profiles>
 	<build>
 		<directory>target-maven</directory>
