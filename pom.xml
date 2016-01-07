@@ -32,7 +32,7 @@
 			</build>
 		</profile>
 		<profile>
-			<id>prepare-release</id>
+			<id>release</id>
 			<modules>
 				<module>features/net.enilink.platform.product</module>
 			</modules>
