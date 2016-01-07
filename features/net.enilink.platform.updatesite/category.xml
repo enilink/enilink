@@ -1,16 +1,25 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <site>
-   <feature url="features/net.enilink.platform.core.feature_1.1.0.qualifier.jar" id="net.enilink.platform.core.feature" version="1.1.0.qualifier">
+   <feature id="net.enilink.platform.core.feature" version="1.1.1">
       <category name="enilink"/>
    </feature>
-   <feature url="features/net.enilink.platform.core.feature.source_1.1.0.qualifier.jar" id="net.enilink.platform.core.feature.source" version="1.1.0.qualifier">
+   <feature id="net.enilink.platform.p2.feature" version="1.1.1">
       <category name="enilink"/>
    </feature>
-   <feature url="features/net.enilink.platform.p2.feature_1.1.0.qualifier.jar" id="net.enilink.platform.p2.feature" version="1.1.0.qualifier">
-      <category name="enilink"/>
-   </feature>
-   <feature url="features/net.enilink.platform.standalone.feature_1.1.0.qualifier.jar" id="net.enilink.platform.standalone.feature" version="1.1.0.qualifier">
+   <feature id="net.enilink.platform.standalone.feature" version="1.1.1">
       <category name="enilink"/>
    </feature>
    <category-def name="enilink" label="eniLINK Platform"/>
+
+   <!-- Source features -->
+   <category-def name="enilink-sdk" label="eniLINK Platform SDK"/>
+   <feature id="net.enilink.platform.core.feature.source">
+      <category name="enilink-sdk"/>
+   </feature>
+
+   <!-- Source bundles -->
+   <!--iu>
+      <category name="enilink-sdk"/>
+      <query><expression type="match"><![CDATA[ id ~= /net\.enilink.*\.source/ ]]></expression></query>
+   </iu-->
 </site>
