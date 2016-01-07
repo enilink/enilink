@@ -1,4 +1,5 @@
 script: mvn -P release verify
+
 deploy:
 - provider: releases
   skip_cleanup: true
@@ -14,6 +15,7 @@ deploy:
   script: releng/publish/pushToBintray.sh features/net.enilink.platform.updatesite/target-maven/repository/
   on:
     tags: true
+
 env:
   global:
   - BINTRAY_USER: kenwenzel
