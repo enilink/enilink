@@ -1,0 +1,24 @@
+script: mvn -P release verify
+deploy:
+- provider: releases
+  skip_cleanup: true
+  api_key:
+    secure: x6wwnZTLTcI0byLVjIHu2cuuJdpxIYORmr34pH00zVJjcwJI+boP0vt2Vsp1T22AZKS1mAnFWg2EQ2SJmGFxuX0GHP8DMU1Iswvz7YNdEzhueR+V0cffIAXrDfAgnCNdXIyA1DSk8Ij2cPgOYrtxVTHmSVxs8fhYVn6vjpKWNXR8jBu96awFl3mAYEAXENWSnCgrhI1ThgJmOP5bpvR5NlV8QNJDrk2DrNyn6Xb0tmyGzAb6Ql1qrYho2G2uSfW+uUjBhD6s5LJCjKseHUvG44+usEpnRqAVZ9reQt4j39RqWjcSpfWfVbozltjM8fleSYH3w0eMEn9anJnSKGdoQFnNP/cjJ+DyERJBAc50Sgn8BySbxJrqo/iu5z2kGBjn28rvCxRxABn8a7qnAjGLAOUAS9k9FlXea3BRipHjRf5OglViKNNuh647trgAexccdJuxpDJ5EhjPNF4azgMXmZc323q0MZnHjZdyG6dUU/AI0jlFbJTQWXPp9syo1vQ2WQFvjfiCNxwuBHCPHEQSFcIeYNbTIwcL82BEe+TkPo9y5t5XpoWuFXhUbb5i9qKzk6vVTgVTiku5nWN/oI2PufR7PlUaWnMpzkhE2t5nuVf77Jf51EUF8Y3q6Xqz0KH2HTD9OTm86mFQ2nqfvPULYlKWXK7Q6+aonMTFENYMn3U=
+  file_glob: true
+  file: features/net.enilink.platform.product/target-maven/products/enilink-platform-*.zip
+  on:
+    repo: enilink/enilink
+    tags: true
+- provider: script
+  skip_cleanup: true
+  script: releng/publish/pushToBintray.sh features/net.enilink.platform.updatesite/target-maven/repository/
+  on:
+    tags: true
+env:
+  global:
+  - BINTRAY_USER: kenwenzel
+  - BINTRAY_OWNER: enilink
+  - BINTRAY_REPO: updates
+  - BINTRAY_PCK_NAME: enilink
+# BINTRAY_API_KEY
+  - secure: I2G+UaDhVtAGGL2O043ZqljcKRG832XyrvCbHZRf/j4TJWQli/BA7kZ+FTW9nG6AaTfGLwqDDYEov+tRTopb09ler4byrb+wqkM/ngvXOrTCrXJU3I969LrL1S4CVgcBnHUVW5hJGir8bYcxMpPtAVVIKF4t3h27cFL9t4J7rVptS4r6Da8+BnxKnuURNCn14x02qhuoZlqwznP6XB0IGIFoqXmCm3yBNtwHn02e8WJV+4Bo4tMTYmJF6pkZfcZKHnMBdo5LqEyhPFK+eDjqLiUXB+50RxQ2w3xmtpUEF6t7rfCTvUf+9CMba7PKiIbPUTb+dNTEvrNxCtCwGLKw1N9Kc0OANEsa38xciT8vZUzuAllghnK+QsjT1TcJe7WP3l6SO/kvurEg5kFb/D2I/0v/KSh5ItNb43YcY/VjX3tnl81CElyKinzegcPJo1jfsjNo84BHKeXIlXtmjiwaYbm+uMBveAHyiuYbXlH65Kne8W2mQNt4vHS+Pfl4/uJrt8einN4SPl79t0DW8UmDNCxqIiSvRQOzo1HRvlVdeIT39nYDEH/puE8THNKxnn2VPSIEh2eJzBYHMsLxIyHkf776fF1CyncEYRU/7idNSVCgVzM1L7JCg7GL0mnb+tao4+nqG5f/5p1kfdJhyYmckiwinnJ6DvM78nL6j6+/+Dw=
