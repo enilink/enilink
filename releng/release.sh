@@ -25,16 +25,16 @@ done
 
 mvn -P release -Dtycho.mode=maven org.eclipse.tycho:tycho-versions-plugin:0.23.0:set-version -DnewVersion=$RELEASEVERSION
 
-git commit -a -m "prepare release $RELEASEVERSION"
-git tag v$RELEASEVERSION
 pushd libraries
 git commit -a -m "prepare release $RELEASEVERSION"
 git tag v$RELEASEVERSION
 popd
+git commit -a -m "prepare release $RELEASEVERSION"
+git tag v$RELEASEVERSION
 
 mvn -P release -Dtycho.mode=maven org.eclipse.tycho:tycho-versions-plugin:0.23.0:set-version -DnewVersion=$DEVELOPMENTVERSION
 
-git commit -a -m "prepare for next development iteration"
 pushd libraries
 git commit -a -m "prepare for next development iteration"
 popd
+git commit -a -m "prepare for next development iteration"
