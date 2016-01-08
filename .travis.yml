@@ -6,7 +6,7 @@ deploy:
   api_key:
     secure: x6wwnZTLTcI0byLVjIHu2cuuJdpxIYORmr34pH00zVJjcwJI+boP0vt2Vsp1T22AZKS1mAnFWg2EQ2SJmGFxuX0GHP8DMU1Iswvz7YNdEzhueR+V0cffIAXrDfAgnCNdXIyA1DSk8Ij2cPgOYrtxVTHmSVxs8fhYVn6vjpKWNXR8jBu96awFl3mAYEAXENWSnCgrhI1ThgJmOP5bpvR5NlV8QNJDrk2DrNyn6Xb0tmyGzAb6Ql1qrYho2G2uSfW+uUjBhD6s5LJCjKseHUvG44+usEpnRqAVZ9reQt4j39RqWjcSpfWfVbozltjM8fleSYH3w0eMEn9anJnSKGdoQFnNP/cjJ+DyERJBAc50Sgn8BySbxJrqo/iu5z2kGBjn28rvCxRxABn8a7qnAjGLAOUAS9k9FlXea3BRipHjRf5OglViKNNuh647trgAexccdJuxpDJ5EhjPNF4azgMXmZc323q0MZnHjZdyG6dUU/AI0jlFbJTQWXPp9syo1vQ2WQFvjfiCNxwuBHCPHEQSFcIeYNbTIwcL82BEe+TkPo9y5t5XpoWuFXhUbb5i9qKzk6vVTgVTiku5nWN/oI2PufR7PlUaWnMpzkhE2t5nuVf77Jf51EUF8Y3q6Xqz0KH2HTD9OTm86mFQ2nqfvPULYlKWXK7Q6+aonMTFENYMn3U=
   file_glob: true
-  file: features/net.enilink.platform.product/target-maven/products/enilink-platform-*.zip
+  file: features/net.enilink.platform.product/target-maven/products/enilink-platform-*{.zip,.tar.gz}
   on:
     repo: enilink/enilink
     tags: true
