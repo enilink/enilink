@@ -26,6 +26,16 @@ import net.liftweb.http.Req
 import net.liftweb.http.S
 import net.liftweb.http.rest.RestHelper
 import net.enilink.komma.model.IModel
+import net.liftweb.http.JsonResponse
+import net.liftweb.json._
+import net.liftweb.json.JsonAST._
+import net.liftweb.json.JsonDSL._
+import net.liftweb.http.OnDiskFileParamHolder
+import java.io.ByteArrayInputStream
+import java.io.InputStream
+import net.liftweb.http.BadResponse
+import net.liftweb.http.OkResponse
+import net.liftweb.common.Failure
 
 object ModelsRest extends RestHelper {
   /**
@@ -88,7 +98,7 @@ object ModelsRest extends RestHelper {
   def getResponseContentType(r: Req): Option[IContentType] = {
     // use list given by "type" parameter
     S.param("type").map(ContentType.parse(_)).flatMap(matchType(_).map(_._2)) or {
-      // use file extension or accept-header content negotiation
+      // use file extension or Accept header content negotiation
       val uri = getUri(r)
       if ((r.weightedAccept.isEmpty || r.acceptsStarStar) && uri.fileExtension == null && defaultGetAsRdfXml) {
         Some(Platform.getContentTypeManager.getContentType("net.enilink.komma.contenttype.rdfxml"))
@@ -97,6 +107,23 @@ object ModelsRest extends RestHelper {
           case Some((mimeType, cType)) if r.acceptsStarStar || r.weightedAccept.find(_.matches(mimeType)).isDefined => Some(cType)
           case _ => matchType(r.weightedAccept).map(_._2)
         }
+      }
+    }
+  }
+
+  def mimeTypeToPair(mimeType: String): Box[(String, String)] = mimeType.split("/") match {
+    case Array(superType, subType) => Full((superType, subType))
+    case o => Failure("Invalid mime type: " + mimeType)
+  }
+
+  def getRequestContentType(r: Req): Box[IContentType] = {
+    // use content-type given by "type" parameter
+    S.param("type").flatMap(mimeTypeToPair(_)).flatMap(typePair => rdfContentTypes.get(typePair)) or {
+      // use Content-Type header
+      r.contentType.flatMap(mimeTypeToPair(_)).flatMap(typePair => rdfContentTypes.get(typePair)) or {
+        // use file extension if available
+        val uri = getUri(r)
+        if (uri.fileExtension != null) matchTypeByExtension(uri.fileExtension).map(_._2) else None
       }
     }
   }
@@ -129,9 +156,37 @@ object ModelsRest extends RestHelper {
       })
   }
 
+  def saveRdf(r: Req, modelUri: URI, in: InputStream) = {
+    getModel(modelUri).dmap(Full(new NotFoundResponse("Model " + modelUri + " not found.")): Box[LiftResponse]) { model =>
+      model match {
+        case NotAllowedModel(_) => Full(ForbiddenResponse("You don't have permissions to access " + model.getURI + "."))
+        case _ => getRequestContentType(r) map (_.getDefaultDescription) match {
+          case Full(cd) =>
+            model.load(in, Map(IModel.OPTION_CONTENT_DESCRIPTION -> cd));
+            // refresh the model
+            // model.unloadManager
+            Full(OkResponse())
+          case _ => None
+        }
+      }
+    }
+  }
+
   def validModel(modelName: List[String]) = !modelName.isEmpty && modelName != List("index") || Globals.contextModel.vend.isDefined
 
   serve {
     case ("vocab" | "models") :: modelName RdfGet req if validModel(modelName) => serveRdf(req, getUri(req))
+    case ("vocab" | "models") :: modelName Post req if validModel(modelName) => {
+      val inputStream = req.rawInputStream or {
+        req.uploadedFiles.headOption map (_.fileStream)
+      }
+      inputStream.flatMap { in =>
+        try {
+          saveRdf(req, getUri(req), in)
+        } finally {
+          in.close
+        }
+      } or Full(BadResponse())
+    }
   }
 }
