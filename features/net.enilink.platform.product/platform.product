@@ -38,6 +38,7 @@
    <features>
       <feature id="net.enilink.platform.standalone.feature"/>
       <feature id="net.enilink.platform.p2.feature"/>
+      <feature id="net.enilink.platform.daemon.feature"/>
    </features>
 
    <configurations>
