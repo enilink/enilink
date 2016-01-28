@@ -21,6 +21,7 @@
 	<modules>
 		<module>../../bundles/core/net.enilink.core</module>
 		<module>../../bundles/web/net.enilink.lift</module>
+                <module>../../bundles/core/net.enilink.poweroff</module>
 		<module>../../bundles/core/net.enilink.security</module>
 		<module>../../bundles/web/net.enilink.web</module>
 		<module>../../libraries/net.liftweb</module>
