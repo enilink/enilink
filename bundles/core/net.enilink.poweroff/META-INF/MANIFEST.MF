@@ -1,0 +1,13 @@
+Manifest-Version: 1.0
+Bundle-ManifestVersion: 2
+Bundle-Name: Poweroff Command and ShutdownHook
+Bundle-SymbolicName: net.enilink.poweroff;singleton:=true
+Bundle-Version: 1.0.0.qualifier
+Bundle-RequiredExecutionEnvironment: JavaSE-1.7
+Import-Package: org.eclipse.osgi.framework.console,
+ org.osgi.framework
+Export-Package: net.enilink.poweroff
+Bundle-Activator: net.enilink.poweroff.Activator
+Bundle-Vendor: enilink.net
+Bundle-ActivationPolicy: lazy
+Service-Component: OSGI-INF/*.xml

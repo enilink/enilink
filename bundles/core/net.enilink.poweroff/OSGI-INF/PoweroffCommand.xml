@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<scr:component xmlns:scr="http://www.osgi.org/xmlns/scr/v1.1.0" activate="activate" name="net.enilink.poweroff">
+   <implementation class="net.enilink.poweroff.PoweroffCommandProvider"/>
+   <service>
+      <provide interface="org.eclipse.osgi.framework.console.CommandProvider"/>
+   </service>
+   <property name="service.ranking" type="Integer" value="2147483647"/>
+   <property name="osgi.command.scope" type="String" value="enilink"/>
+   <property name="osgi.command.function" type="String" value="poweroff"/>
+</scr:component>
