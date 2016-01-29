@@ -11,6 +11,7 @@
 	<modules>
 		<module>../platform-standalone-feature</module>
 		<module>../platform-p2-feature</module>
+		<module>../../features/net.enilink.platform.daemon.feature</module>
 		<module>../../features/net.enilink.platform.product</module>
 	</modules>
 </project>

@@ -7,9 +7,12 @@
    </configIni>
 
    <launcherArgs>
-      <programArgs>-consoleLog -console
+      <programArgs>
       </programArgs>
       <vmArgs>-XX:+HeapDumpOnOutOfMemoryError
+-Dosgi.console
+-Dosgi.console.enable.builtin=false
+-Declipse.consoleLog=true
 -Dosgi.noShutdown=true
 -Dorg.osgi.service.http.port=10080
 -Dorg.eclipse.equinox.http.jetty.context.sessioninactiveinterval=200
@@ -38,6 +41,7 @@
    <features>
       <feature id="net.enilink.platform.standalone.feature"/>
       <feature id="net.enilink.platform.p2.feature"/>
+      <feature id="net.enilink.platform.daemon.feature"/>
    </features>
 
    <configurations>
