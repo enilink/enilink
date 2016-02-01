@@ -35,6 +35,7 @@
 		<profile>
 			<id>release</id>
 			<modules>
+				<module>features/net.enilink.platform.daemon.feature</module>
 				<module>features/net.enilink.platform.product</module>
 			</modules>
 		</profile>

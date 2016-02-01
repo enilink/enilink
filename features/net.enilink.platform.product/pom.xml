@@ -14,7 +14,7 @@
 	<packaging>eclipse-repository</packaging>
 	<properties>
 		<product.id>net.enilink.platform.product</product.id>
-		<product.path>${project.build.directory}/products/net.enilink.platform.product/</product.path>
+		<product.path>${project.build.directory}/products/net.enilink.platform.product</product.path>
 		<product.archive.prefix>${project.build.directory}/products/enilink-platform-${project.version}</product.archive.prefix>
 	</properties>
 	<build>
@@ -62,10 +62,12 @@
 								<zip basedir="${product.path}/win32/win32/x86_64"
 									destfile="${product.archive.prefix}-win32.win32.x86_64.zip" />
 
-								<move file="${product.path}/win32/win32/x86/eclipsec.exe"
+								<move failonerror="false" quiet="true" file="${product.path}/win32/win32/x86/eclipsec.exe"
 									tofile="${product.path}/win32/win32/x86/enilink-platformc.exe" />
 
-								<zip basedir="${product.path}/win32/win32/x86" destfile="${product.archive.prefix}-win32.win32.x86.zip" />
+								<zip destfile="${product.archive.prefix}-win32.win32.x86.zip">
+									<zipfileset dir="${product.path}/win32/win32/x86" erroronmissingdir="false" />
+								</zip>
 							</target>
 						</configuration>
 						<goals>
