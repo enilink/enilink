@@ -17,7 +17,11 @@
                 <version>1.2.0-SNAPSHOT</version>
                 <executions>
                     <execution>
-                        <id>default-cli</id>
+                        <id>generate-p2</id>
+                        <phase>package</phase>
+                        <goals>
+                            <goal>site</goal>
+                        </goals>
                         <!--
                         This is the configuration for the creation of a P2 update site.
 
@@ -39,6 +43,18 @@
                                     <id>org.apache.felix:org.apache.felix.fileinstall:3.5.2</id>
                                     <transitive>false</transitive>
                                 </artifact>
+                                <artifact>
+                                    <id>net.enilink:net.liftweb:2.6.3-SNAPSHOT</id>
+                                    <transitive>false</transitive>
+                                </artifact>
+                                <artifact>
+                                    <id>org.scalatest:scalatest_2.11:3.0.0-M15</id>
+                                    <transitive>false</transitive>
+                                </artifact>
+                                <artifact>
+                                    <id>org.scalactic:scalactic_2.11:3.0.0-SNAP13</id>
+                                    <transitive>false</transitive>
+                                </artifact>
                             </artifacts>
                         </configuration>
                     </execution>
@@ -53,4 +69,8 @@
             <url>http://repo.reficio.org/maven/</url>
         </pluginRepository>
     </pluginRepositories>
+    
+    <modules>
+        <module>net.liftweb</module>
+    </modules>
 </project>

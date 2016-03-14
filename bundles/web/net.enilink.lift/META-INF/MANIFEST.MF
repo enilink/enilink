@@ -29,7 +29,8 @@ Import-Package: com.google.common.base;version="17.0.0",
  org.osgi.framework,
  org.osgi.service.http,
  org.osgi.util.tracker,
- org.slf4j
+ org.slf4j,
+ org.scalatest;resolution:=optional
 Require-Bundle: org.eclipse.core.runtime,
  org.scala-lang.scala-library;visibility:=reexport,
  org.scala-lang.modules.scala-parser-combinators;visibility:=reexport,

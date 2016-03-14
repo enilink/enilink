@@ -3,9 +3,9 @@
 	xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd"
 	xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
 	<modelVersion>4.0.0</modelVersion>
-	<groupId>net.liftweb</groupId>
+	<groupId>net.enilink</groupId>
 	<artifactId>net.liftweb</artifactId>
-	<version>${lift.version}-SNAPSHOT</version>
+	<version>2.6.3-SNAPSHOT</version>
 	<packaging>bundle</packaging>
 
 	<properties>
