@@ -1,0 +1,65 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project
+	xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd"
+	xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+	<modelVersion>4.0.0</modelVersion>
+	<groupId>net.liftweb</groupId>
+	<artifactId>net.liftweb</artifactId>
+	<version>${lift.version}-SNAPSHOT</version>
+	<packaging>bundle</packaging>
+
+	<properties>
+		<lift.version>2.6.3</lift.version>
+		<scala.version>2.11</scala.version>
+	</properties>
+
+	<dependencies>
+		<dependency>
+			<groupId>net.liftweb</groupId>
+			<artifactId>lift-webkit_${scala.version}</artifactId>
+			<version>${lift.version}</version>
+		</dependency>
+	</dependencies>
+
+	<build>
+		<plugins>
+			<plugin>
+				<artifactId>maven-jar-plugin</artifactId>
+				<version>2.6</version>
+				<configuration>
+					<archive>
+						<manifestFile>META-INF/MANIFEST.MF</manifestFile>
+					</archive>
+				</configuration>
+			</plugin>
+			<plugin>
+				<groupId>org.apache.felix</groupId>
+				<artifactId>maven-bundle-plugin</artifactId>
+				<version>3.0.1</version>
+				<extensions>true</extensions>
+				<configuration>
+					<manifestLocation>META-INF</manifestLocation>
+					<instructions>
+						<Bundle-SymbolicName>net.liftweb</Bundle-SymbolicName>
+						<Bundle-ActivationPolicy>lazy</Bundle-ActivationPolicy>
+						<Eclipse-BuddyPolicy>dependent</Eclipse-BuddyPolicy>
+						<Export-Package>
+							net.liftweb.*, nu.validator.*, org.joda.*
+						</Export-Package>
+						<Import-Package>
+							scala.*, org.slf4j.*,
+							javax.mail.*;version="1.4.0", javax.servlet.*;version="2.6.0",
+							org.apache.commons.codec.*;version="1.6.0",
+							org.apache.commons.fileupload.*;version="1.2.2"
+						</Import-Package>
+						<Embed-Dependency>
+							*(lift|joda|htmlparser|paranamer|scalap)*;
+							scope=compile|runtime; type=!pom; inline=false
+						</Embed-Dependency>
+						<Embed-Transitive>true</Embed-Transitive>
+					</instructions>
+				</configuration>
+			</plugin>
+		</plugins>
+	</build>
+</project>
