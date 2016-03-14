@@ -1,4 +1,4 @@
-script: mvn -P release verify
+script: mvn -f libraries-p2/pom.xml package && mvn -P release verify
 
 deploy:
 - provider: releases
