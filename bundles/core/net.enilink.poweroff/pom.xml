@@ -6,11 +6,11 @@
 	<parent>
 		<groupId>net.enilink</groupId>
 		<artifactId>platform-parent</artifactId>
-		<version>1.1.2-SNAPSHOT</version>
+		<version>1.2.0</version>
 		<relativePath>../../../pom.xml</relativePath>
 	</parent>
 	<groupId>net.enilink</groupId>
 	<artifactId>net.enilink.poweroff</artifactId>
-	<version>1.1.2-SNAPSHOT</version>
+	<version>1.2.0</version>
 	<packaging>eclipse-plugin</packaging>
 </project>
