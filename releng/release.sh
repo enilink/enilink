@@ -30,4 +30,4 @@ git tag v$RELEASEVERSION -m "eniLINK platform release $RELEASEVERSION"
 
 mvn -Dtycho.mode=maven tycho-versions:set-version -DnewVersion=$DEVELOPMENTVERSION
 
-git commit -a -m "prepare for next development iteration
+git commit -a -m "prepare for next development iteration"
