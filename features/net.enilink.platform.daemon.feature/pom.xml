@@ -6,10 +6,10 @@
 	<parent>
 		<groupId>net.enilink</groupId>
 		<artifactId>platform-features</artifactId>
-		<version>1.2.0</version>
+		<version>1.2.1-SNAPSHOT</version>
 	</parent>
 	<groupId>net.enilink</groupId>
 	<artifactId>net.enilink.platform.daemon.feature</artifactId>
-	<version>1.2.0</version>
+	<version>1.2.1-SNAPSHOT</version>
 	<packaging>eclipse-feature</packaging>
 </project>
