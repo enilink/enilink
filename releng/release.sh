@@ -23,18 +23,11 @@ esac
 shift # past argument or value
 done
 
-mvn -P release -Dtycho.mode=maven org.eclipse.tycho:tycho-versions-plugin:0.23.0:set-version -DnewVersion=$RELEASEVERSION
+mvn -Dtycho.mode=maven tycho-versions:set-version -DnewVersion=$RELEASEVERSION
 
-pushd libraries
 git commit -a -m "prepare release $RELEASEVERSION"
-git tag v$RELEASEVERSION
-popd
-git commit -a -m "prepare release $RELEASEVERSION"
-git tag v$RELEASEVERSION
+git tag v$RELEASEVERSION -m "eniLINK platform release $RELEASEVERSION"
 
-mvn -P release -Dtycho.mode=maven org.eclipse.tycho:tycho-versions-plugin:0.23.0:set-version -DnewVersion=$DEVELOPMENTVERSION
+mvn -Dtycho.mode=maven tycho-versions:set-version -DnewVersion=$DEVELOPMENTVERSION
 
-pushd libraries
-git commit -a -m "prepare for next development iteration"
-popd
-git commit -a -m "prepare for next development iteration"
+git commit -a -m "prepare for next development iteration
