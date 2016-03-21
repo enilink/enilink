@@ -6,11 +6,11 @@
 	<parent>
 		<groupId>net.enilink</groupId>
 		<artifactId>platform-features</artifactId>
-		<version>1.2.1-SNAPSHOT</version>
+		<version>1.2.1</version>
 	</parent>
 	<groupId>net.enilink</groupId>
 	<artifactId>net.enilink.platform.product</artifactId>
-	<version>1.2.1-SNAPSHOT</version>
+	<version>1.2.1</version>
 	<packaging>eclipse-repository</packaging>
 	<properties>
 		<product.id>net.enilink.platform.product</product.id>
