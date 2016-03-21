@@ -2,7 +2,7 @@
 <feature
       id="net.enilink.platform.core.feature"
       label="eniLINK Platform Core"
-      version="1.2.1"
+      version="1.2.2.qualifier"
       provider-name="enilink.net">
 
    <description>
