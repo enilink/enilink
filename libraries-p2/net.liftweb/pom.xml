@@ -19,6 +19,11 @@
 			<artifactId>lift-webkit_${scala.version}</artifactId>
 			<version>${lift.version}</version>
 		</dependency>
+		<dependency>
+			<groupId>org.webjars</groupId>
+			<artifactId>webjars-locator-core</artifactId>
+			<version>0.30</version>
+		</dependency>
 	</dependencies>
 
 	<build>
@@ -44,7 +49,7 @@
 						<Bundle-ActivationPolicy>lazy</Bundle-ActivationPolicy>
 						<Eclipse-BuddyPolicy>dependent</Eclipse-BuddyPolicy>
 						<Export-Package>
-							net.liftweb.*, nu.validator.*, org.joda.*
+							net.liftweb.*, nu.validator.*, org.joda.*, org.webjars.*
 						</Export-Package>
 						<Import-Package>
 							scala.*, org.slf4j.*,
@@ -53,8 +58,8 @@
 							org.apache.commons.fileupload.*;version="1.2.2"
 						</Import-Package>
 						<Embed-Dependency>
-							*(lift|joda|htmlparser|paranamer|scalap)*;
-							scope=compile|runtime; type=!pom; inline=false
+							*(lift|joda|htmlparser|paranamer|scalap|webjars)*;
+							scope=compile|runtime; type=!pom; inline=true
 						</Embed-Dependency>
 						<Embed-Transitive>true</Embed-Transitive>
 					</instructions>
