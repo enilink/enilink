@@ -1,21 +1,37 @@
 package net.enilink.lift
 
 import java.io.File
+import java.net.URL
+import java.nio.file.FileSystems
+import java.nio.file.Files
+import java.nio.file.Path
+import java.nio.file.Paths
+import java.nio.file.StandardWatchEventKinds
+import java.nio.file.WatchKey
 import java.security.PrivilegedAction
+import java.util.concurrent.ExecutorService
+import java.util.concurrent.Executors
+import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicReference
+
 import scala.Option.option2Iterable
 import scala.collection.JavaConversions._
-import scala.collection.mutable.LinkedHashMap
+
 import org.eclipse.equinox.http.servlet.ExtendedHttpService
+import org.eclipse.osgi.service.datalocation.Location
 import org.osgi.framework.Bundle
 import org.osgi.framework.BundleActivator
 import org.osgi.framework.BundleContext
 import org.osgi.framework.BundleEvent
+import org.osgi.framework.FrameworkUtil
 import org.osgi.framework.ServiceReference
 import org.osgi.framework.ServiceRegistration
+import org.osgi.framework.wiring.FrameworkWiring
 import org.osgi.service.http.HttpContext
 import org.osgi.util.tracker.BundleTracker
 import org.osgi.util.tracker.ServiceTracker
+import org.webjars.WebJarAssetLocator
+
 import javax.security.auth.Subject
 import javax.servlet.FilterChain
 import javax.servlet.ServletRequest
@@ -28,6 +44,7 @@ import net.enilink.core.ISession
 import net.enilink.core.security.SecurityUtil
 import net.enilink.lift.sitemap.Application
 import net.enilink.lift.util.Globals
+import net.liftweb.actor.LiftActor
 import net.liftweb.common.Box
 import net.liftweb.common.Box.box2Iterable
 import net.liftweb.common.Box.box2Option
@@ -44,24 +61,8 @@ import net.liftweb.http.S
 import net.liftweb.osgi.OsgiBootable
 import net.liftweb.sitemap.SiteMap
 import net.liftweb.util.ClassHelpers
-import net.liftweb.util.Props
-import org.osgi.framework.wiring.FrameworkWiring
-import org.osgi.framework.FrameworkUtil
-import java.util.concurrent.Executors
-import java.util.concurrent.TimeUnit
-import net.enilink.komma.core.URI
+import net.liftweb.util.Helpers
 import net.liftweb.util.Schedule
-import scala.reflect.api.Names
-import scala.reflect.api.Symbols
-import java.util.concurrent.ExecutorService
-import net.liftweb.actor.LiftActor
-import java.nio.file.FileSystems
-import org.eclipse.osgi.service.datalocation.Location
-import java.nio.file.Paths
-import java.nio.file.StandardWatchEventKinds
-import java.nio.file.WatchKey
-import java.nio.file.Files
-import java.nio.file.Path
 
 object Activator {
   val SERVICE_KEY_HTTP_PORT = "http.port"
@@ -215,9 +216,15 @@ class Activator extends BundleActivator with Loggable {
       // boot bundle as system user to allow modifications of RDF data
       Subject.doAs(SecurityUtil.SYSTEM_USER_SUBJECT, new PrivilegedAction[Unit]() {
         def run {
-          bootBundle(entry.getKey, entry.getValue)
+          val bundle = entry.getKey
+          bootBundle(bundle, entry.getValue)
         }
       })
+    }
+
+    // allow "classpath/webjars" to be served
+    ResourceServer.allow {
+      case "webjars" :: _ => true
     }
 
     // set the sitemap function
@@ -403,18 +410,48 @@ class Activator extends BundleActivator with Loggable {
    * Lift-powered bundles and other methods to wrapped HttpContext.
    */
   private case class LiftHttpContext(context: HttpContext) extends HttpContext with Logger {
+    assert(context != null, "HttpContext must not be null!")
+
+    // support for webjars
+    val webjarAssets = new java.util.HashSet[String]
+    bundleTracker.getTracked.entrySet.toSeq foreach { entry =>
+      val bundle = entry.getKey
+      val hasWebJars = bundle.getEntry(WebJarAssetLocator.WEBJARS_PATH_PREFIX) != null
+      if (hasWebJars) {
+        val assets = bundle.findEntries(WebJarAssetLocator.WEBJARS_PATH_PREFIX, "*", true)
+        if (assets != null) {
+          while (assets.hasMoreElements) webjarAssets.add(assets.nextElement.toString)
+        }
+      }
+    }
+    val webJarLocator = new WebJarAssetLocator(webjarAssets)
+    val WEBJARS = "/" + ResourceServer.baseResourceLocation + "/webjars"
+
+    // external resource locations
     val resourcePaths = System.getProperty("net.enilink.lift.resourcePaths") match {
       case null => Nil
       case paths => paths.split("\\s+\\s").map(new File(_)).toList
     }
-
-    assert(context != null, "HttpContext must not be null!")
 
     override def getMimeType(s: String) = context getMimeType s
 
     override def getResource(s: String) = {
       debug("""Asked for resource "%s".""" format s)
 
+      val path = if (s.startsWith("/")) s else "/" + s
+      if (path.startsWith(WEBJARS)) {
+        // try to serve webjars resource
+        val assetPath = s.substring(WEBJARS.length + 1)
+        val url = webJarLocator.getFullPath(assetPath)
+        // assetPath is a "bundleentry://" or "bundleresource://" URL
+        new URL(url)
+      } else {
+        // serve other resource
+        defaultResource(s)
+      }
+    }
+
+    def defaultResource(s: String): URL = {
       def str[A](p: List[A]) = p.mkString("/", "/", "")
       def list(s: String) = s.stripPrefix("/").split("/").toList
       lazy val baseResourceLocation = list(ResourceServer.baseResourceLocation)
