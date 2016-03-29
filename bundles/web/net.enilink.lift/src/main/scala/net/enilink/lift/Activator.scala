@@ -1,7 +1,5 @@
 package net.enilink.lift
 
-import java.io.File
-import java.net.URL
 import java.nio.file.FileSystems
 import java.nio.file.Files
 import java.nio.file.Path
@@ -14,7 +12,6 @@ import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicReference
 
-import scala.Option.option2Iterable
 import scala.collection.JavaConversions._
 
 import org.eclipse.equinox.http.servlet.ExtendedHttpService
@@ -27,32 +24,26 @@ import org.osgi.framework.FrameworkUtil
 import org.osgi.framework.ServiceReference
 import org.osgi.framework.ServiceRegistration
 import org.osgi.framework.wiring.FrameworkWiring
-import org.osgi.service.http.HttpContext
 import org.osgi.util.tracker.BundleTracker
 import org.osgi.util.tracker.ServiceTracker
-import org.webjars.WebJarAssetLocator
 
 import javax.security.auth.Subject
 import javax.servlet.FilterChain
 import javax.servlet.ServletRequest
 import javax.servlet.ServletResponse
 import javax.servlet.http.HttpServletRequest
-import javax.servlet.http.HttpServletResponse
 import net.enilink.core.IContext
 import net.enilink.core.IContextProvider
 import net.enilink.core.ISession
 import net.enilink.core.security.SecurityUtil
-import net.enilink.lift.sitemap.Application
 import net.enilink.lift.util.Globals
 import net.liftweb.actor.LiftActor
 import net.liftweb.common.Box
-import net.liftweb.common.Box.box2Iterable
 import net.liftweb.common.Box.box2Option
 import net.liftweb.common.Box.option2Box
 import net.liftweb.common.Empty
 import net.liftweb.common.Full
 import net.liftweb.common.Loggable
-import net.liftweb.common.Logger
 import net.liftweb.http.LiftFilter
 import net.liftweb.http.LiftRules
 import net.liftweb.http.LiftRulesMocker.toLiftRules
@@ -85,11 +76,11 @@ class Activator extends BundleActivator with Loggable {
     override def addingService(serviceRef: ServiceReference[ExtendedHttpService]) = {
       val httpService = super.addingService(serviceRef)
       if ((httpServiceHolder getAndSet httpService) == null) {
-        liftStarted = true
+        bundleTracker.liftStarted(true)
         liftFilter = new OsgiLiftFilter
 
         // create a default context to share between registrations
-        val httpContext = new LiftHttpContext(httpService.createDefaultHttpContext())
+        val httpContext = new LiftHttpContext(httpService.createDefaultHttpContext(), bundleTracker)
         httpService.registerResources("/", "/", httpContext)
         httpService.registerFilter("/", liftFilter, null, httpContext)
 
@@ -107,77 +98,6 @@ class Activator extends BundleActivator with Loggable {
     }
   }
 
-  class LiftBundleTracker extends BundleTracker[LiftBundleConfig](this.context, Bundle.INSTALLED | Bundle.RESOLVED | Bundle.STARTING | Bundle.STOPPING | Bundle.ACTIVE, null) with Loggable {
-    var rebooting = false
-    override def addingBundle(bundle: Bundle, event: BundleEvent) = {
-      val headers = bundle.getHeaders
-      val moduleStr = Box.legacyNullTest(headers.get("Lift-Module"))
-      val packageStr = Box.legacyNullTest(headers.get("Lift-Packages"))
-      if (moduleStr.isDefined || packageStr.isDefined) {
-        if (!liftStarted) {
-          logger.info("Lift module: " + bundle.getSymbolicName + " (" + bundle.getVersion + ")")
-          // track bundle immediately
-          val packages = packageStr.map(_.split("\\s,\\s")) openOr Array.empty
-          val module = moduleStr.filter(_.trim.nonEmpty).flatMap { m =>
-            try {
-              val clazz = bundle loadClass m
-              Full(clazz.newInstance.asInstanceOf[AnyRef])
-            } catch {
-              case cnfe: ClassNotFoundException => logger.error("Lift-Module class " + m + " of bundle " + bundle.getSymbolicName + " not found."); None
-            }
-          }
-          val startLevel = module flatMap { m => ClassHelpers.createInvoker("startLevel", m) flatMap (_()) } map {
-            case i: Int => i
-            case o => o.toString.toInt
-          }
-          val config = new LiftBundleConfig(module, packages, startLevel openOr 0)
-          config
-        } else {
-          rebootLift
-          null
-        }
-      } else null
-    }
-
-    def rebootLift {
-      if (!rebooting) {
-        logger.debug("Rebooting Lift")
-        rebooting = true
-        // reboot net.enilink.lift and dependent bundles with short delay
-        Executors.newSingleThreadScheduledExecutor.schedule(new Runnable {
-          def run {
-            val liftBundle = FrameworkUtil.getBundle(classOf[LiftRules])
-            val enilinkCore = FrameworkUtil.getBundle(classOf[IContextProvider])
-            val systemBundle = context.getBundle(0)
-            val frameworkWiring = systemBundle.adapt(classOf[FrameworkWiring])
-            frameworkWiring.refreshBundles(enilinkCore :: liftBundle :: context.getBundle :: Nil)
-          }
-        }, 2, TimeUnit.SECONDS)
-      }
-    }
-
-    override def removedBundle(bundle: Bundle, event: BundleEvent, config: LiftBundleConfig) {
-    }
-
-    override def modifiedBundle(bundle: Bundle, event: BundleEvent, config: LiftBundleConfig) {
-      val systemShutdown = context.getBundle(0).getState == Bundle.STOPPING
-      if (event.getType == BundleEvent.STOPPING) {
-        config.module.map { module =>
-          try {
-            logger.debug("Stopping Lift-powered bundle " + bundle.getSymbolicName + ".")
-            ClassHelpers.createInvoker("shutdown", module) map (_())
-            logger.debug("Lift-powered bundle " + bundle.getSymbolicName + " stopped.")
-          } catch {
-            case e: Throwable => logger.error("Error while stopping Lift-powered bundle " + bundle.getSymbolicName, e)
-          }
-          // this is required if the module made changes to LiftRules or another global object
-          rebootLift
-        }
-      }
-    }
-  }
-
-  var liftStarted = false
   var httpServiceTracker: HttpServiceTracker = null
 
   def bootBundle(bundle: Bundle, config: LiftBundleConfig) {
@@ -308,7 +228,7 @@ class Activator extends BundleActivator with Loggable {
       bundle.start(Bundle.START_TRANSIENT)
     }
 
-    bundleTracker = new LiftBundleTracker
+    bundleTracker = new LiftBundleTracker(context)
     bundleTracker.open
 
     initLift
@@ -395,131 +315,5 @@ class Activator extends BundleActivator with Loggable {
       // Lift calls only shutdown that does not cancel already enqueued tasks
       service.foreach(_.shutdownNow)
     }
-  }
-
-  /**
-   * Configuration of a Lift-powered bundle.
-   */
-  case class LiftBundleConfig(module: Box[AnyRef], packages: Seq[String], startLevel: Int) {
-    var sitemapMutator: Box[SiteMap => SiteMap] = None
-    def mapResource(s: String) = s.replaceAll("//", "/")
-  }
-
-  /**
-   * Special HttpContext that delegates resource lookups to observed
-   * Lift-powered bundles and other methods to wrapped HttpContext.
-   */
-  private case class LiftHttpContext(context: HttpContext) extends HttpContext with Logger {
-    assert(context != null, "HttpContext must not be null!")
-
-    // support for webjars
-    val webjarAssets = new java.util.HashSet[String]
-    bundleTracker.getTracked.entrySet.toSeq foreach { entry =>
-      val bundle = entry.getKey
-      val hasWebJars = bundle.getEntry(WebJarAssetLocator.WEBJARS_PATH_PREFIX) != null
-      if (hasWebJars) {
-        val assets = bundle.findEntries(WebJarAssetLocator.WEBJARS_PATH_PREFIX, "*", true)
-        if (assets != null) {
-          while (assets.hasMoreElements) webjarAssets.add(assets.nextElement.toString)
-        }
-      }
-    }
-    val webJarLocator = new WebJarAssetLocator(webjarAssets)
-    val WEBJARS = "/" + ResourceServer.baseResourceLocation + "/webjars"
-
-    // external resource locations
-    val resourcePaths = System.getProperty("net.enilink.lift.resourcePaths") match {
-      case null => Nil
-      case paths => paths.split("\\s+\\s").map(new File(_)).toList
-    }
-
-    override def getMimeType(s: String) = context getMimeType s
-
-    override def getResource(s: String) = {
-      debug("""Asked for resource "%s".""" format s)
-
-      val path = if (s.startsWith("/")) s else "/" + s
-      if (path.startsWith(WEBJARS)) {
-        // try to serve webjars resource
-        val assetPath = s.substring(WEBJARS.length + 1)
-        val url = webJarLocator.getFullPath(assetPath)
-        // assetPath is a "bundleentry://" or "bundleresource://" URL
-        new URL(url)
-      } else {
-        // serve other resource
-        defaultResource(s)
-      }
-    }
-
-    def defaultResource(s: String): URL = {
-      def str[A](p: List[A]) = p.mkString("/", "/", "")
-      def list(s: String) = s.stripPrefix("/").split("/").toList
-      lazy val baseResourceLocation = list(ResourceServer.baseResourceLocation)
-      val resourcePath = list(s)
-      val places = if (resourcePath.startsWith("star" :: Nil)) {
-        // star stands for any application
-        (Globals.application.vend match {
-          // /star/some/resource => [application path]/some/resource
-          case Full(app) if app.path.headOption.exists(_.nonEmpty) => List(str(app.path ++ resourcePath.tail))
-          case _ => Nil
-          // /star/some/resource => /some/resource
-        }) ++ List(str(resourcePath.tail))
-      } else if (resourcePath.startsWith(baseResourceLocation)) {
-        val suffix = resourcePath.drop(1)
-        // lookup possible appPath in sitemap
-        val appPath = LiftRules.siteMap.flatMap(_.findLoc(suffix.head).collectFirst(_.currentValue match {
-          case Full(app: Application) => app.path
-        })) openOr Nil
-        if (appPath.nonEmpty && suffix.startsWith(appPath))
-          // /toserve/[application path]/some/resource => /toserve/some/resource
-          List(s, str(baseResourceLocation ++ suffix.drop(appPath.length)))
-        else List(s)
-      } else Globals.application.vend match {
-        case Full(app) if app.path.headOption.exists(_.nonEmpty) =>
-          // search alternative places
-          val appPath = app.path
-          if (resourcePath.startsWith(appPath))
-            // /[application path]/some/resource => /some/resource
-            List(s, str(resourcePath.drop(appPath.length)))
-          else resourcePath match {
-            case (prefix @ ("templates-hidden" | "resources-hidden")) :: (suffix @ _) =>
-              if (suffix.startsWith(appPath)) {
-                List(s, str(List(prefix) ++ suffix.drop(appPath.length)))
-              } else {
-                List(str(List(prefix) ++ appPath ++ suffix), s)
-              }
-            case _ =>
-              // /some/resource => /[application path]/some/resource
-              List(str(appPath ++ resourcePath), s)
-          }
-        // no application context
-        case _ => List(s)
-      }
-      debug("""Places for resource "%s".""" format places)
-
-      val liftBundles = bundleTracker.getTracked.entrySet.toSeq.view
-      (places.view.flatMap { place =>
-        liftBundles.flatMap { b =>
-          b.getKey getResource (b.getValue mapResource place) match {
-            case null => None
-            case res =>
-              debug("""Lift-powered bundle "%s" answered for resource "%s".""".format(b.getKey.getSymbolicName, place))
-              Some(res)
-          }
-        }.headOption
-      }.headOption) orElse (
-        // try to find resource at external location
-        places.view.flatMap { place =>
-          resourcePaths.view.flatMap { path =>
-            val file = new File(path, place.stripPrefix("/"))
-            if (file.exists) Some(file.toURI.toURL) else None
-          }
-        }.headOption) match {
-          case None => null
-          case Some(res) => res
-        }
-    }
-
-    override def handleSecurity(req: HttpServletRequest, res: HttpServletResponse) = context.handleSecurity(req, res)
   }
 }
