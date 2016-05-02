@@ -151,6 +151,11 @@ class JsonCallHandler {
         val em = model.getManager
         try {
           em.getTransaction.begin
+          // TODO recursive removal of BNodes
+          (params \ "remove") match {
+            case JNothing =>
+            case remove: JValue => em.remove(statements(remove): java.lang.Iterable[IStatementPattern])
+          }
           (params \ "add") match {
             case JNothing =>
             case add: JValue => {
@@ -158,11 +163,6 @@ class JsonCallHandler {
               val stmts = renameNewNodes(statements(add), em, model.getURI, replacements)
               em.add(stmts)
             }
-          }
-          // TODO recursive removal of BNodes
-          (params \ "remove") match {
-            case JNothing =>
-            case remove: JValue => em.remove(statements(remove): java.lang.Iterable[IStatementPattern])
           }
           em.getTransaction.commit
           S.notice("Update was sucessful.")
