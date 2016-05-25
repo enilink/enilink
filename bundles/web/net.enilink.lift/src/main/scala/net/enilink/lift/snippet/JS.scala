@@ -68,7 +68,6 @@ object JS extends DispatchSnippet with SparqlHelper {
         }
 
         val isXml = what.exists("\\s*<".r.findPrefixMatchOf(_).isDefined)
-        Req.parsePath("")
         lazy val parsePath = what.map(Req.parsePath(_)) orElse S.originalRequest.map(_.path)
         (what match {
           case Some(xml) if isXml =>
