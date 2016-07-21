@@ -33,6 +33,7 @@ import net.enilink.lift.Activator
 import org.osgi.framework.FrameworkUtil
 import net.enilink.lift.sitemap.Menus
 import net.enilink.core.Config
+import net.enilink.core.PluginConfigModel
 
 /**
  * A registry for global variables which are shared throughout the application.
@@ -46,6 +47,22 @@ object Globals extends Factory {
 
   implicit val config = new FactoryMaker(() => Empty: Box[Config]) {}
   config.default.set(() => Box.legacyNullTest(configTracker.getService))
+
+  /**
+   * Run a function with the plugin configuration of this function's OSGi bundle.
+   */
+  def withPluginConfig[T](f: (PluginConfigModel) => T): Unit = {
+    val ctx = FrameworkUtil.getBundle(f.getClass).getBundleContext
+    val serviceRef = ctx.getServiceReference(classOf[PluginConfigModel])
+    val cfgService = ctx.getService(serviceRef)
+    try {
+      cfgService.begin
+      f(cfgService)
+    } finally {
+      cfgService.end
+      ctx.ungetService(serviceRef)
+    }
+  }
 
   implicit val time = new FactoryMaker(Helpers.now _) {}
 

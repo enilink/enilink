@@ -20,14 +20,14 @@ import net.liftweb.common.Loggable
 import net.liftweb.http.LiftRules
 import net.liftweb.util.ClassHelpers
 
-class LiftBundleTracker(context : BundleContext) extends BundleTracker[LiftBundleConfig](context, Bundle.INSTALLED | Bundle.RESOLVED | Bundle.STARTING | Bundle.STOPPING | Bundle.ACTIVE, null) with Loggable {
+class LiftBundleTracker(context: BundleContext) extends BundleTracker[LiftBundleConfig](context, Bundle.INSTALLED | Bundle.RESOLVED | Bundle.STARTING | Bundle.ACTIVE, null) with Loggable {
   var liftStarted = false
   var rebooting = false
-  
-  def liftStarted(liftStarted : Boolean) {
+
+  def liftStarted(liftStarted: Boolean) {
     this.liftStarted = liftStarted
   }
-  
+
   override def addingBundle(bundle: Bundle, event: BundleEvent) = {
     val headers = bundle.getHeaders
     val moduleStr = Box.legacyNullTest(headers.get("Lift-Module"))
@@ -75,22 +75,19 @@ class LiftBundleTracker(context : BundleContext) extends BundleTracker[LiftBundl
   }
 
   override def removedBundle(bundle: Bundle, event: BundleEvent, config: LiftBundleConfig) {
+    config.module.map { module =>
+      try {
+        logger.debug("Stopping Lift-powered bundle " + bundle.getSymbolicName + ".")
+        ClassHelpers.createInvoker("shutdown", module) map (_())
+        logger.debug("Lift-powered bundle " + bundle.getSymbolicName + " stopped.")
+      } catch {
+        case e: Throwable => logger.error("Error while stopping Lift-powered bundle " + bundle.getSymbolicName, e)
+      }
+      // this is required if the module made changes to LiftRules or another global object
+      rebootLift
+    }
   }
 
   override def modifiedBundle(bundle: Bundle, event: BundleEvent, config: LiftBundleConfig) {
-    val systemShutdown = context.getBundle(0).getState == Bundle.STOPPING
-    if (event.getType == BundleEvent.STOPPING) {
-      config.module.map { module =>
-        try {
-          logger.debug("Stopping Lift-powered bundle " + bundle.getSymbolicName + ".")
-          ClassHelpers.createInvoker("shutdown", module) map (_())
-          logger.debug("Lift-powered bundle " + bundle.getSymbolicName + " stopped.")
-        } catch {
-          case e: Throwable => logger.error("Error while stopping Lift-powered bundle " + bundle.getSymbolicName, e)
-        }
-        // this is required if the module made changes to LiftRules or another global object
-        rebootLift
-      }
-    }
   }
 }
