@@ -2,7 +2,7 @@
 <feature
       id="net.enilink.platform.p2.feature"
       label="eniLINK Platform P2 Support"
-      version="1.2.2"
+      version="1.2.3.qualifier"
       provider-name="enilink.net">
 
    <description>

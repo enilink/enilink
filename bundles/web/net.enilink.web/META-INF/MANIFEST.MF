@@ -2,7 +2,7 @@ Manifest-Version: 1.0
 Bundle-ManifestVersion: 2
 Bundle-Name: enilink.net Website
 Bundle-SymbolicName: net.enilink.web;singleton:=true
-Bundle-Version: 1.2.2
+Bundle-Version: 1.2.3.qualifier
 Lift-Module: net.enilink.web.LiftModule
 Lift-Packages: net.enilink.web
 Bundle-ClassPath: .
