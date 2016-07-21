@@ -2,7 +2,7 @@
 <feature
       id="net.enilink.platform.standalone.feature"
       label="eniLINK Platform Standalone"
-      version="1.2.2.qualifier"
+      version="1.2.2"
       provider-name="enilink.net">
 
    <description>

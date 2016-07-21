@@ -5,7 +5,7 @@
 	<modelVersion>4.0.0</modelVersion>
 	<groupId>net.enilink</groupId>
 	<artifactId>platform-parent</artifactId>
-	<version>1.2.2-SNAPSHOT</version>
+	<version>1.2.2</version>
 	<packaging>pom</packaging>
 	<properties>
 		<tycho-version>0.24.0</tycho-version>
@@ -171,7 +171,7 @@
 		<repository>
 			<id>komma</id>
 			<layout>p2</layout>
-			<url>https://dl.bintray.com/komma/updates/komma/1.2.3/</url>
+			<url>https://dl.bintray.com/komma/updates/komma/1.2.4/</url>
 		</repository>
 		<repository>
 			<id>mars</id>
