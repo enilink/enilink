@@ -72,7 +72,7 @@ public class PluginConfigManager {
 
 	private Config config;
 
-	private Path pluginConfigPath = null;
+	private List<Path> pluginConfigPaths = null;
 
 	private ServiceRegistration<PluginConfigModel> configModelServiceReg = null;
 
@@ -83,22 +83,27 @@ public class PluginConfigManager {
 		// close initial unit of work
 		getUnitOfWork().end();
 		this.context = FrameworkUtil.getBundle(PluginConfigManager.class).getBundleContext();
+		this.pluginConfigPaths = new ArrayList<>();
 
-		Collection<ServiceReference<Location>> locServices = context.getServiceReferences(Location.class,
-				Location.INSTANCE_FILTER);
-		// Location.ECLIPSE_HOME_FILTER);
-		if (!locServices.isEmpty()) {
-			Location location = context.getService(locServices.iterator().next());
-			if (location != null) {
-				Path path = Paths.get(location.getURL().toURI());
-				pluginConfigPath = path.resolve("config");
+		for (String locationType : new String[] { Location.INSTANCE_FILTER, Location.ECLIPSE_HOME_FILTER }) {
+			Collection<ServiceReference<Location>> locServices = context.getServiceReferences(Location.class,
+					locationType);
+			if (!locServices.isEmpty()) {
+				Location location = context.getService(locServices.iterator().next());
+				if (location != null) {
+					Path path = Paths.get(location.getURL().toURI());
+					Path configPath = path.resolve("config");
+					if (Files.exists(configPath)) {
+						pluginConfigPaths.add(configPath);
+					}
+				}
 			}
 		}
 
-		if (pluginConfigPath != null) {
-			// watch for configuration changes
-			watchForChanges();
-		}
+		log.info("Config file directories: {}", pluginConfigPaths);
+
+		// watch for configuration changes
+		watchForChanges();
 
 		configModelServiceReg = context.registerService(PluginConfigModel.class,
 				new ServiceFactory<PluginConfigModel>() {
@@ -126,14 +131,15 @@ public class PluginConfigManager {
 	}
 
 	private void watchForChanges() {
-		if (!Files.exists(pluginConfigPath)) {
-			// TODO maybe just create the path now?
+		if (pluginConfigPaths.isEmpty()) {
 			return;
 		}
 		try {
 			final WatchService watchService = FileSystems.getDefault().newWatchService();
-			pluginConfigPath.register(watchService, StandardWatchEventKinds.ENTRY_CREATE,
-					StandardWatchEventKinds.ENTRY_MODIFY, StandardWatchEventKinds.ENTRY_DELETE);
+			for (Path path : pluginConfigPaths) {
+				path.register(watchService, StandardWatchEventKinds.ENTRY_CREATE, StandardWatchEventKinds.ENTRY_MODIFY,
+						StandardWatchEventKinds.ENTRY_DELETE);
+			}
 			watcher = new Thread(new Runnable() {
 				@Override
 				public void run() {
@@ -189,7 +195,8 @@ public class PluginConfigManager {
 													model.unload();
 
 													// reload config
-													Path fullPath = pluginConfigPath.resolve(path);
+													Path basePath = (Path) wk.watchable();
+													Path fullPath = basePath.resolve(path);
 													if (Files.exists(fullPath)) {
 														try {
 															URI configFileUri = URIs
@@ -236,17 +243,18 @@ public class PluginConfigManager {
 			watcher.setName("Configuration updater");
 			watcher.start();
 		} catch (IOException e) {
-			log.error("Unable to create watcher for configuration directory: " + pluginConfigPath, e);
+			log.error("Unable to create watcher for configuration directories: " + pluginConfigPaths, e);
 		}
 	}
 
 	private void loadConfig(Bundle bundle, IModel configModel) {
 		String pluginName = configModel.getURI().authority();
 		URI configFileUri = null;
-		if (pluginConfigPath != null) {
-			Path configFilePath = pluginConfigPath.resolve(pluginName + ".ttl");
+		for (Path path : pluginConfigPaths) {
+			Path configFilePath = path.resolve(pluginName + ".ttl");
 			if (Files.exists(configFilePath)) {
 				configFileUri = URIs.createURI(configFilePath.toUri().toString());
+				break;
 			}
 		}
 		if (configFileUri == null) {
