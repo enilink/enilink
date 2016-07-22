@@ -15,6 +15,11 @@ deploy:
   script: releng/publish/pushToBintray.sh features/net.enilink.platform.updatesite/target-maven/repository/
   on:
     tags: true
+- provider: script
+  skip_cleanup: true
+  script: BINTRAY_REPO=snapshots releng/publish/pushToBintray.sh features/net.enilink.platform.updatesite/target-maven/repository/
+  on:
+    branch: snapshots
 
 env:
   global:

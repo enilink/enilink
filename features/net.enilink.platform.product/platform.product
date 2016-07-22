@@ -7,8 +7,6 @@
    </configIni>
 
    <launcherArgs>
-      <programArgs>
-      </programArgs>
       <vmArgs>-XX:+HeapDumpOnOutOfMemoryError
 -Dosgi.console
 -Dosgi.console.enable.builtin=false
@@ -46,6 +44,7 @@
 
    <configurations>
       <plugin id="net.enilink.lift" autoStart="true" startLevel="5" />
+      <plugin id="org.apache.felix.fileinstall" autoStart="true" startLevel="4" />
       <plugin id="org.eclipse.core.runtime" autoStart="true" startLevel="0" />
       <plugin id="org.eclipse.equinox.common" autoStart="true" startLevel="2" />
       <plugin id="org.eclipse.equinox.ds" autoStart="true" startLevel="2" />
