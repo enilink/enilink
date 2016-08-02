@@ -13,6 +13,20 @@ import java.util.Set;
 
 import javax.security.auth.Subject;
 
+import org.eclipse.core.resources.IProject;
+import org.eclipse.core.resources.ResourcesPlugin;
+import org.eclipse.core.runtime.NullProgressMonitor;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import com.google.inject.AbstractModule;
+import com.google.inject.Guice;
+import com.google.inject.Injector;
+import com.google.inject.Module;
+import com.google.inject.Provides;
+import com.google.inject.name.Named;
+import com.google.inject.util.Modules;
+
 import net.enilink.commons.iterator.IMap;
 import net.enilink.commons.iterator.WrappedIterator;
 import net.enilink.composition.properties.PropertySetFactory;
@@ -57,19 +71,6 @@ import net.enilink.vocab.foaf.FOAF;
 import net.enilink.vocab.rdf.RDF;
 import net.enilink.vocab.rdfs.RDFS;
 import net.enilink.vocab.rdfs.Resource;
-
-import org.eclipse.core.resources.IProject;
-import org.eclipse.core.resources.ResourcesPlugin;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
-import com.google.inject.AbstractModule;
-import com.google.inject.Guice;
-import com.google.inject.Injector;
-import com.google.inject.Module;
-import com.google.inject.Provides;
-import com.google.inject.name.Named;
-import com.google.inject.util.Modules;
 
 class ModelSetManager {
 	private static final Logger log = LoggerFactory
@@ -307,6 +308,10 @@ class ModelSetManager {
 					project.create(null);
 				}
 				project.open(null);
+				project.refreshLocal(IProject.DEPTH_INFINITE, new NullProgressMonitor());
+				// check configuration flag: load all project models?
+				boolean loadProjectModels = em.hasMatch(DATA_MODELSET,
+						MODELS.NAMESPACE_URI.appendLocalPart("loadProjectModels"), true);
 
 				((IProjectModelSet) modelSet).setProject(project);
 				for (IURIMapRule rule : modelSet.getURIConverter()
@@ -314,7 +319,11 @@ class ModelSetManager {
 					if (rule instanceof SimpleURIMapRule) {
 						String modelUri = ((SimpleURIMapRule) rule)
 								.getPattern();
-						modelSet.createModel(URIs.createURI(modelUri));
+						if (loadProjectModels) {
+							modelSet.getModel(URIs.createURI(modelUri), true);
+						} else {
+							modelSet.createModel(URIs.createURI(modelUri));
+						}
 					}
 				}
 			} catch (Exception e) {
