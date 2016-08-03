@@ -21,7 +21,9 @@ import java.util.Map;
 import org.eclipse.osgi.service.datalocation.Location;
 import org.osgi.framework.Bundle;
 import org.osgi.framework.BundleContext;
+import org.osgi.framework.BundleEvent;
 import org.osgi.framework.BundleException;
+import org.osgi.framework.BundleListener;
 import org.osgi.framework.FrameworkUtil;
 import org.osgi.framework.InvalidSyntaxException;
 import org.osgi.framework.ServiceFactory;
@@ -80,6 +82,7 @@ public class PluginConfigManager {
 
 	public void activate() throws InvalidSyntaxException, URISyntaxException {
 		this.modelSet = createModelSet();
+		
 		// close initial unit of work
 		getUnitOfWork().end();
 		this.context = FrameworkUtil.getBundle(PluginConfigManager.class).getBundleContext();
@@ -104,6 +107,34 @@ public class PluginConfigManager {
 
 		// watch for configuration changes
 		watchForChanges();
+
+		context.addBundleListener(new BundleListener() {
+			@Override
+			public void bundleChanged(BundleEvent evt) {
+				// delete config of uninstalled or updated bundles
+				// This is important since otherwise concept and behaviour
+				// classes for KOMMA are in a stale state.
+				if (evt.getType() == BundleEvent.UNINSTALLED || evt.getType() == BundleEvent.UNRESOLVED) {
+					URI modelUri = URIs.createURI("plugin://" + evt.getBundle().getSymbolicName() + "/");
+					uow.begin();
+					try {
+						IModel configModel = modelSet.getModel(modelUri, false);
+						if (configModel != null) {
+							log.info("Unloading plugin config model: {}", configModel.getURI());
+
+							// delete current config
+							modelSet.getDataChangeSupport().setEnabled(null, false);
+							configModel.unloadManager();
+							configModel.getManager().clear();
+							configModel.unload();
+							modelSet.getModels().remove(configModel);
+						}
+					} finally {
+						uow.end();
+					}
+				}
+			}
+		});
 
 		configModelServiceReg = context.registerService(PluginConfigModel.class,
 				new ServiceFactory<PluginConfigModel>() {
@@ -257,11 +288,13 @@ public class PluginConfigManager {
 				break;
 			}
 		}
+		URI copyFileUri = null;
 		if (configFileUri == null) {
 			URL defaultConfigUrl = bundle.getResource("OSGI-INF/" + pluginName + "-default.ttl");
 			if (defaultConfigUrl != null) {
 				try {
 					configFileUri = URIs.createURI(defaultConfigUrl.toURI().toString());
+					copyFileUri = configFileUri;
 				} catch (URISyntaxException e) {
 					log.error("Invalid URI for config file " + defaultConfigUrl, e);
 				}
@@ -276,6 +309,38 @@ public class PluginConfigManager {
 			configModel.setLoaded(true);
 		} catch (IOException e) {
 			log.error("Unable to load config file " + configFileUri, e);
+		}
+
+		if (!pluginConfigPaths.isEmpty()) {
+			if (configFileUri == null) {
+				// copy template config file to path
+				URL templateConfigUrl = bundle.getResource("OSGI-INF/" + pluginName + "-template.ttl");
+				if (templateConfigUrl != null) {
+					try {
+						copyFileUri = URIs.createURI(templateConfigUrl.toURI().toString());
+					} catch (URISyntaxException e) {
+						log.error("Invalid URI for config file " + templateConfigUrl, e);
+					}
+				}
+			}
+
+			if (copyFileUri != null) {
+				// copy default or template config file to path
+				Path targetPath = pluginConfigPaths.get(0);
+				Path targetFile = targetPath.resolve(copyFileUri.lastSegment());
+				copyToFile(copyFileUri, targetFile);
+			}
+		}
+	}
+
+	protected void copyToFile(URI resoureUri, Path targetFile) {
+		if (!Files.exists(targetFile)) {
+			try {
+				InputStream in = modelSet.getURIConverter().createInputStream(resoureUri);
+				Files.copy(in, targetFile);
+			} catch (IOException ioe) {
+				log.info("Failed to copy config file to path {}", targetFile);
+			}
 		}
 	}
 
