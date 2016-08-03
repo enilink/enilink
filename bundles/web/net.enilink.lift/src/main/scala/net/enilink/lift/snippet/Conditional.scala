@@ -18,10 +18,6 @@ import scala.xml.MetaData
 import scala.xml.Node
 
 object Tests {
-  def role(e: xml.Elem, param: String): Boolean = tryo(URIs.createURI(param)) exists { uri =>
-    Globals.contextModelSet.vend exists { ms => SecurityUtil.hasRole(ms.getMetaDataManager, uri) }
-  }
-
   def group(e: xml.Elem, param: String): Boolean = tryo(URIs.createURI(param)) exists { uri =>
     Globals.contextModelSet.vend exists { ms => SecurityUtil.isMemberOf(ms.getMetaDataManager, uri) }
   }
@@ -33,7 +29,6 @@ object Tests {
 
   def byName(name: String): Box[(xml.Elem, String) => Boolean] = split(name) match {
     case ("user", "loggedin") => Full((_, _) => Globals.contextUser.vend != Globals.UNKNOWN_USER)
-    case ("user", "role") => Full(role _)
     case ("user", "group") => Full(group _)
     case ("param", null) => Full((_, value) => value.roboSplit(",").exists(p => S.param(p.stripPrefix("?")).exists(!_.trim.isEmpty)))
     case ("param", paramName) => Full((_, value) => value match {
