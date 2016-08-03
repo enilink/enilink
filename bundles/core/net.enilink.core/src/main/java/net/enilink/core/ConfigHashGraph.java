@@ -183,10 +183,16 @@ class ConfigHashGraph extends LinkedHashGraph implements Config {
 				configUri = getConfigFromLocation(Platform.getInstallLocation());
 			}
 		}
+		final Queue<URI> toLoad = new LinkedList<>();
 		if (configUri != null) {
-			Set<URI> seen = new HashSet<>();
-			final Queue<URI> toLoad = new LinkedList<>();
 			toLoad.add(configUri);
+		}
+		// load ACL for anonymous access
+		if (toLoad.isEmpty() || "all".equals(System.getProperty("net.enilink.acl.anonymous"))) {
+			toLoad.add(URIs.createURI("platform:/plugin/net.enilink.core/resources/acl-anonymous-all.ttl"));
+		}
+		if (! toLoad.isEmpty()) {
+			Set<URI> seen = new HashSet<>();
 
 			IURIConverter uriConverter = new ExtensibleURIConverter();
 			while (!toLoad.isEmpty()) {

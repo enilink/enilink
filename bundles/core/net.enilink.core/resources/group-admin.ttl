@@ -1,0 +1,13 @@
+@prefix group: <enilink:group:> .
+@prefix acl: <http://www.w3.org/ns/auth/acl#> .
+@prefix foaf: <http://xmlns.com/foaf/0.1/> .
+
+# allow access to all models
+<enilink:auth:adminsAll> a acl:Authorization ; acl:agent group:Administrators ;
+	acl:accessToClass <http://enilink.net/vocab/komma/models#Model> ;
+	acl:mode acl:Read, acl:Write, acl:Control .
+
+# allow to administer any group
+<enilink:auth:adminGroups> a acl:Authorization ; acl:agent group:Administrators ;
+	acl:accessToClass foaf:Group ;
+	acl:mode acl:Read, acl:Write, acl:Control .

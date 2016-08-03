@@ -56,12 +56,12 @@ trait SparqlFromRDFa {
 }
 
 class SubSelectRDFaToSparqlParser(
-  e: xml.Elem,
-  base: String,
-  varResolver: Option[VariableResolver],
-  val explicitProjection: Option[String],
-  override val initialIndentation: Int,
-  override val initialStrictness: Boolean)(implicit s: Scope = new Scope()) extends RDFaToSparqlParser(e, base, varResolver) {
+    e: xml.Elem,
+    base: String,
+    varResolver: Option[VariableResolver],
+    val explicitProjection: Option[String],
+    override val initialIndentation: Int,
+    override val initialStrictness: Boolean)(implicit s: Scope = new Scope()) extends RDFaToSparqlParser(e, base, varResolver) {
 
   override def projection = {
     explicitProjection.map(_.toString) getOrElse super.projection
@@ -233,7 +233,9 @@ class RDFaToSparqlParser(e: xml.Elem, base: String, varResolver: Option[Variable
         if (hasCssClass(e, "not-exists")) addFilter("filter not exists ")
 
         nonempty(e, "data-pattern") foreach { p =>
-          val pTrimmed = p.trim
+          var pTrimmed = p.trim
+          // allow references to current subject node
+          pTrimmed = pTrimmed.replace("?_", subj1.toString)
           if (pTrimmed.endsWith(".") || pTrimmed.endsWith("}")) addLine(p) else addLine(p + " . ")
         }
         nonempty(e, "data-bind") foreach { bind => addLine("bind (" + bind + ")") }

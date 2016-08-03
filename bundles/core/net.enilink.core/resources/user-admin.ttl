@@ -1,0 +1,13 @@
+@prefix user: <enilink:user:> .
+@prefix group: <enilink:group:> .
+@prefix acl: <http://www.w3.org/ns/auth/acl#> .
+@prefix foaf: <http://xmlns.com/foaf/0.1/> .
+@prefix auth: <http://enilink.net/vocab/auth#> .
+
+# Define default admin user
+user:admin a foaf:Agent; auth:password "admin" .
+
+group:Administrators foaf:member user:admin .
+
+@prefix owl: <http://www.w3.org/2002/07/owl#> .
+<> owl:imports <group-admin.ttl> .

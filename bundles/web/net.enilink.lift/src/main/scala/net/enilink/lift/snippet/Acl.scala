@@ -44,9 +44,9 @@ object Acl {
               <span resource="http://enilink.net/vocab/acl#WriteRestricted"/>
             </span>
             <span class="union">
-              <span rel="acl:agent" resource="?currentUser"/>
+              <span data-pattern={ "?_ acl:agent [ <http://xmlns.com/foaf/0.1/member>* ?currentUser ]" }/>
               <span rel="acl:agentClass">
-                <span rev="rdf:type" resource="?agent"/>
+                <span rev="rdf:type" resource="?currentUser"/>
               </span>
             </span>
           </span>

@@ -1,0 +1,7 @@
+@prefix user: <enilink:user:> .
+@prefix acl: <http://www.w3.org/ns/auth/acl#> .
+
+# allows anonymous user access to all models
+<enilink:auth:anonymousAll> a acl:Authorization ; acl:agent user:anonymous ;
+	acl:accessToClass <http://enilink.net/vocab/komma/models#Model> ;
+	acl:mode acl:Read, acl:Write, acl:Control .

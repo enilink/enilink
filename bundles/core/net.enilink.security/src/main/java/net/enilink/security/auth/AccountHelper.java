@@ -219,7 +219,7 @@ public class AccountHelper {
 	 * @return The user's URI.
 	 */
 	public static URI getUserURI(String username) {
-		return URIs.createURI("http://enilink.net/users").appendLocalPart(
+		return URIs.createURI("enilink:user:").appendLocalPart(
 				URIs.encodeOpaquePart(username, false));
 	}
 

@@ -14,6 +14,7 @@ import net.enilink.komma.core.URIs;
 import net.enilink.komma.em.concepts.IResource;
 import net.enilink.security.auth.EnilinkPrincipal;
 import net.enilink.vocab.acl.WEBACL;
+import net.enilink.vocab.foaf.FOAF;
 import net.enilink.vocab.foaf.Group;
 
 import org.eclipse.core.runtime.QualifiedName;
@@ -31,19 +32,20 @@ public class SecurityUtil {
 
 	public static final URI USERS_MODEL = URIs.createURI("enilink:model:users");
 
-	public static final URI ROLE_ADMIN = URIs.createURI("enilink:role:Admin");
+	public static final URI ADMINISTRATOR_GROUP = URIs.createURI("enilink:group:Administrator");
 
 	public static final Subject SYSTEM_USER_SUBJECT = subjectForUser(SYSTEM_USER);
 
-	public static final String QUERY_ACLMODE = "prefix acl: <"
-			+ WEBACL.NAMESPACE
-			+ "> "
-			+ "select ?mode where { " //
+	public static final String QUERY_ACLMODE = "prefix acl: <" + WEBACL.NAMESPACE + "> prefix foaf: <" + FOAF.NAMESPACE
+			+ "> " + "select ?mode where { " //
 			+ "{ ?target acl:owner ?agent . bind (acl:Control as ?mode) } union {"
 			+ "{ ?acl acl:accessTo ?target } union { ?target a [ rdfs:subClassOf* ?class ] . ?acl acl:accessToClass ?class } . "
-			+ "{ ?acl acl:agent ?agent } union { ?agent a [ rdfs:subClassOf* ?agentClass ] . ?acl acl:agentClass ?agentClass } . "
+			+ "{ ?acl acl:agent [ foaf:member* ?agent ] } union { ?agent a [ rdfs:subClassOf* ?agentClass ] . ?acl acl:agentClass ?agentClass } . "
 			+ "?acl acl:mode ?mode }" + //
 			"}";
+	
+	public static final String QUERY_MEMBER = "prefix foaf: <" + FOAF.NAMESPACE
+			+ "> ask where { ?group foaf:member* ?agent }";
 
 	private static final QualifiedName JOB_CONTEXT = new QualifiedName(
 			"net.enilink.core.security", "Context");
@@ -126,20 +128,20 @@ public class SecurityUtil {
 	}
 
 	/**
-	 * Determines if the current user has the requested role within the given
+	 * Determines if the current user has the requested type within the given
 	 * entity manager.
 	 * 
 	 * @param em
 	 *            The entity manager that contains the data about the current
 	 *            user
 	 * @param role
-	 *            The role that should be looked up
+	 *            The type that should be looked up
 	 * 
 	 * @return <code>true</code> if the current user has the given
-	 *         <code>role</code>, else <code>false</code>
+	 *         <code>type</code>, else <code>false</code>
 	 */
-	public static boolean hasRole(IEntityManager em, IReference role) {
-		return em.find(getUser(), IResource.class).getRdfTypes().contains(role);
+	public static boolean hasType(IEntityManager em, IReference type) {
+		return em.find(getUser(), IResource.class).getRdfTypes().contains(type);
 	}
 
 	/**
@@ -156,6 +158,8 @@ public class SecurityUtil {
 	 *         <code>group</code>, else <code>false</code>
 	 */
 	public static boolean isMemberOf(IEntityManager em, IReference group) {
-		return em.find(group, Group.class).getFoafMember().contains(getUser());
+		URI user = getUser();
+		return em.find(group, Group.class).getFoafMember().contains(user) || em.createQuery(QUERY_MEMBER)
+				.setParameter("agent", user).setParameter("group", group).getBooleanResult();
 	}
 }

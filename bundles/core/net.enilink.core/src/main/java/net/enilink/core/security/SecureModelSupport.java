@@ -9,7 +9,7 @@ import net.enilink.komma.model.base.ModelSupport;
 public abstract class SecureModelSupport implements IModel.Internal {
 	@Override
 	public boolean demandLoadImport(URI imported) {
-		return SecurityUtil.hasRole(getModelSet().getMetaDataManager(),
-				SecurityUtil.ROLE_ADMIN);
+		return SecurityUtil.isMemberOf(getModelSet().getMetaDataManager(),
+				SecurityUtil.ADMINISTRATOR_GROUP);
 	}
 }
