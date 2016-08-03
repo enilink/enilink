@@ -16,6 +16,7 @@ import javax.security.auth.Subject;
 
 import org.eclipse.core.resources.IProject;
 import org.eclipse.core.resources.ResourcesPlugin;
+import org.eclipse.core.runtime.NullProgressMonitor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -282,12 +283,20 @@ class ModelSetManager {
 					project.create(null);
 				}
 				project.open(null);
+				project.refreshLocal(IProject.DEPTH_INFINITE, new NullProgressMonitor());
+				// check configuration flag: load all project models?
+				boolean loadProjectModels = em.hasMatch(DATA_MODELSET,
+						MODELS.NAMESPACE_URI.appendLocalPart("loadProjectModels"), true);
 
 				((IProjectModelSet) modelSet).setProject(project);
 				for (IURIMapRule rule : modelSet.getURIConverter().getURIMapRules()) {
 					if (rule instanceof SimpleURIMapRule) {
 						String modelUri = ((SimpleURIMapRule) rule).getPattern();
-						modelSet.createModel(URIs.createURI(modelUri));
+						if (loadProjectModels) {
+							modelSet.getModel(URIs.createURI(modelUri), true);
+						} else {
+							modelSet.createModel(URIs.createURI(modelUri));
+						}
 					}
 				}
 			} catch (Exception e) {
