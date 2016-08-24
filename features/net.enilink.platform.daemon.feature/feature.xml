@@ -2,7 +2,7 @@
 <feature
       id="net.enilink.platform.daemon.feature"
       label="eniLINK Platform Daemon"
-      version="1.2.3.qualifier">
+      version="1.2.3">
 
    <description url="http://www.example.com/description">
       [Enter Feature Description here.]
