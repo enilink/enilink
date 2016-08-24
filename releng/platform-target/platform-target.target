@@ -1,16 +1,16 @@
 <?xml version="1.0" encoding="UTF-8" standalone="no"?>
-<?pde version="3.8"?><target includeMode="feature" name="eniLINK Platform Target" sequenceNumber="83">
+<?pde version="3.8"?><target includeMode="feature" name="eniLINK Platform Target" sequenceNumber="84">
 <locations>
-<location includeAllPlatforms="false" includeConfigurePhase="true" includeMode="planner" includeSource="true" type="InstallableUnit">
-<unit id="org.scala-ide.scala211.feature.feature.group" version="4.1.0.201507042103"/>
+<location includeAllPlatforms="false" includeConfigurePhase="true" includeMode="slicer" includeSource="true" type="InstallableUnit">
+<unit id="org.scala-ide.scala211.feature.feature.group" version="4.4.1.201605041056"/>
 <repository location="http://download.scala-ide.org/sdk/lithium/e44/scala211/stable/site"/>
 </location>
-<location includeAllPlatforms="false" includeConfigurePhase="true" includeMode="planner" includeSource="true" type="InstallableUnit">
+<location includeAllPlatforms="false" includeConfigurePhase="true" includeMode="slicer" includeSource="true" type="InstallableUnit">
 <unit id="org.eclipse.platform.feature.group" version="4.5.0.v20150603-2358"/>
 <unit id="org.eclipse.equinox.server.jetty.feature.group" version="1.2.0.v20150519-1816"/>
 <repository location="http://download.eclipse.org/releases/mars/"/>
 </location>
-<location includeAllPlatforms="false" includeConfigurePhase="true" includeMode="planner" includeSource="true" type="InstallableUnit">
+<location includeAllPlatforms="false" includeConfigurePhase="true" includeMode="slicer" includeSource="true" type="InstallableUnit">
 <unit id="org.apache.commons.httpclient" version="3.1.0.v201012070820"/>
 <unit id="org.apache.commons.codec" version="1.6.0.v201305230611"/>
 <unit id="org.apache.commons.fileupload" version="1.2.2.v20111214-1400"/>
@@ -19,10 +19,10 @@
 <unit id="javax.mail" version="1.4.0.v201005080615"/>
 <repository location="http://download.eclipse.org/tools/orbit/downloads/drops/R20150519210750/repository/"/>
 </location>
-<location includeAllPlatforms="false" includeConfigurePhase="true" includeMode="planner" includeSource="true" type="InstallableUnit">
-<unit id="net.enilink.komma.feature.feature.group" version="1.1.0.201507230756"/>
-<unit id="net.enilink.komma.edit.feature.feature.group" version="1.1.0.201507230756"/>
-<repository location="http://komma.enilink.net/updates/1.1.0"/>
+<location includeAllPlatforms="false" includeConfigurePhase="true" includeMode="slicer" includeSource="true" type="InstallableUnit">
+<unit id="net.enilink.komma.feature.feature.group" version="1.3.1"/>
+<unit id="net.enilink.komma.edit.feature.feature.group" version="1.3.1"/>
+<repository location="https://dl.bintray.com/komma/updates/komma/1.3.1/"/>
 </location>
 </locations>
 </target>
