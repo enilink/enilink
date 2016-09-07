@@ -36,8 +36,11 @@ import java.io.InputStream
 import net.liftweb.http.BadResponse
 import net.liftweb.http.OkResponse
 import net.liftweb.common.Failure
+import org.eclipse.rdf4j.rio.RDFFormat
 
 object ModelsRest extends RestHelper {
+  import Util._
+
   /**
    * Simple in-memory response for RDF data.
    */
@@ -69,13 +72,6 @@ object ModelsRest extends RestHelper {
         case _ => Nil
       }
   }.toMap
-
-  /**
-   * Tests requests for wanting RDF data.
-   */
-  protected trait RdfTest {
-    def testResponse_?(r: Req): Boolean = getResponseContentType(r).isDefined
-  }
 
   /**
    * Find best matching content type for the given requested types.
@@ -128,15 +124,6 @@ object ModelsRest extends RestHelper {
     }
   }
 
-  def getModelUri(r: Req) = Globals.contextModel.vend.dmap(URIs.createURI(r.hostAndPath + r.uri): URI)(_.getURI)
-
-  def getModel(modelUri: URI) = Globals.contextModelSet.vend flatMap { modelSet =>
-    Box.legacyNullTest(modelSet.getModel(modelUri, false)) or {
-      if (modelUri.fileExtension != null) Box.legacyNullTest(modelSet.getModel(modelUri.trimFileExtension, false)) else Empty
-    }
-  }
-
-  protected lazy val RdfGet = new TestGet with RdfTest
   lazy val hasWriter = new QualifiedName(ModelPlugin.PLUGIN_ID, "hasWriter")
 
   /**
@@ -196,18 +183,31 @@ object ModelsRest extends RestHelper {
   def validModel(modelName: List[String]) = !modelName.isEmpty && modelName != List("index") || Globals.contextModel.vend.isDefined
 
   serve {
-    case ("vocab" | "models") :: modelName RdfGet req if validModel(modelName) => serveRdf(req, getModelUri(req))
+    case ("vocab" | "models") :: modelName Get req if validModel(modelName) => {
+      S.param("query") match {
+        case Full(sparql) => getSparqlQueryResponseMimeType(req) flatMap { resultMimeType =>
+          SparqlRest.queryModel(sparql, getModelUri(req), resultMimeType)
+        }
+        case _ if getResponseContentType(req).isDefined => serveRdf(req, getModelUri(req))
+      }
+    }
     case ("vocab" | "models") :: modelName Post req => {
       val response = if (validModel(modelName)) {
-        val inputStream = req.rawInputStream or {
-          req.uploadedFiles.headOption map (_.fileStream)
-        }
-        inputStream.flatMap { in =>
-          try {
-            uploadRdf(req, getModelUri(req), in)
-          } finally {
-            in.close
+        S.param("query") match {
+          case Full(sparql) => getSparqlQueryResponseMimeType(req) flatMap { resultMimeType =>
+            SparqlRest.queryModel(sparql, getModelUri(req), resultMimeType)
           }
+          case _ =>
+            val inputStream = req.rawInputStream or {
+              req.uploadedFiles.headOption map (_.fileStream)
+            }
+            inputStream.flatMap { in =>
+              try {
+                uploadRdf(req, getModelUri(req), in)
+              } finally {
+                in.close
+              }
+            }
         }
       } else Full(NotFoundResponse("Unknown model: " + modelName))
       response or Full(BadResponse())

@@ -3,7 +3,6 @@ package net.enilink.web
 import net.enilink.lift.sitemap.Application
 import net.enilink.lift.sitemap.Menus
 import net.enilink.lift.util.Globals
-import net.enilink.web.rest.ELSRest
 import net.enilink.web.rest.ModelsRest
 import net.liftweb.common.Full
 import net.liftweb.http.GetRequest
@@ -28,6 +27,7 @@ import net.liftweb.sitemap.SiteMap
 import net.enilink.lift.sitemap.HideIfInactive
 import net.enilink.lift.sitemap.KeepQueryParameters
 import net.enilink.lift.sitemap.AddAppMenusAfter
+import net.enilink.web.rest.SparqlRest
 
 /**
  * A class that's instantiated early and run.  It allows the application
@@ -61,8 +61,8 @@ class LiftModule {
       }
     }
 
-    //    LiftRules.dispatch.append(ELSRest)
     LiftRules.dispatch.append(ModelsRest)
+    // redirect to HTML presentation if requested by the client (e.g. for a browser)
     LiftRules.statelessRewrite.append({
       case RewriteRequest(
         ParsePath(("vocab" | "models") :: Nil, _, _, _), _, req) if req.param("model").nonEmpty &&
@@ -78,5 +78,6 @@ class LiftModule {
           RewriteResponse(prefix :: Nil, params)
         }
     })
+    LiftRules.dispatch.append(SparqlRest)
   }
 }
