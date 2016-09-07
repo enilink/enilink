@@ -14,7 +14,7 @@
             <plugin>
                 <groupId>org.reficio</groupId>
                 <artifactId>p2-maven-plugin</artifactId>
-                <version>1.2.0-SNAPSHOT</version>
+                <version>1.2.1</version>
                 <executions>
                     <execution>
                         <id>generate-p2</id>
@@ -65,8 +65,8 @@
 
     <pluginRepositories>
         <pluginRepository>
-            <id>reficio</id>
-            <url>http://repo.reficio.org/maven/</url>
+            <id>enilink</id>
+            <url>https://dl.bintray.com/enilink/maven/</url>
         </pluginRepository>
     </pluginRepositories>
     
