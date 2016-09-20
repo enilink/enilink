@@ -83,8 +83,10 @@ class LiftBundleTracker(context: BundleContext) extends BundleTracker[LiftBundle
       } catch {
         case e: Throwable => logger.error("Error while stopping Lift-powered bundle " + bundle.getSymbolicName, e)
       }
-      // this is required if the module made changes to LiftRules or another global object
-      rebootLift
+      if (context.getBundle(0).getState != Bundle.STOPPING) {
+        // this is required if the module made changes to LiftRules or another global object
+        rebootLift
+      }
     }
   }
 
