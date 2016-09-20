@@ -227,6 +227,7 @@ class ModelSetManager {
 						return new Statement(stmt.getSubject(), stmt.getPredicate(), null);
 					}
 				}));
+		graph.add(msUri, RDF.PROPERTY_TYPE, MODELS.NAMESPACE_URI.appendLocalPart("ProjectModelSet"));
 		metaDataModel.getManager().add(graph);
 
 		// maybe use toInstance here so that config data has not to be inserted
