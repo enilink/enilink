@@ -96,15 +96,8 @@
       xsi:type="setup:EclipseIniTask"
       option="-perspective"
       value="org.eclipse.jdt.ui.JavaPerspective"/>
-  <setupTask
-      xsi:type="setup:ResourceCreationTask"
-      content="&lt;?xml version=&quot;1.0&quot; encoding=&quot;UTF-8&quot;?>"
-      targetURL="${workspace.location|uri}/.metadata/.plugins/org.eclipse.jdt.ui/dialog_settings.xml"
-      encoding="UTF-8">
-    <description>Initialize JDT's package explorer to show working sets as its root objects</description>
-  </setupTask>
   <version name="neon"
-      label="Neon"
+      label="eniLINK Neon"
       requiredJavaVersion="1.8">
     <setupTask
         xsi:type="setup.p2:P2Task"
