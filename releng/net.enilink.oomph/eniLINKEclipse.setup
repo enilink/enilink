@@ -3,10 +3,11 @@
     xmi:version="2.0"
     xmlns:xmi="http://www.omg.org/XMI"
     xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xmlns:git="http://www.eclipse.org/oomph/setup/git/1.0"
     xmlns:jdt="http://www.eclipse.org/oomph/setup/jdt/1.0"
     xmlns:setup="http://www.eclipse.org/oomph/setup/1.0"
     xmlns:setup.p2="http://www.eclipse.org/oomph/setup/p2/1.0"
-    xsi:schemaLocation="http://www.eclipse.org/oomph/setup/jdt/1.0 http://git.eclipse.org/c/oomph/org.eclipse.oomph.git/plain/setups/models/JDT.ecore"
+    xsi:schemaLocation="http://www.eclipse.org/oomph/setup/git/1.0 http://git.eclipse.org/c/oomph/org.eclipse.oomph.git/plain/setups/models/Git.ecore http://www.eclipse.org/oomph/setup/jdt/1.0 http://git.eclipse.org/c/oomph/org.eclipse.oomph.git/plain/setups/models/JDT.ecore"
     name="enilink.eclipse"
     label="eniLINK Eclipse">
   <annotation
@@ -84,9 +85,6 @@
     </setupTask>
   </setupTask>
   <setupTask
-      xsi:type="setup:InstallationTask"
-      id="installation"/>
-  <setupTask
       xsi:type="jdt:JRETask"
       version="JavaSE-1.8"
       location="${jre.location-1.8}">
@@ -96,6 +94,12 @@
       xsi:type="setup:EclipseIniTask"
       option="-perspective"
       value="org.eclipse.jdt.ui.JavaPerspective"/>
+  <setupTask
+      xsi:type="git:GitCloneTask"
+      remoteURI="ssh://git.iwu.fraunhofer.de:29418/enilink/enilink"
+      pushURI="ssh://git.iwu.fraunhofer.de:29418/enilink/enilink">
+    <description>eniLINK Git repository</description>
+  </setupTask>
   <version name="neon"
       label="eniLINK Neon"
       requiredJavaVersion="1.8">
@@ -173,6 +177,14 @@
           name="org.eclipse.m2e.feature.feature.group"/>
       <requirement
           name="com.mountainminds.eclemma.feature.feature.group"/>
+      <requirement
+          name="org.eclipse.m2e.sdk.feature.feature.group"/>
+      <requirement
+          name="org.eclipse.m2e.feature.feature.group"/>
+      <requirement
+          name="org.eclipse.m2e.logback.feature.feature.group"/>
+      <requirement
+          name="org.maven.ide.eclipse.scala_feature.feature.group"/>
       <repository
           url="http://download.eclipse.org/releases/neon"/>
       <repository
@@ -183,6 +195,8 @@
           url="http://download.scala-ide.org/sdk/lithium/e44/scala211/stable/site"/>
       <repository
           url="http://update.eclemma.org/"/>
+      <repository
+          url="http://alchim31.free.fr/m2e-scala/update-site"/>
     </setupTask>
     <description>eniLINK Eclipse for Neon.</description>
   </version>
