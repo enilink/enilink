@@ -4,13 +4,13 @@ import java.io.File;
 import java.util.ArrayList;
 import java.util.List;
 
+import org.openrdf.model.IRI;
 import org.openrdf.model.Namespace;
 import org.openrdf.model.Resource;
 import org.openrdf.model.Statement;
-import org.openrdf.model.URI;
 import org.openrdf.model.Value;
 import org.openrdf.model.ValueFactory;
-import org.openrdf.model.impl.ValueFactoryImpl;
+import org.openrdf.model.impl.SimpleValueFactory;
 import org.openrdf.query.BooleanQuery;
 import org.openrdf.query.GraphQuery;
 import org.openrdf.query.MalformedQueryException;
@@ -23,8 +23,8 @@ import org.openrdf.repository.RepositoryConnection;
 import org.openrdf.repository.RepositoryException;
 import org.openrdf.repository.RepositoryResult;
 import org.openrdf.repository.UnknownTransactionStateException;
-import org.openrdf.repository.base.RepositoryBase;
-import org.openrdf.repository.base.RepositoryConnectionBase;
+import org.openrdf.repository.base.AbstractRepository;
+import org.openrdf.repository.base.AbstractRepositoryConnection;
 import org.openrdf.rio.RDFHandler;
 import org.openrdf.rio.RDFHandlerException;
 
@@ -37,7 +37,7 @@ import info.aduna.iteration.CloseableIteratorIteration;
  * underlying cache repository (iff necessary), returns matching statements
  * using the underlying cache repository.
  */
-public class LdpCacheRepository extends RepositoryBase {
+public class LdpCacheRepository extends AbstractRepository {
 
 	protected File dataDir;
 	protected ValueFactory valueFactory;
@@ -55,7 +55,7 @@ public class LdpCacheRepository extends RepositoryBase {
 	@Override
 	public ValueFactory getValueFactory() {
 		if (valueFactory == null) {
-			valueFactory = new ValueFactoryImpl();
+			valueFactory = SimpleValueFactory.getInstance();
 		}
 		return valueFactory;
 	}
@@ -82,7 +82,7 @@ public class LdpCacheRepository extends RepositoryBase {
 	/**
 	 * RepositoryConnection wrapping the LDP cache.
 	 */
-	public static class LdpCacheConnection extends RepositoryConnectionBase {
+	public static class LdpCacheConnection extends AbstractRepositoryConnection {
 
 		protected boolean isActive;
 		protected List<RepositoryConnection> internalConnections;
@@ -134,19 +134,20 @@ public class LdpCacheRepository extends RepositoryBase {
 			isActive = false;
 		}
 
+		@SuppressWarnings("resource")
 		@Override
 		public RepositoryResult<Resource> getContextIDs() throws RepositoryException {
 			List<Resource> contextIDs = new ArrayList<Resource>();
-			contextIDs.add(getValueFactory().createURI(LdpCache.CACHE_MODEL_URI.toString()));
+			contextIDs.add(getValueFactory().createIRI(LdpCache.CACHE_MODEL_IRI.toString()));
 			return new RepositoryResult<Resource>(
 					new CloseableIteratorIteration<Resource, RepositoryException>(contextIDs.iterator()));
 		}
 
 		@Override
 		// FIXME: check the contexts, skip when cache context is missing
-		public RepositoryResult<Statement> getStatements(Resource subject, URI predicate, Value object,
+		public RepositoryResult<Statement> getStatements(Resource subject, IRI predicate, Value object,
 				boolean includeInferred, Resource... contexts) throws RepositoryException {
-			URI endpoint = LdpCache.getInstance().getEndpoint(subject);
+			IRI endpoint = LdpCache.getInstance().getEndpoint(subject);
 			if (null != endpoint) {
 				// endpoint -> LDP resource -> update (iff necessary)
 				LdpClient.update(subject, endpoint);
@@ -157,9 +158,9 @@ public class LdpCacheRepository extends RepositoryBase {
 
 		@Override
 		// FIXME: check the contexts, skip when cache context is missing
-		public void exportStatements(Resource subject, URI predicate, Value object, boolean includeInferred,
+		public void exportStatements(Resource subject, IRI predicate, Value object, boolean includeInferred,
 				RDFHandler handler, Resource... contexts) throws RepositoryException, RDFHandlerException {
-			URI endpoint = LdpCache.getInstance().getEndpoint(subject);
+			IRI endpoint = LdpCache.getInstance().getEndpoint(subject);
 			if (null != endpoint) {
 				// endpoint -> LDP resource -> update (iff necessary)
 				LdpClient.update(subject, endpoint);
@@ -230,13 +231,13 @@ public class LdpCacheRepository extends RepositoryBase {
 		}
 
 		@Override
-		protected void addWithoutCommit(Resource subject, URI predicate, Value object, Resource... contexts)
+		protected void addWithoutCommit(Resource subject, IRI predicate, Value object, Resource... contexts)
 				throws RepositoryException {
 			throw new UnsupportedOperationException("addWithoutCommit() not supported");
 		}
 
 		@Override
-		protected void removeWithoutCommit(Resource subject, URI predicate, Value object, Resource... contexts)
+		protected void removeWithoutCommit(Resource subject, IRI predicate, Value object, Resource... contexts)
 				throws RepositoryException {
 			throw new UnsupportedOperationException("removeWithoutCommit() not supported");
 		}

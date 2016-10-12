@@ -6,28 +6,27 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 import org.apache.commons.httpclient.Header;
 import org.apache.commons.httpclient.HttpClient;
 import org.apache.commons.httpclient.HttpVersion;
 import org.apache.commons.httpclient.methods.GetMethod;
 import org.apache.commons.httpclient.methods.HeadMethod;
+import org.openrdf.model.IRI;
 import org.openrdf.model.Resource;
 import org.openrdf.model.Statement;
-import org.openrdf.model.URI;
-import org.openrdf.model.impl.LiteralImpl;
-import org.openrdf.model.impl.StatementImpl;
-import org.openrdf.model.impl.URIImpl;
-import org.openrdf.model.impl.ValueFactoryImpl;
+import org.openrdf.model.ValueFactory;
+import org.openrdf.model.impl.SimpleValueFactory;
 import org.openrdf.repository.RepositoryConnection;
 import org.openrdf.repository.RepositoryException;
 import org.openrdf.repository.RepositoryResult;
 import org.openrdf.rio.RDFFormat;
-import org.openrdf.rio.RDFHandler;
 import org.openrdf.rio.RDFHandlerException;
 import org.openrdf.rio.RDFParser;
 import org.openrdf.rio.Rio;
 import org.openrdf.rio.UnsupportedRDFormatException;
+import org.openrdf.rio.helpers.AbstractRDFHandler;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -38,13 +37,14 @@ import org.slf4j.LoggerFactory;
  */
 public class LdpClient {
 
-	public final static URI PROPERTY_ETAG = new URIImpl(LdpCache.CACHE_MODEL_URI.stringValue() + "#ETag");
+	protected final static ValueFactory vf = SimpleValueFactory.getInstance();
+	public final static IRI PROPERTY_ETAG = vf.createIRI(LdpCache.CACHE_MODEL_IRI.stringValue() + "#ETag");
 
 	protected final static Logger logger = LoggerFactory.getLogger(LdpClient.class);
 
 	// FIXME: deploy proper caching strategy
-	protected final static Map<URI, String> eTagCache = new HashMap<URI, String>(10000);
-	protected final static Map<URI, Long> floodBlock = new HashMap<URI, Long>(10000);
+	protected final static Map<IRI, String> eTagCache = new HashMap<IRI, String>(10000);
+	protected final static Map<IRI, Long> floodBlock = new HashMap<IRI, Long>(10000);
 
 	/**
 	 * Checks if the given resource representation is up-to-date.
@@ -69,12 +69,12 @@ public class LdpClient {
 	 *            The endpoint (short-circuit when already determined).
 	 * @see #needsUpdate(Resource)
 	 */
-	public static boolean needsUpdate(Resource resource, URI endpoint) {
+	public static boolean needsUpdate(Resource resource, IRI endpoint) {
 		// guard against blank nodes
-		if (!(resource instanceof URI)) {
+		if (!(resource instanceof IRI)) {
 			return false;
 		}
-		URI uri = (URI) resource;
+		IRI uri = (IRI) resource;
 
 		if (null == endpoint) {
 			// no endpoint -> no LDP resource -> no update needed
@@ -135,11 +135,11 @@ public class LdpClient {
 	 *            The endpoint (short-circuit when already determined).
 	 * @see #update(Resource)
 	 */
-	public static boolean update(Resource resource, URI endpoint) {
-		if (!(resource instanceof URI)) {
+	public static boolean update(Resource resource, IRI endpoint) {
+		if (!(resource instanceof IRI)) {
 			return false;
 		}
-		URI uri = (URI) resource;
+		IRI uri = (IRI) resource;
 
 		if (!needsUpdate(resource, endpoint)) {
 			return false;
@@ -158,7 +158,7 @@ public class LdpClient {
 						// maybe include the endpoint as context as well?
 						// (see below)
 						// FIXME: delete sub-resources? (see above)
-						conn.remove(uri, null, null, LdpCache.CACHE_MODEL_URI);
+						conn.remove(uri, null, null, LdpCache.CACHE_MODEL_IRI);
 						conn.commit();
 					} finally {
 						if (conn.isActive())
@@ -177,7 +177,7 @@ public class LdpClient {
 									&& remoteStmt.getSubject().stringValue().startsWith(uri.stringValue())) {
 								// maybe include the endpoint as context as
 								// well? (see above)
-								conn.add(remoteStmt, LdpCache.CACHE_MODEL_URI);
+								conn.add(remoteStmt, LdpCache.CACHE_MODEL_IRI);
 							}
 						}
 						conn.commit();
@@ -199,14 +199,14 @@ public class LdpClient {
 	}
 
 	/**
-	 * Returns the value of any cached ETag for the given URI, or null.
+	 * Returns the value of any cached ETag for the given IRI, or null.
 	 *
 	 * @param uri
-	 *            The URI to get the cached ETag for.
+	 *            The IRI to get the cached ETag for.
 	 * @return The cached ETag value or null if no ETag is known yet.
 	 * @throws RepositoryException
 	 */
-	protected static String getETag(URI uri) {
+	protected static String getETag(IRI uri) {
 		if (eTagCache.containsKey(uri)) {
 			return eTagCache.get(uri);
 		}
@@ -216,11 +216,12 @@ public class LdpClient {
 			try {
 				String eTag = null;
 				RepositoryResult<Statement> stmts = conn.getStatements(uri, PROPERTY_ETAG, null, false,
-						LdpCache.CACHE_MODEL_URI);
+						LdpCache.CACHE_MODEL_IRI);
 				while (stmts.hasNext()) {
 					Statement stmt = stmts.next();
 					eTag = stmt.getObject().stringValue();
 				}
+				stmts.close();
 				logger.trace("got ETag {} for '{}'", eTag, uri);
 				eTagCache.put(uri, eTag);
 				return eTag;
@@ -241,7 +242,7 @@ public class LdpClient {
 	 *         resource.
 	 */
 	// TODO: check LDP requirements wrt. server response etc.
-	public static List<Statement> acquireRemoteStatements(final URI uri) {
+	public static List<Statement> acquireRemoteStatements(final IRI uri) {
 		final List<Statement> stmts = new ArrayList<Statement>();
 
 		HttpClient httpClient = new HttpClient();
@@ -253,35 +254,18 @@ public class LdpClient {
 			String responseMimeType = get.getResponseHeader("Content-Type").getValue();
 			logger.info("GET '{}' response status={} content-type={}", uri, get.getStatusCode(), responseMimeType);
 			InputStream resultStream = get.getResponseBodyAsStream();
-
-			RDFFormat responseFormat = RDFFormat.forMIMEType(responseMimeType);
-			if (null == responseFormat) {
-				throw new UnsupportedRDFormatException("Unsupported response MIME type: " + responseMimeType);
-			}
-			RDFParser parser = Rio.createParser(responseFormat, new ValueFactoryImpl());
-			parser.setRDFHandler(new RDFHandler() {
-				@Override
-				public void startRDF() throws RDFHandlerException {
-				}
-
-				@Override
-				public void endRDF() throws RDFHandlerException {
-				}
-
-				@Override
-				public void handleStatement(Statement stmt) throws RDFHandlerException {
-					stmts.add(stmt);
-				}
-
-				@Override
-				public void handleNamespace(String prefix, String uri) throws RDFHandlerException {
-				}
-
-				@Override
-				public void handleComment(String comment) throws RDFHandlerException {
-				}
-			});
 			try {
+				Optional<RDFFormat> responseFormat = Rio.getParserFormatForMIMEType(responseMimeType);
+				if (!responseFormat.isPresent()) {
+					throw new UnsupportedRDFormatException("Unsupported response MIME type: " + responseMimeType);
+				}
+				RDFParser parser = Rio.createParser(responseFormat.get(), vf);
+				parser.setRDFHandler(new AbstractRDFHandler() {
+					@Override
+					public void handleStatement(Statement stmt) throws RDFHandlerException {
+						stmts.add(stmt);
+					}
+				});
 				parser.parse(resultStream, uri.toString());
 			} finally {
 				try {
@@ -296,7 +280,7 @@ public class LdpClient {
 				String eTag = eTagHeader != null ? eTagHeader.getValue() : "-UNSET-";
 				logger.trace("GET '{}' ETag header value: {}", uri, eTag);
 				eTagCache.put(uri, eTag);
-				stmts.add(new StatementImpl(uri, PROPERTY_ETAG, new LiteralImpl(eTag)));
+				stmts.add(vf.createStatement(uri, PROPERTY_ETAG, vf.createLiteral(eTag)));
 			}
 		} catch (Throwable t) {
 			t.printStackTrace();
