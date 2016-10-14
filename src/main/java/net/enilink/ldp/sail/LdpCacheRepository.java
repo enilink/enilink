@@ -29,6 +29,8 @@ import org.openrdf.rio.RDFHandler;
 import org.openrdf.rio.RDFHandlerException;
 
 import info.aduna.iteration.CloseableIteratorIteration;
+import net.enilink.ldp.LdpCache;
+import net.enilink.ldp.LdpClient;
 
 /**
  * Repository to be used as federation member for the LDP cache.
@@ -91,21 +93,25 @@ public class LdpCacheRepository extends AbstractRepository {
 			super(repository);
 			isActive = false;
 			internalConnections = new ArrayList<>();
+			logger.trace("ctor()");
 		}
 
 		// keep track of internal connections that have been opened
 		protected RepositoryConnection getInternalConnection() throws RepositoryException {
 			RepositoryConnection newConn = LdpCache.getInstance().getConnection();
+			logger.trace("getInternalConnection() conn={}", newConn);
 			internalConnections.add(newConn);
 			return newConn;
 		}
 
 		@Override
 		public void close() {
+			logger.trace("close()");
 			try {
 				// close all internal connections together with the outer one
 				for (RepositoryConnection conn : internalConnections) {
 					if (conn.isOpen()) {
+						logger.trace("close() closing internal conn={}", conn);
 						conn.close();
 					}
 				}
@@ -116,21 +122,25 @@ public class LdpCacheRepository extends AbstractRepository {
 
 		@Override
 		public void begin() throws RepositoryException {
+			logger.trace("begin(state={})", isActive);
 			isActive = true;
 		}
 
 		@Override
 		public boolean isActive() throws UnknownTransactionStateException, RepositoryException {
+			logger.trace("isActive() == {}", isActive);
 			return isActive;
 		}
 
 		@Override
 		public void commit() throws RepositoryException {
+			logger.trace("commit(state={})", isActive);
 			isActive = false;
 		}
 
 		@Override
 		public void rollback() throws RepositoryException {
+			logger.trace("rollback(state={})", isActive);
 			isActive = false;
 		}
 
@@ -147,10 +157,15 @@ public class LdpCacheRepository extends AbstractRepository {
 		// FIXME: check the contexts, skip when cache context is missing
 		public RepositoryResult<Statement> getStatements(Resource subject, IRI predicate, Value object,
 				boolean includeInferred, Resource... contexts) throws RepositoryException {
+			logger.trace("getStatements(s={}, p={}, o={}, i={}, c={})", new Object[]{ subject, predicate, object, includeInferred, contexts });
 			IRI endpoint = LdpCache.getInstance().getEndpoint(subject);
 			if (null != endpoint) {
 				// endpoint -> LDP resource -> update (iff necessary)
-				LdpClient.update(subject, endpoint);
+				try {
+					LdpClient.update(subject, endpoint);
+				} catch (Exception e) {
+					logger.error("while trying to update LDP-mapped entity=" + subject, e);
+				}
 			}
 			// query the internal connection with the given parameters
 			return getInternalConnection().getStatements(subject, predicate, object, includeInferred, contexts);
@@ -163,7 +178,11 @@ public class LdpCacheRepository extends AbstractRepository {
 			IRI endpoint = LdpCache.getInstance().getEndpoint(subject);
 			if (null != endpoint) {
 				// endpoint -> LDP resource -> update (iff necessary)
-				LdpClient.update(subject, endpoint);
+				try {
+					LdpClient.update(subject, endpoint);
+				} catch (Exception e) {
+					logger.error("while trying to update LDP-mapped entity=" + subject, e);
+				}
 			}
 			// hand it off to the internal connection with the given parameters
 			getInternalConnection().exportStatements(subject, predicate, object, includeInferred, handler, contexts);
@@ -172,30 +191,35 @@ public class LdpCacheRepository extends AbstractRepository {
 		@Override
 		public Query prepareQuery(QueryLanguage ql, String query, String baseURI)
 				throws RepositoryException, MalformedQueryException {
+			logger.trace("prepareQuery(q={})", query);
 			return getInternalConnection().prepareQuery(ql, query, baseURI);
 		}
 
 		@Override
 		public BooleanQuery prepareBooleanQuery(QueryLanguage ql, String query, String baseURI)
 				throws RepositoryException, MalformedQueryException {
+			logger.trace("prepareBooleanQuery(q={})", query);
 			return getInternalConnection().prepareBooleanQuery(ql, query, baseURI);
 		}
 
 		@Override
 		public GraphQuery prepareGraphQuery(QueryLanguage ql, String query, String baseURI)
 				throws RepositoryException, MalformedQueryException {
+			logger.trace("prepareGraphQuery(q={})", query);
 			return getInternalConnection().prepareGraphQuery(ql, query, baseURI);
 		}
 
 		@Override
 		public TupleQuery prepareTupleQuery(QueryLanguage ql, String query, String baseURI)
 				throws RepositoryException, MalformedQueryException {
+			logger.trace("prepareTupleQuery(q={})", query);
 			return getInternalConnection().prepareTupleQuery(ql, query, baseURI);
 		}
 
 		@Override
 		public Update prepareUpdate(QueryLanguage ql, String query, String baseURI)
 				throws RepositoryException, MalformedQueryException {
+			logger.trace("prepareUpdate(q={})", query);
 			return getInternalConnection().prepareUpdate(ql, query, baseURI);
 		}
 
@@ -233,13 +257,19 @@ public class LdpCacheRepository extends AbstractRepository {
 		@Override
 		protected void addWithoutCommit(Resource subject, IRI predicate, Value object, Resource... contexts)
 				throws RepositoryException {
-			throw new UnsupportedOperationException("addWithoutCommit() not supported");
+			// FIXME: this should check the contexts and/or subject, and remove if the cache is targeted
+			// calls from the federation also end up here, and adding to that should be ignored here
+			logger.trace("addWithoutCommit(s={}, p={}, o={}, c={})", new Object[]{ subject, predicate, object, contexts });
+			//getInternalConnection().add(subject, predicate, object, contexts);
 		}
 
 		@Override
 		protected void removeWithoutCommit(Resource subject, IRI predicate, Value object, Resource... contexts)
 				throws RepositoryException {
-			throw new UnsupportedOperationException("removeWithoutCommit() not supported");
+			// FIXME: this should check the contexts and/or subject, and remove if the cache is targeted
+			// calls from the federation also end up here, and removals from that should be ignored here
+			logger.trace("removeWithoutCommit(s={}, p={}, o={}, c={})", new Object[]{ subject, predicate, object, contexts });
+			//getInternalConnection().remove(subject, predicate, object, contexts);
 		}
 	}
 }

@@ -1,18 +1,22 @@
 Manifest-Version: 1.0
 Bundle-ManifestVersion: 2
-Bundle-Name: eniLINK LDP Sail
-Bundle-SymbolicName: net.enilink.ldp.sail;singleton:=true
+Bundle-Name: eniLINK LDP support and SAIL
+Bundle-SymbolicName: net.enilink.ldp;singleton:=true
 Bundle-Version: 1.0.0.qualifier
 Require-Bundle: net.enilink.komma.core,
  net.enilink.komma.model,
  net.enilink.commons.logging,
- net.enilink.core,
- org.apache.commons.httpclient,
- net.enilink.komma.sesame;bundle-version="1.2.5"
-Export-Package: net.enilink.ldp
-Bundle-RequiredExecutionEnvironment: JavaSE-1.7
+ net.enilink.komma.sesame;bundle-version="1.2.5";visibility:=reexport
+Export-Package: net.enilink.ldp,
+ net.enilink.ldp.sail
+Bundle-RequiredExecutionEnvironment: JavaSE-1.8
 Import-Package: com.google.inject;version="1.4.0",
+ net.enilink.core.security,
  org.aopalliance.intercept,
+ org.apache.http,
+ org.apache.http.client.methods,
+ org.apache.http.impl.client,
+ org.apache.http.message,
  org.osgi.framework,
  org.osgi.util.tracker,
  org.slf4j;version="1.7.2"

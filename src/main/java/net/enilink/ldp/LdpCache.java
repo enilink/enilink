@@ -1,4 +1,4 @@
-package net.enilink.ldp.sail;
+package net.enilink.ldp;
 
 import java.security.PrivilegedAction;
 import java.util.ArrayList;
@@ -37,17 +37,20 @@ import net.enilink.vocab.rdf.RDF;
 
 public class LdpCache {
 
-	protected final static ValueFactory vf = SimpleValueFactory.getInstance();
-
 	public final static URI ENDPOINT_MODEL_URI = URIs.createURI("enilink:model:ldp:endpoints");
+
 	public final static URI TYPE_ENDPOINT = ENDPOINT_MODEL_URI.appendFragment("Endpoint");
 	public final static URI PROPERTY_HASADDRESS = ENDPOINT_MODEL_URI.appendFragment("hasAddress");
 
+	protected final static ValueFactory vf = SimpleValueFactory.getInstance();
+
+	// this is used from LdpClient et al. w/ RDF4J directly, not w/ KOMMA
 	public final static IRI CACHE_MODEL_IRI = vf.createIRI("enilink:model:ldp:cache");
 
 	protected final static Logger logger = LoggerFactory.getLogger(LdpCache.class);
 
 	protected static LdpCache INSTANCE;
+	protected static Set<URI> endpoints;
 
 	protected IModelSet modelSet;
 
@@ -55,7 +58,6 @@ public class LdpCache {
 	protected RepositoryConnection connection;
 
 	// FIXME: maybe use URIMapRules with a priority?
-	protected Set<URI> endpoints;
 	protected Map<IRI, IRI> lookupCache;
 
 	protected IModel endpointModel;
@@ -70,16 +72,7 @@ public class LdpCache {
 	}
 
 	public LdpCache() {
-		logger.warn("LdpCache ctor()");
-		try {
-			// TODO: make this configurable (see FederationModelSetSupport)
-			repository = new SailRepository(new MemoryStore());
-			repository.initialize();
-		} catch (RepositoryException re) {
-			re.printStackTrace();
-		}
 		endpoints = new HashSet<URI>();
-
 		// FIXME: deploy proper caching strategy
 		lookupCache = new HashMap<IRI, IRI>(10000);
 	}
@@ -88,10 +81,18 @@ public class LdpCache {
 	 * Called from OSGi-DS upon component activation (w/o configuration).
 	 */
 	protected void activate() {
-		logger.warn("LdpCache activate()");
-		INSTANCE = Subject.doAs(SecurityUtil.SYSTEM_USER_SUBJECT, new PrivilegedAction<LdpCache>() {
+		try {
+			// TODO: make this configurable
+			repository = new SailRepository(new MemoryStore());
+			repository.initialize();
+			logger.trace("LdpCache initialized MemoryStore cache");
+		} catch (RepositoryException re) {
+			throw new IllegalStateException("Failed to initialize LdpCache repository: " + re);
+		}
+		INSTANCE = LdpCache.this;
+		Subject.doAs(SecurityUtil.SYSTEM_USER_SUBJECT, new PrivilegedAction<Void>() {
 			@Override
-			public LdpCache run() {
+			public Void run() {
 				modelSet.getUnitOfWork().begin();
 				try {
 					// FIXME: just a placeholder, the actual data isn't stored
@@ -125,12 +126,21 @@ public class LdpCache {
 						}
 						query.close();
 					}
+
 					// put the new endpoints into the model
+					List<IStatement> stmts = new ArrayList<IStatement>();
 					for (URI newEndpoint : newEndpoints) {
-						addEndpoint(newEndpoint);
+						IReference node = new BlankNode();
+						stmts.add(new Statement(node, RDF.PROPERTY_TYPE, URIs.createURI(TYPE_ENDPOINT.toString())));
+						stmts.add(new Statement(node, URIs.createURI(PROPERTY_HASADDRESS.toString()), newEndpoint));
+					}
+					try {
+						endpointModel.getManager().add(stmts);
+					} catch (Throwable t) {
+						t.printStackTrace();
 					}
 
-					return LdpCache.this;
+					return null;
 				} catch (Throwable t) {
 					throw t;
 				} finally {
@@ -138,7 +148,7 @@ public class LdpCache {
 				}
 			}
 		});
-		logger.warn("LdpCache activate() finished, INSTANCE={}", INSTANCE);
+		logger.trace("LdpCache activated");
 	}
 
 	/**
@@ -171,28 +181,16 @@ public class LdpCache {
 		return repository.getConnection();
 	}
 
-	// FIXME! check how to enforce/ensure the invocation order!
-	public void addEndpoint(IReference endpoint) {
-		try {
-			// might be called on initialization before modelset is available
-			// hold off registering the endpoints with the model until later
-			if (endpointModel != null) {
-				IReference node = new BlankNode();
-				List<IStatement> stmts = new ArrayList<IStatement>();
-				stmts.add(new Statement(node, RDF.PROPERTY_TYPE, URIs.createURI(TYPE_ENDPOINT.toString())));
-				stmts.add(new Statement(node, URIs.createURI(PROPERTY_HASADDRESS.toString()), endpoint));
-				endpointModel.getManager().add(stmts);
-			}
-			// when the modelset becomes available, the endpoints will be
-			// registered with the endpoint model
-			endpoints.add(endpoint.getURI());
-			logger.warn("added LDP EP: {}", endpoint);
-		} catch (Throwable t) {
-			t.printStackTrace();
-		}
+	// FIXME! problematic invocation order, this is called from
+	// FederationModelSetSupport
+	public static void addEndpoint(IReference endpoint) {
+		// when the modelset becomes available, the endpoints will be
+		// registered with the endpoint model
+		endpoints.add(endpoint.getURI());
+		logger.info("added LDP EP: {}", endpoint);
 	}
 
-	public Set<URI> getEndpoints() {
+	public static Set<URI> getEndpoints() {
 		return new HashSet<URI>(endpoints);
 	}
 

@@ -1,18 +1,22 @@
-package net.enilink.ldp.sail;
+package net.enilink.ldp;
 
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
-import org.apache.commons.httpclient.Header;
-import org.apache.commons.httpclient.HttpClient;
-import org.apache.commons.httpclient.HttpVersion;
-import org.apache.commons.httpclient.methods.GetMethod;
-import org.apache.commons.httpclient.methods.HeadMethod;
+import org.apache.http.Header;
+import org.apache.http.HttpHeaders;
+import org.apache.http.client.methods.CloseableHttpResponse;
+import org.apache.http.client.methods.HttpGet;
+import org.apache.http.client.methods.HttpHead;
+import org.apache.http.impl.client.CloseableHttpClient;
+import org.apache.http.impl.client.HttpClients;
+import org.apache.http.message.BasicHeader;
 import org.openrdf.model.IRI;
 import org.openrdf.model.Resource;
 import org.openrdf.model.Statement;
@@ -38,6 +42,7 @@ import org.slf4j.LoggerFactory;
 public class LdpClient {
 
 	protected final static ValueFactory vf = SimpleValueFactory.getInstance();
+
 	public final static IRI PROPERTY_ETAG = vf.createIRI(LdpCache.CACHE_MODEL_IRI.stringValue() + "#ETag");
 
 	protected final static Logger logger = LoggerFactory.getLogger(LdpClient.class);
@@ -93,15 +98,14 @@ public class LdpClient {
 		}
 		floodBlock.put(uri, now);
 
-		HttpClient httpClient = new HttpClient();
-		httpClient.getParams().setVersion(HttpVersion.HTTP_1_1);
-		HeadMethod head = new HeadMethod(uri.toString());
-		head.setRequestHeader("Accept", "text/turtle");
+		CloseableHttpClient httpClient = createHttpClient();
+		HttpHead headRequest = new HttpHead(uri.toString());
 		try {
-			httpClient.executeMethod(head);
-			logger.info("HEAD response status={} content-type={}", head.getStatusCode(),
-					head.getResponseHeader("Content-Type").getValue());
-			Header eTagHeader = head.getResponseHeader("ETag");
+			CloseableHttpResponse headResponse = httpClient.execute(headRequest);
+			logger.info("HEAD response status={} content-type={}", headResponse.getStatusLine().getStatusCode(),
+					headResponse.getLastHeader("Content-Type").getValue());
+			Header eTagHeader = headResponse.getLastHeader("ETag");
+			headResponse.close();
 			String newETag = eTagHeader != null ? eTagHeader.getValue() : "-UNSET-";
 			String cachedETag = getETag(uri);
 			logger.info("ETag header value: {} vs. cached ETag: {}", newETag, cachedETag);
@@ -111,6 +115,11 @@ public class LdpClient {
 			// FIXME: avoid continuous retries with unreliable connections
 			// maybe use some exponential-back-off strategy
 			return false;
+		} finally {
+			try {
+				httpClient.close();
+			} catch (IOException ignored) {
+			}
 		}
 	}
 
@@ -123,7 +132,7 @@ public class LdpClient {
 	 * @return True when the resource has been successfully updated, false if it
 	 *         was up-to-date or the update failed.
 	 */
-	public static boolean update(Resource resource) {
+	public static boolean update(Resource resource) throws Exception {
 		return update(resource, LdpCache.getInstance().getEndpoint(resource));
 	}
 
@@ -135,7 +144,7 @@ public class LdpClient {
 	 *            The endpoint (short-circuit when already determined).
 	 * @see #update(Resource)
 	 */
-	public static boolean update(Resource resource, IRI endpoint) {
+	public static boolean update(Resource resource, IRI endpoint) throws Exception {
 		if (!(resource instanceof IRI)) {
 			return false;
 		}
@@ -144,56 +153,53 @@ public class LdpClient {
 		if (!needsUpdate(resource, endpoint)) {
 			return false;
 		}
-		try {
-			List<Statement> remoteStmts = acquireRemoteStatements(uri);
-			if (!remoteStmts.isEmpty()) {
-				RepositoryConnection conn = LdpCache.getInstance().getConnection();
-				try {
-					// start by removing the existing statements w/ subject uri
-					// do this in a separate transaction
-					// FIXME: since statements with subjects other then the
-					// request uri are accepted below, deal with deleting them
-					conn.begin();
-					try {
-						// maybe include the endpoint as context as well?
-						// (see below)
-						// FIXME: delete sub-resources? (see above)
-						conn.remove(uri, null, null, LdpCache.CACHE_MODEL_IRI);
-						conn.commit();
-					} finally {
-						if (conn.isActive())
-							conn.rollback();
-					}
 
-					// now add all statements from the LDP endpoint
-					// do this in a separate transaction as well
-					conn.begin();
-					try {
-						for (Statement remoteStmt : remoteStmts) {
-							// accepts sub-resources (containers...) to the
-							// requested one (use-case: sub-containers)
-							// TODO: check LDP container interaction model
-							if (null != remoteStmt.getSubject()
-									&& remoteStmt.getSubject().stringValue().startsWith(uri.stringValue())) {
-								// maybe include the endpoint as context as
-								// well? (see above)
-								conn.add(remoteStmt, LdpCache.CACHE_MODEL_IRI);
-							}
-						}
-						conn.commit();
-					} finally {
-						if (conn.isActive())
-							conn.rollback();
-					}
+		List<Statement> remoteStmts = acquireRemoteStatements(uri);
+		if (!remoteStmts.isEmpty()) {
+			RepositoryConnection conn = LdpCache.getInstance().getConnection();
+			try {
+				// start by removing the existing statements w/ subject uri
+				// do this in a separate transaction
+				// FIXME: since statements with subjects other then the
+				// request uri are accepted below, deal with deleting them
+				conn.begin();
+				try {
+					// maybe include the endpoint as context as well?
+					// (see below)
+					// FIXME: delete sub-resources? (see above)
+					conn.remove(uri, null, null, LdpCache.CACHE_MODEL_IRI);
+					conn.commit();
 				} finally {
-					conn.close();
+					if (conn.isActive())
+						conn.rollback();
 				}
 
-				logger.info("added {} statements for '{}'", remoteStmts.size(), uri);
-				return true;
+				// now add all statements from the LDP endpoint
+				// do this in a separate transaction as well
+				conn.begin();
+				try {
+					for (Statement remoteStmt : remoteStmts) {
+						// accepts sub-resources (containers...) to the
+						// requested one (use-case: sub-containers)
+						// TODO: check LDP container interaction model
+						if (null != remoteStmt.getSubject()
+								&& remoteStmt.getSubject().stringValue().startsWith(uri.stringValue())) {
+							// maybe include the endpoint as context as
+							// well? (see above)
+							conn.add(remoteStmt, LdpCache.CACHE_MODEL_IRI);
+						}
+					}
+					conn.commit();
+				} finally {
+					if (conn.isActive())
+						conn.rollback();
+				}
+			} finally {
+				conn.close();
 			}
-		} catch (Exception e) {
-			e.printStackTrace();
+
+			logger.info("added {} statements for '{}'", remoteStmts.size(), uri);
+			return true;
 		}
 		return false;
 	}
@@ -245,15 +251,14 @@ public class LdpClient {
 	public static List<Statement> acquireRemoteStatements(final IRI uri) {
 		final List<Statement> stmts = new ArrayList<Statement>();
 
-		HttpClient httpClient = new HttpClient();
-		httpClient.getParams().setVersion(HttpVersion.HTTP_1_1);
-		GetMethod get = new GetMethod(uri.toString());
-		get.setRequestHeader("Accept", "text/turtle");
+		CloseableHttpClient httpClient = createHttpClient();
+		HttpGet getRequest = new HttpGet(uri.toString());
 		try {
-			httpClient.executeMethod(get);
-			String responseMimeType = get.getResponseHeader("Content-Type").getValue();
-			logger.info("GET '{}' response status={} content-type={}", uri, get.getStatusCode(), responseMimeType);
-			InputStream resultStream = get.getResponseBodyAsStream();
+			CloseableHttpResponse getResponse = httpClient.execute(getRequest);
+			String responseMimeType = getResponse.getLastHeader("Content-Type").getValue();
+			logger.info("GET '{}' response status={} content-type={}", uri, getResponse.getStatusLine().getStatusCode(),
+					responseMimeType);
+			InputStream resultStream = getResponse.getEntity().getContent();
 			try {
 				Optional<RDFFormat> responseFormat = Rio.getParserFormatForMIMEType(responseMimeType);
 				if (!responseFormat.isPresent()) {
@@ -268,15 +273,12 @@ public class LdpClient {
 				});
 				parser.parse(resultStream, uri.toString());
 			} finally {
-				try {
-					resultStream.close();
-				} catch (IOException e) {
-					throw e;
-				}
+				resultStream.close();
+				getResponse.close();
 			}
 
 			if (!stmts.isEmpty()) {
-				Header eTagHeader = get.getResponseHeader("ETag");
+				Header eTagHeader = getResponse.getLastHeader("ETag");
 				String eTag = eTagHeader != null ? eTagHeader.getValue() : "-UNSET-";
 				logger.trace("GET '{}' ETag header value: {}", uri, eTag);
 				eTagCache.put(uri, eTag);
@@ -284,7 +286,20 @@ public class LdpClient {
 			}
 		} catch (Throwable t) {
 			t.printStackTrace();
+		} finally {
+			try {
+				httpClient.close();
+			} catch (IOException ignored) {
+			}
 		}
 		return stmts;
+	}
+
+	/**
+	 * Create a new HttpClient instance that prefers text/turtle content.
+	 */
+	protected static CloseableHttpClient createHttpClient() {
+		Header acceptTurtleHeader = new BasicHeader(HttpHeaders.ACCEPT, "text/turtle");
+		return HttpClients.custom().setDefaultHeaders(Arrays.asList(new Header[] { acceptTurtleHeader })).build();
 	}
 }
