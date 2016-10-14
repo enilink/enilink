@@ -5,8 +5,7 @@ Bundle-SymbolicName: net.enilink.ldp;singleton:=true
 Bundle-Version: 1.0.0.qualifier
 Require-Bundle: net.enilink.komma.core,
  net.enilink.komma.model,
- net.enilink.commons.logging,
- net.enilink.komma.sesame;bundle-version="1.2.5";visibility:=reexport
+ net.enilink.commons.logging
 Export-Package: net.enilink.ldp,
  net.enilink.ldp.sail
 Bundle-RequiredExecutionEnvironment: JavaSE-1.8
@@ -17,6 +16,18 @@ Import-Package: com.google.inject;version="1.4.0",
  org.apache.http.client.methods,
  org.apache.http.impl.client,
  org.apache.http.message,
+ org.eclipse.rdf4j.common.iteration,
+ org.eclipse.rdf4j.model,
+ org.eclipse.rdf4j.model.impl,
+ org.eclipse.rdf4j.query,
+ org.eclipse.rdf4j.repository,
+ org.eclipse.rdf4j.repository.base,
+ org.eclipse.rdf4j.repository.sail,
+ org.eclipse.rdf4j.rio;version="2.0.0",
+ org.eclipse.rdf4j.rio.helpers;version="2.0.0",
+ org.eclipse.rdf4j.sail,
+ org.eclipse.rdf4j.sail.federation,
+ org.eclipse.rdf4j.sail.memory,
  org.osgi.framework,
  org.osgi.util.tracker,
  org.slf4j;version="1.7.2"

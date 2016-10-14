@@ -3,9 +3,9 @@ package net.enilink.ldp.sail;
 import java.util.Set;
 
 import org.aopalliance.intercept.MethodInvocation;
-import org.openrdf.repository.Repository;
-import org.openrdf.repository.sail.SailRepository;
-import org.openrdf.sail.federation.Federation;
+import org.eclipse.rdf4j.repository.Repository;
+import org.eclipse.rdf4j.repository.sail.SailRepository;
+import org.eclipse.rdf4j.sail.federation.Federation;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -17,12 +17,12 @@ import net.enilink.komma.core.URIs;
 import net.enilink.komma.em.concepts.IResource;
 import net.enilink.komma.model.IModelSet;
 import net.enilink.komma.model.MODELS;
-import net.enilink.komma.sesame.IRepositoryProvider;
+import net.enilink.komma.model.rdf4j.IRepositoryModelSet;
 import net.enilink.ldp.LdpCache;
 
 @Iri(MODELS.NAMESPACE + "FederationModelSet")
 public abstract class FederationModelSetSupport
-		implements IModelSet, IModelSet.Internal, IRepositoryProvider, Behaviour<IRepositoryProvider> {
+		implements IModelSet, IModelSet.Internal, IRepositoryModelSet, Behaviour<IRepositoryModelSet> {
 
 	protected final static Logger logger = LoggerFactory.getLogger(FederationModelSetSupport.class);
 
