@@ -121,6 +121,8 @@ object Globals extends Factory {
 
   implicit val contextUser = new FactoryMaker(() => UNKNOWN_USER: IReference) {}
 
+  implicit val logoutFuncs = new FactoryMaker(() => Nil: List[() => Unit]) {}
+
   implicit val UNKNOWN_USER: URI = SecurityUtil.UNKNOWN_USER
 
   implicit val fileStore = new FactoryMaker(() => {

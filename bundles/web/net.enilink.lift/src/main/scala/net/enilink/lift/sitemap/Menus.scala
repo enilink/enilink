@@ -55,6 +55,8 @@ object Menus {
   def userMenus(implicit app: String) = {
     def profileText = Globals.contextUser.vend.getURI.localPart
     def logout {
+      // call the registered logout functions
+      Globals.logoutFuncs.vend.foreach(_())
       S.session.map(_.httpSession.map(_.removeAttribute("javax.security.auth.subject")))
       Globals.contextUser.session.remove
     }

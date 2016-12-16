@@ -295,6 +295,10 @@ class Login {
           loginCtx.login
           try {
             saveSubjectToSession(loginCtx.getSubject)
+            // register a logout function that calls logout() on our LoginContext
+            Globals.logoutFuncs.session.set {
+              Globals.logoutFuncs.vend :+ (() => loginCtx.logout)
+            }
           } finally {
             loginState.remove
           }
@@ -322,7 +326,7 @@ class Login {
     if (subject != null && Globals.contextUser.vend != Globals.UNKNOWN_USER) {
       if (isRegister) S.redirectTo(S.hostAndPath + "/profile")
       form ++= <div class="alert alert-success"><strong>You are logged in.</strong></div>
-      buttons = SHtml.button("Logout", () => session.removeAttribute(SUBJECT_KEY), ("class", "btn btn-primary"))
+      buttons = Nil
     } else {
       form = createMethodButtons(currentMethod) ++ form
     }
