@@ -22,6 +22,7 @@ import net.liftweb.http.LiftRules
 import net.liftweb.http.LiftRulesMocker.toLiftRules
 import net.liftweb.http.ResourceServer
 import net.liftweb.util.Helpers._
+import org.osgi.framework.Bundle
 
 /**
  * Special HttpContext that delegates resource lookups to observed
@@ -33,7 +34,7 @@ class LiftHttpContext(context: HttpContext, bundleTracker: BundleTracker[LiftBun
   // support for WebJars
   def findWebjarAssets = {
     val webjarAssets = new java.util.HashSet[String]
-    val seenPaths = mutable.Set.empty[String]
+    val seenPaths = mutable.Map.empty[String, Set[Bundle]]
 
     bundleTracker.getTracked.entrySet.toSeq foreach { entry =>
       val bundle = entry.getKey
@@ -44,15 +45,20 @@ class LiftHttpContext(context: HttpContext, bundleTracker: BundleTracker[LiftBun
           while (assets.hasMoreElements) {
             val assetUrl = assets.nextElement
             // ensure that the same asset (e.g. same library with same version) is only served by one bundle
-            if (seenPaths.add(assetUrl.getPath)) {
+            val providers = seenPaths.get(assetUrl.getPath)
+            if (providers.isEmpty) {
               webjarAssets.add(assetUrl.toString)
-            } else {
-              info("WebJar asset '" + assetUrl.getPath + "' is served by more than one bundle.")
             }
+            seenPaths.put(assetUrl.getPath, (providers getOrElse Set.empty) + bundle)
           }
         }
       }
     }
+    
+    seenPaths.filter(_._2.size > 1).foreach { case (path, bundles) =>
+      info("WebJar asset '" + path + "' is served by more than one bundle: " + bundles.map(_.getSymbolicName).mkString(", ")) 
+    }
+    
     webjarAssets
   }
 

@@ -31,9 +31,11 @@ import net.liftweb.http.rest.RestHelper
 import java.lang.Boolean
 import net.enilink.lift.util.Globals
 import net.liftweb.http.S
+import net.liftweb.util.Helpers.tryo
 import net.liftweb.common.Failure
 import net.liftweb.http.OkResponse
 import net.enilink.komma.model.IModelSet
+import net.enilink.komma.core.URIs
 
 object SparqlRest extends RestHelper {
   import Util._
@@ -57,7 +59,11 @@ object SparqlRest extends RestHelper {
       val dmFactory = ms.asInstanceOf[IModelSet.Internal].getDataManagerFactory
       val dm = dmFactory.get
       try {
-        // TODO
+        val defaultGraphs = S.params("default-graph-uri").flatMap { uriStr => tryo(URIs.createURI(uriStr)) }
+        val namedGraphs = S.params("named-graph-uri").flatMap { uriStr => tryo(URIs.createURI(uriStr)) }
+
+        dm.createQuery(queryStr, null, true, defaultGraphs: _*)
+
         BadResponse()
       } finally {
         dm.close
