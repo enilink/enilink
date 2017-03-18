@@ -20,6 +20,10 @@ object Util {
     }
   }
 
+  def getOrCreateModel(modelUri: URI) = getModel(modelUri) or {
+    Globals.contextModelSet.vend map { _.createModel(modelUri.trimFileExtension) }
+  }
+
   def getSparqlQueryResponseMimeType(r: Req): Box[String] = {
     def toMimeType(ct: ContentType) = ct.theType + '/' + ct.subtype
 

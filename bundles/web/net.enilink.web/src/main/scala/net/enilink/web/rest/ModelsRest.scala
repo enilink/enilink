@@ -37,6 +37,8 @@ import net.liftweb.http.BadResponse
 import net.liftweb.http.OkResponse
 import net.liftweb.common.Failure
 import org.eclipse.rdf4j.rio.RDFFormat
+import net.liftweb.http.OkResponse
+import net.liftweb.http.UnsupportedMediaTypeResponse
 
 object ModelsRest extends RestHelper {
   import Util._
@@ -53,10 +55,10 @@ object ModelsRest extends RestHelper {
 
   /**
    * If the headers and the suffix say nothing about the
-   * response type, should we default to RDF/XML.  By default,
+   * response type, should we default to Turtle.  By default,
    * no, override to change the behavior.
    */
-  protected def defaultGetAsRdfXml: Boolean = false
+  protected def defaultGetAsTurtle: Boolean = false
 
   /**
    * Retrieve all registered RDF content types (those with a special mimeType property) and store them in a map.
@@ -96,8 +98,8 @@ object ModelsRest extends RestHelper {
     S.param("type").map(ContentType.parse(_)).flatMap(matchType(_).map(_._2)) or {
       // use file extension or Accept header content negotiation
       val uri = getModelUri(r)
-      if ((r.weightedAccept.isEmpty || r.acceptsStarStar) && uri.fileExtension == null && defaultGetAsRdfXml) {
-        Some(Platform.getContentTypeManager.getContentType("net.enilink.komma.contenttype.rdfxml"))
+      if ((r.weightedAccept.isEmpty || r.acceptsStarStar) && uri.fileExtension == null && defaultGetAsTurtle) {
+        Some(Platform.getContentTypeManager.getContentType("net.enilink.komma.contenttype.turtle"))
       } else {
         (if (uri.fileExtension != null) matchTypeByExtension(uri.fileExtension) else None) match {
           case Some((mimeType, cType)) if r.acceptsStarStar || r.weightedAccept.find(_.matches(mimeType)).isDefined => Some(cType)
@@ -138,24 +140,38 @@ object ModelsRest extends RestHelper {
             val baos = new ByteArrayOutputStream
             model.save(baos, Map(IModel.OPTION_CONTENT_DESCRIPTION -> cd))
             Full(new RdfResponse(baos.toByteArray, cd, Nil, 200))
-          case _ => None
+          case _ => Full(new UnsupportedMediaTypeResponse())
         }
       })
   }
 
-  def uploadRdf(r: Req, modelUri: URI, in: InputStream) = {
-    getModel(modelUri).dmap(Full(new NotFoundResponse("Model " + modelUri + " not found.")): Box[LiftResponse]) { model =>
-      model match {
-        case NotAllowedModel(_) => Full(ForbiddenResponse("You don't have permissions to access " + model.getURI + "."))
-        case _ => getRequestContentType(r) map (_.getDefaultDescription) match {
-          case Full(cd) =>
-            model.load(in, Map(IModel.OPTION_CONTENT_DESCRIPTION -> cd));
-            // refresh the model
-            // model.unloadManager
-            Full(OkResponse())
-          case _ => None
-        }
+  def uploadRdf(r: Req, modelUri: URI, in: InputStream) : Box[LiftResponse] = {
+    getOrCreateModel(modelUri) map {
+      case NotAllowedModel(_) => ForbiddenResponse("You don't have permissions to access " + modelUri + ".")
+      case model => getRequestContentType(r) map (_.getDefaultDescription) match {
+        case Full(cd) =>
+          model.load(in, Map(IModel.OPTION_CONTENT_DESCRIPTION -> cd));
+          // refresh the model
+          // model.unloadManager
+          OkResponse()
+        case _ => new UnsupportedMediaTypeResponse()
       }
+    }
+  }
+
+  def clearModel(r: Req, modelUri: URI): Box[LiftResponse] = {
+    getModel(modelUri) map {
+      case NotAllowedModel(_) => ForbiddenResponse("You don't have permissions to access " + modelUri + ".")
+      case model =>
+        val modelSet = model.getModelSet
+        val changeSupport = modelSet.getDataChangeSupport
+        try {
+          changeSupport.setEnabled(null, false)
+          model.getManager.clear
+        } finally {
+          changeSupport.setEnabled(null, true)
+        }
+        OkResponse()
     }
   }
 
@@ -180,7 +196,7 @@ object ModelsRest extends RestHelper {
     }
   }
 
-  def validModel(modelName: List[String]) = !modelName.isEmpty && modelName != List("index") || Globals.contextModel.vend.isDefined
+  def validModel(modelName: List[String]) = !modelName.isEmpty && modelName != List("index") || S.param("model").isDefined
 
   serve {
     case ("vocab" | "models") :: modelName Get req if validModel(modelName) => {
@@ -190,6 +206,24 @@ object ModelsRest extends RestHelper {
         }
         case _ if getResponseContentType(req).isDefined => serveRdf(req, getModelUri(req))
       }
+    }
+    case ("vocab" | "models") :: modelName Put req => {
+      if (validModel(modelName)) {
+        clearModel(req, getModelUri(req)) match {
+          case Full(OkResponse()) =>
+            val inputStream = req.rawInputStream or {
+              req.uploadedFiles.headOption map (_.fileStream)
+            }
+            inputStream.flatMap { in =>
+              try {
+                uploadRdf(req, getModelUri(req), in)
+              } finally {
+                in.close
+              }
+            }
+          case other => other
+        }
+      } else Full(BadResponse())
     }
     case ("vocab" | "models") :: modelName Post req => {
       val response = if (validModel(modelName)) {
@@ -209,13 +243,13 @@ object ModelsRest extends RestHelper {
               }
             }
         }
-      } else Full(NotFoundResponse("Unknown model: " + modelName))
+      } else Full(NotFoundResponse("Unknown model: " + modelName.mkString("/")))
       response or Full(BadResponse())
     }
     case ("vocab" | "models") :: modelName Delete req => {
       if (validModel(modelName)) {
         deleteModel(req, getModelUri(req))
-      } else Full(NotFoundResponse("Unknown model: " + modelName))
+      } else Full(NotFoundResponse("Unknown model: " + modelName.mkString("/")))
     }
   }
 }

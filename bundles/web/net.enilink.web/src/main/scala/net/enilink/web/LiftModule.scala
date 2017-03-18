@@ -69,9 +69,7 @@ class LiftModule {
         req.param("type").isEmpty && req.headers("accept").find(_.toLowerCase.contains("text/html")).isDefined =>
         RewriteResponse("static" :: "ontology" :: Nil)
       case RewriteRequest(ParsePath((prefix @ ("vocab" | "models")) :: first :: _, _, _, _), _, req) if first != "index" && req.param("model").isEmpty =>
-        val params = Map("model" -> {
-          if (req.serverName == "localhost" || req.serverName == "127.0.0.1") "http://enilink.net" + req.uri else req.url
-        })
+        val params = Map("model" -> req.url)
         if (req.param("type").isEmpty && req.headers("accept").find(_.toLowerCase.contains("text/html")).isDefined) {
           RewriteResponse("static" :: "ontology" :: Nil, params)
         } else {
