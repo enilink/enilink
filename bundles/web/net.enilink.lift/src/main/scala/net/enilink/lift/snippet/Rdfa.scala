@@ -188,12 +188,15 @@ class Rdfa extends Sparql with SparqlExtractor {
   def makeAjaxRefresh(ns: NodeSeq) = {
     val origParams = QueryParams.get
     val origAttrs = S.attrsToMetaData
+    val origCtx = CurrentContext.value
     val refresh = (funcId: String) => {
       val result = S.withAttrs(origAttrs) {
         // run rdfa snippet while reusing current refresh function
-        RdfaRefreshFunc.withValue(Full(funcId)) { QueryParams.doWith(origParams ++ QueryParams.get) { new Rdfa().render(ns) } }
+        RdfaRefreshFunc.withValue(Full(funcId)) { CurrentContext.withValue(origCtx) {
+          QueryParams.doWith(origParams ++ QueryParams.get) { new Rdfa().render(ns) } }
+        }
       }
-      JsCmds.SetHtml(funcId, result)
+      JsCmds.SetHtml(funcId, result) & JsCmds.Run(s"$$('#$funcId').trigger('rdfa-refresh')")
     }
     // create refresh function and return the corresponding id
     S.fmapFunc(S.contextFuncBuilder(refresh))(name => name)
