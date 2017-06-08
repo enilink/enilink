@@ -1177,6 +1177,7 @@
     memPattern = {},
     xsdNs = "http://www.w3.org/2001/XMLSchema#",
     rdfNs = "http://www.w3.org/1999/02/22-rdf-syntax-ns#",
+    rdfLangString = rdfNs + 'langString',
     rdfsNs = "http://www.w3.org/2000/01/rdf-schema#",
     uriRegex = /^<(([^>]|\\>)*)>$/,
     literalRegex = /^("""((\\"|[^"])*)"""|"((\\"|[^"])*)")(@([a-z]+(-[a-z0-9]+)*)|\^\^(.+))?$/,
@@ -3622,15 +3623,21 @@
       var
         m, datatype,
         opts = $.extend({}, $.rdf.literal.defaults, options);
-      if (opts.lang !== undefined && opts.datatype !== undefined) {
-        throw "Malformed Literal: Cannot define both a language and a datatype for a literal (" + value + ")";
+      if (opts.lang !== undefined && opts.datatype === undefined) {
+    	  opts.datatype = rdfLangString;
+      }      
+      if (opts.lang !== undefined && opts.datatype !== rdfLangString) {
+        throw "Malformed Literal: Cannot define a language for a literal (" + value + ") with datatype (" + opts.datatype + ")";
       }
       if (opts.datatype !== undefined) {
-        datatype = $.safeCurie(opts.datatype, { namespaces: opts.namespaces });
-        $.extend(this, $.typedValue(value.toString(), datatype));
-      } else if (opts.lang !== undefined) {
-        this.value = value.toString();
-        this.lang = opts.lang;
+        datatype = $.safeCurie(opts.datatype, { namespaces: opts.namespaces });        
+        if (opts.lang !== undefined) {
+        	this.datatype = datatype;
+            this.value = value.toString();
+            this.lang = opts.lang;
+        } else {
+        	$.extend(this, $.typedValue(value.toString(), datatype));
+        }
       } else if (typeof value === 'boolean') {
         $.extend(this, $.typedValue(value.toString(), xsdNs + 'boolean'));
       } else if (typeof value === 'number') {
@@ -3741,6 +3748,8 @@
     },
 
     rdfXMLLiteral = ns.rdf + 'XMLLiteral',
+    
+    rdfLangString = ns.rdf + 'langString',
 
     rdfaCurieDefaults = $.extend($.fn.curie.defaults, { charcase : "preserve" }),
 
@@ -4073,7 +4082,11 @@
             if (datatype === rdfXMLLiteral) {
               object = $.rdf.literal(serialize(this), { datatype: rdfXMLLiteral });
             } else if (content !== undefined) {
-              object = $.rdf.literal(content, { datatype: datatype });
+              if (lang !== undefined && datatype == rdfLangString) {
+                object = $.rdf.literal(content, { lang: lang, datatype: rdfLangString });
+              } else {
+                object = $.rdf.literal(content, { datatype: datatype });
+              }
             } else {
               object = $.rdf.literal(this.text(), { datatype: datatype });
             }

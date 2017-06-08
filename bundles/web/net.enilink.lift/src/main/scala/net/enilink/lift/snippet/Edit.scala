@@ -47,6 +47,8 @@ import net.liftweb.common.Empty
 import scala.xml.Group
 import net.enilink.komma.core.IEntity
 import org.eclipse.core.runtime.Status
+import net.enilink.komma.core.ILiteral
+import net.enilink.vocab.komma.KOMMA
 
 case class ProposeInput(rdf: JValue, query: String, index: Option[Int])
 case class GetValueInput(rdf: JValue)
@@ -345,7 +347,7 @@ class JsonCallHandler {
       case JString("uri") => URIs.createURI(oValue)
       case JString("bnode") => new BlankNode(oValue)
       case _ /* JString("literal") */ => (o \ "datatype") match {
-        case JString(datatype) => new Literal(oValue, URIs.createURI(datatype))
+        case JString(datatype) if (o \ "lang") == JNothing => new Literal(oValue, URIs.createURI(datatype))
         case _ => (o \ "lang") match {
           case JString(lang) => new Literal(oValue, lang)
           case _ => new Literal(oValue)

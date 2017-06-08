@@ -127,7 +127,8 @@ class VarBinder(val e: Elem, val attr: String, val name: String, val verbatim : 
         // add datatype and lang attributes
         if (literal.getDatatype != null) {
           attributes = attributes.append(new UnprefixedAttribute("datatype", shorten(literal.getDatatype, currentCtx, e), Null))
-        } else if (literal.getLanguage != null) {
+        }
+        if (literal.getLanguage != null) {
           attributes = attributes.append(new UnprefixedAttribute("lang", literal.getLanguage, Null))
         }
         literal.getLabel
