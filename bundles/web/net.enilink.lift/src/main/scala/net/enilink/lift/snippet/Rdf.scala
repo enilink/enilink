@@ -63,7 +63,7 @@ class Rdf extends DispatchSnippet with RDFaTemplates {
   private def userFormat: Box[DateFormat] = S.attr("format") flatMap (f => tryo { new SimpleDateFormat(f) })
 
   private def toLabel(target: Any, useLabelForVocab: Boolean = false) = target match {
-    case _: IClass => toManchester(target)
+    case c: IClass if !useLabelForVocab || c.getRdfsLabel == null => toManchester(target)
     case l: ILiteral => l.getDatatype match {
       case XMLSCHEMA.TYPE_STRING | null => ModelUtil.getLabel(target, useLabelForVocab)
       case _ => Globals.contextModel.vend.map {

@@ -55,7 +55,10 @@ trait SparqlHelper {
             case s if s.startsWith("<") && s.endsWith(">") => URIs.createURI(s.substring(1, s.length - 1))
             case s => URIs.createURI(s)
           })
-        } filter (!_._2.isRelative)
+        } filter (!_._2.isRelative) match {
+          case keyValue @ Some(_) => keyValue
+          case None => Some(key, String.valueOf(value))
+        }
     }
   }
 
