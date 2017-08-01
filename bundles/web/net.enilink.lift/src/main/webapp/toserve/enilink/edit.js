@@ -49,17 +49,15 @@ enilink = $.extend(window.enilink || {}, {
 
 	function triggerLanguageInput(target, rdfStmts, language) {
 		function supportsLang(l) {
-			return l.type == "literal"
-					&& (!l.datatype || l.datatype == "komma:null" || l.datatype == "http://www.w3.org/1999/02/22-rdf-syntax-ns#langString");
+			return l.type == "literal" && (!l.datatype || l.datatype == "komma:null" || l.datatype == "http://www.w3.org/1999/02/22-rdf-syntax-ns#langString");
 		}
 		function showInput(lang) {
-			target.off("shown.editable-lang").on("shown.editable-lang",
-					function(e, editable) {
-						var form = editable.container.$form;
-						var editLang = form.find(".editable-lang");
-						editLang.find("input").val(lang ? lang : "");
-						editLang.show();
-					});
+			target.off("shown.editable-lang").on("shown.editable-lang", function(e, editable) {
+				var form = editable.container.$form;
+				var editLang = form.find(".editable-lang");
+				editLang.find("input").val(lang ? lang : "");
+				editLang.show();
+			});
 		}
 		var first = firstValue(rdfStmts);
 		if (first && supportsLang(first)) {
@@ -70,7 +68,7 @@ enilink = $.extend(window.enilink || {}, {
 	function prepareEditable(target, rdfStmts, language) {
 		triggerLanguageInput(target, rdfStmts, language);
 	}
-	
+
 	function serializeRdfValue(value) {
 		if (value !== undefined && typeof value.dump === "function") {
 			return value.dump();
@@ -90,15 +88,14 @@ enilink = $.extend(window.enilink || {}, {
 			toggle : "manual",
 			savenochange : true,
 			params : function(params) {
-			var value = $.trim(params.value);
+				var value = $.trim(params.value);
 				if (resourceProposal && resourceProposal.proposal == value) {
 					// use selected resource as value
 					params.value = "<" + resourceProposal.resource + ">";
 				} else {
 					// set correct language
 					var old = firstValue(rdfStmts);
-					var lang = $(this).data('editable').container.$form.find(
-							".editable-lang input").val();
+					var lang = $(this).data('editable').container.$form.find(".editable-lang input").val();
 					if (!lang && old) {
 						lang = old.lang;
 					}
@@ -118,39 +115,35 @@ enilink = $.extend(window.enilink || {}, {
 			contentAssistProviders : [ {
 				computeProposals : function(buffer, offset, context) {
 					var dfd = new $.Deferred();
-					enilink.rdf(model).propose(
-							{
-								rdf : rdfStmts,
-								query : buffer.substring(0, offset),
-								index : offset
-							},
-							function(results) {
-								var proposals = [];
-								$.each(results, function(index, value) {
-									var positions = [];
-									var escapePosition = value.insert ? offset
-											+ value.content.length
-											: value.content.length;
-									var proposal = {
-										proposal : value.content,
-										description : value.description,
-										escapePosition : escapePosition,
-										insert : value.insert
-									};
-									if (value.resource) {
-										// this is a resource proposal
-										proposal.resource = value.resource;
-									}
-									if (value.perfectMatch) {
-										// use emphasis style
-										proposal.style = "emphasis";
-									} else {
-										proposal.style = "noemphasis";
-									}
-									proposals.push(proposal);
-								});
-								dfd.resolve(proposals);
-							});
+					enilink.rdf(model).propose({
+						rdf : rdfStmts,
+						query : buffer.substring(0, offset),
+						index : offset
+					}, function(results) {
+						var proposals = [];
+						$.each(results, function(index, value) {
+							var positions = [];
+							var escapePosition = value.insert ? offset + value.content.length : value.content.length;
+							var proposal = {
+								proposal : value.content,
+								description : value.description,
+								escapePosition : escapePosition,
+								insert : value.insert
+							};
+							if (value.resource) {
+								// this is a resource proposal
+								proposal.resource = value.resource;
+							}
+							if (value.perfectMatch) {
+								// use emphasis style
+								proposal.style = "emphasis";
+							} else {
+								proposal.style = "noemphasis";
+							}
+							proposals.push(proposal);
+						});
+						dfd.resolve(proposals);
+					});
 					return dfd.promise();
 				}
 			} ]
@@ -163,13 +156,31 @@ enilink = $.extend(window.enilink || {}, {
 		var resultDeferred = new $.Deferred;
 		var value = null;
 		var triples = target.rdf().databank.triples();
-		if (triples.length && triples[0].object.type == "literal") {
-			// TODO implement real localized formatting
-			value = triples[0].object.value + "";
+		if (target.is('[data-resource-empty]')) {
+			// empty resources that where for example created by the RDFa query
+			// engine by applying the CSS class 'keep'
+			value = "";
+			if (triples.length) {
+				triples[0].object = $.rdf.resource("<komma:null>");
+			}
+		} else if (target.is('[data-content-empty]')) {
+			// empty literals that where for example created by the RDFa query
+			// engine by applying the CSS class 'keep'
+			value = "";
+			if (triples.length) {
+				triples[0].object = $.rdf.literal("", {
+					datatype : "komma:null"
+				});
+			}
 		} else {
-			value = target.closest("[content]").attr("content")
-					|| target.text().trim();
+			if (triples.length && triples[0].object.type == "literal") {
+				// TODO implement real localized formatting
+				value = triples[0].object.value + "";
+			} else {
+				value = target.closest("[content]").attr("content") || target.text().trim();
+			}
 		}
+
 		var model = enilink.contextModel(target);
 		var rdfStmts = $.rdf.dump(triples);
 		options = $.extend(defaultEditableOptions(rdfStmts, model), {
@@ -209,13 +220,13 @@ enilink = $.extend(window.enilink || {}, {
 			}
 		}, options || {});
 
-		var lang = target.closest("[lang], [data-lang]").map(function () {
+		var lang = target.closest("[lang], [data-lang]").map(function() {
 			var $this = $(this);
 			return $this.attr("lang") || $this.attr("data-lang");
 		}).get();
-		
+
 		prepareEditable(target, rdfStmts, lang);
-		
+
 		target.editable(options);
 		target.editable("show");
 		return resultDeferred.promise();
@@ -236,7 +247,9 @@ enilink = $.extend(window.enilink || {}, {
 		var subject = e.attr("resource") || e.attr("about");
 		var object;
 		if (property) {
-			object = $.rdf.literal("", { datatype: "komma:null" });
+			object = $.rdf.literal("", {
+				datatype : "komma:null"
+			});
 		} else {
 			object = $.rdf.resource("<komma:null>");
 		}
@@ -247,10 +260,9 @@ enilink = $.extend(window.enilink || {}, {
 				subject = $.rdf.blank(subject);
 			}
 			var nsMap = self.xmlns();
-			var stmt = $.rdf.databank(
-					[ $.rdf.triple(subject, predicate, object, {
-						namespaces : nsMap
-					}) ]).dump();
+			var stmt = $.rdf.databank([ $.rdf.triple(subject, predicate, object, {
+				namespaces : nsMap
+			}) ]).dump();
 			options = $.extend(defaultEditableOptions(stmt, model), {
 				display : false,
 				success : function(response) {
@@ -276,8 +288,7 @@ enilink = $.extend(window.enilink || {}, {
 								newNode.insertBefore(self);
 							}
 						}
-						if (enilink.options["ui.autoEdit"]
-								&& newNode.is(".editable")) {
+						if (enilink.options["ui.autoEdit"] && newNode.is(".editable")) {
 							enableEdit(newNode);
 						}
 						resultDeferred.resolve(newNode);
@@ -287,33 +298,31 @@ enilink = $.extend(window.enilink || {}, {
 				title : "Add value",
 				url : function(params) {
 					var d = new $.Deferred;
-					enilink.rdf(model).setValue(
-							{
-								rdf : stmt,
-								value : serializeRdfValue(params.value),
-								template : self.attr("data-add"),
-								what : self.closest("[data-t-path]").attr(
-										"data-t-path")
-							}, function(result) {
-								if (result.msg) {
-									d.reject(result.msg);
-									resultDeferred.reject(result.msg);
-								} else {
-									self.trigger("enilink-data-change");
-									d.resolve(result);
-								}
-							});
+					enilink.rdf(model).setValue({
+						rdf : stmt,
+						value : serializeRdfValue(params.value),
+						template : self.attr("data-add"),
+						what : self.closest("[data-t-path]").attr("data-t-path")
+					}, function(result) {
+						if (result.msg) {
+							d.reject(result.msg);
+							resultDeferred.reject(result.msg);
+						} else {
+							self.trigger("enilink-data-change");
+							d.resolve(result);
+						}
+					});
 					return d.promise();
 				}
 			}, options || {});
-			
-			var lang = self.closest("[lang], [data-lang]").map(function () {
+
+			var lang = self.closest("[lang], [data-lang]").map(function() {
 				var $this = $(this);
 				return $this.attr("lang") || $this.attr("data-lang");
 			}).get();
-			
+
 			prepareEditable(self, stmt, lang);
-			
+
 			self.editable(options);
 			self.editable("show");
 		} else {
@@ -338,8 +347,7 @@ enilink = $.extend(window.enilink || {}, {
 
 	function enableAdd(nodeOrSelector) {
 		// allow to use selectors or DOM nodes as arguments
-		nodeOrSelector = (nodeOrSelector instanceof jQuery) ? nodeOrSelector
-				: $(nodeOrSelector);
+		nodeOrSelector = (nodeOrSelector instanceof jQuery) ? nodeOrSelector : $(nodeOrSelector);
 		nodeOrSelector.click(addHandler);
 	}
 
@@ -354,60 +362,47 @@ enilink = $.extend(window.enilink || {}, {
 
 	function enableEdit(nodeOrSelector) {
 		// allow to use selectors or DOM nodes as arguments
-		nodeOrSelector = (nodeOrSelector instanceof jQuery) ? nodeOrSelector
-				: $(nodeOrSelector);
-		nodeOrSelector.filter(
-				function() {
-					var self = $(this);
-					return self.is("[rel],[rev],[property]")
-							|| self.parent().closest(
-									"[rel],[resource],[href],[about]").not(
-									"[resource],[href]").is("[rel],[rev]");
-				}).hover(
-				function(e) {
-					e.stopPropagation();
-					var target = $(e.target).closest(
-							"[about],[resource],[property]");
-					if (target.length == 0) {
-						return;
-					}
-					if (!target.is(buttons.data("target"))
-							|| !buttons.is(":visible")) {
-						var lastTarget = buttons.data("target");
-						if (lastTarget) {
-							lastTarget.removeClass("focused");
-						}
-						target.addClass("focused");
-						buttons.data("target", target);
-						var top = target.offset().top;
-						var left;
-						if (target.innerWidth() <= buttons.outerWidth()) {
-							left = target.offset().left + target.outerWidth()
-									- 5;
-						} else {
-							left = target.offset().left + target.innerWidth()
-									- buttons.outerWidth();
-						}
+		nodeOrSelector = (nodeOrSelector instanceof jQuery) ? nodeOrSelector : $(nodeOrSelector);
+		nodeOrSelector.filter(function() {
+			var self = $(this);
+			return self.is("[rel],[rev],[property]") || self.parent().closest("[rel],[resource],[href],[about]").not("[resource],[href]").is("[rel],[rev]");
+		}).hover(function(e) {
+			e.stopPropagation();
+			var target = $(e.target).closest("[about],[resource],[property]");
+			if (target.length == 0) {
+				return;
+			}
+			if (!target.is(buttons.data("target")) || !buttons.is(":visible")) {
+				var lastTarget = buttons.data("target");
+				if (lastTarget) {
+					lastTarget.removeClass("focused");
+				}
+				target.addClass("focused");
+				buttons.data("target", target);
+				var top = target.offset().top;
+				var left;
+				if (target.innerWidth() <= buttons.outerWidth()) {
+					left = target.offset().left + target.outerWidth() - 5;
+				} else {
+					left = target.offset().left + target.innerWidth() - buttons.outerWidth();
+				}
 
-						// position buttons to the right of target
-						buttons.css({
-							position : "absolute",
-							marginLeft : 0,
-							marginTop : 0,
-							top : top,
-							left : left
-						});
-						buttons.show();
-					}
-				},
-				function(e) {
-					var relatedTarget = $(e.relatedTarget);
-					if (!relatedTarget
-							|| (relatedTarget != buttons && relatedTarget
-									.closest("#buttons").length == 0)) {
-						hideButtons();
-					}
+				// position buttons to the right of target
+				buttons.css({
+					position : "absolute",
+					marginLeft : 0,
+					marginTop : 0,
+					top : top,
+					left : left
 				});
+				buttons.show();
+			}
+		}, function(e) {
+			var relatedTarget = $(e.relatedTarget);
+			if (!relatedTarget || (relatedTarget != buttons && relatedTarget.closest("#buttons").length == 0)) {
+				hideButtons();
+			}
+		});
 	}
 
 	// allow access through global enilink object
@@ -468,8 +463,7 @@ enilink = $.extend(window.enilink || {}, {
 		$("#buttons .button-show").click(showRdf);
 
 		if (enilink.options["ui.autoEdit"]) {
-			enilink.ui
-					.enableEdit(".editable[about],.editable[resource],.editable[property]");
+			enilink.ui.enableEdit(".editable[about],.editable[resource],.editable[property]");
 			enilink.ui.enableAdd("[data-add]");
 		}
 	});
