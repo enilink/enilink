@@ -17,67 +17,84 @@
 		<product.path>${project.build.directory}/products/net.enilink.platform.product</product.path>
 		<product.archive.prefix>${project.build.directory}/products/enilink-platform-${project.version}</product.archive.prefix>
 	</properties>
+
 	<build>
 		<plugins>
 			<plugin>
 				<groupId>org.eclipse.tycho</groupId>
-				<artifactId>tycho-p2-director-plugin</artifactId>
-				<executions>
-					<execution>
-						<id>create-distribution</id>
-						<goals>
-							<goal>materialize-products</goal>
-							<!-- goal>archive-products</goal-->
-						</goals>
-					</execution>
-				</executions>
+				<artifactId>tycho-p2-repository-plugin</artifactId>
 				<configuration>
-					<products>
-						<product>
-							<id>${product.id}</id>
-							<!-- archiveFileName>enilink-platform-${project.version}</archiveFileName -->
-						</product>
-					</products>
+					<!-- do not create an update site for the product, it is included in the general update site for enilink -->
+					<createArtifactRepository>false</createArtifactRepository>
 				</configuration>
-			</plugin>
-			<plugin>
-				<groupId>org.apache.maven.plugins</groupId>
-				<artifactId>maven-antrun-plugin</artifactId>
-				<version>1.8</version>
-				<executions>
-					<execution>
-						<phase>package</phase>
-						<configuration>
-							<target>
-								<zip destfile="${product.archive.prefix}-macosx.cocoa.x86_64.zip">
-									<zipfileset dir="${product.path}/macosx/cocoa/x86_64" erroronmissingdir="false" />
-								</zip>
-
-								<tar destfile="${product.archive.prefix}-linux.gtk.x86_64.tar.gz" compression="gzip">
-									<tarfileset dir="${product.path}/linux/gtk/x86_64" erroronmissingdir="false" />
-								</tar>
-
-								<move failonerror="false" quiet="true" file="${product.path}/win32/win32/x86_64/eclipsec.exe"
-									tofile="${product.path}/win32/win32/x86_64/enilink-platformc.exe" />
-
-								<zip destfile="${product.archive.prefix}-win32.win32.x86_64.zip">
-									<zipfileset dir="${product.path}/win32/win32/x86_64" erroronmissingdir="false" />
-								</zip>
-
-								<move failonerror="false" quiet="true" file="${product.path}/win32/win32/x86/eclipsec.exe"
-									tofile="${product.path}/win32/win32/x86/enilink-platformc.exe" />
-
-								<zip destfile="${product.archive.prefix}-win32.win32.x86.zip">
-									<zipfileset dir="${product.path}/win32/win32/x86" erroronmissingdir="false" />
-								</zip>
-							</target>
-						</configuration>
-						<goals>
-							<goal>run</goal>
-						</goals>
-					</execution>
-				</executions>
 			</plugin>
 		</plugins>
 	</build>
+
+	<profiles>
+		<profile>
+			<id>release</id>
+			<build>
+				<plugins>
+					<plugin>
+						<groupId>org.eclipse.tycho</groupId>
+						<artifactId>tycho-p2-director-plugin</artifactId>
+						<executions>
+							<execution>
+								<id>create-distribution</id>
+								<goals>
+									<goal>materialize-products</goal>
+								</goals>
+							</execution>
+						</executions>
+						<configuration>
+							<products>
+								<product>
+									<id>${product.id}</id>
+								</product>
+							</products>
+						</configuration>
+					</plugin>
+					<plugin>
+						<groupId>org.apache.maven.plugins</groupId>
+						<artifactId>maven-antrun-plugin</artifactId>
+						<version>1.8</version>
+						<executions>
+							<execution>
+								<phase>package</phase>
+								<configuration>
+									<target>
+										<zip destfile="${product.archive.prefix}-macosx.cocoa.x86_64.zip">
+											<zipfileset dir="${product.path}/macosx/cocoa/x86_64" erroronmissingdir="false" />
+										</zip>
+
+										<tar destfile="${product.archive.prefix}-linux.gtk.x86_64.tar.gz" compression="gzip">
+											<tarfileset dir="${product.path}/linux/gtk/x86_64" erroronmissingdir="false" />
+										</tar>
+
+										<move failonerror="false" quiet="true" file="${product.path}/win32/win32/x86_64/eclipsec.exe"
+											tofile="${product.path}/win32/win32/x86_64/enilink-platformc.exe" />
+
+										<zip destfile="${product.archive.prefix}-win32.win32.x86_64.zip">
+											<zipfileset dir="${product.path}/win32/win32/x86_64" erroronmissingdir="false" />
+										</zip>
+
+										<move failonerror="false" quiet="true" file="${product.path}/win32/win32/x86/eclipsec.exe"
+											tofile="${product.path}/win32/win32/x86/enilink-platformc.exe" />
+
+										<zip destfile="${product.archive.prefix}-win32.win32.x86.zip">
+											<zipfileset dir="${product.path}/win32/win32/x86" erroronmissingdir="false" />
+										</zip>
+									</target>
+								</configuration>
+								<goals>
+									<goal>run</goal>
+								</goals>
+							</execution>
+						</executions>
+					</plugin>
+				</plugins>
+			</build>
+		</profile>
+	</profiles>
 </project>

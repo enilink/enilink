@@ -9,9 +9,7 @@
 	<packaging>pom</packaging>
 
 	<modules>
-		<module>../platform-standalone-feature</module>
-		<module>../platform-p2-feature</module>
-
+		<module>../platform-product</module>
 		<module>../../features/net.enilink.platform.updatesite</module>
 	</modules>
 </project>

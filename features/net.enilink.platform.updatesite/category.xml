@@ -9,6 +9,12 @@
    <feature id="net.enilink.platform.standalone.feature">
       <category name="enilink"/>
    </feature>
+   <feature id="net.enilink.platform.daemon.feature">
+      <category name="enilink"/>
+   </feature>
+   <iu id="net.enilink.platform.product" version="0.0.0">
+      <category name="enilink" />
+   </iu>
    <category-def name="enilink" label="eniLINK Platform"/>
 
    <!-- Source features -->

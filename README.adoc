@@ -7,25 +7,30 @@ and http://liftweb.net[Lift].
 
 [source,text]
 ----
-git clone --recursive https://github.com/enilink/enilink
+git clone https://github.com/enilink/enilink
 ----
-
-NOTE: The `--recursive` option is required to fetch the git submodules that are contained within the eniLINK Platform repository.
 
 == Build eniLINK with Maven
 
 Enilink can be build with Maven by leveraging https://eclipse.org/tycho/[Eclipse Tycho]. You can simply use `mvn package` 
 to compile and package the core modules or `mvn install` to install them within your local Maven repository.
 
-If you like to build a runnable Eclipse product then use
+If you like to build a runnable Eclipse product then first build the repository with required libraries
+
+[source,text]
+----
+mvn -f libraries-p2/pom.xml package
+----
+
+and then the enilink platform
 
 [source,text]
 ----
 cd releng/platform-product
-mvn package
+mvn -P release package
 ----
 
-to create it. Afterwards the Linux and Windows versions can be found within
+Afterwards the Linux and Windows versions can be found within
 the `features/net.enilink.platform.product/target-maven/products` directory.
 
 == Develop and run eniLINK with Eclipse
