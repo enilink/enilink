@@ -297,7 +297,7 @@ class JsonCallHandler {
                       val renderResult = model flatMap { m =>
                         Globals.contextModel.doWith(Full(m)) {
                           CurrentContext.withSubject(m.getManager.find(stmt.getSubject)) {
-                            QueryParams.doWith(params) { TemplateHelpers.withAppFor(p)(TemplateHelpers.render(wrappedTemplate)) }
+                            QueryParams.doWith(QueryParams.get ++ params) { TemplateHelpers.withAppFor(p)(TemplateHelpers.render(wrappedTemplate)) }
                           }
                         }
                       }

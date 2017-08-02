@@ -452,16 +452,6 @@ enilink = $.extend(window.enilink || {}, {
 		}
 		$("#buttons .button-remove").click(remove);
 
-		function showRdf() {
-			var target = $("#buttons").data("target");
-			if (target) {
-				var rdf = target.rdf();
-				console.log(rdf.databank);
-				console.log(rdf.databank.dump());
-			}
-		}
-		$("#buttons .button-show").click(showRdf);
-
 		if (enilink.options["ui.autoEdit"]) {
 			enilink.ui.enableEdit(".editable[about],.editable[resource],.editable[property]");
 			enilink.ui.enableAdd("[data-add]");

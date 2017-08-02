@@ -34,7 +34,12 @@ import scala.xml.Node
 /**
  * Global SPARQL parameters that can be shared between different snippets.
  */
-object QueryParams extends RequestVar[Map[String, _]](Map.empty)
+object QueryParams extends RequestVar[Map[String, _]](Map.empty) {
+  /**
+   * Do not logUnreadVal since it may be the default case for this request variable.
+   */
+  override def logUnreadVal = false
+}
 
 object RdfHelpers {
   import scala.language.implicitConversions
