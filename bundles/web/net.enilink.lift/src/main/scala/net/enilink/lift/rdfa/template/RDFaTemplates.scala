@@ -111,7 +111,7 @@ trait RdfAttributeBinder extends Binder {
   }
 }
 
-class VarBinder(val e: Elem, val attr: String, val name: String, val verbatim : Boolean = false) extends RdfAttributeBinder {
+class VarBinder(val e: Elem, val attr: String, val name: String, val verbatim: Boolean = false) extends RdfAttributeBinder {
   // the verbatim flag constrols if URIs should be shortened to CURIEs or not
   // allow to keep this node by adding the CSS class "keep", even if no binding exists for the related variable
   val keepNode = RDFaHelpers.hasCssClass(e, "keep")
@@ -139,8 +139,15 @@ class VarBinder(val e: Elem, val attr: String, val name: String, val verbatim : 
 
     if (attValue == null) {
       if (keepNode) {
+        // remove the original attribute
+        attributes = attributes.remove(attr)
+        // add attribute data-{attribute}-empty=""
         attributes = attributes.append(new UnprefixedAttribute("data-" + attr.stripPrefix("data-") + "-empty", "", Null))
-          .append(new UnprefixedAttribute(attr, "", Null))
+        // add empty content and resource attribute to support editing
+        attr match {
+          case "content" => attributes = attributes.append(new UnprefixedAttribute(attr, "", Null))
+          case "resource" => attributes = attributes.append(new UnprefixedAttribute(attr, "komma:null", Null))
+        }
       } else if (attr == "data-unless") attributes = attributes.remove(attr)
       else attributes = null
     } else if (clearAttribute) attributes = attributes.remove(attr)
@@ -218,12 +225,12 @@ object TemplateNode extends RDFaUtils {
 }
 
 class TemplateNode(
-  prefix: String,
-  label: String,
-  attributes: MetaData,
-  scope: NamespaceBinding,
-  val binders: Seq[Binder],
-  child: xml.Node*) extends Elem(prefix, label, attributes, scope, true, child: _*) with RDFaUtils {
+    prefix: String,
+    label: String,
+    attributes: MetaData,
+    scope: NamespaceBinding,
+    val binders: Seq[Binder],
+    child: xml.Node*) extends Elem(prefix, label, attributes, scope, true, child: _*) with RDFaUtils {
   val instances: mutable.Map[(MetaData, RdfContext), Elem] = new LinkedHashMap
 
   override def copy(

@@ -47,7 +47,7 @@ div[lang]::before,span[lang]::before,div[lang]:before,span[lang]:before
 	content: "\00a0"
 }
 
-[data-content-empty]::after {
+[data-content-empty]::after, [data-resource-empty]::after {
 	content: "Empty";
 	color: firebrick;
 	font-style: italic;
