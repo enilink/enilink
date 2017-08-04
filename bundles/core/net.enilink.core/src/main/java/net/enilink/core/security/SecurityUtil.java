@@ -32,7 +32,7 @@ public class SecurityUtil {
 
 	public static final URI USERS_MODEL = URIs.createURI("enilink:model:users");
 
-	public static final URI ADMINISTRATOR_GROUP = URIs.createURI("enilink:group:Administrator");
+	public static final URI ADMINISTRATORS_GROUP = URIs.createURI("enilink:group:Administrators");
 
 	public static final Subject SYSTEM_USER_SUBJECT = subjectForUser(SYSTEM_USER);
 

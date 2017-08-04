@@ -1,7 +1,8 @@
-@prefix user: <enilink:user:> .
 @prefix acl: <http://www.w3.org/ns/auth/acl#> .
+@prefix foaf: <http://xmlns.com/foaf/0.1/> .
+@prefix owl: <http://www.w3.org/2002/07/owl#> .
 
-# allows anonymous user access to all models
-<enilink:auth:anonymousAll> a acl:Authorization ; acl:agent user:anonymous ;
-	acl:accessToClass <http://enilink.net/vocab/komma/models#Model> ;
-	acl:mode acl:Read, acl:Write, acl:Control .
+<> owl:imports <group-admin.ttl> .
+
+# allows anonymous user to do administration actions
+<enilink:group:Administrators> a foaf:Group; foaf:member <enilink:user:anonymous> .
