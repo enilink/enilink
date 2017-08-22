@@ -21,7 +21,7 @@
       <import plugin="com.google.guava"/>
       <import plugin="com.google.inject"/>
       <import plugin="net.enilink.composition.properties.komma"/>
-      <import plugin="org.aopalliance"/>
+      <import plugin="aopalliance"/>
       <import plugin="org.eclipse.core.resources"/>
       <import plugin="org.scala-lang.scala-library"/>
       <import plugin="org.scala-lang.modules.scala-parser-combinators"/>

@@ -43,5 +43,5 @@ Require-Bundle: org.eclipse.core.runtime,
  net.enilink.komma.edit,
  org.eclipse.core.commands
 Bundle-ActivationPolicy: lazy
-Bundle-RequiredExecutionEnvironment: JavaSE-1.7
+Bundle-RequiredExecutionEnvironment: JavaSE-1.8
 Bundle-Vendor: enilink.net
