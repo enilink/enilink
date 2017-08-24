@@ -18,6 +18,10 @@ deploy:
   script: releng/publish/pushToDockerHub.sh
   on:
     branch: snapshots
+- provider: script
+  skip_cleanup: true
+  script: releng/publish/pushToDockerHub.sh
+  on:
     tags: true
 - provider: script
   skip_cleanup: true
