@@ -21,7 +21,7 @@ docker build "$DOCKER_BUILD_CONTEXT" -t "$REPO:$VERSION"
 docker tag "$REPO:$VERSION" "$REPO:latest"
 
 # login to Docker registry if user and password are given as environment variables
-if [ ! -z "$DOCKER_USER" ] && [! -z "$DOCKER_PASS"]; then
+if [ -n "$DOCKER_USER" ] && [ -n "$DOCKER_PASS" ]; then
   docker login -u "$DOCKER_USER" -p "$DOCKER_PASS"
 fi
 
