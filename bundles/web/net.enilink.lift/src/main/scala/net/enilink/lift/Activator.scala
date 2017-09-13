@@ -111,6 +111,8 @@ class Activator extends BundleActivator with Loggable {
           config.sitemapMutator = ClassHelpers.createInvoker("sitemapMutator", m).flatMap {
             f => f().map(_.asInstanceOf[SiteMap => SiteMap])
           }
+          // mark bundle as booted
+          config.booted = true
           logger.debug("Lift-powered bundle " + bundle.getSymbolicName + " booted.")
         } catch {
           case e: Throwable => logger.error("Error while booting Lift-powered bundle " + bundle.getSymbolicName, e)

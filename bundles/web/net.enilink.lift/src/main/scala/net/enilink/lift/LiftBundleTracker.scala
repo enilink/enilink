@@ -77,9 +77,12 @@ class LiftBundleTracker(context: BundleContext) extends BundleTracker[LiftBundle
   override def removedBundle(bundle: Bundle, event: BundleEvent, config: LiftBundleConfig) {
     config.module.map { module =>
       try {
-        logger.debug("Stopping Lift-powered bundle " + bundle.getSymbolicName + ".")
-        ClassHelpers.createInvoker("shutdown", module) map (_())
-        logger.debug("Lift-powered bundle " + bundle.getSymbolicName + " stopped.")
+        // only shutdown bundles which where actually booted
+        if (config.booted) {
+          logger.debug("Stopping Lift-powered bundle " + bundle.getSymbolicName + ".")
+          ClassHelpers.createInvoker("shutdown", module) map (_())
+          logger.debug("Lift-powered bundle " + bundle.getSymbolicName + " stopped.")
+        }
       } catch {
         case e: Throwable => logger.error("Error while stopping Lift-powered bundle " + bundle.getSymbolicName, e)
       }
