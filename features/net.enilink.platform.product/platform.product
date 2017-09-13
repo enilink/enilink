@@ -3,18 +3,22 @@
 
 <product name="enilink" uid="net.enilink.platform.product" id="net.enilink.core.product" application="net.enilink.core.application" version="1.2.4.qualifier" useFeatures="true" includeLaunchers="true">
 
+
    <configIni use="default">
    </configIni>
 
    <launcherArgs>
+      <programArgs>--launcher.appendVmargs
+      </programArgs>
       <vmArgs>-XX:+HeapDumpOnOutOfMemoryError
+-Dosgi.noShutdown=true
 -Dosgi.console
 -Dosgi.console.enable.builtin=false
 -Declipse.consoleLog=true
--Dosgi.noShutdown=true
--Dorg.osgi.service.http.port=10080
 -Dorg.eclipse.equinox.http.jetty.context.sessioninactiveinterval=200
+-Dfelix.fileinstall.subdir.mode=recurse
 -Drun.mode=production
+-Dorg.osgi.service.http.port=10080
       </vmArgs>
       <vmArgsMac>-XstartOnFirstThread -Dorg.eclipse.swt.internal.carbon.smallFonts
       </vmArgsMac>
@@ -28,6 +32,7 @@
          <bmp/>
       </win>
    </launcher>
+
 
    <vm>
       <linux include="false">org.eclipse.jdt.launching.JRE_CONTAINER/org.eclipse.jdt.internal.debug.ui.launcher.StandardVMType/JavaSE-1.8</linux>
@@ -54,5 +59,12 @@
       <plugin id="org.eclipse.equinox.p2.reconciler.dropins" autoStart="true" startLevel="4" />
       <plugin id="org.eclipse.equinox.simpleconfigurator" autoStart="true" startLevel="1" />
    </configurations>
+
+   <preferencesInfo>
+      <targetfile overwrite="false"/>
+   </preferencesInfo>
+
+   <cssInfo>
+   </cssInfo>
 
 </product>
