@@ -7,11 +7,36 @@
 	<artifactId>platform-parent</artifactId>
 	<version>1.2.3</version>
 	<packaging>pom</packaging>
+
 	<properties>
 		<tycho-version>0.24.0</tycho-version>
 		<scala.version>2.11.1</scala.version>
 		<path.to.root>../../..</path.to.root>
+		<maven.deploy.skip>false</maven.deploy.skip>
 	</properties>
+
+	<licenses>
+		<license>
+			<name>Eclipse Public License (EPL), Version 1.0</name>
+			<url>http://www.eclipse.org/legal/epl-v10.html</url>
+			<distribution>repo</distribution>
+		</license>
+	</licenses>
+
+	<scm>
+		<connection>scm:git:https://github.com/enilink/enilink.git</connection>
+		<developerConnection>scm:git:git@github.com:enilink/enilink.git</developerConnection>
+		<url>https://github.com/enilink/enilink</url>
+		<tag>HEAD</tag>
+	</scm>
+
+	<distributionManagement>
+		<repository>
+			<id>bintray-enilink-maven</id>
+			<url>https://api.bintray.com/maven/enilink/maven-test/enilink/</url>
+		</repository>
+	</distributionManagement>
+
 	<profiles>
 		<profile>
 			<id>x86</id>

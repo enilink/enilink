@@ -8,6 +8,10 @@
 	<version>0.0.1-SNAPSHOT</version>
 	<packaging>pom</packaging>
 
+	<properties>
+		<maven.deploy.skip>true</maven.deploy.skip>
+	</properties>
+
 	<modules>
 		<!-- module>../platform-core-feature</module -->
 		<!-- module>../../../komma/komma-releng/komma-rap-feature</module -->
