@@ -8,13 +8,15 @@ import scala.collection.JavaConversions.seqAsJavaList
 import org.osgi.framework.Bundle
 import org.osgi.framework.BundleContext
 import org.osgi.framework.BundleEvent
+import org.osgi.framework.BundleException
 import org.osgi.framework.FrameworkUtil
 import org.osgi.framework.wiring.FrameworkWiring
 import org.osgi.util.tracker.BundleTracker
 
 import net.enilink.core.IContextProvider
 import net.liftweb.common.Box
-import net.liftweb.common.Box.option2Box
+import net.liftweb.common.Empty
+import net.liftweb.common.Failure
 import net.liftweb.common.Full
 import net.liftweb.common.Loggable
 import net.liftweb.http.LiftRules
@@ -41,15 +43,20 @@ class LiftBundleTracker(context: BundleContext) extends BundleTracker[LiftBundle
             val clazz = bundle loadClass m
             Full(clazz.newInstance.asInstanceOf[AnyRef])
           } catch {
-            case cnfe: ClassNotFoundException => logger.error("Lift-Module class " + m + " of bundle " + bundle.getSymbolicName + " not found."); None
+            case cnfe: ClassNotFoundException =>
+              logger.error("Lift-Module class " + m + " of bundle " + bundle.getSymbolicName + " could not be loaded.")
+              Failure(cnfe.getMessage, Full(cnfe), Empty)
           }
         }
-        val startLevel = module flatMap { m => ClassHelpers.createInvoker("startLevel", m) flatMap (_()) } map {
-          case i: Int => i
-          case o => o.toString.toInt
+        module match {
+          case f: Failure => null
+          case _ =>
+            val startLevel = module flatMap { m => ClassHelpers.createInvoker("startLevel", m) flatMap (_()) } map {
+              case i: Int => i
+              case o => o.toString.toInt
+            }
+            new LiftBundleConfig(module, packages, startLevel openOr 0)
         }
-        val config = new LiftBundleConfig(module, packages, startLevel openOr 0)
-        config
       } else {
         rebootLift
         null
