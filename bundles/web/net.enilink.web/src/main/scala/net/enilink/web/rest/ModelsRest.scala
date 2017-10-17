@@ -12,6 +12,7 @@ import net.enilink.komma.core.URIs
 import net.enilink.komma.model.ModelPlugin
 import net.enilink.lift.util.Globals
 import net.enilink.lift.util.NotAllowedModel
+import net.enilink.lift.util.ContentTypeHelpers
 import net.liftweb.common.Box
 import net.liftweb.common.Box.box2Option
 import net.liftweb.common.Box.option2Box
@@ -42,14 +43,14 @@ import net.liftweb.http.UnsupportedMediaTypeResponse
 
 object ModelsRest extends RestHelper {
   import Util._
+  import ContentTypeHelpers._
 
   /**
    * Simple in-memory response for RDF data.
    */
-  case class RdfResponse(data: Array[Byte], contentDescription: IContentDescription, headers: List[(String, String)], code: Int) extends LiftResponse {
+  case class RdfResponse(data: Array[Byte], mimeType: String, headers: List[(String, String)], code: Int) extends LiftResponse {
     def toResponse = {
-      val typeName = contentDescription.getProperty(mimeTypeProp)
-      InMemoryResponse(data, ("Content-Length", data.length.toString) :: ("Content-Type", typeName + "; charset=utf-8") :: headers, Nil, code)
+      InMemoryResponse(data, ("Content-Length", data.length.toString) :: ("Content-Type", mimeType + "; charset=utf-8") :: headers, Nil, code)
     }
   }
 
@@ -60,38 +61,6 @@ object ModelsRest extends RestHelper {
    */
   protected def defaultGetAsTurtle: Boolean = false
 
-  /**
-   * Retrieve all registered RDF content types (those with a special mimeType property) and store them in a map.
-   */
-  val mimeType = "^(.+)/(.+)$".r
-  lazy val mimeTypeProp = new QualifiedName(ModelPlugin.PLUGIN_ID, "mimeType")
-  lazy val rdfContentTypes: Map[(String, String), IContentType] = Platform.getContentTypeManager.getAllContentTypes.flatMap {
-    contentType =>
-      contentType.getDefaultDescription.getProperty(mimeTypeProp).asInstanceOf[String] match {
-        case null => Nil
-        case mimeType(superType, subType) => List((superType -> subType) -> contentType)
-        case superType: String => List((superType -> "*") -> contentType)
-        case _ => Nil
-      }
-  }.toMap
-
-  /**
-   * Find best matching content type for the given requested types.
-   */
-  def matchType(requestedTypes: List[ContentType]) = {
-    object FindContentType {
-      // extractor for partial function below
-      def unapply(ct: ContentType) = rdfContentTypes.find(e => ct.matches(e._1))
-    }
-    requestedTypes.collectFirst { case FindContentType(key, value) => (key, value) }
-  }
-
-  /**
-   * Find best matching content type for the suffix of the request URI.
-   */
-  def matchTypeByExtension(extension: String) = {
-    rdfContentTypes.find(_._2.getFileSpecs(IContentType.FILE_EXTENSION_SPEC).contains(extension))
-  }
 
   def getResponseContentType(r: Req): Option[IContentType] = {
     // use list given by "type" parameter
@@ -126,8 +95,6 @@ object ModelsRest extends RestHelper {
     }
   }
 
-  lazy val hasWriter = new QualifiedName(ModelPlugin.PLUGIN_ID, "hasWriter")
-
   /**
    * Serialize and return RDF data according to the requested content type.
    */
@@ -136,10 +103,10 @@ object ModelsRest extends RestHelper {
       model match {
         case NotAllowedModel(_) => Full(ForbiddenResponse("You don't have permissions to access " + model.getURI + "."))
         case _ => getResponseContentType(r) map (_.getDefaultDescription) match {
-          case Some(cd) if "true".equals(String.valueOf(cd.getProperty(hasWriter))) =>
+          case Some(cd) if isWritable(cd) =>
             val baos = new ByteArrayOutputStream
             model.save(baos, Map(IModel.OPTION_CONTENT_DESCRIPTION -> cd))
-            Full(new RdfResponse(baos.toByteArray, cd, Nil, 200))
+            Full(new RdfResponse(baos.toByteArray, mimeType(cd), Nil, 200))
           case _ => Full(new UnsupportedMediaTypeResponse())
         }
       })
