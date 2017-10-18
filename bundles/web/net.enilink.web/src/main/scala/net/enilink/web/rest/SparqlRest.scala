@@ -3,6 +3,7 @@ package net.enilink.web.rest
 import java.io.ByteArrayOutputStream
 
 import scala.collection.JavaConversions.asScalaIterator
+import scala.collection.JavaConversions.asJavaIterator
 
 import org.eclipse.rdf4j.model.impl.SimpleValueFactory
 import org.eclipse.rdf4j.query.resultio.QueryResultIO
@@ -36,6 +37,8 @@ import net.liftweb.common.Failure
 import net.liftweb.http.OkResponse
 import net.enilink.komma.model.IModelSet
 import net.enilink.komma.core.URIs
+import org.eclipse.rdf4j.query.BindingSet
+import org.eclipse.rdf4j.query.impl.ListBindingSet
 
 object SparqlRest extends RestHelper {
   import Util._
@@ -95,10 +98,19 @@ object SparqlRest extends RestHelper {
                 writer.startQueryResult(r.getBindingNames)
 
                 try {
-                  r.iterator.foreach { row =>
-                    val bindings = row.asInstanceOf[IBindings[_]]
-                    val bindingSet = converter.toRdf4j(bindings)
-                    writer.handleSolution(bindingSet)
+                  r.iterator.foreach {
+                    case bindings: IBindings[_] =>
+                      val bindingSet = converter.toRdf4j(bindings)
+                      writer.handleSolution(bindingSet)
+                    case value: IValue =>
+                      // select with only one variable like "select ?s where { ?s ?p ?o }" for which KOMMA returns direct object instances
+                      val bindings = new IBindings[IValue] {
+                        val values = value :: Nil
+                        override def get(key: String) = value
+                        override def getKeys = r.getBindingNames
+                        override def iterator = values.iterator
+                      }
+                      writer.handleSolution(converter.toRdf4j(bindings))
                   }
                 } finally {
                   r.close

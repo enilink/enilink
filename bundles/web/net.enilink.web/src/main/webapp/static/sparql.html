@@ -1,0 +1,151 @@
+<div data-lift="surround?with=default;at=content"
+	prefix="rdf: http://www.w3.org/1999/02/22-rdf-syntax-ns#
+			 rdfs: http://www.w3.org/2000/01/rdf-schema#
+			 owl: http://www.w3.org/2002/07/owl#
+			 models: http://enilink.net/vocab/komma/models#
+			 ">
+
+	<div class="row">
+		<div class="col-lg-12">
+			<div class="well">
+				<form class="form-horizontal" id="form">
+					<fieldset>
+						<legend>Query</legend>
+						<div class="form-group">
+							<label for="model" class="col-lg-1 control-label">Model</label>
+							<div class="col-lg-11">
+								<select class="form-control" id="model"
+									data-lift="rdfa?target=meta">
+									<option about="?model" typeof="models:Model" class="asc model"
+										value="$model" data-lift="rdf.label"></option>
+									<div data-for="?model" class="acl"></div>
+								</select>
+							</div>
+						</div>
+						
+						<div class="form-group">
+							<label for="query" class="col-lg-1 control-label">Query</label>
+							<div class="col-lg-11">
+								<textarea class="form-control" rows="5" id="query"></textarea>
+								<span class="help-block">The SPARQL query.</span>
+							</div>
+						</div>
+						
+						<div class="form-group">
+							<div class="col-lg-11 col-lg-offset-1">
+								<button type="submit" class="btn btn-primary" id="#submitBtn">Submit</button>
+							</div>
+						</div>
+					</fieldset>
+				</form>
+			</div>
+		</div>
+	</div>
+
+	<script src="classpath/enilink/enilink.js"></script>
+
+	<script data-lift="head">
+		$(function() {
+			$('#form').submit(function() {
+				var model = $('#model').val();
+				var query = $('#query').val();
+				$('#result').empty();
+				executeQuery(query, model);
+
+				// do not actually submit the form
+				return false;
+			});
+		});
+
+		function executeQuery(query, model) {
+			try {
+				$.ajax({
+					url : "/sparql",
+					type : "POST",
+					data : {
+						"query" : query,
+						"model" : model
+					}
+				}).done(function(result) {
+					renderQueryResults('#result', result);
+				}).fail(displayError);
+			} catch (err) {
+				console.log(err);
+			}
+		}
+
+		// render a table with the query results
+		function renderQueryResults(targetSelector, response) {
+			var model = $('#model').val();
+
+			console.log(response);
+			// response: { head , results : { bindings: [ ] } }
+			// response.head: { vars : [ Feld von Strings (Variablennamen) ] }
+			// response.results: { bindings : [ Feld von Bindings - Name-Wert-Paare
+			// (+Typ) ] }
+			// Binding: { Variablenname : { type : Typ, value : Wert } }
+			var target = $("<div class='well'><legend>Result</legend></div>").appendTo($(targetSelector));
+			var table = $("<table class='table table-hover'>").appendTo(target);
+			var thead_tr = $("<tr>").appendTo($("<thead>").appendTo(table));
+			for (var v = 0; v < response.head.vars.length; ++v) {
+				thead_tr.append("<th>" + response.head.vars[v] + "</th>");
+			}
+			var tbody = $("<tbody>").appendTo(table);
+			for (var b = 0; b < response.results.bindings.length; ++b) {
+				var row = $("<tr>").appendTo(tbody);
+				var bindings = response.results.bindings[b];
+				for (var v = 0; v < response.head.vars.length; ++v) {
+					var varName = response.head.vars[v];
+					var binding = bindings[varName];
+					var td = $("<td>").appendTo(row);
+					if (binding) {
+						var value = binding.value;
+						if (binding.type == "bnode") {
+							value = "_:" + value;
+						}
+						
+						var cell = td;
+						if (binding.type != "literal") {
+							cell = $("<a>").attr("href", "describe?" + enilink.encodeParams({
+								model : model,
+								resource : value
+							})).appendTo(cell);
+						}
+						
+						cell.text(simplifyURI(value));
+					} else {
+						$("<td>").text("").appendTo(row);
+					}
+				}
+			}
+		}
+
+		// helper that replaces full URIs of the selected model with "#"
+		function simplifyURI(val) {
+			var model = $('#model').val() + "#";
+			return val.replace(model, "#");
+		}
+
+		// render the error message(s)
+		function displayError(xhr, status, error) {
+			console.log(xhr, status, error);
+			var target = $("<div class='well'><legend>Error</legend></div>").appendTo($("#result"));
+			$("<h2>" + error + "</h2>").appendTo(target);
+			var rx = /Message:(.*)$/gm;
+			var msgs = [];
+			while (null !== (ary = rx.exec(xhr.responseText))) {
+				msgs.push(ary[1]);
+			}
+			if (msgs.length == 0) {
+				msgs = [ xhr.responseText ];
+			}
+			for (var i = 0; i < msgs.length; ++i) {
+				$("<p>" + msgs[i] + "</p>").appendTo(target);
+			}
+		}
+	</script>
+
+	<div class="row">
+		<div class="col-lg-12" id="result"></div>
+	</div>
+</div>

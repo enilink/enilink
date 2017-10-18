@@ -68,6 +68,7 @@ class LiftModule {
         ParsePath(("vocab" | "models") :: Nil, _, _, _), _, req) if req.param("model").nonEmpty &&
         req.param("type").isEmpty && req.headers("accept").find(_.toLowerCase.contains("text/html")).isDefined =>
         RewriteResponse("static" :: "ontology" :: Nil)
+
       case RewriteRequest(ParsePath((prefix @ ("vocab" | "models")) :: first :: _, _, _, _), _, req) if first != "index" && req.param("model").isEmpty =>
         val params = Map("model" -> req.url)
         if (req.param("type").isEmpty && req.headers("accept").find(_.toLowerCase.contains("text/html")).isDefined) {
@@ -75,6 +76,10 @@ class LiftModule {
         } else {
           RewriteResponse(prefix :: Nil, params)
         }
+
+      case RewriteRequest(
+        ParsePath("sparql" :: Nil, _, _, _), _, req) if req.headers("accept").find(_.toLowerCase.contains("text/html")).isDefined =>
+        RewriteResponse("static" :: "sparql" :: Nil)
     })
     LiftRules.dispatch.append(SparqlRest)
   }
