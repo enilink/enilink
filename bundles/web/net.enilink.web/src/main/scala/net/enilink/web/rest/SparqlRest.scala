@@ -180,7 +180,7 @@ object SparqlRest extends RestHelper {
         model <- Globals.contextModel.vend
         mimeType <- getSparqlQueryResponseMimeType(req)
 
-        result <- sparqlQuery(query, model.getURI, mimeType)
+        result <- queryModel(query, model.getURI, mimeType)
       } yield result
     }
     case Nil Post req if S.param("query").isDefined => {
