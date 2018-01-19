@@ -6,11 +6,11 @@
 	<parent>
 		<groupId>net.enilink</groupId>
 		<artifactId>platform-features</artifactId>
-		<version>1.2.4-SNAPSHOT</version>
+		<version>1.2.4</version>
 	</parent>
 	<groupId>net.enilink</groupId>
 	<artifactId>net.enilink.platform.core.feature</artifactId>
-	<version>1.2.4-SNAPSHOT</version>
+	<version>1.2.4</version>
 	<packaging>eclipse-feature</packaging>
 
 	<build>

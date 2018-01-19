@@ -2,7 +2,7 @@ Manifest-Version: 1.0
 Bundle-ManifestVersion: 2
 Bundle-Name: eniLINK Lift
 Bundle-SymbolicName: net.enilink.lift;singleton:=true
-Bundle-Version: 1.2.4.qualifier
+Bundle-Version: 1.2.4
 Lift-Module: net.enilink.lift.LiftModule
 Lift-Packages: net.enilink.lift
 Export-Package: net.enilink.lift,
@@ -34,7 +34,7 @@ Import-Package: com.google.common.base;version="17.0.0",
  org.scalatest;version="3.0.0";resolution:=optional,
  org.slf4j
 Require-Bundle: org.eclipse.core.runtime,
- org.scala-lang.scala-library;visibility:=reexport,
+ org.scala-lang.scala-library;bundle-version="[2.11.0,2.12.0)";visibility:=reexport,
  org.scala-lang.modules.scala-parser-combinators;visibility:=reexport,
  org.scala-lang.modules.scala-xml;visibility:=reexport,
  net.liftweb;bundle-version="2.6.0";visibility:=reexport,
