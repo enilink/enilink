@@ -173,9 +173,10 @@ enilink = $.extend(window.enilink || {}, {
 				});
 			}
 		} else {
-			if (triples.length && triples[0].object.type == "literal") {
-				// TODO implement real localized formatting
-				value = triples[0].object.value + "";
+			if (triples.length && (triples[0].object.type == "literal" ||
+			// ensure that the editor has access to the real RDF value in case of select, date etc.
+			!String(target.data('type')).match(/text|orion|typeahead/i))) {
+				value = (triples[0].object.type == "literal") ? triples[0].object.value + "" : triples[0].object.toString();
 			} else {
 				value = target.closest("[content]").attr("content") || target.text().trim();
 			}
