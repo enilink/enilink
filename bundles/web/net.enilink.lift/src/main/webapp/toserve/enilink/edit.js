@@ -150,6 +150,31 @@ enilink = $.extend(window.enilink || {}, {
 		};
 	}
 
+	function computeSourceAndContinue(target, subject, predicate, model, f) {
+		// try to automagically find possible choices
+		var sparql = "PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#> PREFIX owl: <http://www.w3.org/2002/07/owl#> " + // 
+		"SELECT DISTINCT ?s { " + //
+		"?s a ?sType ." + //
+		"{ ?property rdfs:range ?sType FILTER (?sType != owl:Thing) }" + //
+		" UNION " + //
+		"{ ?subject a [rdfs:subClassOf ?r] . ?r owl:onProperty ?property { ?r owl:allValuesFrom ?sType } UNION { ?r owl:someValuesFrom ?sType }}" + //
+		" }";
+
+		// insert subject and property as constants
+		sparql = sparql.replace(/\?subject/g, subject);
+		sparql = sparql.replace(/\?property/g, predicate);
+
+		enilink.render('<div data-sparql="' + sparql + '" data-lift="sparql"><div about="?s" data-lift="rdf.label"></div></div>', {
+			model : model
+		}, function(html) {
+			var items = $(html).find('[about]').map(function () {
+				return { value : $(this).resourceAttr('about').toString(), text : $(this).text() };
+			}).get();
+
+			f(items);
+		});
+	}
+
 	function doEdit(target, options) {
 		// global deferred to allow the execution of
 		// functions after doAdd finished
@@ -174,8 +199,9 @@ enilink = $.extend(window.enilink || {}, {
 			}
 		} else {
 			if (triples.length && (triples[0].object.type == "literal" ||
-			// ensure that the editor has access to the real RDF value in case of select, date etc.
-			!String(target.data('type')).match(/text|orion|typeahead/i))) {
+			// ensure that the editor has access to the real RDF value in case
+			// of select, date etc.
+			!String(target.data('type')).match(/text|orion|typeahead/))) {
 				value = (triples[0].object.type == "literal") ? triples[0].object.value + "" : triples[0].object.toString();
 			} else {
 				value = target.closest("[content]").attr("content") || target.text().trim();
@@ -188,7 +214,7 @@ enilink = $.extend(window.enilink || {}, {
 			title : "Edit value",
 			value : value,
 			display : function(value, sourceData, response) {
-				if (! response) {
+				if (!response) {
 					// sourceData is only available if 'source' option was used
 					response = sourceData;
 				}
@@ -232,8 +258,23 @@ enilink = $.extend(window.enilink || {}, {
 
 		prepareEditable(target, rdfStmts, lang);
 
-		target.editable(options);
-		target.editable("show");
+		// try to automagically find possible choices
+		if (String(target.data('type')).match(/select/) && !options.soure && !target.data('source') && triples.length) {
+			computeSourceAndContinue(target, triples[0].subject.toString(), triples[0].property.toString(), model, function (items) {
+				if (String(self.data('type')).match(/select2/)) {
+					items = items.map(function (item) {
+						return { id : item.value, text : item.text };
+					});
+				}
+				options.source = items;
+
+				target.editable(options);
+				target.editable("show");
+			});
+		} else {
+			target.editable(options);
+			target.editable("show");
+		}
 		return resultDeferred.promise();
 	}
 
@@ -265,9 +306,10 @@ enilink = $.extend(window.enilink || {}, {
 				subject = $.rdf.blank(subject);
 			}
 			var nsMap = self.xmlns();
-			var stmt = $.rdf.databank([ $.rdf.triple(subject, predicate, object, {
+			var triple = $.rdf.triple(subject, predicate, object, {
 				namespaces : nsMap
-			}) ]).dump();
+			});
+			var stmt = $.rdf.databank([ triple ]).dump();
 			options = $.extend(defaultEditableOptions(stmt, model), {
 				display : false,
 				success : function(response) {
@@ -328,8 +370,23 @@ enilink = $.extend(window.enilink || {}, {
 
 			prepareEditable(self, stmt, lang);
 
-			self.editable(options);
-			self.editable("show");
+			// try to automagically find possible choices
+			if (String(self.data('type')).match(/select/) && !options.source && !self.data('source')) {
+				computeSourceAndContinue(self, triple.subject.toString(), triple.property.toString(), model, function (items) {
+					if (String(self.data('type')).match(/select2/)) {
+						items = items.map(function (item) {
+							return { id : item.value, text : item.text };
+						});
+					}
+					options.source = items;
+
+					self.editable(options);
+					self.editable("show");
+				});
+			} else {
+				self.editable(options);
+				self.editable("show");
+			}
 		} else {
 			resultDeferred.reject("Subject and predicate must be defined.")
 		}
