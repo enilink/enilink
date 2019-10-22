@@ -186,12 +186,17 @@ enilink = $.extend(window.enilink || {}, {
 		options = $.extend(defaultEditableOptions(rdfStmts, model), {
 			title : "Edit value",
 			value : value,
-			display : function(value, response) {
+			display : function(value, sourceData, response) {
+				if (! response) {
+					// sourceData is only available if 'source' option was used
+					response = sourceData;
+				}
 				if (response && response.html) {
 					var newNode = $(response.html);
 					// replaceWith does not work for some reason here
 					// target.replaceWith(newNode);
 					newNode.insertAfter(target);
+					newNode.trigger("enilink-edit-updated");
 					target.remove();
 					if (enilink.options["ui.autoEdit"]) {
 						enableEdit(newNode);
@@ -212,7 +217,6 @@ enilink = $.extend(window.enilink || {}, {
 						d.reject(result.msg);
 						resultDeferred.reject(result.msg);
 					} else {
-						target.trigger("enilink-data-change");
 						d.resolve(result);
 					}
 				});
@@ -291,6 +295,7 @@ enilink = $.extend(window.enilink || {}, {
 						if (enilink.options["ui.autoEdit"] && newNode.is(".editable")) {
 							enableEdit(newNode);
 						}
+						newNode.trigger("enilink-edit-added");
 						resultDeferred.resolve(newNode);
 					}
 				},
@@ -308,7 +313,6 @@ enilink = $.extend(window.enilink || {}, {
 							d.reject(result.msg);
 							resultDeferred.reject(result.msg);
 						} else {
-							self.trigger("enilink-data-change");
 							d.resolve(result);
 						}
 					});
@@ -440,7 +444,6 @@ enilink = $.extend(window.enilink || {}, {
 			if (target) {
 				var model = target.closest("[data-model]").attr("data-model");
 				var toDelete = target.rdf().databank.dump();
-				// enilink.rdf(model).updateTriples(null, toDelete,
 				enilink.rdf(model).removeValue(toDelete, function(success) {
 					if (success) {
 						target.remove();
@@ -448,7 +451,6 @@ enilink = $.extend(window.enilink || {}, {
 				});
 			}
 			hideButtons();
-			target.trigger("enilink-data-change");
 		}
 		$("#buttons .button-remove").click(remove);
 
