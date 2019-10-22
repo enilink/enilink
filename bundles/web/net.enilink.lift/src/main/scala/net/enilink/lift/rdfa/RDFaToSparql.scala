@@ -48,7 +48,7 @@ trait VariableResolver {
 trait SparqlFromRDFa {
   def getQueryVariables: Set[Variable]
   def getQuery: String
-  def getQuery(bindingName: String, offset: Any, limit: Any): String
+  def getQuery(bindingName: String, offset: Any, limit: Any, isSubQuery : Boolean = false): String
   def getElement: xml.Elem
 
   def getPaginatedQuery(bindingName: String, offset: Any, limit: Any): String
@@ -105,7 +105,7 @@ class RDFaToSparqlParser(e: xml.Elem, base: String, varResolver: Option[Variable
     val (e1, _) = walk(e, base, uri(base), undef, Nil, Nil, null)
     val result = new StringBuilder
     addPrefixDecls(result, e1.scope)
-    result.append("SELECT DISTINCT " + projection + " WHERE {\n")
+    result.append("select distinct " + projection + " where {\n")
     result.append(patterns)
     result.append("}\n")
     modifiers(e, result)
@@ -142,8 +142,9 @@ class RDFaToSparqlParser(e: xml.Elem, base: String, varResolver: Option[Variable
     sparql
   }
 
-  def getQuery(bindingName: String, offset: Any, limit: Any) = {
+  def getQuery(bindingName: String, offset: Any, limit: Any, isSubQuery : Boolean = false) = {
     val result = new StringBuilder
+    if (!isSubQuery) addPrefixDecls(result, resultElem.scope)
     result.append("select distinct ?").append(bindingName).append(" where {\n")
     result.append(patterns)
     result.append("}\n")
@@ -159,7 +160,7 @@ class RDFaToSparqlParser(e: xml.Elem, base: String, varResolver: Option[Variable
     selectVars.map(toString).addString(result, "select distinct ", " ", " where {\n")
 
     // subquery to limit the solutions for given binding name
-    result.append("{ ").append(getQuery(bindingName, offset, limit)).append("}\n")
+    result.append("{ ").append(getQuery(bindingName, offset, limit, true)).append("}\n")
     // end of subquery
 
     // use sparql instead of patterns here since
