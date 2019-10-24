@@ -261,7 +261,7 @@ enilink = $.extend(window.enilink || {}, {
 		// try to automagically find possible choices
 		if (String(target.data('type')).match(/select/) && !options.soure && !target.data('source') && triples.length) {
 			computeSourceAndContinue(target, triples[0].subject.toString(), triples[0].property.toString(), model, function (items) {
-				if (String(self.data('type')).match(/select2/)) {
+				if (String(target.data('type')).match(/select2/)) {
 					items = items.map(function (item) {
 						return { id : item.value, text : item.text };
 					});
