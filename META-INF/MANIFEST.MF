@@ -10,7 +10,9 @@ Export-Package: net.enilink.ldp,
  net.enilink.ldp.sail
 Bundle-RequiredExecutionEnvironment: JavaSE-1.8
 Import-Package: com.google.inject;version="1.4.0",
+ net.enilink.core,
  net.enilink.core.security,
+ net.enilink.komma.rdf4j,
  org.aopalliance.intercept,
  org.apache.http,
  org.apache.http.client.methods,

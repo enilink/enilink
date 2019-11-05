@@ -4,7 +4,7 @@ import java.io.File;
 import java.util.ArrayList;
 import java.util.List;
 
-import org.eclipse.rdf4j.common.iteration.CloseableIteratorIteration;
+import org.eclipse.rdf4j.common.iteration.EmptyIteration;
 import org.eclipse.rdf4j.model.IRI;
 import org.eclipse.rdf4j.model.Namespace;
 import org.eclipse.rdf4j.model.Resource;
@@ -29,8 +29,8 @@ import org.eclipse.rdf4j.repository.base.AbstractRepositoryConnection;
 import org.eclipse.rdf4j.rio.RDFHandler;
 import org.eclipse.rdf4j.rio.RDFHandlerException;
 
-import net.enilink.ldp.LdpCache;
-import net.enilink.ldp.LdpClient;
+import net.enilink.ldp.remote.LdpCache;
+import net.enilink.ldp.remote.LdpClient;
 
 /**
  * Repository to be used as federation member for the LDP cache.
@@ -46,7 +46,7 @@ public class LdpCacheRepository extends AbstractRepository {
 
 	@Override
 	public RepositoryConnection getConnection() throws RepositoryException {
-		return new LdpCacheConnection(this);
+		return new LdpRepositoryConnection(this);
 	}
 
 	@Override
@@ -84,12 +84,12 @@ public class LdpCacheRepository extends AbstractRepository {
 	/**
 	 * RepositoryConnection wrapping the LDP cache.
 	 */
-	public static class LdpCacheConnection extends AbstractRepositoryConnection {
+	public static class LdpRepositoryConnection extends AbstractRepositoryConnection {
 
 		protected boolean isActive;
 		protected List<RepositoryConnection> internalConnections;
 
-		protected LdpCacheConnection(Repository repository) {
+		protected LdpRepositoryConnection(Repository repository) {
 			super(repository);
 			isActive = false;
 			internalConnections = new ArrayList<>();
@@ -98,7 +98,11 @@ public class LdpCacheRepository extends AbstractRepository {
 
 		// keep track of internal connections that have been opened
 		protected RepositoryConnection getInternalConnection() throws RepositoryException {
-			RepositoryConnection newConn = LdpCache.getInstance().getConnection();
+			LdpCache cache = LdpCache.getInstance();
+			if (null == cache) {
+				throw new RepositoryException("LdpCache not initialized yet!");
+			}
+			RepositoryConnection newConn = cache.getRepositoryConnection();
 			logger.trace("getInternalConnection() conn={}", newConn);
 			internalConnections.add(newConn);
 			return newConn;
@@ -144,31 +148,43 @@ public class LdpCacheRepository extends AbstractRepository {
 			isActive = false;
 		}
 
-		@SuppressWarnings("resource")
+//		@SuppressWarnings("resource")
 		@Override
 		public RepositoryResult<Resource> getContextIDs() throws RepositoryException {
-			List<Resource> contextIDs = new ArrayList<Resource>();
-			contextIDs.add(getValueFactory().createIRI(LdpCache.CACHE_MODEL_IRI.toString()));
-			return new RepositoryResult<Resource>(
-					new CloseableIteratorIteration<Resource, RepositoryException>(contextIDs.iterator()));
+			logger.trace("getContextIDs()");
+//			List<Resource> contextIDs = new ArrayList<Resource>();
+//			contextIDs.add(getValueFactory().createIRI(LdpCache.CACHE_MODEL_IRI.toString()));
+//			return new RepositoryResult<Resource>(
+//					new CloseableIteratorIteration<Resource, RepositoryException>(contextIDs.iterator()));
+			return getInternalConnection().getContextIDs();
 		}
 
+		@SuppressWarnings("resource")
 		@Override
 		// FIXME: check the contexts, skip when cache context is missing
 		public RepositoryResult<Statement> getStatements(Resource subject, IRI predicate, Value object,
 				boolean includeInferred, Resource... contexts) throws RepositoryException {
-			logger.trace("getStatements(s={}, p={}, o={}, i={}, c={})", new Object[]{ subject, predicate, object, includeInferred, contexts });
-			IRI endpoint = LdpCache.getInstance().getEndpoint(subject);
+			logger.trace("getStatements(s={}, p={}, o={}, i={}, c={})",
+					new Object[] { subject, predicate, object, includeInferred, contexts });
+			// FIXME: check avoids failure if called while being initialized
+			LdpCache cache = LdpCache.getInstance();
+			if (null == cache) {
+				logger.error("LdpCache not initialized yet!");
+				// return empty result
+				return new RepositoryResult<Statement>(new EmptyIteration<Statement, RepositoryException>());
+			}
+			IRI endpoint = cache.getEndpoint(subject);
+			boolean updated = false;
 			if (null != endpoint) {
 				// endpoint -> LDP resource -> update (iff necessary)
 				try {
-					LdpClient.update(subject, endpoint);
+					updated = LdpClient.update(subject, endpoint);
 				} catch (Exception e) {
 					logger.error("while trying to update LDP-mapped entity=" + subject, e);
 				}
 			}
-			// query the internal connection with the given parameters
-			return getInternalConnection().getStatements(subject, predicate, object, includeInferred, contexts);
+			return getInternalConnection().getStatements(subject, updated ? null : predicate, updated ? null : object,
+					includeInferred, contexts);
 		}
 
 		@Override
@@ -176,16 +192,18 @@ public class LdpCacheRepository extends AbstractRepository {
 		public void exportStatements(Resource subject, IRI predicate, Value object, boolean includeInferred,
 				RDFHandler handler, Resource... contexts) throws RepositoryException, RDFHandlerException {
 			IRI endpoint = LdpCache.getInstance().getEndpoint(subject);
+			boolean updated = false;
 			if (null != endpoint) {
 				// endpoint -> LDP resource -> update (iff necessary)
 				try {
-					LdpClient.update(subject, endpoint);
+					updated = LdpClient.update(subject, endpoint);
 				} catch (Exception e) {
 					logger.error("while trying to update LDP-mapped entity=" + subject, e);
 				}
 			}
 			// hand it off to the internal connection with the given parameters
-			getInternalConnection().exportStatements(subject, predicate, object, includeInferred, handler, contexts);
+			getInternalConnection().exportStatements(subject, updated ? null : predicate, updated ? null : object,
+					includeInferred, handler, contexts);
 		}
 
 		@Override
@@ -225,6 +243,12 @@ public class LdpCacheRepository extends AbstractRepository {
 
 		@Override
 		public String getNamespace(String prefix) throws RepositoryException {
+			// FIXME: check avoids failure if called while being initialized
+			LdpCache cache = LdpCache.getInstance();
+			if (null == cache) {
+				logger.error("LdpCache not initialized yet!");
+				return null;
+			}
 			return getInternalConnection().getNamespace(prefix);
 		}
 
@@ -251,6 +275,7 @@ public class LdpCacheRepository extends AbstractRepository {
 		@Override
 		// FIXME: check the contexts, skip when cache context is missing
 		public long size(Resource... contexts) throws RepositoryException {
+			logger.trace("size(c={})", new Object[]{ contexts });
 			return getInternalConnection().size(contexts);
 		}
 

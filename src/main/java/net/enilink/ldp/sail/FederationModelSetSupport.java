@@ -18,7 +18,7 @@ import net.enilink.komma.em.concepts.IResource;
 import net.enilink.komma.model.IModelSet;
 import net.enilink.komma.model.MODELS;
 import net.enilink.komma.model.rdf4j.IRepositoryModelSet;
-import net.enilink.ldp.LdpCache;
+import net.enilink.ldp.remote.LdpCache;
 
 @Iri(MODELS.NAMESPACE + "FederationModelSet")
 public abstract class FederationModelSetSupport
@@ -38,8 +38,9 @@ public abstract class FederationModelSetSupport
 		}
 
 		Federation federation = new Federation();
-		federation.addMember(new LdpCacheRepository());
 		federation.addMember(baseRepository);
+		federation.addMember(new LdpCacheRepository());
+		federation.setDistinct(true);
 
 		for (IResource endpoint : getLdpEndpoints()) {
 			LdpCache.addEndpoint(endpoint);

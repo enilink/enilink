@@ -1,4 +1,4 @@
-package net.enilink.ldp;
+package net.enilink.ldp.remote;
 
 import java.security.PrivilegedAction;
 import java.util.ArrayList;
@@ -10,8 +10,10 @@ import java.util.Set;
 
 import javax.security.auth.Subject;
 
+import org.eclipse.rdf4j.common.iteration.Iterations;
 import org.eclipse.rdf4j.model.IRI;
 import org.eclipse.rdf4j.model.Resource;
+import org.eclipse.rdf4j.model.Value;
 import org.eclipse.rdf4j.model.ValueFactory;
 import org.eclipse.rdf4j.model.impl.SimpleValueFactory;
 import org.eclipse.rdf4j.repository.Repository;
@@ -22,20 +24,27 @@ import org.eclipse.rdf4j.sail.memory.MemoryStore;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import net.enilink.commons.iterator.IMap;
+import net.enilink.core.PluginConfigModel;
 import net.enilink.core.security.SecurityUtil;
 import net.enilink.komma.core.BlankNode;
 import net.enilink.komma.core.IQuery;
 import net.enilink.komma.core.IReference;
 import net.enilink.komma.core.IStatement;
 import net.enilink.komma.core.Statement;
+import net.enilink.komma.core.StatementPattern;
 import net.enilink.komma.core.URI;
 import net.enilink.komma.core.URIs;
 import net.enilink.komma.em.concepts.IResource;
 import net.enilink.komma.model.IModel;
 import net.enilink.komma.model.IModelSet;
+import net.enilink.komma.rdf4j.RDF4JValueConverter;
+import net.enilink.vocab.owl.OWL;
 import net.enilink.vocab.rdf.RDF;
 
 public class LdpCache {
+
+	public final static URI PLUGIN_CONFIG_URI = URIs.createURI("plugin://net.enilink.ldp/");
 
 	public final static URI ENDPOINT_MODEL_URI = URIs.createURI("enilink:model:ldp:endpoints");
 
@@ -43,6 +52,7 @@ public class LdpCache {
 	public final static URI PROPERTY_HASADDRESS = ENDPOINT_MODEL_URI.appendFragment("hasAddress");
 
 	protected final static ValueFactory vf = SimpleValueFactory.getInstance();
+	protected final static RDF4JValueConverter vc = new RDF4JValueConverter(vf);
 
 	// this is used from LdpClient et al. w/ RDF4J directly, not w/ KOMMA
 	public final static IRI CACHE_MODEL_IRI = vf.createIRI("enilink:model:ldp:cache");
@@ -54,6 +64,7 @@ public class LdpCache {
 
 	protected IModelSet modelSet;
 
+	protected boolean useExtraRepository = true;
 	protected Repository repository;
 	protected RepositoryConnection connection;
 
@@ -67,10 +78,6 @@ public class LdpCache {
 		return INSTANCE;
 	}
 
-	public static IModel getModel() {
-		return getInstance().cacheModel;
-	}
-
 	public LdpCache() {
 		endpoints = new HashSet<URI>();
 		// FIXME: deploy proper caching strategy
@@ -80,12 +87,14 @@ public class LdpCache {
 	/**
 	 * Called from OSGi-DS upon component activation (w/o configuration).
 	 */
-	protected void activate() {
+	public void activate() {
 		try {
-			// TODO: make this configurable
-			repository = new SailRepository(new MemoryStore());
-			repository.initialize();
-			logger.trace("LdpCache initialized MemoryStore cache");
+			if (useExtraRepository) {
+				// TODO: make this configurable
+				repository = new SailRepository(new MemoryStore());
+				repository.initialize();
+				logger.trace("LdpCache initialized internal MemoryStore repository.");
+			}
 		} catch (RepositoryException re) {
 			throw new IllegalStateException("Failed to initialize LdpCache repository: " + re);
 		}
@@ -104,6 +113,8 @@ public class LdpCache {
 					if (null == cacheModel) {
 						cacheModel = modelSet.createModel(CACHE_MODEL_URI);
 					}
+					// add the LDP cache as readable graph to the modelset
+					modelSet.getModule().addReadableGraph(CACHE_MODEL_URI);
 
 					// create a model to hold the configured endpoints
 					Set<URI> newEndpoints = getEndpoints();
@@ -136,6 +147,9 @@ public class LdpCache {
 					}
 					try {
 						endpointModel.getManager().add(stmts);
+						// add a statement about the ontology into the cache (so that it isn't empty)
+						getConnection().add(vf.createStatement(CACHE_MODEL_IRI, vc.toRdf4j(RDF.PROPERTY_TYPE),
+								vc.toRdf4j(OWL.TYPE_ONTOLOGY)), CACHE_MODEL_IRI);
 					} catch (Throwable t) {
 						t.printStackTrace();
 					}
@@ -155,6 +169,8 @@ public class LdpCache {
 	 * Called from OSGi-DS upon component de-activation.
 	 */
 	protected void deactivate() {
+		INSTANCE = null;
+		logger.trace("LdpCache deactivated");
 	}
 
 	/**
@@ -162,7 +178,7 @@ public class LdpCache {
 	 * 
 	 * @param modelSet
 	 */
-	protected void setModelSet(IModelSet modelSet) {
+	public void setModelSet(IModelSet modelSet) {
 		// FIXME: do handle the dynamic nature properly
 		this.modelSet = modelSet;
 	}
@@ -172,17 +188,45 @@ public class LdpCache {
 	 * 
 	 * @param modelSet
 	 */
-	protected void unsetModelSet(IModelSet modelSet) {
+	public void unsetModelSet(IModelSet modelSet) {
 		// FIXME: do handle the dynamic nature properly
 		this.modelSet = null;
 	}
 
-	public RepositoryConnection getConnection() throws RepositoryException {
-		return repository.getConnection();
+	/**
+	 * Binds the PluginConfigModel. Called by OSGi-DS.
+	 * 
+	 * @param configModel
+	 */
+	protected void setPluginConfigModel(PluginConfigModel configModel) {
+		configModel.begin();
+		try {
+			IResource cacheCfg = configModel.getManager().find(PLUGIN_CONFIG_URI.appendLocalPart("cache"), IResource.class);
+			Object modelCfgSetting = cacheCfg.getSingle(PLUGIN_CONFIG_URI.appendLocalPart("model"));
+			if (null != modelCfgSetting) {
+				URI cacheModel = URIs.createURI(modelCfgSetting.toString());
+				logger.info("using cacheModel=" + cacheModel);
+				// TODO: actually set up internal cache model using that
+				// configuration
+			}
+			Object extraRepositorySetting = cacheCfg.getSingle(PLUGIN_CONFIG_URI.appendLocalPart("extraRepository"));
+			if (null != extraRepositorySetting) {
+				useExtraRepository = Boolean.parseBoolean(extraRepositorySetting.toString());
+			}
+		} finally {
+			configModel.end();
+		}
 	}
 
-	// FIXME! problematic invocation order, this is called from
-	// FederationModelSetSupport
+	/**
+	 * Unbinds the PluginConfigModel. Called by OSGi-DS.
+	 * 
+	 * @param configModel
+	 */
+	public void unsetPluginConfigModel(PluginConfigModel configModel) {
+	}
+
+	// FIXME: invocation order, called from FederationModelSetSupport
 	public static void addEndpoint(IReference endpoint) {
 		// when the modelset becomes available, the endpoints will be
 		// registered with the endpoint model
@@ -214,5 +258,124 @@ public class LdpCache {
 
 		logger.trace("LDP EP for resource '{}': {}", resource, endpoint);
 		return endpoint;
+	}
+
+	public LdpCacheConnection getConnection() {
+		return new LdpCacheConnection();
+	}
+
+	public RepositoryConnection getRepositoryConnection() {
+		// FIXME: support ModelSet as internal repository
+		if (!useExtraRepository) {
+			throw new RepositoryException("Invalid configuration, no internal repository!");
+		}
+		return repository.getConnection();
+	}
+
+	/**
+	 * Abstract away the difference between internal repository (for e.g.
+	 * federation) and use with IModelSet.
+	 * <p>
+	 * FIXME: Get rid of this, work w/ KOMMA in LdpClient?
+	 */
+	public class LdpCacheConnection {
+
+		protected RepositoryConnection conn;
+
+		public LdpCacheConnection() {
+			if (useExtraRepository) {
+				conn = repository.getConnection();
+				logger.trace("ctor() conn=" + conn);
+			} else {
+				modelSet.getUnitOfWork().begin();
+			}
+		}
+
+		public void close() {
+			if (useExtraRepository) {
+				logger.trace("close() conn=" + conn);
+				conn.close();
+				conn = null;
+			} else {
+				modelSet.getUnitOfWork().end();
+			}
+		}
+
+		public boolean isActive() {
+			if (useExtraRepository) {
+				return conn.isActive();
+			} else {
+				return cacheModel.getManager().getTransaction().isActive();
+			}
+		}
+
+		public void begin() {
+			if (useExtraRepository) {
+				conn.begin();
+			} else {
+				cacheModel.getManager().getTransaction().begin();
+			}
+		}
+
+		public void rollback() {
+			logger.trace("");
+			if (useExtraRepository) {
+				conn.rollback();
+			} else {
+				cacheModel.getManager().getTransaction().rollback();
+			}
+		}
+
+		public void commit() {
+			logger.trace("commit() conn=" + conn);
+			if (useExtraRepository) {
+				conn.commit();
+			} else {
+				cacheModel.getManager().getTransaction().commit();
+			}
+		}
+
+		public List<org.eclipse.rdf4j.model.Statement> getStatements(Resource subject, IRI predicate, Value object,
+				boolean includeInferred, Resource... ctxs) {
+			logger.trace("getStatements({}, {}, {}, {}, {})", new Object[]{ subject, predicate, object, includeInferred, ctxs });
+			if (useExtraRepository) {
+				return Iterations.asList(conn.getStatements(subject, predicate, object, includeInferred, ctxs));
+			} else {
+				return cacheModel.getManager()
+						.match(vc.fromRdf4j(subject), vc.fromRdf4j(predicate), vc.fromRdf4j(object))
+						.mapWith(new IMap<IStatement, org.eclipse.rdf4j.model.Statement>() {
+							@Override
+							public org.eclipse.rdf4j.model.Statement map(IStatement stmt) {
+								return vc.toRdf4j(stmt);
+							}
+						}).toList();
+			}
+		}
+
+		public boolean add(org.eclipse.rdf4j.model.Statement statement, IRI ctx) {
+			logger.trace("add({}, {})", statement, ctx);
+			if (useExtraRepository) {
+				conn.add(statement, ctx);
+			} else {
+				cacheModel.getManager()
+						.add(new Statement( //
+								vc.fromRdf4j(statement.getSubject()), vc.fromRdf4j(statement.getPredicate()),
+								vc.fromRdf4j(statement.getObject()), vc.fromRdf4j(statement.getContext())));
+			}
+			return true;
+		}
+
+		public boolean remove(Resource subject, IRI predicate, Value object, Resource... ctxs) {
+			logger.trace("remove({}, {}, {}, {})", new Object[]{ subject, predicate, object, ctxs });
+			if (useExtraRepository) {
+				conn.remove(subject, predicate, object, ctxs);
+			} else {
+				for (Resource ctx : ctxs) {
+					cacheModel.getManager().remove(new StatementPattern( //
+							vc.fromRdf4j(subject), vc.fromRdf4j(predicate), vc.fromRdf4j(object), vc.fromRdf4j(ctx)));
+				}
+			}
+			return true;
+		}
 	}
 }

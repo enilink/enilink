@@ -1,4 +1,4 @@
-package net.enilink.ldp;
+package net.enilink.ldp.remote;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -22,9 +22,7 @@ import org.eclipse.rdf4j.model.Resource;
 import org.eclipse.rdf4j.model.Statement;
 import org.eclipse.rdf4j.model.ValueFactory;
 import org.eclipse.rdf4j.model.impl.SimpleValueFactory;
-import org.eclipse.rdf4j.repository.RepositoryConnection;
 import org.eclipse.rdf4j.repository.RepositoryException;
-import org.eclipse.rdf4j.repository.RepositoryResult;
 import org.eclipse.rdf4j.rio.RDFFormat;
 import org.eclipse.rdf4j.rio.RDFHandlerException;
 import org.eclipse.rdf4j.rio.RDFParser;
@@ -33,6 +31,8 @@ import org.eclipse.rdf4j.rio.UnsupportedRDFormatException;
 import org.eclipse.rdf4j.rio.helpers.AbstractRDFHandler;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import net.enilink.ldp.remote.LdpCache.LdpCacheConnection;
 
 /**
  * Simple LDP client on top of commons HttpClient.
@@ -62,7 +62,7 @@ public class LdpClient {
 	 * @return True if the resource needs to be updated (doesn't exist in the
 	 *         cache yet or is out-of-date), false if it is up-to-date.
 	 */
-	public static boolean needsUpdate(Resource resource) {
+	public static boolean needsUpdate(Resource resource) throws Exception {
 		return needsUpdate(resource, LdpCache.getInstance().getEndpoint(resource));
 	}
 
@@ -74,7 +74,7 @@ public class LdpClient {
 	 *            The endpoint (short-circuit when already determined).
 	 * @see #needsUpdate(Resource)
 	 */
-	public static boolean needsUpdate(Resource resource, IRI endpoint) {
+	public static boolean needsUpdate(Resource resource, IRI endpoint) throws Exception {
 		// guard against blank nodes
 		if (!(resource instanceof IRI)) {
 			return false;
@@ -103,7 +103,7 @@ public class LdpClient {
 		try {
 			CloseableHttpResponse headResponse = httpClient.execute(headRequest);
 			logger.info("HEAD response status={} content-type={}", headResponse.getStatusLine().getStatusCode(),
-					headResponse.getLastHeader("Content-Type").getValue());
+					headResponse.getLastHeader("Content-Type"));
 			Header eTagHeader = headResponse.getLastHeader("ETag");
 			headResponse.close();
 			String newETag = eTagHeader != null ? eTagHeader.getValue() : "-UNSET-";
@@ -111,10 +111,9 @@ public class LdpClient {
 			logger.info("ETag header value: {} vs. cached ETag: {}", newETag, cachedETag);
 			return !newETag.equals(cachedETag);
 		} catch (Throwable t) {
-			t.printStackTrace();
+			throw t;
 			// FIXME: avoid continuous retries with unreliable connections
 			// maybe use some exponential-back-off strategy
-			return false;
 		} finally {
 			try {
 				httpClient.close();
@@ -156,27 +155,30 @@ public class LdpClient {
 
 		List<Statement> remoteStmts = acquireRemoteStatements(uri);
 		if (!remoteStmts.isEmpty()) {
-			RepositoryConnection conn = LdpCache.getInstance().getConnection();
+			logger.trace("getting LdpCache connection...");
+			LdpCacheConnection conn = LdpCache.getInstance().getConnection();
 			try {
 				// start by removing the existing statements w/ subject uri
 				// do this in a separate transaction
 				// FIXME: since statements with subjects other then the
 				// request uri are accepted below, deal with deleting them
-				conn.begin();
+				boolean wasActive = conn.isActive();
+				if (!wasActive) conn.begin();
 				try {
 					// maybe include the endpoint as context as well?
 					// (see below)
 					// FIXME: delete sub-resources? (see above)
 					conn.remove(uri, null, null, LdpCache.CACHE_MODEL_IRI);
-					conn.commit();
+					if (!wasActive && conn.isActive()) conn.commit();
 				} finally {
-					if (conn.isActive())
+					if (!wasActive && conn.isActive())
 						conn.rollback();
 				}
 
 				// now add all statements from the LDP endpoint
 				// do this in a separate transaction as well
-				conn.begin();
+				wasActive = conn.isActive();
+				if (!wasActive) conn.begin();
 				try {
 					for (Statement remoteStmt : remoteStmts) {
 						// accepts sub-resources (containers...) to the
@@ -189,16 +191,19 @@ public class LdpClient {
 							conn.add(remoteStmt, LdpCache.CACHE_MODEL_IRI);
 						}
 					}
-					conn.commit();
+					if (!wasActive && conn.isActive()) {
+						conn.commit();
+					}
 				} finally {
-					if (conn.isActive())
+					if (!wasActive && conn.isActive()) {
 						conn.rollback();
+					}
 				}
 			} finally {
 				conn.close();
 			}
 
-			logger.info("added {} statements for '{}'", remoteStmts.size(), uri);
+			logger.trace("added {} statements for '{}'", remoteStmts.size(), uri);
 			return true;
 		}
 		return false;
@@ -218,16 +223,17 @@ public class LdpClient {
 		}
 
 		try {
-			RepositoryConnection conn = LdpCache.getInstance().getConnection();
+			LdpCacheConnection conn = LdpCache.getInstance().getConnection();
 			try {
 				String eTag = null;
-				RepositoryResult<Statement> stmts = conn.getStatements(uri, PROPERTY_ETAG, null, false,
+				List<Statement> stmts = conn.getStatements(uri, PROPERTY_ETAG, null, false,
 						LdpCache.CACHE_MODEL_IRI);
-				while (stmts.hasNext()) {
-					Statement stmt = stmts.next();
+				//while (stmts.hasNext()) {
+				for (Statement stmt : stmts) {
+					//Statement stmt = stmts.next();
 					eTag = stmt.getObject().stringValue();
 				}
-				stmts.close();
+				//stmts.close();
 				logger.trace("got ETag {} for '{}'", eTag, uri);
 				eTagCache.put(uri, eTag);
 				return eTag;
