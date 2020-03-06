@@ -7,195 +7,288 @@
 	<artifactId>platform-parent</artifactId>
 	<version>1.2.5-SNAPSHOT</version>
 	<packaging>pom</packaging>
+
+	<name>eniLINK: Parent</name>
+	<url>https://platform.enilink.net/</url>
+	<description>eniLINK is a web platform for linked data applications based on the KOMMA framework and Lift.</description>
+
 	<properties>
-		<tycho-version>0.24.0</tycho-version>
-		<scala.version>2.11.1</scala.version>
 		<path.to.root>../../..</path.to.root>
+		
+		<project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+
+		<lift.version>2.6.3</lift.version>
+		<scala.version>2.11.1</scala.version>
+		
+		<enilink.scm.connection>scm:git:git://github.com:enilink/enilink.git</enilink.scm.connection>
+		<enilink.scm.developerConnection>scm:git:git@github.com:enilink/enilink.git</enilink.scm.developerConnection>
+		<enilink.scm.url>https://github.com/enilink/enilink</enilink.scm.url>
 	</properties>
-	<profiles>
-		<profile>
-			<id>x86</id>
-			<build>
-				<plugins>
-					<plugin>
-						<groupId>org.eclipse.tycho</groupId>
-						<artifactId>target-platform-configuration</artifactId>
-						<configuration>
-							<executionEnvironment>JavaSE-1.8</executionEnvironment>
-							<environments>
-								<environment>
-									<os>win32</os>
-									<ws>win32</ws>
-									<arch>x86</arch>
-								</environment>
-							</environments>
-						</configuration>
-					</plugin>
-				</plugins>
-			</build>
-		</profile>
-	</profiles>
+
+	<organization>
+		<name>Fraunhofer IWU</name>
+		<url>https://www.iwu.fraunhofer.de/</url>
+	</organization>
+
+	<issueManagement>
+		<system>Github</system>
+		<url>https://github.com/komma/komma/issues</url>
+	</issueManagement>
+
+	<developers>
+		<developer>
+			<id>kenwenzel</id>
+			<name>Ken Wenzel</name>
+			<roles>
+				<role>architect</role>
+				<role>developer</role>
+			</roles>
+			<url>https://github.com/kenwenzel</url>
+		</developer>
+
+		<developer>
+			<id>mfriedemann</id>
+			<name>Marko Friedemann</name>
+			<roles>
+				<role>developer</role>
+			</roles>
+			<url>https://github.com/mfriedemann</url>
+		</developer>
+	</developers>
+
+	<licenses>
+		<license>
+			<name>Eclipse Public License v2.0</name>
+			<url>https://www.eclipse.org/legal/epl-2.0/</url>
+			<distribution>repo</distribution>
+		</license>
+	</licenses>
+
+	<scm>
+		<connection>${komma.scm.connection}</connection>
+		<developerConnection>${komma.scm.developerConnection}</developerConnection>
+		<url>${komma.scm.url}</url>
+	</scm>
+
 	<build>
-		<directory>target-maven</directory>
-	
 		<plugins>
 			<plugin>
-				<groupId>org.eclipse.tycho</groupId>
-				<artifactId>tycho-maven-plugin</artifactId>
-				<version>${tycho-version}</version>
-				<extensions>true</extensions>
-			</plugin>
-			<plugin>
-				<groupId>org.eclipse.tycho</groupId>
-				<artifactId>tycho-compiler-plugin</artifactId>
-				<version>${tycho-version}</version>
-				<configuration>
-					<excludeResources>
-						<excludeResource>**/*.scala</excludeResource>
-					</excludeResources>
-				</configuration>
-			</plugin>
-			<plugin>
-				<groupId>org.eclipse.tycho</groupId>
-				<artifactId>target-platform-configuration</artifactId>
-				<configuration>
-					<executionEnvironment>JavaSE-1.8</executionEnvironment>
-					<environments>
-						<environment>
-							<os>linux</os>
-							<ws>gtk</ws>
-							<arch>x86_64</arch>
-						</environment>
-						<environment>
-							<os>win32</os>
-							<ws>win32</ws>
-							<arch>x86_64</arch>
-						</environment>
-						<environment>
-							<os>macosx</os>
-							<ws>cocoa</ws>
-							<arch>x86_64</arch>
-						</environment>
-					</environments>
-				</configuration>
-			</plugin>
-			<plugin>
-				<groupId>net.alchim31.maven</groupId>
-				<artifactId>scala-maven-plugin</artifactId>
-				<version>3.2.1</version>
-				<configuration>
-					<scalaVersion>${scala.version}</scalaVersion>
-				</configuration>
+				<groupId>biz.aQute.bnd</groupId>
+				<artifactId>bnd-maven-plugin</artifactId>
 				<executions>
 					<execution>
+						<phase>compile</phase>
 						<goals>
-							<goal>compile</goal>
-							<goal>testCompile</goal>
+							<goal>bnd-process</goal>
 						</goals>
 					</execution>
 				</executions>
 			</plugin>
 			<plugin>
-				<groupId>org.eclipse.tycho</groupId>
-				<artifactId>tycho-source-plugin</artifactId>
-				<version>${tycho-version}</version>
+				<!-- resolve variables and remove development configuration from POM 
+					files -->
+				<groupId>org.codehaus.mojo</groupId>
+				<artifactId>flatten-maven-plugin</artifactId>
+				<version>1.1.0</version>
+				<configuration>
+					<flattenMode>ossrh</flattenMode>
+				</configuration>
 				<executions>
+					<!-- enable flattening -->
 					<execution>
-						<id>plugin-source</id>
+						<id>flatten</id>
+						<phase>process-resources</phase>
 						<goals>
-							<goal>plugin-source</goal>
+							<goal>flatten</goal>
+						</goals>
+					</execution>
+					<!-- ensure proper cleanup -->
+					<execution>
+						<id>flatten.clean</id>
+						<phase>clean</phase>
+						<goals>
+							<goal>clean</goal>
 						</goals>
 					</execution>
 				</executions>
-			</plugin>
-			<plugin>
-				<groupId>org.eclipse.tycho</groupId>
-				<artifactId>tycho-versions-plugin</artifactId>
-				<version>${tycho-version}</version>
 			</plugin>
 		</plugins>
+
 		<pluginManagement>
 			<plugins>
 				<plugin>
-					<groupId>org.eclipse.tycho</groupId>
-					<artifactId>tycho-p2-repository-plugin</artifactId>
-					<version>${tycho-version}</version>
-				</plugin>
-				<plugin>
-					<groupId>org.eclipse.tycho</groupId>
-					<artifactId>tycho-p2-director-plugin</artifactId>
-					<version>${tycho-version}</version>
+					<groupId>org.apache.maven.plugins</groupId>
+					<artifactId>maven-compiler-plugin</artifactId>
+					<version>3.5.1</version>
 					<configuration>
-						<formats>
-							<linux>tar.gz</linux>
-						</formats>
+						<source>1.8</source>
+						<target>1.8</target>
 					</configuration>
 				</plugin>
+
 				<plugin>
-					<groupId>org.eclipse.tycho.extras</groupId>
-					<artifactId>tycho-source-feature-plugin</artifactId>
-					<version>${tycho-version}</version>
+					<groupId>org.apache.maven.plugins</groupId>
+					<artifactId>maven-javadoc-plugin</artifactId>
+					<version>2.10.3</version>
+					<configuration>
+						<source>8</source>
+						<additionalparam>${javadoc.opts}</additionalparam>
+					</configuration>
+				</plugin>
+
+				<plugin>
+					<groupId>org.apache.maven.plugins</groupId>
+					<artifactId>maven-jar-plugin</artifactId>
+					<version>3.1.1</version>
+					<configuration>
+						<archive>
+							<manifestFile>${project.build.outputDirectory}/META-INF/MANIFEST.MF</manifestFile>
+						</archive>
+					</configuration>
 					<executions>
 						<execution>
-							<id>source-feature</id>
 							<goals>
-								<goal>source-feature</goal>
+								<goal>test-jar</goal>
 							</goals>
 						</execution>
 					</executions>
 				</plugin>
+
 				<plugin>
-					<groupId>org.eclipse.tycho</groupId>
-					<artifactId>tycho-p2-plugin</artifactId>
-					<version>${tycho-version}</version>
-					<executions>
-						<execution>
-							<id>attached-p2-metadata</id>
-							<phase>package</phase>
-							<goals>
-								<goal>p2-metadata</goal>
-							</goals>
-						</execution>
-					</executions>
+					<groupId>org.apache.maven.plugins</groupId>
+					<artifactId>maven-surefire-plugin</artifactId>
+					<version>2.22.2</version>
+					<configuration>
+						<encoding>UTF-8</encoding>
+					</configuration>
 				</plugin>
+
 				<plugin>
-					<groupId>org.eclipse.tycho</groupId>
-					<artifactId>target-platform-configuration</artifactId>
-					<version>${tycho-version}</version>
+					<groupId>org.apache.maven.plugins</groupId>
+					<artifactId>maven-gpg-plugin</artifactId>
+					<version>1.6</version>
 				</plugin>
+
+				<plugin>
+					<groupId>org.apache.maven.plugins</groupId>
+					<artifactId>maven-source-plugin</artifactId>
+					<version>3.2.0</version>
+				</plugin>
+
+				<plugin>
+					<groupId>biz.aQute.bnd</groupId>
+					<artifactId>bnd-maven-plugin</artifactId>
+					<version>4.3.1</version>
+				</plugin>
+
 				<plugin>
 					<artifactId>maven-resources-plugin</artifactId>
+					<executions>
+						<execution>
+							<id>copy-resources</id>
+							<phase>compile</phase>
+							<goals>
+								<goal>copy-resources</goal>
+							</goals>
+							<configuration>
+								<outputDirectory>${project.basedir}/META-INF</outputDirectory>
+								<resources>
+									<resource>
+										<directory>${project.build.outputDirectory}/META-INF</directory>
+										<includes>
+											<include>MANIFEST.MF</include>
+										</includes>
+									</resource>
+								</resources>
+							</configuration>
+						</execution>
+					</executions>
+				</plugin>
+
+				<plugin>
+					<artifactId>maven-clean-plugin</artifactId>
+					<version>3.1.0</version>
+					<configuration>
+						<filesets>
+							<fileset>
+								<directory>META-INF</directory>
+								<includes>
+									<include>MANIFEST.MF</include>
+								</includes>
+								<followSymlinks>false</followSymlinks>
+							</fileset>
+						</filesets>
+					</configuration>
+				</plugin>
+
+				<plugin>
+					<groupId>org.codehaus.mojo</groupId>
+					<artifactId>versions-maven-plugin</artifactId>
 					<version>2.7</version>
+				</plugin>
+
+				<!-- Ignore flatten plugin in M2E -->
+				<plugin>
+					<groupId>org.eclipse.m2e</groupId>
+					<artifactId>lifecycle-mapping</artifactId>
+					<version>1.0.0</version>
+					<configuration>
+						<lifecycleMappingMetadata>
+							<pluginExecutions>
+								<pluginExecution>
+									<pluginExecutionFilter>
+										<groupId>
+											org.codehaus.mojo
+										</groupId>
+										<artifactId>
+											flatten-maven-plugin
+										</artifactId>
+										<versionRange>
+											[1.1.0,)
+										</versionRange>
+										<goals>
+											<goal>flatten</goal>
+										</goals>
+									</pluginExecutionFilter>
+									<action>
+										<ignore></ignore>
+									</action>
+								</pluginExecution>
+							</pluginExecutions>
+						</lifecycleMappingMetadata>
+					</configuration>
 				</plugin>
 			</plugins>
 		</pluginManagement>
+
+		<resources>
+			<resource>
+				<directory>src/main/resources</directory>
+				<excludes>
+					<exclude>.keep</exclude>
+				</excludes>
+			</resource>
+
+			<resource>
+				<directory>.</directory>
+				<includes>
+					<include>META-INF/**</include>
+					<include>OSGI-INF/**</include>
+					<include>icons/**</include>
+					<include>schema/*.exsd</include>
+					<include>about.html</include>
+					<include>plugin.xml</include>
+					<include>plugin.properties</include>
+				</includes>
+			</resource>
+		</resources>
 	</build>
 
-	<repositories>
-		<repository>
-			<id>komma</id>
-			<layout>p2</layout>
-			<url>https://dl.bintray.com/komma/updates/komma/1.3.2/</url>
-		</repository>
-		<repository>
-			<id>mars</id>
-			<layout>p2</layout>
-			<url>http://download.eclipse.org/releases/mars/</url>
-		</repository>
-		<repository>
-			<id>scala</id>
-			<layout>p2</layout>
-			<url>http://download.scala-ide.org/sdk/lithium/e44/scala211/stable/site/</url>
-		</repository>
-		<repository>
-			<id>libraries-p2</id>
-			<layout>p2</layout>
-			<url>${project.baseUri}${path.to.root}/libraries-p2/target/repository/</url>
-		</repository>
-	</repositories>
-
 	<modules>
-		<module>releng/platform-updatesite</module>
-		<module>features</module>
+		<module>bundles/vendor/net.enilink.bundles.liftweb</module>
+		<module>bundles/core/net.enilink.core</module>
+		<module>bundles/core/net.enilink.security</module>
+		<module>bundles/web/net.enilink.lift</module>
+		<module>bundles/web/net.enilink.web</module>
 	</modules>
 </project>
