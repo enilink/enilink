@@ -1,39 +1,30 @@
 package net.enilink.lift.util
 
-import net.enilink.komma.model.IModel
-import net.enilink.lift.selection.SelectionProvider
-import net.liftweb.http.Factory
-import net.liftweb.util.Vendor.funcToVender
-import net.liftweb.util.Helpers
-import org.eclipse.core.runtime.Platform
-import scala.Array.canBuildFrom
-import net.liftweb.common._
-import net.enilink.komma.core.IReference
-import net.liftweb.http.S
-import javax.security.auth.Subject
-import net.enilink.komma.core.URIs
-import net.enilink.komma.core.URI
-import net.enilink.core.security.ISecureModelSet
-import net.liftweb.http.Req
-import net.enilink.core.security.SecurityUtil
-import net.enilink.lift.sitemap.Application
-import net.liftweb.http.ParsePath
-import net.liftweb.http.LiftRules
-import net.liftweb.http.ParsePath
-import net.liftweb.sitemap.Loc
-import net.enilink.core.blobs.FileStore
-import java.io.File
-import java.nio.file.Files
-import java.nio.file.Path
-import net.liftweb.util.Props
 import java.nio.file.Paths
-import net.enilink.komma.model.IModelSet
-import org.osgi.util.tracker.ServiceTracker
-import net.enilink.lift.Activator
+
+import org.eclipse.core.runtime.Platform
 import org.osgi.framework.FrameworkUtil
-import net.enilink.lift.sitemap.Menus
+import org.osgi.util.tracker.ServiceTracker
+
 import net.enilink.core.Config
 import net.enilink.core.PluginConfigModel
+import net.enilink.core.blobs.FileStore
+import net.enilink.core.security.ISecureModelSet
+import net.enilink.core.security.SecurityUtil
+import net.enilink.komma.core.IReference
+import net.enilink.komma.core.URI
+import net.enilink.komma.model.IModel
+import net.enilink.komma.model.IModelSet
+import net.enilink.lift.sitemap.Application
+import net.liftweb.common.Box
+import net.liftweb.common.Empty
+import net.liftweb.common.Full
+import net.liftweb.http.Factory
+import net.liftweb.http.LiftRules
+import net.liftweb.http.ParsePath
+import net.liftweb.http.Req
+import net.liftweb.http.S
+import net.liftweb.util.Helpers
 
 /**
  * A registry for global variables which are shared throughout the application.

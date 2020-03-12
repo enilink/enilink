@@ -23,20 +23,35 @@ import net.liftweb.http.LiftRulesMocker.toLiftRules
 import net.liftweb.http.ResourceServer
 import net.liftweb.util.Helpers._
 import org.osgi.framework.Bundle
+import org.osgi.service.http.context.ServletContextHelper
+import org.osgi.service.component.annotations.Component
+import org.osgi.service.component.annotations.ServiceScope._
+import org.osgi.service.component.annotations.Reference
+import org.osgi.service.http.HttpService
 
 /**
- * Special HttpContext that delegates resource lookups to observed
- * Lift-powered bundles and other methods to wrapped HttpContext.
+ * ServletContextHelper for HTTP whiteboard that delegates resource lookups to registered
+ * Lift-powered bundles
  */
-class LiftHttpContext(context: HttpContext, bundleTracker: BundleTracker[LiftBundleConfig]) extends HttpContext with Logger {
-  assert(context != null, "HttpContext must not be null!")
+@Component(
+  service = Array(classOf[ServletContextHelper]),
+  scope = SINGLETON,
+  property = Array("osgi.http.whiteboard.context.name=liftweb", "osgi.http.whiteboard.context.path=/"))
+class LiftHttpContext extends ServletContextHelper with Logger {
+  var liftLifecycleManager: LiftLifecycleManager = null
+
+  @Reference
+  def setLiftLifecycleManager(manager: LiftLifecycleManager) {
+    this.liftLifecycleManager = manager
+    this.webJarLocator = new WebJarAssetLocator(findWebjarAssets)
+  }
 
   // support for WebJars
   def findWebjarAssets = {
     val webjarAssets = new java.util.HashSet[String]
     val seenPaths = mutable.Map.empty[String, Set[Bundle]]
 
-    bundleTracker.getTracked.entrySet.toSeq foreach { entry =>
+    liftLifecycleManager.bundles.entrySet.toSeq foreach { entry =>
       val bundle = entry.getKey
       val hasWebJars = bundle.getEntry(WebJarAssetLocator.WEBJARS_PATH_PREFIX) != null
       if (hasWebJars) {
@@ -54,15 +69,16 @@ class LiftHttpContext(context: HttpContext, bundleTracker: BundleTracker[LiftBun
         }
       }
     }
-    
-    seenPaths.filter(_._2.size > 1).foreach { case (path, bundles) =>
-      info("WebJar asset '" + path + "' is served by more than one bundle: " + bundles.map(_.getSymbolicName).mkString(", ")) 
+
+    seenPaths.filter(_._2.size > 1).foreach {
+      case (path, bundles) =>
+        info("WebJar asset '" + path + "' is served by more than one bundle: " + bundles.map(_.getSymbolicName).mkString(", "))
     }
-    
+
     webjarAssets
   }
 
-  val webJarLocator = new WebJarAssetLocator(findWebjarAssets)
+  var webJarLocator: WebJarAssetLocator = null
   val WEBJARS = "/" + ResourceServer.baseResourceLocation + "/webjars"
 
   // external resource locations
@@ -71,7 +87,10 @@ class LiftHttpContext(context: HttpContext, bundleTracker: BundleTracker[LiftBun
     case paths => paths.split("\\s+\\s").map(new File(_)).toList
   }
 
-  override def getMimeType(s: String) = context getMimeType s
+  override def getMimeType(s: String) = {
+    // whiteboard implementation determines the mime type itself
+    null
+  }
 
   override def getResource(s: String) = {
     debug("""Asked for resource "%s".""" format s)
@@ -137,7 +156,7 @@ class LiftHttpContext(context: HttpContext, bundleTracker: BundleTracker[LiftBun
     }
     debug("""Places for resource "%s".""" format places)
 
-    val liftBundles = bundleTracker.getTracked.entrySet.toSeq.view
+    val liftBundles = liftLifecycleManager.bundles.entrySet.toSeq.view
     (places.view.flatMap { place =>
       liftBundles.flatMap { b =>
         b.getKey getResource (b.getValue mapResource place) match {
@@ -159,6 +178,4 @@ class LiftHttpContext(context: HttpContext, bundleTracker: BundleTracker[LiftBun
         case Some(res) => res
       }
   }
-
-  override def handleSecurity(req: HttpServletRequest, res: HttpServletResponse) = context.handleSecurity(req, res)
 }

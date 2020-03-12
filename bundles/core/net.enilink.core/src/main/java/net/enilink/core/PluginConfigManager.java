@@ -29,6 +29,10 @@ import org.osgi.framework.InvalidSyntaxException;
 import org.osgi.framework.ServiceFactory;
 import org.osgi.framework.ServiceReference;
 import org.osgi.framework.ServiceRegistration;
+import org.osgi.service.component.annotations.Activate;
+import org.osgi.service.component.annotations.Component;
+import org.osgi.service.component.annotations.Deactivate;
+import org.osgi.service.component.annotations.Reference;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -64,6 +68,7 @@ import net.enilink.vocab.rdf.RDF;
  * file named {bundle.symbolicName}-default.ttl contained in the OSGI-INF
  * directory within the bundle itself.
  */
+@Component
 public class PluginConfigManager {
 	private static final Logger log = LoggerFactory.getLogger(PluginConfigManager.class);
 
@@ -80,6 +85,7 @@ public class PluginConfigManager {
 
 	private Thread watcher;
 
+	@Activate
 	public void activate() throws InvalidSyntaxException, URISyntaxException {
 		this.modelSet = createModelSet();
 		
@@ -383,10 +389,12 @@ public class PluginConfigManager {
 		return uow;
 	}
 
+	@Reference
 	public void setConfig(Config config) {
 		this.config = config;
 	}
 
+	@Deactivate
 	public void deactivate() {
 		if (watcher != null) {
 			watcher.interrupt();

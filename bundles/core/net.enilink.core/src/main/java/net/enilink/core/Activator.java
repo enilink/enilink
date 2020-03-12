@@ -20,7 +20,6 @@ public class Activator implements BundleActivator {
 
 	private static BundleContext context;
 
-	private ServiceRegistration<?> configReg;
 	private ServiceRegistration<?> modelSetReg;
 
 	public static BundleContext getContext() {
@@ -37,30 +36,6 @@ public class Activator implements BundleActivator {
 	public void start(BundleContext bundleContext) throws Exception {
 		Activator.context = bundleContext;
 		Dictionary<String, Object> props = new Hashtable<>();
-		configReg = bundleContext.registerService(Config.class.getName(),
-				new ServiceFactory<Config>() {
-					ConfigHashGraph config;
-
-					@Override
-					public Config getService(Bundle bundle,
-							ServiceRegistration<Config> registration) {
-						if (config == null) {
-							synchronized (this) {
-								if (config == null) {
-									config = new ConfigHashGraph();
-									config.load();
-								}
-							}
-						}
-						return config;
-					}
-
-					@Override
-					public void ungetService(Bundle bundle,
-							ServiceRegistration<Config> registration,
-							Config service) {
-					}
-				}, props);
 		modelSetReg = bundleContext.registerService(IModelSet.class.getName(),
 				new ServiceFactory<IModelSet>() {
 					@Override
@@ -93,10 +68,6 @@ public class Activator implements BundleActivator {
 		if (modelSetReg != null) {
 			modelSetReg.unregister();
 			modelSetReg = null;
-		}
-		if (configReg != null) {
-			configReg.unregister();
-			configReg = null;
 		}
 		ModelSetManager.INSTANCE.shutdown();
 		Activator.context = null;

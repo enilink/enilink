@@ -16,6 +16,8 @@ import java.util.Set;
 
 import org.eclipse.core.runtime.Platform;
 import org.eclipse.osgi.service.datalocation.Location;
+import org.osgi.service.component.annotations.Activate;
+import org.osgi.service.component.annotations.Component;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -46,7 +48,8 @@ import net.enilink.vocab.xmlschema.XMLSCHEMA;
  * A {@link LinkedHashGraph} based implementation of the {@link Config}
  * interface.
  */
-class ConfigHashGraph extends LinkedHashGraph implements Config {
+@Component(service = Config.class)
+public class ConfigHashGraph extends LinkedHashGraph implements Config {
 	class EmptyConfig extends EmptyGraph implements Config {
 		private static final long serialVersionUID = 1L;
 
@@ -96,11 +99,11 @@ class ConfigHashGraph extends LinkedHashGraph implements Config {
 	private static final Logger log = LoggerFactory.getLogger(ConfigHashGraph.class);
 	private static final long serialVersionUID = 1L;
 
-	Config emptyConfig = new EmptyConfig();
+	private final Config emptyConfig = new EmptyConfig();
 
 	private final LiteralConverter literalConverter;
 
-	{
+	public ConfigHashGraph() {
 		literalConverter = Guice.createInjector(new AbstractModule() {
 			@Override
 			protected void configure() {
@@ -149,6 +152,7 @@ class ConfigHashGraph extends LinkedHashGraph implements Config {
 	 * Load platform configuration from a file specified by the system property
 	 * {@link ConfigHashGraph#LOCATION_PROPERTY}.
 	 */
+	@Activate
 	public void load() {
 		URI configUri = null;
 		String configLocation = System.getProperty(LOCATION_PROPERTY);
@@ -189,9 +193,9 @@ class ConfigHashGraph extends LinkedHashGraph implements Config {
 		}
 		// load ACL for anonymous access
 		if (toLoad.isEmpty() || "all".equals(System.getProperty("net.enilink.acl.anonymous"))) {
-			toLoad.add(URIs.createURI("platform:/plugin/net.enilink.core/resources/acl-anonymous-all.ttl"));
+			toLoad.add(URIs.createURI("platform:/plugin/net.enilink.core/config/acl-anonymous-all.ttl"));
 		}
-		if (! toLoad.isEmpty()) {
+		if (!toLoad.isEmpty()) {
 			Set<URI> seen = new HashSet<>();
 
 			IURIConverter uriConverter = new ExtensibleURIConverter();

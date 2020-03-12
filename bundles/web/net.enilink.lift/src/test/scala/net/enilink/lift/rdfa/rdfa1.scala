@@ -3,7 +3,7 @@ package net.enilink.lift.rdfa
 import org.scalatest._
 import net.enilink.lift.rdf._
 import org.junit.runner.RunWith
-import org.scalatest.junit.JUnitRunner
+import org.scalatestplus.junit.JUnitRunner
 
 @RunWith(classOf[JUnitRunner])
 class RDFaMiscTestSpecs extends FlatSpec {
