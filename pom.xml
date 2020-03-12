@@ -14,12 +14,14 @@
 
 	<properties>
 		<path.to.root>../../..</path.to.root>
-		
+
 		<project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
 
 		<lift.version>2.6.3</lift.version>
+		<komma.version>1.4.0</komma.version>
+		<scala.major.version>2.11</scala.major.version>
 		<scala.version>2.11.1</scala.version>
-		
+
 		<enilink.scm.connection>scm:git:git://github.com:enilink/enilink.git</enilink.scm.connection>
 		<enilink.scm.developerConnection>scm:git:git@github.com:enilink/enilink.git</enilink.scm.developerConnection>
 		<enilink.scm.url>https://github.com/enilink/enilink</enilink.scm.url>
@@ -72,18 +74,6 @@
 
 	<build>
 		<plugins>
-			<plugin>
-				<groupId>biz.aQute.bnd</groupId>
-				<artifactId>bnd-maven-plugin</artifactId>
-				<executions>
-					<execution>
-						<phase>compile</phase>
-						<goals>
-							<goal>bnd-process</goal>
-						</goals>
-					</execution>
-				</executions>
-			</plugin>
 			<plugin>
 				<!-- resolve variables and remove development configuration from POM 
 					files -->
@@ -281,6 +271,13 @@
 					<include>plugin.properties</include>
 				</includes>
 			</resource>
+			
+			<resource>
+				<directory>src/main/webapp</directory>
+				<excludes>
+					<exclude>.keep</exclude>
+				</excludes>
+			</resource>
 		</resources>
 	</build>
 
@@ -290,5 +287,6 @@
 		<module>bundles/core/net.enilink.security</module>
 		<module>bundles/web/net.enilink.lift</module>
 		<module>bundles/web/net.enilink.web</module>
+		<module>features/net.enilink.platform.feature</module>
 	</modules>
 </project>

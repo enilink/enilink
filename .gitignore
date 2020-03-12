@@ -1,3 +1,4 @@
 .cache-main
 .cache-tests
-target-maven/
+target/
+.flattened-pom.xml

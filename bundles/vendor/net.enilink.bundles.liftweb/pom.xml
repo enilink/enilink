@@ -3,13 +3,13 @@
 	xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd"
 	xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
 	<modelVersion>4.0.0</modelVersion>
-	
+
 	<name>The Lift Web Framework (OSGi Bundle)</name>
-	
+
 	<parent>
 		<groupId>net.enilink.bundles</groupId>
 		<artifactId>enilink-vendor-bundles</artifactId>
-		<version>1.4.1-SNAPSHOT</version>
+		<version>1.2.5-SNAPSHOT</version>
 		<relativePath>../pom.xml</relativePath>
 	</parent>
 
@@ -18,21 +18,71 @@
 		<developerConnection>${enilink.scm.developerConnection}</developerConnection>
 		<url>${enilink.scm.url}</url>
 	</scm>
-	
+
 	<artifactId>net.enilink.bundles.liftweb</artifactId>
 
 	<version>${lift.version}</version>
-	
+
 	<dependencies>
 		<dependency>
 			<groupId>net.liftweb</groupId>
-			<artifactId>lift-webkit_${scala.version}</artifactId>
+			<artifactId>lift-actor_${scala.major.version}</artifactId>
 			<version>${lift.version}</version>
+			<scope>provided</scope>
+		</dependency>
+		<dependency>
+			<groupId>net.liftweb</groupId>
+			<artifactId>lift-common_${scala.major.version}</artifactId>
+			<version>${lift.version}</version>
+			<scope>provided</scope>
+		</dependency>
+		<dependency>
+			<groupId>net.liftweb</groupId>
+			<artifactId>lift-json_${scala.major.version}</artifactId>
+			<version>${lift.version}</version>
+			<scope>provided</scope>
+		</dependency>
+		<dependency>
+			<groupId>net.liftweb</groupId>
+			<artifactId>lift-markdown_${scala.major.version}</artifactId>
+			<version>${lift.version}</version>
+			<scope>provided</scope>
+		</dependency>
+		<dependency>
+			<groupId>net.liftweb</groupId>
+			<artifactId>lift-util_${scala.major.version}</artifactId>
+			<version>${lift.version}</version>
+			<scope>provided</scope>
+		</dependency>
+		<dependency>
+			<groupId>net.liftweb</groupId>
+			<artifactId>lift-webkit_${scala.major.version}</artifactId>
+			<version>${lift.version}</version>
+			<scope>provided</scope>
+		</dependency>
+		<dependency>
+			<groupId>joda-time</groupId>
+			<artifactId>joda-time</artifactId>
+			<version>2.1</version>
+			<scope>provided</scope>
+		</dependency>
+		<dependency>
+			<groupId>org.joda</groupId>
+			<artifactId>joda-convert</artifactId>
+			<version>1.2</version>
+			<scope>provided</scope>
 		</dependency>
 		<dependency>
 			<groupId>org.webjars</groupId>
 			<artifactId>webjars-locator-core</artifactId>
 			<version>0.30</version>
+			<scope>provided</scope>
+		</dependency>
+		<dependency>
+			<groupId>commons-fileupload</groupId>
+			<artifactId>commons-fileupload</artifactId>
+			<version>1.4</version>
+			<scope>provided</scope>
 		</dependency>
 	</dependencies>
 </project>
