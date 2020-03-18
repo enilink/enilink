@@ -1,0 +1,54 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<?eclipse version="3.4"?>
+<plugin>
+   <extension
+         point="net.enilink.komma.model.uriMapRules">
+      <rule
+            pattern="http://www.loa-cnr.it/ontologies/DUL.owl"
+            priority="30"
+            replacement="platform:/plugin/net.enilink.platform.core/META-INF/ontologies/misc/DUL">
+      </rule>
+      <rule
+            pattern="http://purl.oclc.org/NET/ssnx/ssn"
+            priority="30"
+            replacement="platform:/plugin/net.enilink.platform.core/META-INF/ontologies/misc/ssn">
+      </rule>
+      <rule
+            pattern="http://enilink.net/vocab/"
+            priority="30"
+            replacement="platform:/plugin/net.enilink.platform.core/META-INF/ontologies/enilink.net/vocab/">
+      </rule>
+   </extension>
+   <extension
+         id="EnilinkLoginModule"
+         point="org.eclipse.equinox.security.loginModule">
+      <loginModule
+            class="net.enilink.platform.core.jaas.EnilinkLoginModule">
+      </loginModule>
+   </extension>
+   <extension
+         id="product"
+         point="org.eclipse.core.runtime.products">
+      <product
+            application="net.enilink.platform.core.application"
+            name="enilink">
+         <property
+               name="appName"
+               value="enilink">
+         </property>
+      </product>
+   </extension>
+   <extension
+         id="application"
+         name="eniLINK Application"
+         point="org.eclipse.core.runtime.applications">
+      <application
+            cardinality="singleton-global"
+            thread="main"
+            visible="true">
+         <run
+               class="net.enilink.platform.core.eclipse.Application">
+         </run>
+      </application>
+   </extension>
+</plugin>

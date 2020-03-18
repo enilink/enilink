@@ -1,2 +1,0 @@
-Bundle-SymbolicName: ${project.artifactId};singleton:=true
-Bundle-Activator: net.enilink.core.Activator

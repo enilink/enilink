@@ -246,7 +246,7 @@
 										</goals>
 									</pluginExecutionFilter>
 									<action>
-										<ignore></ignore>
+										<execute></execute>
 									</action>
 								</pluginExecution>
 							</pluginExecutions>
@@ -294,10 +294,10 @@
 
 	<modules>
 		<module>bundles/vendor/net.enilink.bundles.liftweb</module>
-		<module>bundles/core/net.enilink.core</module>
-		<module>bundles/core/net.enilink.security</module>
-		<module>bundles/web/net.enilink.lift</module>
-		<module>bundles/web/net.enilink.web</module>
+		<module>bundles/core/net.enilink.platform.core</module>
+		<module>bundles/core/net.enilink.platform.security</module>
+		<module>bundles/web/net.enilink.platform.lift</module>
+		<module>bundles/web/net.enilink.platform.web</module>
 		<module>features/net.enilink.platform.feature</module>
 	</modules>
 </project>

@@ -53,7 +53,7 @@
 						<programArgument>-console</programArgument>
 						<programArgument>-consoleLog</programArgument>
 						<programArgument>-application</programArgument>
-						<programArgument>net.enilink.lift.application</programArgument>
+						<programArgument>net.enilink.platform.lift.application</programArgument>
 						<programArgument>-clearPersistedState</programArgument>
 						<programArgument>-clean</programArgument>
 						<programArgument>-noExit</programArgument>
@@ -65,7 +65,7 @@
 						</property>
 					</vmProperties>
 					<startLevels>
-						<net.enilink.lift>4</net.enilink.lift>
+						<net.enilink.platform.lift>4</net.enilink.platform.lift>
 						<org.eclipse.equinox.http.jetty>4</org.eclipse.equinox.http.jetty>
 						<org.eclipse.core.runtime>0</org.eclipse.core.runtime>
 						<org.eclipse.equinox.common>2</org.eclipse.equinox.common>

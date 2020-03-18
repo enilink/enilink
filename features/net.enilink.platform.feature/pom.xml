@@ -14,7 +14,7 @@
 	<dependencies>
 		<dependency>
 			<groupId>net.enilink.platform</groupId>
-			<artifactId>net.enilink.web</artifactId>
+			<artifactId>net.enilink.platform.web</artifactId>
 			<version>${project.version}</version>
 			<exclusions>
 				<exclusion>

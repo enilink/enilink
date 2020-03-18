@@ -1,0 +1,3 @@
+Bundle-SymbolicName: ${project.artifactId};singleton:=true
+Lift-Module: net.enilink.platform.lift.LiftModule
+Lift-Packages: net.enilink.platform.lift

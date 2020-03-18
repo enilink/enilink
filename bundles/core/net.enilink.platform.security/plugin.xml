@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<?eclipse version="3.4"?>
+<plugin>
+   <extension
+         point="net.enilink.komma.model.modules">
+      <module
+            class="net.enilink.platform.security.auth.AuthModule">
+      </module>
+   </extension>
+   <extension
+         id="UserMapLoginModule"
+         point="org.eclipse.equinox.security.loginModule">
+      <loginModule
+            class="net.enilink.platform.security.modules.UserMapLoginModule">
+      </loginModule>
+   </extension>
+   <!-- TODO: remove these and add them programatically from the configured loginModules -->
+   <extension
+         point="org.eclipse.equinox.security.callbackHandlerMapping">
+      <callbackHandlerMapping
+            callbackHandlerId="net.enilink.platform.security.callbackHandler"
+            configName="DUMMY">
+      </callbackHandlerMapping>
+   </extension>
+   <extension
+         point="org.eclipse.equinox.security.callbackHandlerMapping">
+      <callbackHandlerMapping
+            callbackHandlerId="net.enilink.platform.security.callbackHandler"
+            configName="CMIS">
+      </callbackHandlerMapping>
+   </extension>
+</plugin>
