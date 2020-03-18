@@ -18,9 +18,11 @@
 		<project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
 
 		<lift.version>2.6.3</lift.version>
-		<komma.version>1.4.0</komma.version>
+		<komma.version>1.4.1-SNAPSHOT</komma.version>
 		<scala.major.version>2.11</scala.major.version>
 		<scala.version>2.11.1</scala.version>
+
+		<bnd.version>4.3.1</bnd.version>
 
 		<enilink.scm.connection>scm:git:git://github.com:enilink/enilink.git</enilink.scm.connection>
 		<enilink.scm.developerConnection>scm:git:git@github.com:enilink/enilink.git</enilink.scm.developerConnection>
@@ -102,6 +104,30 @@
 					</execution>
 				</executions>
 			</plugin>
+
+			<plugin>
+				<groupId>org.apache.maven.plugins</groupId>
+				<artifactId>maven-antrun-plugin</artifactId>
+				<version>1.8</version>
+				<executions>
+					<execution>
+						<phase>validate</phase>
+						<configuration>
+							<target>
+								<symlink link="${project.basedir}/OSGI-INF"
+									resource="${project.build.outputDirectory}/OSGI-INF"
+									failonerror="false" />
+								<symlink link="${project.basedir}/META-INF"
+									resource="${project.build.outputDirectory}/META-INF"
+									failonerror="false" />
+							</target>
+						</configuration>
+						<goals>
+							<goal>run</goal>
+						</goals>
+					</execution>
+				</executions>
+			</plugin>
 		</plugins>
 
 		<pluginManagement>
@@ -168,47 +194,7 @@
 				<plugin>
 					<groupId>biz.aQute.bnd</groupId>
 					<artifactId>bnd-maven-plugin</artifactId>
-					<version>4.3.1</version>
-				</plugin>
-
-				<plugin>
-					<artifactId>maven-resources-plugin</artifactId>
-					<executions>
-						<execution>
-							<id>copy-resources</id>
-							<phase>compile</phase>
-							<goals>
-								<goal>copy-resources</goal>
-							</goals>
-							<configuration>
-								<outputDirectory>${project.basedir}/META-INF</outputDirectory>
-								<resources>
-									<resource>
-										<directory>${project.build.outputDirectory}/META-INF</directory>
-										<includes>
-											<include>MANIFEST.MF</include>
-										</includes>
-									</resource>
-								</resources>
-							</configuration>
-						</execution>
-					</executions>
-				</plugin>
-
-				<plugin>
-					<artifactId>maven-clean-plugin</artifactId>
-					<version>3.1.0</version>
-					<configuration>
-						<filesets>
-							<fileset>
-								<directory>META-INF</directory>
-								<includes>
-									<include>MANIFEST.MF</include>
-								</includes>
-								<followSymlinks>false</followSymlinks>
-							</fileset>
-						</filesets>
-					</configuration>
+					<version>${bnd.version}</version>
 				</plugin>
 
 				<plugin>
@@ -262,8 +248,6 @@
 			<resource>
 				<directory>.</directory>
 				<includes>
-					<include>META-INF/**</include>
-					<include>OSGI-INF/**</include>
 					<include>icons/**</include>
 					<include>schema/*.exsd</include>
 					<include>about.html</include>
@@ -271,7 +255,7 @@
 					<include>plugin.properties</include>
 				</includes>
 			</resource>
-			
+
 			<resource>
 				<directory>src/main/webapp</directory>
 				<excludes>
@@ -280,6 +264,14 @@
 			</resource>
 		</resources>
 	</build>
+
+	<repositories>
+		<repository>
+			<id>oss-sonatype</id>
+			<name>oss-sonatype</name>
+			<url>https://oss.sonatype.org/content/repositories/snapshots/</url>
+		</repository>
+	</repositories>
 
 	<modules>
 		<module>bundles/vendor/net.enilink.bundles.liftweb</module>

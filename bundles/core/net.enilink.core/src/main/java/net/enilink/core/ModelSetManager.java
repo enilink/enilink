@@ -14,9 +14,6 @@ import java.util.Set;
 
 import javax.security.auth.Subject;
 
-import org.eclipse.core.resources.IProject;
-import org.eclipse.core.resources.ResourcesPlugin;
-import org.eclipse.core.runtime.NullProgressMonitor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -60,10 +57,6 @@ import net.enilink.komma.model.IModelSetFactory;
 import net.enilink.komma.model.MODELS;
 import net.enilink.komma.model.ModelPlugin;
 import net.enilink.komma.model.ModelSetModule;
-import net.enilink.komma.model.base.IURIMapRule;
-import net.enilink.komma.model.base.SimpleURIMapRule;
-import net.enilink.komma.workbench.IProjectModelSet;
-import net.enilink.komma.workbench.ProjectModelSetSupport;
 import net.enilink.security.auth.AccountHelper;
 import net.enilink.security.auth.AuthModule;
 import net.enilink.vocab.acl.Authorization;
@@ -156,9 +149,6 @@ class ModelSetManager {
 		module.addBehaviour(OwlimSeModelSetSupport.class);
 		module.addBehaviour(SessionModelSetSupport.class);
 		module.addBehaviour(LazyModelSupport.class);
-
-		module.addConcept(IProjectModelSet.class);
-		module.addBehaviour(ProjectModelSetSupport.class);
 
 		module.addBehaviour(SecureModelSetSupport.class);
 		module.addBehaviour(SecureModelSupport.class);
@@ -274,34 +264,34 @@ class ModelSetManager {
 		auth.getAclMode().add(em.find(ENILINKACL.MODE_WRITERESTRICTED, net.enilink.vocab.rdfs.Class.class));
 
 		// add application specific models from the workspace
-		if (modelSet instanceof IProjectModelSet) {
-			IProject project = ResourcesPlugin.getWorkspace().getRoot().getProject("models");
-			System.out.println("Looking for models in: " + project.getLocation());
-			try {
-				if (!project.exists()) {
-					project.create(null);
-				}
-				project.open(null);
-				project.refreshLocal(IProject.DEPTH_INFINITE, new NullProgressMonitor());
-				// check configuration flag: load all project models?
-				boolean loadProjectModels = em.hasMatch(DATA_MODELSET,
-						MODELS.NAMESPACE_URI.appendLocalPart("loadProjectModels"), true);
-
-				((IProjectModelSet) modelSet).setProject(project);
-				for (IURIMapRule rule : modelSet.getURIConverter().getURIMapRules()) {
-					if (rule instanceof SimpleURIMapRule) {
-						String modelUri = ((SimpleURIMapRule) rule).getPattern();
-						if (loadProjectModels) {
-							modelSet.getModel(URIs.createURI(modelUri), true);
-						} else {
-							modelSet.createModel(URIs.createURI(modelUri));
-						}
-					}
-				}
-			} catch (Exception e) {
-				System.err.println(e.getMessage());
-			}
-		}
+//		if (modelSet instanceof IProjectModelSet) {
+//			IProject project = ResourcesPlugin.getWorkspace().getRoot().getProject("models");
+//			System.out.println("Looking for models in: " + project.getLocation());
+//			try {
+//				if (!project.exists()) {
+//					project.create(null);
+//				}
+//				project.open(null);
+//				project.refreshLocal(IProject.DEPTH_INFINITE, new NullProgressMonitor());
+//				// check configuration flag: load all project models?
+//				boolean loadProjectModels = em.hasMatch(DATA_MODELSET,
+//						MODELS.NAMESPACE_URI.appendLocalPart("loadProjectModels"), true);
+//
+//				((IProjectModelSet) modelSet).setProject(project);
+//				for (IURIMapRule rule : modelSet.getURIConverter().getURIMapRules()) {
+//					if (rule instanceof SimpleURIMapRule) {
+//						String modelUri = ((SimpleURIMapRule) rule).getPattern();
+//						if (loadProjectModels) {
+//							modelSet.getModel(URIs.createURI(modelUri), true);
+//						} else {
+//							modelSet.createModel(URIs.createURI(modelUri));
+//						}
+//					}
+//				}
+//			} catch (Exception e) {
+//				System.err.println(e.getMessage());
+//			}
+//		}
 	}
 
 	public synchronized IUnitOfWork getUnitOfWork() {
