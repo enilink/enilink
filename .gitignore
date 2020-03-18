@@ -2,3 +2,6 @@
 .cache-tests
 target/
 .flattened-pom.xml
+.settings/
+.classpath
+.project
