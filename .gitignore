@@ -5,3 +5,9 @@ target/
 .settings/
 .classpath
 .project
+# exclude symlinks
+META-INF
+OSGI-INF
+# but include the directories
+!META-INF/
+!OSGI-INF/
