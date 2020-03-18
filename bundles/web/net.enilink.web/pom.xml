@@ -7,7 +7,7 @@
 	<name>eniLINK: Common Web Components</name>
 
 	<parent>
-		<groupId>net.enilink</groupId>
+		<groupId>net.enilink.platform</groupId>
 		<artifactId>platform-parent</artifactId>
 		<version>1.2.5-SNAPSHOT</version>
 		<relativePath>../../../pom.xml</relativePath>
@@ -58,7 +58,7 @@
 	</build>
 	<dependencies>
 		<dependency>
-			<groupId>net.enilink</groupId>
+			<groupId>net.enilink.platform</groupId>
 			<artifactId>net.enilink.lift</artifactId>
 			<version>${project.version}</version>
 		</dependency>

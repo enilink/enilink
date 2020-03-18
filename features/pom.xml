@@ -4,11 +4,11 @@
 	xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
 	<modelVersion>4.0.0</modelVersion>
 	<parent>
-		<groupId>net.enilink</groupId>
+		<groupId>net.enilink.platform</groupId>
 		<artifactId>platform-parent</artifactId>
 		<version>1.2.5-SNAPSHOT</version>
 	</parent>
-	<groupId>net.enilink</groupId>
+	<groupId>net.enilink.platform</groupId>
 	<artifactId>platform-features</artifactId>
 	<version>1.2.5-SNAPSHOT</version>
 	<packaging>pom</packaging>

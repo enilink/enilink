@@ -1,6 +1,5 @@
 Bundle-Version: ${project.version}
 -exportcontents: !*.internal*, net.enilink.*
 Import-Package: !org.osgi.service.component.annotations, *
-Service-Component: *
 Bundle-ActivationPolicy: lazy
 -removeheaders: Bundle-Developers

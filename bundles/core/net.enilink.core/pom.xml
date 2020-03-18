@@ -7,7 +7,7 @@
 	<name>eniLINK: Platform Core</name>
 
 	<parent>
-		<groupId>net.enilink</groupId>
+		<groupId>net.enilink.platform</groupId>
 		<artifactId>platform-parent</artifactId>
 		<version>1.2.5-SNAPSHOT</version>
 		<relativePath>../../../pom.xml</relativePath>
@@ -39,7 +39,7 @@
 			<version>${komma.version}</version>
 		</dependency>
 		<dependency>
-			<groupId>net.enilink</groupId>
+			<groupId>net.enilink.platform</groupId>
 			<artifactId>net.enilink.security</artifactId>
 			<version>${project.version}</version>
 		</dependency>

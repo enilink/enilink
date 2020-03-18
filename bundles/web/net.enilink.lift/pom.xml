@@ -7,7 +7,7 @@
 	<name>eniLINK: Lift Framework Integration</name>
 
 	<parent>
-		<groupId>net.enilink</groupId>
+		<groupId>net.enilink.platform</groupId>
 		<artifactId>platform-parent</artifactId>
 		<version>1.2.5-SNAPSHOT</version>
 		<relativePath>../../../pom.xml</relativePath>
@@ -60,7 +60,7 @@
 
 	<dependencies>
 		<dependency>
-			<groupId>net.enilink</groupId>
+			<groupId>net.enilink.platform</groupId>
 			<artifactId>net.enilink.core</artifactId>
 			<version>${project.version}</version>
 		</dependency>
