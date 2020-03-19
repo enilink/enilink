@@ -115,4 +115,14 @@
 			<version>1.6.300</version>
 		</dependency>
 	</dependencies>
+
+	<repositories>
+		<repository>
+			<id>oss-sonatype</id>
+			<url>https://oss.sonatype.org/content/repositories/snapshots/</url>
+			<snapshots>
+				<enabled>false</enabled>
+			</snapshots>
+		</repository>
+	</repositories>
 </project>
