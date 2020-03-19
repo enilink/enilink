@@ -16,7 +16,7 @@
 		<url>${enilink.scm.url}</url>
 	</scm>
 
-	<artifactId>enilink-platform-pde</artifactId>
+	<artifactId>enilink-launch-pde</artifactId>
 	<packaging>pom</packaging>
 
 	<modules>

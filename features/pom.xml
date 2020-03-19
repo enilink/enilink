@@ -3,16 +3,33 @@
 	xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd"
 	xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
 	<modelVersion>4.0.0</modelVersion>
+
+	<name>eniLINK: Platform Features Parent</name>
+
 	<parent>
 		<groupId>net.enilink.platform</groupId>
 		<artifactId>platform-parent</artifactId>
 		<version>1.2.5-SNAPSHOT</version>
 	</parent>
+
+	<scm>
+		<connection>${enilink.scm.connection}</connection>
+		<developerConnection>${enilink.scm.developerConnection}</developerConnection>
+		<url>${enilink.scm.url}</url>
+	</scm>
+
 	<groupId>net.enilink.platform</groupId>
 	<artifactId>platform-features</artifactId>
 	<version>1.2.5-SNAPSHOT</version>
 	<packaging>pom</packaging>
+
 	<properties>
 		<path.to.root>../..</path.to.root>
 	</properties>
+
+	<modules>
+		<module>net.enilink.platform.feature</module>
+		<module>net.enilink.platform.equinox.feature</module>
+		<module>net.enilink.platform.karaf.feature</module>
+	</modules>
 </project>

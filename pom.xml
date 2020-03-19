@@ -23,6 +23,7 @@
 		<scala.version>2.11.1</scala.version>
 
 		<bnd.version>4.3.1</bnd.version>
+		<karaf.version>4.3.0.RC1</karaf.version>
 
 		<enilink.scm.connection>scm:git:git://github.com:enilink/enilink.git</enilink.scm.connection>
 		<enilink.scm.developerConnection>scm:git:git@github.com:enilink/enilink.git</enilink.scm.developerConnection>
@@ -108,7 +109,6 @@
 			<plugin>
 				<groupId>org.apache.maven.plugins</groupId>
 				<artifactId>maven-antrun-plugin</artifactId>
-				<version>1.8</version>
 				<executions>
 					<execution>
 						<phase>validate</phase>
@@ -201,6 +201,19 @@
 					<groupId>org.codehaus.mojo</groupId>
 					<artifactId>versions-maven-plugin</artifactId>
 					<version>2.7</version>
+				</plugin>
+
+				<plugin>
+					<groupId>org.apache.karaf.tooling</groupId>
+					<artifactId>karaf-maven-plugin</artifactId>
+					<version>${karaf.version}</version>
+					<extensions>true</extensions>
+				</plugin>
+
+				<plugin>
+					<groupId>org.apache.maven.plugins</groupId>
+					<artifactId>maven-antrun-plugin</artifactId>
+					<version>1.8</version>
 				</plugin>
 
 				<!-- Ignore flatten plugin in M2E -->
@@ -298,6 +311,14 @@
 		<module>bundles/core/net.enilink.platform.security</module>
 		<module>bundles/web/net.enilink.platform.lift</module>
 		<module>bundles/web/net.enilink.platform.web</module>
-		<module>features/net.enilink.platform.feature</module>
 	</modules>
+
+	<profiles>
+		<profile>
+			<id>release</id>
+			<modules>
+				<module>features</module>
+			</modules>
+		</profile>
+	</profiles>
 </project>
