@@ -30,16 +30,6 @@ deploy:
   script: releng/publish/pushToDockerHub.sh
   on:
     tags: true
-- provider: script
-  skip_cleanup: true
-  script: releng/publish/pushToBintray.sh features/net.enilink.platform.updatesite/target-maven/repository/
-  on:
-    tags: true
-- provider: script
-  skip_cleanup: true
-  script: releng/publish/pushToBintray.sh features/net.enilink.platform.updatesite/target-maven/repository/ "$BINTRAY_USER" "$BINTRAY_API_KEY" "$BINTRAY_OWNER" snapshots
-  on:
-    branch: snapshots
 
 env:
   global:
