@@ -19,10 +19,6 @@
 	<artifactId>enilink-launch-karaf</artifactId>
 	<packaging>pom</packaging>
 
-	<properties>
-		<karaf.server.version>4.3.0.RC1</karaf.server.version>
-	</properties>
-
 	<build>
 		<plugins>
 			<plugin>
@@ -40,7 +36,7 @@
 								<artifactItem>
 									<groupId>org.apache.karaf</groupId>
 									<artifactId>apache-karaf</artifactId>
-									<version>${karaf.server.version}</version>
+									<version>${karaf.version}</version>
 									<type>zip</type>
 								</artifactItem>
 							</artifactItems>
@@ -59,7 +55,7 @@
 						<phase>validate</phase>
 						<configuration>
 							<target>
-								<move file="${project.build.directory}/apache-karaf-${karaf.server.version}"
+								<move file="${project.build.directory}/apache-karaf-${karaf.version}"
 									tofile="${project.build.directory}/karaf" />
 							</target>
 						</configuration>

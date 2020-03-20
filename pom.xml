@@ -24,6 +24,7 @@
 
 		<bnd.version>4.3.1</bnd.version>
 		<karaf.version>4.3.0.RC1</karaf.version>
+		<karaf.tooling.version>4.3.0.RC1</karaf.tooling.version>
 
 		<enilink.scm.connection>scm:git:git://github.com:enilink/enilink.git</enilink.scm.connection>
 		<enilink.scm.developerConnection>scm:git:git@github.com:enilink/enilink.git</enilink.scm.developerConnection>
@@ -111,13 +112,14 @@
 				<artifactId>maven-antrun-plugin</artifactId>
 				<executions>
 					<execution>
+						<id>create-symlinks</id>
 						<phase>validate</phase>
 						<configuration>
 							<target>
-								<symlink link="${project.basedir}/OSGI-INF"
+								<symlink link="OSGI-INF"
 									resource="${project.build.outputDirectory}/OSGI-INF"
 									failonerror="false" />
-								<symlink link="${project.basedir}/META-INF"
+								<symlink link="META-INF"
 									resource="${project.build.outputDirectory}/META-INF"
 									failonerror="false" />
 							</target>
@@ -321,6 +323,7 @@
 			<id>release</id>
 			<modules>
 				<module>features</module>
+				<module>products/net.enilink.platform.server</module>
 			</modules>
 		</profile>
 	</profiles>

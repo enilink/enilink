@@ -46,17 +46,6 @@
 			</exclusions>
 		</dependency>
 		<dependency>
-			<groupId>net.enilink.komma</groupId>
-			<artifactId>net.enilink.commons.logging</artifactId>
-			<version>${komma.version}</version>
-			<exclusions>
-				<exclusion>
-					<groupId>org.eclipse.platform</groupId>
-					<artifactId>org.eclipse.osgi</artifactId>
-				</exclusion>
-			</exclusions>
-		</dependency>
-		<dependency>
 			<groupId>net.enilink.bundles</groupId>
 			<artifactId>net.enilink.bundles.liftweb</artifactId>
 			<version>${lift.version}</version>
