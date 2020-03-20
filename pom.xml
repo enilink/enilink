@@ -18,7 +18,7 @@
 		<project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
 
 		<lift.version>2.6.3</lift.version>
-		<komma.version>1.4.1-SNAPSHOT</komma.version>
+		<komma.version>1.4.1</komma.version>
 		<scala.major.version>2.11</scala.major.version>
 		<scala.version>2.11.1</scala.version>
 
@@ -301,12 +301,20 @@
 
 	<repositories>
 		<repository>
-			<id>oss-sonatype</id>
-			<name>oss-sonatype</name>
+			<id>oss-sonatype-snapshots</id>
+			<name>OSS Sonatype Snapshots</name>
 			<url>https://oss.sonatype.org/content/repositories/snapshots/</url>
 			<releases>
 				<enabled>false</enabled>
 			</releases>
+		</repository>
+		<repository>
+			<id>oss-sonatype-releases</id>
+			<name>OSS Sonatype Releases</name>
+			<url>https://oss.sonatype.org/content/repositories/snapshots/</url>
+			<snapshots>
+				<enabled>false</enabled>
+			</snapshots>
 		</repository>
 	</repositories>
 
