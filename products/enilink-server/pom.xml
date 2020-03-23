@@ -61,7 +61,7 @@
 						<feature>shell</feature>
 						<feature>feature</feature>
 						<feature>jaas</feature>
-						<feature>ssh</feature>
+						<!-- feature>ssh</feature -->
 						<feature>bundle</feature>
 						<feature>config</feature>
 						<feature>deployer</feature>
@@ -76,7 +76,7 @@
 						<feature>system</feature>
 
 						<feature>scr</feature>
-						<feature>pax-http-whiteboard</feature>
+						<feature>http-whiteboard</feature>
 						<feature>net.enilink.platform.karaf.feature</feature>
 					</bootFeatures>
 				</configuration>

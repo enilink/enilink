@@ -331,7 +331,7 @@
 			<id>release</id>
 			<modules>
 				<module>features</module>
-				<module>products/net.enilink.platform.server</module>
+				<module>products/enilink-server</module>
 			</modules>
 		</profile>
 	</profiles>
