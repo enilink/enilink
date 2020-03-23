@@ -21,10 +21,10 @@ public final class EnilinkPrincipal implements Principal, java.io.Serializable {
 	/**
 	 * Creates a principal.
 	 * 
-	 * @param name
+	 * @param id
 	 *            The principal's id.
 	 * @exception NullPointerException
-	 *                If the <code>name</code> is <code>null</code>.
+	 *                If the <code>id</code> is <code>null</code>.
 	 */
 	public EnilinkPrincipal(URI id) {
 		if (id == null) {

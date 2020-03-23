@@ -11,9 +11,9 @@
 	</parent>
 
 	<scm>
-		<connection>${komma.scm.connection}</connection>
-		<developerConnection>${komma.scm.developerConnection}</developerConnection>
-		<url>${komma.scm.url}</url>
+		<connection>${enilink.scm.connection}</connection>
+		<developerConnection>${enilink.scm.developerConnection}</developerConnection>
+		<url>${enilink.scm.url}</url>
 	</scm>
 
 	<artifactId>enilink-launch-karaf</artifactId>

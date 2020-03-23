@@ -38,7 +38,7 @@
 
 	<issueManagement>
 		<system>Github</system>
-		<url>https://github.com/komma/komma/issues</url>
+		<url>https://github.com/enilink/enilink/issues</url>
 	</issueManagement>
 
 	<developers>
@@ -71,9 +71,9 @@
 	</licenses>
 
 	<scm>
-		<connection>${komma.scm.connection}</connection>
-		<developerConnection>${komma.scm.developerConnection}</developerConnection>
-		<url>${komma.scm.url}</url>
+		<connection>${enilink.scm.connection}</connection>
+		<developerConnection>${enilink.scm.developerConnection}</developerConnection>
+		<url>${enilink.scm.url}</url>
 	</scm>
 
 	<build>
@@ -328,11 +328,89 @@
 
 	<profiles>
 		<profile>
+			<id>doclint-java8-disable</id>
+			<activation>
+				<jdk>[1.8,)</jdk>
+			</activation>
+			<properties>
+				<javadoc.opts>-Xdoclint:none</javadoc.opts>
+			</properties>
+		</profile>
+		
+		<profile>
 			<id>release</id>
 			<modules>
 				<module>features</module>
 				<module>products/enilink-server</module>
 			</modules>
+		</profile>
+
+		<profile>
+			<id>ossrh</id>
+
+			<distributionManagement>
+				<snapshotRepository>
+					<id>ossrh</id>
+					<url>https://oss.sonatype.org/content/repositories/snapshots</url>
+				</snapshotRepository>
+				<repository>
+					<id>ossrh</id>
+					<url>https://oss.sonatype.org/service/local/staging/deploy/maven2/</url>
+				</repository>
+			</distributionManagement>
+
+			<build>
+				<plugins>
+					<plugin>
+						<groupId>org.sonatype.plugins</groupId>
+						<artifactId>nexus-staging-maven-plugin</artifactId>
+						<version>1.6.8</version>
+						<extensions>true</extensions>
+						<configuration>
+							<serverId>ossrh</serverId>
+							<nexusUrl>https://oss.sonatype.org/</nexusUrl>
+							<autoReleaseAfterClose>true</autoReleaseAfterClose>
+							<skipStaging>true</skipStaging>
+						</configuration>
+					</plugin>
+					<plugin>
+						<groupId>org.apache.maven.plugins</groupId>
+						<artifactId>maven-source-plugin</artifactId>
+						<executions>
+							<execution>
+								<id>attach-sources</id>
+								<goals>
+									<goal>jar-no-fork</goal>
+								</goals>
+							</execution>
+						</executions>
+					</plugin>
+					<plugin>
+						<artifactId>maven-javadoc-plugin</artifactId>
+						<executions>
+							<execution>
+								<id>attach-javadocs</id>
+								<goals>
+									<goal>jar</goal>
+								</goals>
+							</execution>
+						</executions>
+					</plugin>
+					<plugin>
+						<groupId>org.apache.maven.plugins</groupId>
+						<artifactId>maven-gpg-plugin</artifactId>
+						<executions>
+							<execution>
+								<id>sign-artifacts</id>
+								<phase>verify</phase>
+								<goals>
+									<goal>sign</goal>
+								</goals>
+							</execution>
+						</executions>
+					</plugin>
+				</plugins>
+			</build>
 		</profile>
 	</profiles>
 </project>

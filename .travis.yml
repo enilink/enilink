@@ -8,7 +8,11 @@ services:
 jdk:
 - oraclejdk8
 
-script: mvn -B -P release verify
+before_install:
+- echo $GPG_PASSWORD | gpg --passphrase-fd 0 releng/enilink.asc.gpg
+- gpg --import releng/enilink.asc
+
+script: if [ "$TRAVIS_BRANCH" = "$TRAVIS_TAG" ] || [ "$TRAVIS_BRANCH" = "snapshots" ]; then mvn deploy -B -P ossrh,release -s ./.travis.maven-settings.xml; else mvn verify -B; fi
 
 deploy:
 - provider: releases
@@ -16,7 +20,7 @@ deploy:
   api_key:
     secure: r37g9AAVTPckSKJbvCVcUxgkfV3PuhE0952KdI3U+mBtWXWiL3zN8wYDZc1LFIzvk/DuVKKG6s4KBxpRzfgTyS75h7WJ9NjIyUWYduFns6loo8vUVh84QWf41R8sin9MxObRMyBkbqsu4AVYmU4+Tnk0iFrjA0dBwTiMkDLz8/Bz+JgjxMHXKCcciILRzBCajrYt035wvPU1HFhG5aEno8HehwJ0YHV9aF5TqwpbcoL3iJKrIDyy2ydxnQSrTzZo5CrOqiJrZhFvZn5VciErohBLBTnEiMB/mzNmS2INmGglCWuzgd/9niKi/9nPKwkBFmVSWQBGlnqSVCg5GUcmpEDixX6bMjYbZ4lCeb+ZTF9MuZ4Js5w/mlAw8cUVUD3OWWnNbOVAZCWud0XbPRiD1vgV9XqfaDvWq9F7wdhgNHh0jzR9MFxQ/dFKhkYUIjKkmQE5UyuX6aASYhWW26ZgOIeMjSEl9X/JNXQ1MID57TTyglklRzOa3U8psETqUkc2cnB5yK7U29PXwJAP8B2o06+8UzJNeK6x+weHdbPUTcn3bLyfMsUcDPcyh2YcZ7Ree6AD3UuFFNydRDuYci/PGFpYc6lQD1y9pHJKSJ2UVB0P8JSMF6nmDxqIh4rZg6xx3OrLyY1C5LVg7yV/sRJB+5VbPnXLtPl7kWj2VPCdJ+A=
   file_glob: true
-  file: features/net.enilink.platform.product/target-maven/products/enilink-platform-*{.zip,.tar.gz}
+  file: products/enilink-server/target/enilink-server-*{.zip,.tar.gz}
   on:
     repo: enilink/enilink
     tags: true
@@ -25,11 +29,13 @@ deploy:
   script: releng/publish/pushToDockerHub.sh
   on:
     branch: snapshots
+    condition: false
 - provider: script
   skip_cleanup: true
   script: releng/publish/pushToDockerHub.sh
   on:
     tags: true
+    condition: false
 
 env:
   global:
@@ -42,3 +48,5 @@ env:
   - DOCKER_USER: kenwenzel
 # DOCKER_PASS
   - secure: "XmfHD46JSHGp1fAFRvT9mKovLD5YYmkDJSdPb/DEO5Zp0C0JAyKFbS7KY36yB/pHK1GFSrDZ2nBUhys+g+O08ohsmOC2CmCHorVIyt+IAxFj+6HD+MljbU88d7vWmkuWIL2lUscrc9P+WuJOPL1GEiG0MB7QbMJr9vMwnN9uepaq76Gpqc4K86Io61t/AtqGvkyWQoSrY6LYgCmHVnYQpUUGe+BPbNn+I5QhVZ105YrQDywLsVy22bJ1M5BNymrTlEWh6Jc31Y6CyGXFSwQUFTbbM+aM9+yV4UxKJ0MVp/Lcxrz4+uiy/tXdFNO5GVCwYX/c8/hc1WhZsPKWxGjwbfsnLT6wSztG+5MV31U4r3rWqiSF57fsV/lQJ9X4GyRrb+d1249dRTCsECdKY26r99RB1eF7uHHHWmW34jnaifEAArDfEHLOAWYyoh2bD2aa4uzKU4HyZp8SgZSVEtDDtSuCOlLJaHmCcZOw5NJbnQ+LsuC6C9QAe4CN0cl4RwzajWtWIiO/6SHhtu8A13uYJ3Q0G8hC3/obi9304Ffs32FCiL/OMTRDrQXa6QqjZ91cdFK0r6Z1Vz9zp3BaaiV6UjpRid3ZDpK0TUqUy9XG3Ai8fzmsxS3IeTW0/84ZarWkOQkIsVHAKLGNJbL1iL5Kft2j0LmsuZB0a+CzYDbLw40="
+# GPG_PASSWORD
+  - secure: "kUlEtuo8lgqglzLF9KoX9acw7z+sAWH2KWjico42EoHFnzMjAWtB++QaLO5PHH5tvLUSGK8GtJwagw6k4+LPO/R8rbOzsfmFzLlBA2fspuD7Z3ldydEQeRYv0V7RdtCLGFcb+wAGh6vkk5gZviefIaah1K+h7FF2P3lPZ6+nA/SYAUQt5vRw85DPFwxxM4jnAG3te5+UcIjFhI8hmUMHUEn9qShB6JUtiU7TSVvKMN6UFvT20C76ulhwjw80h14Ypnm12dgcJIJ8kS3m62FvqpZGzmPx7O/9uW1GRDtDnNhFNoI8caZWvqKmbYaXQEyhn8Z0sAhAlgQeGJTloAVHPMtr85jrrrpRTXIHf2hvdidyZ8AURJKAlofFFtM656zh9WirTGz2+ktd30V/OE8XTSo8lTaD9nTtCuAU01iHp+2hNsoJyCoHug7sYaUUm1ZcuELVScAOWeP5Z6IJv7GcvJvojyQU+m0WVwqnXj8iISOopBKN3TFNUsu0OFxoPprDLpL8y61fxTenKtizOS3/wfF5hUW3RvGsfmJnae0Ej8ibZC5l1FL1CScGsOKPcSsZ5ZsLkiaUttsHmCVX/l/b1pZyDgXJB5xpL8Djo2N7uyao2Zfa6lr/IWwzsPvoqD1DGi/OGe4H5PDjuyGFgpoE8T+GfNz82siC8HoaPQB1wks="

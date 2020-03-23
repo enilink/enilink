@@ -19,7 +19,7 @@
 		<url>${enilink.scm.url}</url>
 	</scm>
 
-	<artifactId>net.enilink.platform.server</artifactId>
+	<artifactId>enilink-server</artifactId>
 	<packaging>karaf-assembly</packaging>
 
 	<dependencies>

@@ -19,11 +19,12 @@ import net.enilink.platform.security.auth.BasicPrincipal;
 
 /**
  * Simple login module that checks against a list of pre-defined users and, if
- * successful, adds a {@link #BasicPrincipal} with the username to the subject
+ * successful, adds a {@link BasicPrincipal} with the username to the subject
  * to be used by further modules in the stack.
- * <ul>
+ * <p>
  * Options:
- * <li>userMap: pre-defined user/pw list
+ * <ul>
+ * <li>userMap: pre-defined user/pw list</li>
  * </ul>
  */
 public class UserMapLoginModule implements LoginModule {

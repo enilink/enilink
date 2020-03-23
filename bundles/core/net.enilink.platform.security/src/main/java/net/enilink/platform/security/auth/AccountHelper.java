@@ -118,7 +118,7 @@ public class AccountHelper {
 	 *            The entity manager to use
 	 * @param username
 	 *            The user's name.
-	 * @param username
+	 * @param encodedPassword
 	 *            The encoded password
 	 * @return The user entity or else <code>null</code> if the user was not
 	 *         found.
