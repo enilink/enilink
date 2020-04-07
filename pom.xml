@@ -118,10 +118,10 @@
 							<target>
 								<symlink link="OSGI-INF"
 									resource="${project.build.outputDirectory}/OSGI-INF"
-									failonerror="false" />
+									failonerror="false" overwrite="true" />
 								<symlink link="META-INF"
 									resource="${project.build.outputDirectory}/META-INF"
-									failonerror="false" />
+									failonerror="false" overwrite="true" />
 							</target>
 						</configuration>
 						<goals>
@@ -336,7 +336,7 @@
 				<javadoc.opts>-Xdoclint:none</javadoc.opts>
 			</properties>
 		</profile>
-		
+
 		<profile>
 			<id>release</id>
 			<modules>
