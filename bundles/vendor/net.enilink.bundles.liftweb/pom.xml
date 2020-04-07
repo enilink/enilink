@@ -60,6 +60,19 @@
 			<version>${lift.version}</version>
 			<scope>provided</scope>
 		</dependency>
+
+		<dependency>
+			<!-- required for lift-json -->
+			<groupId>com.thoughtworks.paranamer</groupId>
+			<artifactId>paranamer</artifactId>
+			<version>2.4.1</version>
+			<scope>provided</scope>
+		</dependency>
+		<dependency>
+			<groupId>org.scala-lang</groupId>
+			<artifactId>scalap</artifactId>
+			<version>2.11.1</version>
+		</dependency>
 		<dependency>
 			<groupId>joda-time</groupId>
 			<artifactId>joda-time</artifactId>

@@ -1,1 +1,2 @@
 -exportcontents: net.liftweb.*, org.webjars.*
+Import-Package: scala.*, scala.io, org.slf4j.*, javax.mail.*;resolution:="optional", javax.servlet.*, org.apache.commons.*, nu.validator.*
