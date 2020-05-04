@@ -21,6 +21,7 @@
 
 	<modules>
 		<module>../..</module>
+		<module>../../features/net.enilink.platform.feature</module>
 		<module>../../features/net.enilink.platform.equinox.feature</module>
 	</modules>
 
@@ -42,7 +43,7 @@
 				<executions>
 					<execution>
 						<id>site</id>
-						<phase>compile</phase>
+						<phase>package</phase>
 						<goals>
 							<goal>site</goal>
 						</goals>
@@ -50,9 +51,9 @@
 							<skipNotExistingArtifacts>true</skipNotExistingArtifacts>
 							<artifacts>
 								<artifact>
-									<id>net.enilink:net.enilink.platform.equinox.feature:pom:${project.version}</id>
+									<id>net.enilink.platform:net.enilink.platform.equinox.feature:pom:${project.version}</id>
 									<excludes>
-										<exclude>net.enilink:*</exclude>
+										<exclude>net.enilink.platform:*</exclude>
 										<exclude>net.enilink.bundles:*liftweb</exclude>
 									</excludes>
 								</artifact>

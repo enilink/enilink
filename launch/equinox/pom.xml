@@ -19,19 +19,6 @@
 	<artifactId>enilink-launch-equinox</artifactId>
 	<packaging>pom</packaging>
 
-	<modules>
-		<module>../..</module>
-	</modules>
-
-	<dependencies>
-		<dependency>
-			<groupId>net.enilink.platform</groupId>
-			<artifactId>net.enilink.platform.equinox.feature</artifactId>
-			<version>${project.version}</version>
-			<type>pom</type>
-		</dependency>
-	</dependencies>
-
 	<build>
 		<plugins>
 			<plugin>
@@ -49,11 +36,12 @@
 				</executions>
 
 				<configuration>
+					<mode>restart</mode>
 					<programArguments>
 						<programArgument>-console</programArgument>
 						<programArgument>-consoleLog</programArgument>
 						<programArgument>-application</programArgument>
-						<programArgument>net.enilink.platform.lift.application</programArgument>
+						<programArgument>net.enilink.platform.core.application</programArgument>
 						<programArgument>-clearPersistedState</programArgument>
 						<programArgument>-clean</programArgument>
 						<programArgument>-noExit</programArgument>
@@ -78,6 +66,39 @@
 			</plugin>
 		</plugins>
 	</build>
+
+	<profiles>
+		<profile>
+			<id>configure</id>
+
+			<modules>
+				<module>../..</module>
+				<module>../../features/net.enilink.platform.feature</module>
+				<module>../../features/net.enilink.platform.equinox.feature</module>
+			</modules>
+
+			<dependencies>
+				<dependency>
+					<groupId>net.enilink.platform</groupId>
+					<artifactId>net.enilink.platform.equinox.feature</artifactId>
+					<version>${project.version}</version>
+					<type>pom</type>
+				</dependency>
+			</dependencies>
+
+			<build>
+				<plugins>
+					<plugin>
+						<groupId>at.bestsolution</groupId>
+						<artifactId>maven-osgi-exec-plugin</artifactId>
+						<configuration>
+							<mode>configure</mode>
+						</configuration>
+					</plugin>
+				</plugins>
+			</build>
+		</profile>
+	</profiles>
 
 	<pluginRepositories>
 		<pluginRepository>
