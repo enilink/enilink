@@ -1,5 +1,11 @@
 package net.enilink.platform.core;
 
+import java.io.InputStream;
+import java.nio.file.FileSystems;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.PathMatcher;
+import java.nio.file.Paths;
 import java.security.PrivilegedAction;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -11,9 +17,11 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Queue;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 import javax.security.auth.Subject;
 
+import org.osgi.framework.FrameworkUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -28,12 +36,6 @@ import com.google.inject.util.Modules;
 import net.enilink.commons.iterator.IMap;
 import net.enilink.commons.iterator.WrappedIterator;
 import net.enilink.composition.properties.PropertySetFactory;
-import net.enilink.platform.core.security.ISecureEntity;
-import net.enilink.platform.core.security.SecureEntitySupport;
-import net.enilink.platform.core.security.SecureModelSetSupport;
-import net.enilink.platform.core.security.SecureModelSupport;
-import net.enilink.platform.core.security.SecurePropertySetFactory;
-import net.enilink.platform.core.security.SecurityUtil;
 import net.enilink.komma.core.BlankNode;
 import net.enilink.komma.core.IEntityManager;
 import net.enilink.komma.core.IGraph;
@@ -57,6 +59,16 @@ import net.enilink.komma.model.IModelSetFactory;
 import net.enilink.komma.model.MODELS;
 import net.enilink.komma.model.ModelPlugin;
 import net.enilink.komma.model.ModelSetModule;
+import net.enilink.komma.model.ModelUtil;
+import net.enilink.komma.model.base.IURIMapRule;
+import net.enilink.komma.model.base.IURIMapRuleSet;
+import net.enilink.komma.model.base.SimpleURIMapRule;
+import net.enilink.platform.core.security.ISecureEntity;
+import net.enilink.platform.core.security.SecureEntitySupport;
+import net.enilink.platform.core.security.SecureModelSetSupport;
+import net.enilink.platform.core.security.SecureModelSupport;
+import net.enilink.platform.core.security.SecurePropertySetFactory;
+import net.enilink.platform.core.security.SecurityUtil;
 import net.enilink.platform.security.auth.AccountHelper;
 import net.enilink.platform.security.auth.AuthModule;
 import net.enilink.vocab.acl.Authorization;
@@ -238,10 +250,9 @@ class ModelSetManager {
 		if (!hasConfig) {
 			// config file was not specified
 			graph.add(msUri, MODELS.NAMESPACE_URI.appendFragment("inference"), false);
-			graph.add(msUri, RDF.PROPERTY_TYPE,
-					MODELS.NAMESPACE_URI.appendLocalPart(//
-							// "OwlimModelSet" //
-							"MemoryModelSet" //
+			graph.add(msUri, RDF.PROPERTY_TYPE, MODELS.NAMESPACE_URI.appendLocalPart(//
+					// "OwlimModelSet" //
+					"MemoryModelSet" //
 			// "VirtuosoModelSet" //
 			// "AGraphModelSet" //
 			// "RemoteModelSet" //
@@ -264,34 +275,38 @@ class ModelSetManager {
 		auth.getAclMode().add(em.find(ENILINKACL.MODE_WRITERESTRICTED, net.enilink.vocab.rdfs.Class.class));
 
 		// add application specific models from the workspace
-//		if (modelSet instanceof IProjectModelSet) {
-//			IProject project = ResourcesPlugin.getWorkspace().getRoot().getProject("models");
-//			System.out.println("Looking for models in: " + project.getLocation());
-//			try {
-//				if (!project.exists()) {
-//					project.create(null);
-//				}
-//				project.open(null);
-//				project.refreshLocal(IProject.DEPTH_INFINITE, new NullProgressMonitor());
-//				// check configuration flag: load all project models?
-//				boolean loadProjectModels = em.hasMatch(DATA_MODELSET,
-//						MODELS.NAMESPACE_URI.appendLocalPart("loadProjectModels"), true);
-//
-//				((IProjectModelSet) modelSet).setProject(project);
-//				for (IURIMapRule rule : modelSet.getURIConverter().getURIMapRules()) {
-//					if (rule instanceof SimpleURIMapRule) {
-//						String modelUri = ((SimpleURIMapRule) rule).getPattern();
-//						if (loadProjectModels) {
-//							modelSet.getModel(URIs.createURI(modelUri), true);
-//						} else {
-//							modelSet.createModel(URIs.createURI(modelUri));
-//						}
-//					}
-//				}
-//			} catch (Exception e) {
-//				System.err.println(e.getMessage());
-//			}
-//		}
+		String modelsLookupDir = FrameworkUtil.getBundle(getClass()).getBundleContext()
+				.getProperty("net.enilink.models.dir");
+		if (modelsLookupDir != null) {
+			log.info("Looking for models in: {}", modelsLookupDir);
+			try {
+				PathMatcher matcher = FileSystems.getDefault().getPathMatcher("glob:**/*.{ttl,owl}");
+				List<Path> modelFiles = Files.walk(Paths.get(modelsLookupDir)).filter(matcher::matches)
+						.collect(Collectors.toList());
+				IURIMapRuleSet mapRules = modelSet.getURIConverter().getURIMapRules();
+				for (Path modelFile : modelFiles) {
+					URI fileUri = URIs.createFileURI(modelFile.toString());
+					String modelUri;
+					try (InputStream in = Files.newInputStream(modelFile)) {
+						String mimeType = ModelUtil.mimeType(modelFile.toString());
+						// use the embedded ontology element as model URI
+						modelUri = ModelUtil.findOntology(in, fileUri.toString(), mimeType);
+					}
+					if (modelUri != null) {
+						mapRules.addRule(new SimpleURIMapRule(modelUri, modelFile.toString()));
+					} else {
+						modelUri = modelFile.toString();
+					}
+					log.info("Creating model <{}>", modelUri);
+					modelSet.createModel(URIs.createURI(modelUri));
+					// if (loadModels) {
+					// modelSet.getModel(URIs.createURI(modelUri), true);
+					// }
+				}
+			} catch (Exception e) {
+				log.error("Error while loading models", e);
+			}
+		}
 	}
 
 	public synchronized IUnitOfWork getUnitOfWork() {
