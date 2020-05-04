@@ -32,9 +32,10 @@ class LiftBundleTracker(context: BundleContext) extends BundleTracker[LiftBundle
 
   override def addingBundle(bundle: Bundle, event: BundleEvent) = {
     val headers = bundle.getHeaders
+    val siteMapStr = Box.legacyNullTest(headers.get("Lift-SiteMap"))
     val moduleStr = Box.legacyNullTest(headers.get("Lift-Module"))
     val packageStr = Box.legacyNullTest(headers.get("Lift-Packages"))
-    if (moduleStr.isDefined || packageStr.isDefined) {
+    if (siteMapStr.isDefined || moduleStr.isDefined || packageStr.isDefined) {
       if (!liftStarted) {
         // track bundle immediately
         val packages = packageStr.map(_.split("\\s,\\s")) openOr Array.empty
@@ -50,12 +51,12 @@ class LiftBundleTracker(context: BundleContext) extends BundleTracker[LiftBundle
         }
         module match {
           case f: Failure => null
-          case _ =>
-            val startLevel = module flatMap { m => ClassHelpers.createInvoker("startLevel", m) flatMap (_()) } map {
+          case m =>
+            val startLevel = ClassHelpers.createInvoker("startLevel", m) flatMap (_()) map {
               case i: Int => i
               case o => o.toString.toInt
             }
-            new LiftBundleConfig(module, packages, startLevel openOr 0)
+            new LiftBundleConfig(module, packages, siteMapStr, startLevel openOr 0)
         }
       } else {
         rebootLift

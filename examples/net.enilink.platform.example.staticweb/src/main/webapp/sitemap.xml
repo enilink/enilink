@@ -1,0 +1,8 @@
+<sitemap app="staticweb">
+	<loc text="First" path="index">
+		<loc text="SubItem1" path="subitem" />
+	</loc>
+	<loc text="Second" path="second">
+		<loc text="SubItem2" path="second_subitem_hidden" hideIfInactive="" />
+	</loc>
+</sitemap>

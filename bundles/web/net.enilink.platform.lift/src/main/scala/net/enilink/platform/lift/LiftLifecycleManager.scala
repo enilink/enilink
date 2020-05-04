@@ -56,6 +56,8 @@ import net.liftweb.util.Schedule
 import org.osgi.service.component.annotations.Component
 import org.osgi.service.component.annotations.Activate
 import org.osgi.service.component.annotations.Deactivate
+import net.enilink.platform.lift.sitemap.SiteMapXml
+import net.enilink.platform.lift.sitemap.Menus
 
 @Component(
   immediate = true,
@@ -68,14 +70,35 @@ class LiftLifecycleManager extends Loggable {
   def bootBundle(bundle: Bundle, config: LiftBundleConfig) {
     // add packages to search path
     config.packages filterNot (_.isEmpty) foreach (LiftRules.addToPackages(_))
+    config.sitemapXml.foreach { xml =>
+      val in = bundle.getResource(xml).openStream
+      try {
+        val menus = SiteMapXml.parse(in)
+        config.sitemapMutator = Full(Menus.sitemapMutator(menus))
+      } catch {
+        case e: java.lang.Exception => logger.warn("Lift-powered bundle " + bundle.getSymbolicName + " has invalid sitemap.", e)
+      } finally {
+        if (in != null) in.close
+      }
+    }
+
     // boot lift module
     config.module map { m =>
       try {
         try {
           ClassHelpers.createInvoker("boot", m) map (_())
-          config.sitemapMutator = ClassHelpers.createInvoker("sitemapMutator", m).flatMap {
+
+          val moduleSitemapMutator = ClassHelpers.createInvoker("sitemapMutator", m).flatMap {
             f => f().map(_.asInstanceOf[SiteMap => SiteMap])
           }
+
+          // combine the sitemap mutators
+          config.sitemapMutator = (config.sitemapMutator, moduleSitemapMutator) match {
+            case (Full(m1), Full(m2)) => Full(m1 andThen m2)
+            case (m1 @ Full(_), _) => m1
+            case _ => moduleSitemapMutator
+          }
+
           // mark bundle as booted
           config.booted = true
           logger.debug("Lift-powered bundle " + bundle.getSymbolicName + " booted.")
@@ -87,7 +110,7 @@ class LiftLifecycleManager extends Loggable {
       }
     }
   }
-  
+
   def bundles = bundleTracker.getTracked
 
   def initLift {
