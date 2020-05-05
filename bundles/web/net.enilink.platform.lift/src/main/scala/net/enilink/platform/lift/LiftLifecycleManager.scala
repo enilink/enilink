@@ -58,11 +58,21 @@ import org.osgi.service.component.annotations.Activate
 import org.osgi.service.component.annotations.Deactivate
 import net.enilink.platform.lift.sitemap.SiteMapXml
 import net.enilink.platform.lift.sitemap.Menus
+import net.enilink.platform.lift.sitemap.SiteMapXml
+import net.enilink.platform.lift.sitemap.ModelSpec
+import net.enilink.komma.model.ModelUtil
+import java.util.Collections
+import net.enilink.komma.core.URIs
+import net.enilink.komma.model.base.SimpleURIMapRule
+import org.slf4j.LoggerFactory
+import net.enilink.platform.core.ModelSetManager
 
 @Component(
   immediate = true,
   service = Array(classOf[LiftLifecycleManager]))
 class LiftLifecycleManager extends Loggable {
+  private val log = LoggerFactory.getLogger(classOf[LiftLifecycleManager])
+
   private var bundleTracker: LiftBundleTracker = null
 
   private var contextServiceReg: ServiceRegistration[_] = _
@@ -70,15 +80,58 @@ class LiftLifecycleManager extends Loggable {
   def bootBundle(bundle: Bundle, config: LiftBundleConfig) {
     // add packages to search path
     config.packages filterNot (_.isEmpty) foreach (LiftRules.addToPackages(_))
+
+    var models = List.empty[ModelSpec]
     config.sitemapXml.foreach { xml =>
       val in = bundle.getResource(xml).openStream
       try {
-        val menus = SiteMapXml.parse(in)
+        val siteMap = new SiteMapXml
+        siteMap.parse(in)
+        models = siteMap.models
+        val menus = siteMap.menus
         config.sitemapMutator = Full(Menus.sitemapMutator(menus))
       } catch {
         case e: java.lang.Exception => logger.warn("Lift-powered bundle " + bundle.getSymbolicName + " has invalid sitemap.", e)
       } finally {
         if (in != null) in.close
+      }
+    }
+
+    // load models as defined by sitemap XMLs
+    if (models.nonEmpty) {
+      Globals.contextModelSet.vend map { ms =>
+        try {
+          ms.getUnitOfWork.begin
+          models foreach { modelSpec =>
+            val location = modelSpec.location.flatMap {
+              case l if l.isRelative => {
+                // resolve relative URIs against bundle
+                 Option(bundle.getResource(l.toString)).map(url => URIs.createURI(url.toString))
+              }
+              case other => Some(other)
+            }
+            val uri = modelSpec.uri orElse {
+              location.map { location =>
+                val contentDescription = ModelUtil.determineContentDescription(location, ms.getURIConverter, Collections.emptyMap[Object, Object])
+                val mimeType = ModelUtil.mimeType(contentDescription)
+                // use the embedded ontology element as model URI
+                val modelUri = ModelUtil.findOntology(ms.getURIConverter.createInputStream(location), "base:", mimeType)
+                // simply use location as fallback
+                if (modelUri == null) location else URIs.createURI(modelUri)
+              }
+            }
+            uri.foreach { modelUri =>
+              // add mapping rule if location is different from model URI
+              for (l <- location if modelUri != l) {
+                ms.getURIConverter.getURIMapRules.addRule(new SimpleURIMapRule(modelUri.toString, l.toString))
+              }
+              log.info("Creating model <{}>", modelUri);
+              ms.createModel(modelUri)
+            }
+          }
+        } finally {
+          ms.getUnitOfWork.end
+        }
       }
     }
 

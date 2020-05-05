@@ -1,0 +1,13 @@
+@prefix : <http://example.org/test/> .
+@prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix owl: <http://www.w3.org/2002/07/owl#> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+:TestClass a owl:Class;
+rdfs:subClassOf _:n1 .
+_:n1 a owl:Restriction;
+owl:allValuesFrom :TestClass;
+owl:onProperty :testProperty .
+:TestClass rdfs:subClassOf owl:Thing .
+:testInstance a :TestClass .
+:testProperty a owl:ObjectProperty .

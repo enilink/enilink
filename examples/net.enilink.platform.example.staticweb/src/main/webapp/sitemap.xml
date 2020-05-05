@@ -1,4 +1,6 @@
 <sitemap app="staticweb">
+	<model location="test.ttl" />
+
 	<loc text="First" path="index">
 		<loc text="SubItem1" path="subitem" />
 	</loc>
