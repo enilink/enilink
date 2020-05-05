@@ -12,40 +12,16 @@ git clone https://github.com/enilink/enilink
 
 == Build eniLINK with Maven
 
-Enilink can be build with Maven by leveraging https://eclipse.org/tycho/[Eclipse Tycho]. You can simply use `mvn package` 
-to compile and package the core modules or `mvn install` to install them within your local Maven repository.
+Enilink can be build with Maven. You can simply use `mvn package` 
+to compile and package the core modules or `mvn install` to install 
+them within your local Maven repository.
 
-If you like to build a runnable Eclipse product then first build the repository with required libraries
-
-[source,text]
-----
-mvn -f libraries-p2/pom.xml package
-----
-
-and then the enilink platform
+A release version of the enilink platform server can be build via:
 
 [source,text]
 ----
-cd releng/platform-product
 mvn -P release package
 ----
 
-Afterwards the Linux and Windows versions can be found within
-the `features/net.enilink.platform.product/target-maven/products` directory.
-
-== Develop and run eniLINK with Eclipse
-For working with the sources we suggest you to download a recent version of 
-http://www.eclipse.org/downloads/[Eclipse] and install the `Eclipse Plug-in Development Environment`
-and a recent version of the http://scala-ide.org[Scala IDE for Eclipse].
-
-You can import the eniLINK projects into your workspace by executing 
-__File > Import > Existing Projects into Workspace__.
-
-Afterwards you need to select a http://help.eclipse.org/mars/index.jsp?topic=/org.eclipse.pde.doc.user/concepts/target.htm[Target Platform]
-by opening `platform-target/platform-target.target` and clicking on __Set as Target Platform__ at the
-top-right corner. If the target platform is correctly configured then all projects should compile
-without errors.
-
-The `platform-target` project also contains a launch configuration named `eniLINK Platform`. This
-should show up in `Run Configurations` under the category `Eclipse Application` and can be used
-to run the eniLINK platform from within Eclipse.
+Afterwards a Karaf assembly can be found within
+the `products/enilink-server/target` directory.
