@@ -2,32 +2,21 @@ package net.enilink.platform.lift
 
 import java.io.File
 import java.net.URL
-
-import scala.collection.mutable
-import scala.collection.JavaConversions.asScalaSet
-
-import org.osgi.service.http.HttpContext
-import org.osgi.util.tracker.BundleTracker
-import org.webjars.WebJarAssetLocator
-
-import javax.servlet.http.HttpServletRequest
-import javax.servlet.http.HttpServletResponse
 import net.enilink.platform.lift.sitemap.Application
 import net.enilink.platform.lift.util.Globals
-import net.liftweb.common.Box.box2Iterable
-import net.liftweb.common.Box.option2Box
 import net.liftweb.common.Full
 import net.liftweb.common.Logger
 import net.liftweb.http.LiftRules
-import net.liftweb.http.LiftRulesMocker.toLiftRules
 import net.liftweb.http.ResourceServer
 import net.liftweb.util.Helpers._
 import org.osgi.framework.Bundle
-import org.osgi.service.http.context.ServletContextHelper
 import org.osgi.service.component.annotations.Component
-import org.osgi.service.component.annotations.ServiceScope._
 import org.osgi.service.component.annotations.Reference
-import org.osgi.service.http.HttpService
+import org.osgi.service.component.annotations.ServiceScope.SINGLETON
+import org.osgi.service.http.context.ServletContextHelper
+import org.webjars.WebJarAssetLocator
+import scala.collection.JavaConversions.asScalaSet
+import scala.collection.mutable
 
 /**
  * ServletContextHelper for HTTP whiteboard that delegates resource lookups to registered
@@ -36,7 +25,9 @@ import org.osgi.service.http.HttpService
 @Component(
   service = Array(classOf[ServletContextHelper]),
   scope = SINGLETON,
-  property = Array("osgi.http.whiteboard.context.name=liftweb", "osgi.http.whiteboard.context.path=/"))
+  property = Array(
+    "osgi.http.whiteboard.context.name=liftweb",
+    "osgi.http.whiteboard.context.path=/"))
 class LiftHttpContext extends ServletContextHelper with Logger {
   var liftLifecycleManager: LiftLifecycleManager = null
 
@@ -93,7 +84,7 @@ class LiftHttpContext extends ServletContextHelper with Logger {
   }
 
   override def getResource(s: String) = {
-    debug("""Asked for resource "%s".""" format s)
+    debug("""Get resource "%s".""" format s)
 
     val path = if (s.startsWith("/")) s else "/" + s
     if (path.startsWith(WEBJARS)) {

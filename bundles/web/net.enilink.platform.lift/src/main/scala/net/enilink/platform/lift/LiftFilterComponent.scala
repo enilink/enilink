@@ -2,45 +2,28 @@ package net.enilink.platform.lift
 
 import java.io.File
 import java.net.URL
-
-import scala.collection.mutable
-import scala.collection.JavaConversions.asScalaSet
-
-import org.osgi.util.tracker.BundleTracker
-import org.webjars.WebJarAssetLocator
-
-import javax.servlet.http.HttpServletRequest
-import javax.servlet.http.HttpServletResponse
-import net.enilink.platform.lift.sitemap.Application
-import net.enilink.platform.lift.util.Globals
-import net.liftweb.common.Box.box2Iterable
-import net.liftweb.common.Box.option2Box
-import net.liftweb.common.Full
-import net.liftweb.common.Logger
-import net.liftweb.http.LiftRules
-import net.liftweb.http.LiftRulesMocker.toLiftRules
-import net.liftweb.http.ResourceServer
-import net.liftweb.util.Helpers._
-import org.osgi.framework.Bundle
-import org.osgi.service.http.context.ServletContextHelper
-import org.osgi.service.component.annotations.Component
-import net.liftweb.http.LiftFilter
-import net.liftweb.common.Box
-import net.liftweb.osgi.OsgiBootable
+import java.util.concurrent.ExecutorService
+import javax.servlet.Filter
+import javax.servlet.FilterChain
+import javax.servlet.Servlet
 import javax.servlet.ServletRequest
 import javax.servlet.ServletResponse
-import javax.servlet.FilterChain
-import net.liftweb.util.Schedule
-import org.osgi.service.component.annotations.Deactivate
-import java.util.concurrent.ExecutorService
-import org.osgi.service.component.annotations.Activate
-import org.osgi.service.component.ComponentContext
-import org.osgi.service.http.HttpService
-import org.osgi.framework.ServiceRegistration
-import javax.servlet.Filter
-import org.osgi.service.component.annotations.Reference
 import javax.servlet.http.HttpServlet
-import javax.servlet.Servlet
+import javax.servlet.http.HttpServletRequest
+import javax.servlet.http.HttpServletRequestWrapper
+import javax.servlet.http.HttpServletResponse
+import net.liftweb.common.Box
+import net.liftweb.common.Full
+import net.liftweb.common.Loggable
+import net.liftweb.http.LiftFilter
+import net.liftweb.osgi.OsgiBootable
+import net.liftweb.util.Schedule
+import org.osgi.service.component.ComponentContext
+import org.osgi.service.component.annotations.Activate
+import org.osgi.service.component.annotations.Component
+import org.osgi.service.component.annotations.Deactivate
+import org.osgi.service.component.annotations.Reference
+import org.osgi.service.http.HttpService
 
 /**
  * LiftFilter HTTP whiteboard component
@@ -49,11 +32,12 @@ import javax.servlet.Servlet
   service = Array(classOf[Filter]),
   property = Array(
     "osgi.http.whiteboard.filter.name=LiftFilter",
-    "osgi.http.whiteboard.filter.pattern=/*",
-    "osgi.http.whiteboard.context.select=(osgi.http.whiteboard.context.name=liftweb)"
-  ))
+    "osgi.http.whiteboard.filter.servlet=LiftServlet",
+    "osgi.http.whiteboard.filter.dispatcher=REQUEST",
+    "osgi.http.whiteboard.filter.dispatcher=ASYNC",
+    "osgi.http.whiteboard.filter.asyncSupported=true",
+    "osgi.http.whiteboard.context.select=(osgi.http.whiteboard.context.name=liftweb)"))
 class LiftFilterComponent extends LiftFilter {
-  private var liftServiceReg: ServiceRegistration[_] = _
   private var liftLifecycleManager: LiftLifecycleManager = null
 
   // ensure that lifecycle manager is initialized first
@@ -68,19 +52,6 @@ class LiftFilterComponent extends LiftFilter {
 
   override def doFilter(req: ServletRequest, res: ServletResponse, chain: FilterChain) {
     super.doFilter(req, res, chain)
-  }
-
-  @Activate
-  def activate(ctx: ComponentContext) {
-    for {
-      httpServiceRef <- Option(ctx.getBundleContext.getServiceReference(classOf[HttpService]))
-      portKey <- httpServiceRef.getPropertyKeys.find(_.endsWith("http.port"))
-      port <- Option(httpServiceRef.getProperty(portKey)).map(_.toString.toInt)
-    } {
-      liftServiceReg = ctx.getBundleContext.registerService(classOf[LiftService], new LiftService() {
-        override def port() = port
-      }, null)
-    }
   }
 
   @Deactivate
@@ -98,11 +69,31 @@ class LiftFilterComponent extends LiftFilter {
     // ensure that schedule service is really canceled
     // Lift calls only shutdown that does not cancel already enqueued tasks
     service.foreach(_.shutdownNow)
+  }
+}
 
-    if (liftServiceReg != null) {
-      liftServiceReg.unregister
-      liftServiceReg = null
+/**
+ * This servlet is required to enable async processing for the LiftFilter.
+ * At least Equinox HTTP requires this additional servlet to work correctly with Lift's COMET.
+ */
+@Component(
+  service = Array(classOf[Servlet]),
+  property = Array(
+    "osgi.http.whiteboard.servlet.name=LiftServlet",
+    "osgi.http.whiteboard.servlet.pattern=/",
+    "osgi.http.whiteboard.servlet.asyncSupported=true",
+    //"osgi.http.whiteboard.servlet.multipart.enabled=true",
+    "osgi.http.whiteboard.context.select=(osgi.http.whiteboard.context.name=liftweb)"))
+class LiftServletComponent extends HttpServlet with Loggable {
+  override def doGet(req: HttpServletRequest, resp: HttpServletResponse) {
+    // this is a request for a static resource, other request are already handled by the lift filter
+    val pathInfo = req.getRequestURI
+    val wrapped = new HttpServletRequestWrapper(req) {
+      // re-use path info since it is otherwise lost due to the forwarding
+      override def getPathInfo = pathInfo
     }
+    // forward this to the internal whitebard resources servlet as defined by LiftResources
+    req.getRequestDispatcher("/lift-resources").forward(wrapped, resp)
   }
 }
 
@@ -112,8 +103,31 @@ class LiftFilterComponent extends LiftFilter {
 @Component(
   service = Array(classOf[LiftResources]),
   property = Array(
-    "osgi.http.whiteboard.resource.pattern=/*",
+    "osgi.http.whiteboard.resource.pattern=/lift-resources/*",
     "osgi.http.whiteboard.resource.prefix=/",
     "osgi.http.whiteboard.context.select=(osgi.http.whiteboard.context.name=liftweb)"))
 class LiftResources {
+}
+
+/**
+ * Registers the Lift service that helps clients to detect if the Lift framework is already running or not
+ */
+@Component( // add reference to HttpService because it is accessed in activate()
+  reference = Array(
+    new Reference(name = "HttpService", service = classOf[HttpService]),
+    // the LiftService should only be available if LiftFilter is already registered
+    new Reference(name = "LiftFilter", service = classOf[Filter], target = "(osgi.http.whiteboard.filter.name=LiftFilter)")))
+class LiftServiceComponent extends LiftService {
+  var port: Integer = -1
+
+  @Activate
+  def activate(ctx: ComponentContext) {
+    for {
+      httpServiceRef <- Option(ctx.getBundleContext.getServiceReference(classOf[HttpService]))
+      portKey <- httpServiceRef.getPropertyKeys.find(_.endsWith("http.port"))
+      port <- Option(httpServiceRef.getProperty(portKey)).map(_.toString.toInt)
+    } {
+      LiftServiceComponent.this.port = port
+    }
+  }
 }
