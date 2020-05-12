@@ -33,12 +33,12 @@
 						<goals>
 							<goal>unpack-dependencies</goal>
 						</goals>
-						<configuration>
-							<outputDirectory>${project.build.outputDirectory}</outputDirectory>
-							<excludeTransitive>true</excludeTransitive>
-						</configuration>
 					</execution>
 				</executions>
+				<configuration>
+					<outputDirectory>${project.build.outputDirectory}</outputDirectory>
+					<excludeTransitive>true</excludeTransitive>
+				</configuration>
 			</plugin>
 
 			<plugin>

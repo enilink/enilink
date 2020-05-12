@@ -5,6 +5,8 @@ target/
 .settings/
 .classpath
 .project
+.idea/
+*.iml
 # exclude symlinks
 META-INF
 OSGI-INF

@@ -20,7 +20,7 @@
 		<lift.version>2.6.3</lift.version>
 		<komma.version>1.4.2-SNAPSHOT</komma.version>
 		<scala.major.version>2.11</scala.major.version>
-		<scala.version>2.11.1</scala.version>
+		<scala.version>2.11.12</scala.version>
 
 		<bnd.version>4.3.1</bnd.version>
 		<karaf.version>4.3.0.RC1</karaf.version>

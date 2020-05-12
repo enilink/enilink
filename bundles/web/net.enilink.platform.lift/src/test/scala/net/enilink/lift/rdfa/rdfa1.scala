@@ -2,7 +2,6 @@ package net.enilink.platform.lift.rdfa
 
 import org.scalatest._
 import net.enilink.platform.lift.rdf._
-import net.enilink.platform.lift.rdfa.RDFaParser;
 
 import org.junit.runner.RunWith
 import org.scalatestplus.junit.JUnitRunner
