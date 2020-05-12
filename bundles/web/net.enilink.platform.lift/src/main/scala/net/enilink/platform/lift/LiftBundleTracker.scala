@@ -35,6 +35,7 @@ class LiftBundleTracker(context: BundleContext) extends BundleTracker[LiftBundle
     val siteMapStr = Box.legacyNullTest(headers.get("Lift-SiteMap"))
     val moduleStr = Box.legacyNullTest(headers.get("Lift-Module"))
     val packageStr = Box.legacyNullTest(headers.get("Lift-Packages"))
+
     if (siteMapStr.isDefined || moduleStr.isDefined || packageStr.isDefined) {
       if (!liftStarted) {
         // track bundle immediately
@@ -69,6 +70,8 @@ class LiftBundleTracker(context: BundleContext) extends BundleTracker[LiftBundle
     if (!rebooting) {
       logger.debug("Rebooting Lift")
       rebooting = true
+      // close the tracker immediately
+      this.close
       // reboot net.enilink.platform.lift and dependent bundles with short delay
       Executors.newSingleThreadScheduledExecutor.schedule(new Runnable {
         def run {
