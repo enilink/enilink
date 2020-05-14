@@ -1,75 +1,29 @@
 package net.enilink.platform.lift
 
-import java.nio.file.FileSystems
-import java.nio.file.Files
-import java.nio.file.Path
-import java.nio.file.Paths
-import java.nio.file.StandardWatchEventKinds
-import java.nio.file.WatchKey
 import java.security.PrivilegedAction
-import java.util.concurrent.ExecutorService
-import java.util.concurrent.Executors
-import java.util.concurrent.TimeUnit
-import java.util.concurrent.atomic.AtomicReference
+import java.util.Collections
+
+import javax.security.auth.Subject
+import net.enilink.komma.core.URIs
+import net.enilink.komma.model.ModelUtil
+import net.enilink.komma.model.base.SimpleURIMapRule
+import net.enilink.platform.core.{IContext, IContextProvider, ISession}
+import net.enilink.platform.core.security.SecurityUtil
+import net.enilink.platform.lift.sitemap.{Menus, ModelSpec, SiteMapXml}
+import net.enilink.platform.lift.util.Globals
+import net.liftweb.common.Box.box2Option
+import net.liftweb.common.{Box, Empty, Full, Loggable}
+import net.liftweb.http.LiftRulesMocker.toLiftRules
+import net.liftweb.http.{LiftRules, ResourceServer, S}
+import net.liftweb.sitemap.SiteMap
+import net.liftweb.util.ClassHelpers
+import org.osgi.framework.{Bundle, BundleContext, ServiceRegistration}
+import org.osgi.service.component.annotations.{Activate, Component, Deactivate}
+import org.slf4j.LoggerFactory
 
 import scala.collection.JavaConversions._
 
-import org.eclipse.osgi.service.datalocation.Location
-import org.osgi.framework.Bundle
-import org.osgi.framework.BundleActivator
-import org.osgi.framework.BundleContext
-import org.osgi.framework.BundleEvent
-import org.osgi.framework.FrameworkUtil
-import org.osgi.framework.ServiceReference
-import org.osgi.framework.ServiceRegistration
-import org.osgi.framework.wiring.FrameworkWiring
-import org.osgi.util.tracker.BundleTracker
-import org.osgi.util.tracker.ServiceTracker
-
-import javax.security.auth.Subject
-import javax.servlet.FilterChain
-import javax.servlet.ServletRequest
-import javax.servlet.ServletResponse
-import javax.servlet.http.HttpServletRequest
-import net.enilink.platform.core.IContext
-import net.enilink.platform.core.IContextProvider
-import net.enilink.platform.core.ISession
-import net.enilink.platform.core.security.SecurityUtil
-import net.enilink.platform.lift.util.Globals
-import net.liftweb.actor.LiftActor
-import net.liftweb.common.Box
-import net.liftweb.common.Box.box2Option
-import net.liftweb.common.Box.option2Box
-import net.liftweb.common.Empty
-import net.liftweb.common.Full
-import net.liftweb.common.Loggable
-import net.liftweb.http.LiftFilter
-import net.liftweb.http.LiftRules
-import net.liftweb.http.LiftRulesMocker.toLiftRules
-import net.liftweb.http.ResourceServer
-import net.liftweb.http.S
-import net.liftweb.osgi.OsgiBootable
-import net.liftweb.sitemap.SiteMap
-import net.liftweb.util.ClassHelpers
-import net.liftweb.util.Helpers
-import net.liftweb.util.Schedule
-import org.osgi.service.component.annotations.Component
-import org.osgi.service.component.annotations.Activate
-import org.osgi.service.component.annotations.Deactivate
-import net.enilink.platform.lift.sitemap.SiteMapXml
-import net.enilink.platform.lift.sitemap.Menus
-import net.enilink.platform.lift.sitemap.SiteMapXml
-import net.enilink.platform.lift.sitemap.ModelSpec
-import net.enilink.komma.model.ModelUtil
-import java.util.Collections
-import net.enilink.komma.core.URIs
-import net.enilink.komma.model.base.SimpleURIMapRule
-import org.slf4j.LoggerFactory
-import net.enilink.platform.core.ModelSetManager
-
-@Component(
-  immediate = true,
-  service = Array(classOf[LiftLifecycleManager]))
+@Component(service = Array(classOf[LiftLifecycleManager]))
 class LiftLifecycleManager extends Loggable {
   private val log = LoggerFactory.getLogger(classOf[LiftLifecycleManager])
 
@@ -164,7 +118,11 @@ class LiftLifecycleManager extends Loggable {
     }
   }
 
-  def bundles = bundleTracker.getTracked
+  def bundles = if (bundleTracker == null) {
+    java.util.Collections.emptyMap[Bundle, LiftBundleConfig]
+  } else {
+    bundleTracker.getTracked
+  }
 
   def initLift {
     // allow duplicate link names
@@ -204,36 +162,49 @@ class LiftLifecycleManager extends Loggable {
 
   @Activate
   def start(context: BundleContext) {
-    val bundlesToStart = context.getBundles filter { bundle =>
-      val headers = bundle.getHeaders
-      val moduleStr = Box.legacyNullTest(headers.get("Lift-Module"))
-      val packageStr = Box.legacyNullTest(headers.get("Lift-Packages"))
-      moduleStr.isDefined || packageStr.isDefined
-    }
+    if (LiftRules.doneBoot) {
+      // directly reboot lift in this case
+      LiftBootHelper.rebootLift
+    } else {
+      val bundlesToStart = context.getBundles filter { bundle =>
+        val headers = bundle.getHeaders
+        val moduleStr = Box.legacyNullTest(headers.get("Lift-Module"))
+        val packageStr = Box.legacyNullTest(headers.get("Lift-Packages"))
+        moduleStr.isDefined || packageStr.isDefined
+      }
 
-    bundlesToStart filter (_ != context.getBundle) foreach { bundle =>
-      bundle.start(Bundle.START_TRANSIENT)
-    }
-
-    bundleTracker = new LiftBundleTracker(context)
-    bundleTracker.open
-
-    initLift
-
-    contextServiceReg = context.registerService(
-      classOf[IContextProvider],
-      new IContextProvider {
-        val session = new ISession {
-          def getAttribute(name: String) = S.session.flatMap(_.httpSession.map(_.attribute(name).asInstanceOf[AnyRef])) openOr null
-          def setAttribute(name: String, value: AnyRef) = S.session.foreach(_.httpSession.foreach(_.setAttribute(name, value)))
-          def removeAttribute(name: String) = S.session.foreach(_.httpSession.foreach(_.removeAttribute(name)))
+      bundlesToStart filter (_ != context.getBundle) foreach { bundle =>
+        try {
+          bundle.start(Bundle.START_TRANSIENT)
+        } catch {
+          case e : Exception => // ignore
         }
-        val context = new IContext {
-          def getSession = session
-          def getLocale = S.locale
-        }
-        def get = S.session.flatMap(_.httpSession.map(_ => context)) getOrElse null
-      }, null)
+      }
+
+      bundleTracker = new LiftBundleTracker(context)
+      bundleTracker.open
+
+      initLift
+
+      contextServiceReg = context.registerService(
+        classOf[IContextProvider],
+        new IContextProvider {
+          val session = new ISession {
+            def getAttribute(name: String) = S.session.flatMap(_.httpSession.map(_.attribute(name).asInstanceOf[AnyRef])) openOr null
+
+            def setAttribute(name: String, value: AnyRef) = S.session.foreach(_.httpSession.foreach(_.setAttribute(name, value)))
+
+            def removeAttribute(name: String) = S.session.foreach(_.httpSession.foreach(_.removeAttribute(name)))
+          }
+          val context = new IContext {
+            def getSession = session
+
+            def getLocale = S.locale
+          }
+
+          def get = S.session.flatMap(_.httpSession.map(_ => context)) getOrElse null
+        }, null)
+    }
   }
 
   @Deactivate

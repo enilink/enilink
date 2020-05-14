@@ -1,19 +1,10 @@
 package net.enilink.platform.lift
 
-import java.util.concurrent.Executors
-import java.util.concurrent.TimeUnit
-
-import scala.collection.JavaConversions.seqAsJavaList
-
 import org.osgi.framework.Bundle
 import org.osgi.framework.BundleContext
 import org.osgi.framework.BundleEvent
-import org.osgi.framework.BundleException
-import org.osgi.framework.FrameworkUtil
-import org.osgi.framework.wiring.FrameworkWiring
 import org.osgi.util.tracker.BundleTracker
 
-import net.enilink.platform.core.IContextProvider
 import net.liftweb.common.Box
 import net.liftweb.common.Empty
 import net.liftweb.common.Failure
@@ -23,13 +14,6 @@ import net.liftweb.http.LiftRules
 import net.liftweb.util.ClassHelpers
 
 class LiftBundleTracker(context: BundleContext) extends BundleTracker[LiftBundleConfig](context, Bundle.INSTALLED | Bundle.RESOLVED | Bundle.STARTING | Bundle.ACTIVE, null) with Loggable {
-  var liftStarted = false
-  var rebooting = false
-
-  def liftStarted(liftStarted: Boolean) {
-    this.liftStarted = liftStarted
-  }
-
   override def addingBundle(bundle: Bundle, event: BundleEvent) = {
     val headers = bundle.getHeaders
     val siteMapStr = Box.legacyNullTest(headers.get("Lift-SiteMap"))
@@ -37,7 +21,7 @@ class LiftBundleTracker(context: BundleContext) extends BundleTracker[LiftBundle
     val packageStr = Box.legacyNullTest(headers.get("Lift-Packages"))
 
     if (siteMapStr.isDefined || moduleStr.isDefined || packageStr.isDefined) {
-      if (!liftStarted) {
+      if (!LiftRules.doneBoot) {
         // track bundle immediately
         val packages = packageStr.map(_.split("\\s,\\s")) openOr Array.empty
         val module = moduleStr.filter(_.trim.nonEmpty).flatMap { m =>
@@ -53,36 +37,19 @@ class LiftBundleTracker(context: BundleContext) extends BundleTracker[LiftBundle
         module match {
           case f: Failure => null
           case m =>
-            val startLevel = ClassHelpers.createInvoker("startLevel", m) flatMap (_()) map {
+            val startLevel = if (m == null) Empty else ClassHelpers.createInvoker("startLevel", m) flatMap (_()) map {
               case i: Int => i
               case o => o.toString.toInt
             }
             new LiftBundleConfig(module, packages, siteMapStr, startLevel openOr 0)
         }
       } else {
-        rebootLift
+        // close the tracker immediately
+        this.close
+        LiftBootHelper.rebootLift
         null
       }
     } else null
-  }
-
-  def rebootLift {
-    if (!rebooting) {
-      logger.debug("Rebooting Lift")
-      rebooting = true
-      // close the tracker immediately
-      this.close
-      // reboot net.enilink.platform.lift and dependent bundles with short delay
-      Executors.newSingleThreadScheduledExecutor.schedule(new Runnable {
-        def run {
-          val liftBundle = FrameworkUtil.getBundle(classOf[LiftRules])
-          val enilinkCore = FrameworkUtil.getBundle(classOf[IContextProvider])
-          val systemBundle = context.getBundle(0)
-          val frameworkWiring = systemBundle.adapt(classOf[FrameworkWiring])
-          frameworkWiring.refreshBundles(enilinkCore :: liftBundle :: context.getBundle :: Nil)
-        }
-      }, 2, TimeUnit.SECONDS)
-    }
   }
 
   override def removedBundle(bundle: Bundle, event: BundleEvent, config: LiftBundleConfig) {
@@ -97,10 +64,12 @@ class LiftBundleTracker(context: BundleContext) extends BundleTracker[LiftBundle
       } catch {
         case e: Throwable => logger.error("Error while stopping Lift-powered bundle " + bundle.getSymbolicName, e)
       }
-      if (context.getBundle(0).getState != Bundle.STOPPING) {
-        // this is required if the module made changes to LiftRules or another global object
-        rebootLift
-      }
+    }
+    if (context.getBundle(0).getState != Bundle.STOPPING) {
+      // this is required if the module made changes to LiftRules or another global object
+      // close the tracker immediately
+      this.close
+      LiftBootHelper.rebootLift
     }
   }
 
