@@ -2,21 +2,17 @@ package net.enilink.platform.lift.sitemap
 
 import java.io.InputStream
 
-import scala.xml.MetaData
-import scala.xml.Node
-import scala.xml.XML
+import scala.xml.{Elem, MetaData, Node, Text, XML}
 import scala.collection.mutable.ListBuffer
-
 import net.liftweb.sitemap.Loc
-import net.liftweb.sitemap.Loc.Link
-import net.liftweb.sitemap.Loc.LocParam
+import net.liftweb.sitemap.Loc.{EarlyResponse, Hidden, Link, LocParam, QueryParameters, UseParentParams}
 import net.liftweb.sitemap.Menu
 import net.liftweb.sitemap.Menu.Menuable
 import net.liftweb.sitemap.ConvertableToMenu
-import scala.xml.Elem
-import net.liftweb.sitemap.Loc.UseParentParams
 import net.enilink.komma.core.URI
 import net.enilink.komma.core.URIs
+import net.liftweb.common.{Box, Empty, Full}
+import net.liftweb.http.{RedirectResponse, Req}
 
 case class ModelSpec(uri: Option[URI], location: Option[URI])
 
@@ -26,35 +22,67 @@ case class ModelSpec(uri: Option[URI], location: Option[URI])
 class SiteMapXml {
   protected var menuList: List[Menu] = Nil
   protected var modelList: List[ModelSpec] = Nil
+  protected var modelRules: Map[List[String], URI] = Map.empty
 
   def menus = menuList
 
   def models = modelList
 
+  def contextModelRules : Box[PartialFunction[Req, Box[URI]]] = if (modelRules.isEmpty) Empty else {
+    Full(new PartialFunction[Req, Box[URI]] {
+      override def isDefinedAt(req: Req): Boolean = apply(req).isDefined
+
+      override def apply(req: Req): Box[URI] = {
+        var path = req.path.partPath
+        var model : Option[URI] = None
+        while (model.isEmpty && path.nonEmpty) {
+          model = modelRules.get(path)
+          if (model.isEmpty) path = path.dropRight(1)
+        }
+        model
+      }
+    })
+  }
+
   def parse(in: InputStream) {
     val xml = XML.load(in)
-    val menu = xml match {
+    menuList = xml match {
       case sm @ <sitemap>{ _* }</sitemap> => {
         val app = sm \@ "app"
+        parseModelRule(app :: Nil, sm)
+
         modelList = sm.child.collect {
           case model @ <model/> => parseModelSpec(model)
         }.toList
+
         val submenus = sm.child.collect {
           case loc @ <loc>{ _* }</loc> => parseLocation(app, loc)
         }.toList
-        Menus.application(app, app :: Nil, parseLocParams(sm.attributes), submenus)
+
+        // redirect to index
+        val redirect = Menus.appMenu("redirect-to-index", "", Nil)(app) >> Hidden >> EarlyResponse(() => {
+          Full(RedirectResponse(s"/$app/"))
+        })
+        redirect :: Menus.application(app, app :: Nil, parseLocParams(sm.attributes), submenus) :: Nil
       }
       case other => throw new IllegalArgumentException("Invalid sitemap element: " + other.label)
     }
-    menuList = menu :: Nil
   }
 
   protected def parseLocParams[T](attributes: MetaData): List[LocParam[T]] = {
-    attributes.toList.map(_.key).collect {
-      case "hideIfInactive" => HideIfInactive
-      // case "queryParameters" => TODO
-      case "useParentParams" => UseParentParams()
-      case "hidden" => Loc.Hidden
+    attributes.toList.map(attr => (attr.key, attr.value)).collect {
+      case ("hideIfInactive", _) => HideIfInactive
+      case ("queryParameters", Seq(Text(v), _*)) => {
+        val params = v.split('&').map(keyValue => {
+          keyValue.split('=') match {
+              // keyValue may contain multiple equal signs
+            case Array(key, value @ _*) => (key, value.mkString("="))
+          }
+        }).toList
+        QueryParameters(() => params)
+      }
+      case ("useParentParams", _) => UseParentParams()
+      case ("hidden", _) => Loc.Hidden
     }
   }
 
@@ -62,6 +90,19 @@ class SiteMapXml {
     ModelSpec(
       Option(model \@ "uri").filter(_.nonEmpty).map(URIs.createURI(_)),
       Option(model \@ "location").filter(_.nonEmpty).map(URIs.createURI(_)))
+  }
+
+  protected def parseModelRule(path : List[String], loc: Node) {
+    (loc \@ "model") match {
+      case m if m.nonEmpty => (try {
+        Option(URIs.createURI(m)).filter(! _.isRelative)
+      } catch {
+        case e : Exception => None
+      }) foreach (uri => {
+        modelRules += (path -> uri)
+      })
+      case _ => // ignore
+    }
   }
 
   protected def parseLocation(app: String, loc: Node): ConvertableToMenu = {
@@ -76,6 +117,7 @@ class SiteMapXml {
       case p if (app.isEmpty) => p
       case p => app :: p
     }
+
     val params = parseLocParams[Unit](loc.attributes)
     val submenus = loc.child.flatMap {
       case child @ <loc>{ _* }</loc> => Some(parseLocation(app, child))

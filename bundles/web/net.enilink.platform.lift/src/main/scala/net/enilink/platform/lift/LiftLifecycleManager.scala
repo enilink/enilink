@@ -36,14 +36,21 @@ class LiftLifecycleManager extends Loggable {
     config.packages filterNot (_.isEmpty) foreach (LiftRules.addToPackages(_))
 
     var models = List.empty[ModelSpec]
-    config.sitemapXml.foreach { xml =>
-      val in = bundle.getResource(xml).openStream
+    for {
+      xml <- config.sitemapXml
+      xmlUrl <- Option(bundle.getResource(xml))
+    } {
+      val in = xmlUrl.openStream
       try {
         val siteMap = new SiteMapXml
         siteMap.parse(in)
         models = siteMap.models
         val menus = siteMap.menus
         config.sitemapMutator = Full(Menus.sitemapMutator(menus))
+        // add context model selection rules to Globals
+        siteMap.contextModelRules.foreach(rule => {
+          Globals.contextModelRules.prepend(rule)
+        })
       } catch {
         case e: java.lang.Exception => logger.warn("Lift-powered bundle " + bundle.getSymbolicName + " has invalid sitemap.", e)
       } finally {
