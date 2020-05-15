@@ -24,18 +24,16 @@ deploy:
   on:
     repo: enilink/enilink
     tags: true
-- provider: script
-  skip_cleanup: true
-  script: releng/publish/pushToDockerHub.sh
-  on:
-    branch: snapshots
-    condition: false
-- provider: script
-  skip_cleanup: true
-  script: releng/publish/pushToDockerHub.sh
-  on:
-    tags: true
-    condition: false
+#- provider: script
+#  skip_cleanup: true
+#  script: releng/publish/pushToDockerHub.sh
+#  on:
+#    branch: snapshots
+#- provider: script
+#  skip_cleanup: true
+#  script: releng/publish/pushToDockerHub.sh
+#  on:
+#    tags: true
 
 env:
   global:
