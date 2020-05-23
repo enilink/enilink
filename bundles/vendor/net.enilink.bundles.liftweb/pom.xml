@@ -20,44 +20,43 @@
 	</scm>
 
 	<artifactId>net.enilink.bundles.liftweb</artifactId>
-
-	<version>2.6.3</version>
+	<version>2.6.3-SNAPSHOT</version>
 
 	<dependencies>
 		<dependency>
 			<groupId>net.liftweb</groupId>
 			<artifactId>lift-actor_${scala.major.version}</artifactId>
-			<version>${project.version}</version>
+			<version>${lift.version}</version>
 			<scope>provided</scope>
 		</dependency>
 		<dependency>
 			<groupId>net.liftweb</groupId>
 			<artifactId>lift-common_${scala.major.version}</artifactId>
-			<version>${project.version}</version>
+			<version>${lift.version}</version>
 			<scope>provided</scope>
 		</dependency>
 		<dependency>
 			<groupId>net.liftweb</groupId>
 			<artifactId>lift-json_${scala.major.version}</artifactId>
-			<version>${project.version}</version>
+			<version>${lift.version}</version>
 			<scope>provided</scope>
 		</dependency>
 		<dependency>
 			<groupId>net.liftweb</groupId>
 			<artifactId>lift-markdown_${scala.major.version}</artifactId>
-			<version>${project.version}</version>
+			<version>${lift.version}</version>
 			<scope>provided</scope>
 		</dependency>
 		<dependency>
 			<groupId>net.liftweb</groupId>
 			<artifactId>lift-util_${scala.major.version}</artifactId>
-			<version>${project.version}</version>
+			<version>${lift.version}</version>
 			<scope>provided</scope>
 		</dependency>
 		<dependency>
 			<groupId>net.liftweb</groupId>
 			<artifactId>lift-webkit_${scala.major.version}</artifactId>
-			<version>${project.version}</version>
+			<version>${lift.version}</version>
 			<scope>provided</scope>
 		</dependency>
 
