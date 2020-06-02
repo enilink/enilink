@@ -37,7 +37,7 @@ class LiftBundleTracker(context: BundleContext) extends BundleTracker[LiftBundle
         module match {
           case f: Failure => null
           case m =>
-            val startLevel = if (m == null) Empty else ClassHelpers.createInvoker("startLevel", m) flatMap (_()) map {
+            val startLevel = m.flatMap(ClassHelpers.createInvoker("startLevel", _)).flatMap(_()).map {
               case i: Int => i
               case o => o.toString.toInt
             }
