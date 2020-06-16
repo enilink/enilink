@@ -71,6 +71,7 @@
 			<groupId>org.scala-lang</groupId>
 			<artifactId>scalap</artifactId>
 			<version>${scala.version}</version>
+			<scope>provided</scope>
 		</dependency>
 		<dependency>
 			<groupId>joda-time</groupId>
