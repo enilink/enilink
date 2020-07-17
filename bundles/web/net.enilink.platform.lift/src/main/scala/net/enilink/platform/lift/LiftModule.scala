@@ -6,7 +6,6 @@ import java.util.Locale
 
 import scala.language.postfixOps
 import scala.xml.NodeSeq
-
 import javax.security.auth.Subject
 import net.enilink.komma.core.BlankNode
 import net.enilink.komma.core.IUnitOfWork
@@ -23,15 +22,8 @@ import net.liftweb.common.Box.option2Box
 import net.liftweb.common.Empty
 import net.liftweb.common.Full
 import net.liftweb.common.Logger
-import net.liftweb.http.ForbiddenResponse
-import net.liftweb.http.Html5Properties
-import net.liftweb.http.LiftRules
+import net.liftweb.http.{ForbiddenResponse, Html5Properties, LiftRules, LiftSession, NoticeType, OnDiskFileParamHolder, Req, ResourceServer, S}
 import net.liftweb.http.LiftRulesMocker.toLiftRules
-import net.liftweb.http.NoticeType
-import net.liftweb.http.OnDiskFileParamHolder
-import net.liftweb.http.Req
-import net.liftweb.http.ResourceServer
-import net.liftweb.http.S
 import net.liftweb.http.js.jquery.JQueryArtifacts
 import net.liftweb.util.DynoVar
 import net.liftweb.util.Helpers.intToTimeSpanBuilder
@@ -93,6 +85,17 @@ class LiftModule extends Logger {
     //    LiftRules.resourceBundleFactories prepend {
     //      case (basename, locale) => ResourceBundle.getBundle(basename, locale)
     //    }
+
+    // simple fix to overwrite zero or negative inactive intervals
+    LiftRules.sessionCreator = {
+      case (httpSession, contextPath) => {
+        if (httpSession.maxInactiveInterval <= 0) {
+          // use default value of 30 minutes
+          httpSession.setMaxInactiveInterval(30 * 60)
+        }
+        new LiftSession(contextPath, httpSession.sessionId, Full(httpSession))
+      }
+    }
 
     // Use jQuery 1.8.2
     LiftRules.jsArtifacts = new JQueryArtifacts {
