@@ -90,8 +90,9 @@ class LiftModule extends Logger {
     LiftRules.sessionCreator = {
       case (httpSession, contextPath) => {
         if (httpSession.maxInactiveInterval <= 0) {
-          // use default value of 30 minutes
-          httpSession.setMaxInactiveInterval(30 * 60)
+          // use LiftRules.sessionInactivityTimeout or default value of 30 minutes
+          // maxInactiveInterval is in seconds
+          httpSession.setMaxInactiveInterval(LiftRules.sessionInactivityTimeout.vend.map(_ / 1000) openOr 30 * 60)
         }
         new LiftSession(contextPath, httpSession.sessionId, Full(httpSession))
       }
