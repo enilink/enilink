@@ -29,6 +29,8 @@ import org.osgi.service.http.HttpService
     "osgi.http.whiteboard.context.select=(osgi.http.whiteboard.context.name=liftweb)"))
 class LiftFilterComponent extends LiftFilter with Loggable {
   var lcm : LiftLifecycleManager = null
+  var config : FilterConfig = null
+  @volatile var booted = false
 
   // ensures that lifecycle manager is initialized first
   @Reference
@@ -37,10 +39,7 @@ class LiftFilterComponent extends LiftFilter with Loggable {
   }
 
   override def init(config: FilterConfig) {
-    if (!LiftRules.doneBoot) {
-      logger.debug("LiftFilterComponent::init() - booting Lift")
-      super.init(config)
-    }
+    this.config = config;
   }
 
   override def bootLift(loader: Box[String]) {
@@ -48,6 +47,17 @@ class LiftFilterComponent extends LiftFilter with Loggable {
   }
 
   override def doFilter(req: ServletRequest, res: ServletResponse, chain: FilterChain) {
+    // lazy initialize lift on first request
+    if (!booted) {
+      this.synchronized {
+        // doFilter may be called in parallel by multiple requests
+        if (!booted) {
+          logger.debug("LiftFilterComponent::doFilter() - booting Lift")
+          super.init(config)
+          booted = true
+        }
+      }
+    }
     super.doFilter(req, res, chain)
   }
 

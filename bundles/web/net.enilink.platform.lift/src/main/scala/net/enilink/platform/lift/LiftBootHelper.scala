@@ -15,7 +15,7 @@ object LiftBootHelper extends Loggable {
 	var liftStopping : Boolean = false
 	var rebootFuture : ScheduledFuture[_]  = null
 
-	def rebootLift {
+	def rebootLift() : Unit = this.synchronized {
 		if (rebootFuture == null) {
 			// reboot liftweb and dependent bundles with short delay
 			rebootFuture = Executors.newSingleThreadScheduledExecutor.schedule(new Runnable {
