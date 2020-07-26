@@ -34,7 +34,6 @@ class LiftHttpContext extends ServletContextHelper with Logger {
   @Reference
   def setLiftLifecycleManager(manager: LiftLifecycleManager) {
     this.liftLifecycleManager = manager
-    this.webJarLocator = new WebJarAssetLocator(findWebjarAssets)
   }
 
   // support for WebJars
@@ -85,6 +84,12 @@ class LiftHttpContext extends ServletContextHelper with Logger {
 
   override def getResource(s: String) = {
     debug("""Get resource "%s".""" format s)
+    if (webJarLocator == null) {
+      // lazy initialize web jars locator
+      this.synchronized {
+        if (webJarLocator == null) webJarLocator = new WebJarAssetLocator(findWebjarAssets)
+      }
+    }
     val path = if (s.startsWith("/")) s else "/" + s
     if (path.startsWith(WEBJARS)) {
       tryo {

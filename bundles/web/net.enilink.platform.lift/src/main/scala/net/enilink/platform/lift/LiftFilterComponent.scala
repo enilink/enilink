@@ -53,6 +53,9 @@ class LiftFilterComponent extends LiftFilter with Loggable {
         // doFilter may be called in parallel by multiple requests
         if (!booted) {
           logger.debug("LiftFilterComponent::doFilter() - booting Lift")
+          // boot lift bundles first
+          lcm.initialize
+          // start lift
           super.init(config)
           booted = true
         }

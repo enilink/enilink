@@ -44,9 +44,12 @@ class LiftBundleTracker(context: BundleContext) extends BundleTracker[LiftBundle
             new LiftBundleConfig(module, packages, siteMapStr, startLevel openOr 0)
         }
       } else {
-        // close the tracker immediately
-        this.close
-        LiftBootHelper.rebootLift
+        if (context.getBundle(0).getState != Bundle.STOPPING) {
+          // this is required if the module made changes to LiftRules or another global object
+          // close the tracker immediately
+          this.close
+          LiftBootHelper.rebootLift
+        }
         null
       }
     } else null
