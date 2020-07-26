@@ -41,7 +41,7 @@ class LiftBundleTracker(context: BundleContext) extends BundleTracker[LiftBundle
               case i: Int => i
               case o => o.toString.toInt
             }
-            new LiftBundleConfig(module, packages, siteMapStr, startLevel openOr 0)
+            LiftBundleConfig(module, packages, siteMapStr, startLevel openOr 0)
         }
       } else {
         if (context.getBundle(0).getState != Bundle.STOPPING) {

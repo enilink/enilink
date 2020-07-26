@@ -217,9 +217,6 @@ class LiftLifecycleManager extends Loggable {
 
 	@Deactivate
 	def stop(context: BundleContext) {
-		// notify boot helper that bundle is already stopped by framework
-		LiftBootHelper.liftBundleStopping()
-
 		if (bundleTracker != null) {
 			bundleTracker.close
 			bundleTracker = null
