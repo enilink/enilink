@@ -14,29 +14,18 @@ import net.liftweb.http.{LiftFilter, LiftRules}
 import net.liftweb.osgi.OsgiBootable
 import net.liftweb.util.Schedule
 import org.osgi.service.component.ComponentContext
-import org.osgi.service.component.annotations.{Activate, Component, Deactivate, Reference}
+import org.osgi.service.component.annotations.{Activate, Component, Deactivate, Reference, ServiceScope}
 import org.osgi.service.http.HttpService
 
-/**
- * LiftFilter HTTP whiteboard component
- */
 @Component(
-  service = Array(classOf[Filter]),
-  property = Array(
-    "osgi.http.whiteboard.filter.name=LiftFilter",
-    "osgi.http.whiteboard.filter.servlet=LiftServlet",
-    "osgi.http.whiteboard.filter.asyncSupported=true",
-    "osgi.http.whiteboard.context.select=(osgi.http.whiteboard.context.name=liftweb)"))
+  service = Array(classOf[LiftFilter])
+)
 class LiftFilterComponent extends LiftFilter with Loggable {
-  var lcm : LiftLifecycleManager = null
+  @Reference
+  var lcm : LiftLifecycleManager = _
+
   var config : FilterConfig = null
   @volatile var booted = false
-
-  // ensures that lifecycle manager is initialized first
-  @Reference
-  def setLifeCycleManager(lcm: LiftLifecycleManager): Unit = {
-    this.lcm = lcm
-  }
 
   override def init(config: FilterConfig) {
     this.config = config;
@@ -64,10 +53,6 @@ class LiftFilterComponent extends LiftFilter with Loggable {
     super.doFilter(req, res, chain)
   }
 
-  override def destroy: Unit = {
-    // overridden since this is called multiple times by HTTP whiteboard
-  }
-
   @Deactivate
   def deactivate {
     logger.debug("LiftFilterComponent::deactivate()")
@@ -88,11 +73,40 @@ class LiftFilterComponent extends LiftFilter with Loggable {
 }
 
 /**
+ * LiftFilter HTTP whiteboard component
+ */
+@Component(
+  service = Array(classOf[Filter]),
+  scope = ServiceScope.PROTOTYPE,
+  property = Array(
+    "osgi.http.whiteboard.filter.name=LiftFilter",
+    "osgi.http.whiteboard.filter.servlet=LiftServlet",
+    "osgi.http.whiteboard.filter.asyncSupported=true",
+    "osgi.http.whiteboard.context.select=(osgi.http.whiteboard.context.name=liftweb)"))
+class LiftFilterWrapper extends Filter with Loggable {
+  @Reference
+  var liftFilter : LiftFilter = _
+
+  override def init(config: FilterConfig): Unit = {
+    liftFilter.init(config)
+  }
+
+  override def doFilter(req: ServletRequest, res: ServletResponse, chain: FilterChain) {
+    liftFilter.doFilter(req, res, chain)
+  }
+
+  override def destroy: Unit = {
+    // nothing to do here
+  }
+}
+
+/**
  * This servlet is required to enable async processing for the LiftFilter.
  * At least Equinox HTTP requires this additional servlet to work correctly with Lift's COMET.
  */
 @Component(
   service = Array(classOf[Servlet]),
+  scope = ServiceScope.PROTOTYPE,
   property = Array(
     "osgi.http.whiteboard.servlet.name=LiftServlet",
     "osgi.http.whiteboard.servlet.pattern=/",

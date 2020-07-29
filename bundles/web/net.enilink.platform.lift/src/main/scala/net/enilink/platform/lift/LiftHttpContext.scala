@@ -29,12 +29,8 @@ import scala.collection.mutable
     "osgi.http.whiteboard.context.name=liftweb",
     "osgi.http.whiteboard.context.path=/"))
 class LiftHttpContext extends ServletContextHelper with Logger {
-  var liftLifecycleManager: LiftLifecycleManager = null
-
   @Reference
-  def setLiftLifecycleManager(manager: LiftLifecycleManager) {
-    this.liftLifecycleManager = manager
-  }
+  var liftLifecycleManager: LiftLifecycleManager = _
 
   // support for WebJars
   def findWebjarAssets = {

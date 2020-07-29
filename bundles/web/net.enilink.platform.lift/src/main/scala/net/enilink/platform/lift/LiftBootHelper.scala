@@ -7,6 +7,9 @@ import org.osgi.framework.FrameworkUtil
 import org.osgi.framework.wiring.FrameworkWiring
 import org.osgi.service.http.HttpService
 
+
+import org.osgi.service.http.context.ServletContextHelper
+
 import scala.collection.JavaConversions._
 
 object LiftBootHelper extends Loggable {
@@ -22,10 +25,12 @@ object LiftBootHelper extends Loggable {
 			val systemBundle = liftBundle.getBundleContext.getBundle(0)
 			// HTTP service needs to be refreshed because else some weird bugs occur
 			val httpService = FrameworkUtil.getBundle(classOf[HttpService])
+			// HTTP whiteboard service needs to be refreshed because else some weird bugs occur
+			val httpWhiteboard = FrameworkUtil.getBundle(classOf[ServletContextHelper])
 
 			// refresh dependency closure
 			val frameworkWiring = systemBundle.adapt(classOf[FrameworkWiring])
-			frameworkWiring.refreshBundles(liftBundle :: enilinkCore :: httpService :: Nil)
+			frameworkWiring.refreshBundles(liftBundle :: enilinkCore :: httpService :: httpWhiteboard :: Nil)
 		}
 	}
 }
