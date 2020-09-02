@@ -28,6 +28,8 @@
 		<karaf.version>4.3.0.RC1</karaf.version>
 		<karaf.tooling.version>4.3.0.RC1</karaf.tooling.version>
 
+		<bundles.liftweb.deploy.skip>true</bundles.liftweb.deploy.skip>
+
 		<enilink.scm.connection>scm:git:git://github.com:enilink/enilink.git</enilink.scm.connection>
 		<enilink.scm.developerConnection>scm:git:git@github.com:enilink/enilink.git</enilink.scm.developerConnection>
 		<enilink.scm.url>https://github.com/enilink/enilink</enilink.scm.url>
