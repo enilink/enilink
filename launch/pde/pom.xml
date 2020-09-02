@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <project
-	xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd"
-	xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+		xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd"
+		xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
 	<modelVersion>4.0.0</modelVersion>
 	<parent>
 		<groupId>net.enilink.platform</groupId>
@@ -19,11 +19,25 @@
 	<artifactId>enilink-launch-pde</artifactId>
 	<packaging>pom</packaging>
 
-	<modules>
-		<module>../..</module>
-		<module>../../features/net.enilink.platform.feature</module>
-		<module>../../features/net.enilink.platform.equinox.feature</module>
-	</modules>
+	<profiles>
+		<profile>
+			<id>default</id>
+			<activation>
+				<activeByDefault>true</activeByDefault>
+			</activation>
+
+			<modules>
+				<module>../..</module>
+				<module>../../features/net.enilink.platform.feature</module>
+				<module>../../features/net.enilink.platform.equinox.feature</module>
+			</modules>
+		</profile>
+
+		<profile>
+			<id>versions</id>
+			<!-- empty profile for updating project versions -->
+		</profile>
+	</profiles>
 
 	<dependencies>
 		<dependency>
@@ -51,7 +65,9 @@
 							<skipNotExistingArtifacts>true</skipNotExistingArtifacts>
 							<artifacts>
 								<artifact>
-									<id>net.enilink.platform:net.enilink.platform.equinox.feature:pom:${project.version}</id>
+									<id>
+										net.enilink.platform:net.enilink.platform.equinox.feature:pom:${project.version}
+									</id>
 									<excludes>
 										<exclude>net.enilink.platform:*</exclude>
 										<exclude>net.enilink.bundles:*liftweb</exclude>

@@ -347,6 +347,17 @@
 		</profile>
 
 		<profile>
+			<id>versions</id>
+			<modules>
+				<module>features</module>
+				<module>products/enilink-server</module>
+				<module>launch/equinox</module>
+				<module>launch/karaf</module>
+				<module>launch/pde</module>
+			</modules>
+		</profile>
+
+		<profile>
 			<id>ossrh</id>
 
 			<distributionManagement>
