@@ -312,7 +312,7 @@
 		<repository>
 			<id>oss-sonatype-releases</id>
 			<name>OSS Sonatype Releases</name>
-			<url>https://oss.sonatype.org/content/repositories/snapshots/</url>
+			<url>https://oss.sonatype.org/content/repositories/releases/</url>
 			<snapshots>
 				<enabled>false</enabled>
 			</snapshots>
