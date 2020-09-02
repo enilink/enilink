@@ -1,0 +1,1 @@
+The Lift Web Framework repackaged as OSGi bundle.
