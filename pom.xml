@@ -349,6 +349,7 @@
 		<profile>
 			<id>versions</id>
 			<modules>
+				<module>bundles/vendor</module>
 				<module>features</module>
 				<module>products/enilink-server</module>
 				<module>launch/equinox</module>
