@@ -20,7 +20,6 @@
 
 	<groupId>net.enilink.platform</groupId>
 	<artifactId>platform-features</artifactId>
-	<version>1.2.5-SNAPSHOT</version>
 	<packaging>pom</packaging>
 
 	<properties>
