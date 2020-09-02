@@ -7,7 +7,7 @@
 		<groupId>net.enilink.platform</groupId>
 		<artifactId>platform-parent</artifactId>
 		<version>1.2.5-SNAPSHOT</version>
-		<relativePath>../../pom.xml</relativePath>
+		<relativePath>../..</relativePath>
 	</parent>
 
 	<scm>
@@ -72,7 +72,11 @@
 			<id>configure</id>
 
 			<modules>
-				<module>../..</module>
+				<module>../../bundles/vendor/net.enilink.bundles.liftweb</module>
+				<module>../../bundles/core/net.enilink.platform.core</module>
+				<module>../../bundles/core/net.enilink.platform.security</module>
+				<module>../../bundles/web/net.enilink.platform.lift</module>
+				<module>../../bundles/web/net.enilink.platform.web</module>
 				<module>../../features/net.enilink.platform.feature</module>
 				<module>../../features/net.enilink.platform.equinox.feature</module>
 			</modules>
