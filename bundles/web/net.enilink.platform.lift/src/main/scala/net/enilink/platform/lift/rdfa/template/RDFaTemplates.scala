@@ -111,10 +111,10 @@ trait RdfAttributeBinder extends Binder {
   }
 }
 
-class VarBinder(val e: Elem, val attr: String, val name: String, val verbatim: Boolean = false) extends RdfAttributeBinder {
-  // the verbatim flag constrols if URIs should be shortened to CURIEs or not
-  // allow to keep this node by adding the CSS class "keep", even if no binding exists for the related variable
-  val keepNode = RDFaHelpers.hasCssClass(e, "keep")
+class VarBinder(val e: Elem, val attr: String, val name: String, val verbatim: Boolean , val optional: Boolean) extends RdfAttributeBinder {
+  // the verbatim flag controls if URIs should be shortened to CURIEs or not
+  // also allow to keep this node by adding the CSS class "keep", even if no binding exists for the related variable
+  val keepNode = optional || RDFaHelpers.hasCssClass(e, "keep")
   val clearAttribute = attr.startsWith("data-clear-") || attr == "data-if"
   def bind(attrs: MetaData, ctx: RdfContext, bindings: IBindings[_], inferred: Boolean): Result = {
     var attributes = attrs
@@ -147,6 +147,7 @@ class VarBinder(val e: Elem, val attr: String, val name: String, val verbatim: B
         attr match {
           case "content" => attributes = attributes.append(new UnprefixedAttribute(attr, "", Null))
           case "resource" => attributes = attributes.append(new UnprefixedAttribute(attr, "komma:null", Null))
+          case _ => // drop the attribute
         }
       } else if (attr == "data-unless") attributes = attributes.remove(attr)
       else attributes = null
@@ -198,7 +199,8 @@ object TemplateNode extends RDFaUtils {
             // <span data-var="$someVar">Verbatim replacement.</span>
             case variable(v) => if (!ignoreAttributes.contains(meta.key)) {
               val verbatim = v.startsWith("$")
-              Some(new VarBinder(e, meta.key, v.substring(1), verbatim))
+              val optional = v.startsWith("??") || v.startsWith("?$")
+              Some(new VarBinder(e, meta.key, v.substring(if (optional) 2 else 1), verbatim, optional))
             } else None
             case str if !str.isEmpty => meta.key match {
               case RDFaRelAttribute() | RDFaResourceAttribute() =>
