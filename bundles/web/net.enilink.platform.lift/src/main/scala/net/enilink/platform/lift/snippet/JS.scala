@@ -92,9 +92,9 @@ object JS extends DispatchSnippet with SparqlHelper {
                   case other => other
                 } else ns
               } flatMap (renderWithParams(_)) map {
-                case (e: Elem, js) if wrapped => {
+                case (ns, js) if wrapped => {
                   // remove rdfa wrapper
-                  (e.child, js)
+                  (ns \ "_", js)
                 }
                 case other => other
               }
