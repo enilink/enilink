@@ -244,10 +244,10 @@ enilink = $.extend(window.enilink || {}, {
 						d.reject(result.msg);
 						resultDeferred.reject(result.msg);
 					} else {
-						d.resolve(result);
 						if (! result.html) {
 							resultDeferred.resolve(true);
 						}
+						d.resolve(result);
 					}
 				});
 				return d.promise();
