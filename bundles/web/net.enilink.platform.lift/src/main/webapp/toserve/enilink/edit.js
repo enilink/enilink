@@ -245,6 +245,9 @@ enilink = $.extend(window.enilink || {}, {
 						resultDeferred.reject(result.msg);
 					} else {
 						d.resolve(result);
+						if (! result.html) {
+							resultDeferred.resolve(true);
+						}
 					}
 				});
 				return d.promise();
