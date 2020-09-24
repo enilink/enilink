@@ -51,8 +51,13 @@
 							<name>org.osgi.service.http.port</name>
 							<value>10080</value>
 						</property>
+						<property>
+							<name>net.enilink.logger.rootLevel</name>
+							<value>INFO</value>
+						</property>
 					</vmProperties>
 					<startLevels>
+						<net.enilink.commons.logging>0</net.enilink.commons.logging>
 						<net.enilink.platform.lift>4</net.enilink.platform.lift>
 						<org.eclipse.equinox.http.jetty>4</org.eclipse.equinox.http.jetty>
 						<org.eclipse.core.runtime>0</org.eclipse.core.runtime>
@@ -86,6 +91,12 @@
 					<groupId>net.enilink.platform</groupId>
 					<artifactId>net.enilink.platform.equinox.feature</artifactId>
 					<version>${project.version}</version>
+					<type>pom</type>
+				</dependency>
+				<dependency>
+					<groupId>net.enilink.komma</groupId>
+					<artifactId>net.enilink.commons.logging</artifactId>
+					<version>${komma.version}</version>
 					<type>pom</type>
 				</dependency>
 			</dependencies>
