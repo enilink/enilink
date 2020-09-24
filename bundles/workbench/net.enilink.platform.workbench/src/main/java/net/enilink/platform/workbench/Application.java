@@ -17,7 +17,9 @@ import org.eclipse.jface.dialogs.MessageDialog;
 import org.eclipse.jface.resource.ImageDescriptor;
 import org.eclipse.rap.rwt.RWT;
 import org.eclipse.rap.rwt.internal.service.ContextProvider;
+import org.eclipse.swt.SWT;
 import org.eclipse.swt.widgets.Display;
+import org.eclipse.swt.widgets.Shell;
 import org.eclipse.ui.IWorkbench;
 import org.eclipse.ui.PlatformUI;
 import org.eclipse.ui.application.IWorkbenchConfigurer;
@@ -206,7 +208,19 @@ public class Application implements IApplication {
 				configurer.setShowPerspectiveBar(true);
 				configurer.setShowCoolBar(true);
 				configurer.setShowMenuBar(true);
-				return super.createWorkbenchWindowAdvisor(configurer);
+				return new WorkbenchWindowAdvisor(configurer) {
+					@Override
+					public void preWindowOpen() {
+						getWindowConfigurer().setShellStyle(SWT.NO_TRIM);
+						getWindowConfigurer().setShowMenuBar(false);
+					}
+
+					@Override
+					public void postWindowCreate() {
+						Shell shell = getWindowConfigurer().getWindow().getShell();
+						shell.setMaximized(true);
+					}
+				};
 			}
 
 			public String getInitialWindowPerspectiveId() {

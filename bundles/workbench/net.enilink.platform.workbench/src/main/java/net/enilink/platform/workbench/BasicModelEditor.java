@@ -70,6 +70,12 @@ public class BasicModelEditor extends KommaMultiPageEditor implements IViewerMen
 		// }
 
 		@Override
+		public void handlePageChange(Object activeEditor) {
+			super.handlePageChange(activeEditor);
+			editorSelectionProvider.setSelectionProvider(formSelectionProvider);
+		}
+
+		@Override
 		public Object getAdapter(Class key) {
 			if (IModel.class.equals(key)) {
 				return model;
