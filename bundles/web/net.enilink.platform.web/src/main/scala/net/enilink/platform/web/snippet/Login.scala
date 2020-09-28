@@ -5,16 +5,14 @@ import java.io.StringWriter
 
 import scala.Array.canBuildFrom
 import scala.collection._
-import scala.collection.JavaConversions.mapAsJavaMap
+import scala.collection.JavaConverters._
 import scala.xml.Node
 import scala.xml.NodeBuffer
 import scala.xml.NodeSeq
 import scala.xml.NodeSeq.seqToNodeSeq
 import scala.xml.Text
-
 import org.eclipse.equinox.security.auth.ILoginContext
 import org.eclipse.equinox.security.auth.LoginContextFactory
-
 import javax.security.auth.Subject
 import javax.security.auth.callback.Callback
 import javax.security.auth.callback.CallbackHandler
@@ -23,7 +21,7 @@ import javax.security.auth.callback.PasswordCallback
 import javax.security.auth.callback.TextInputCallback
 import javax.security.auth.callback.TextOutputCallback
 import javax.security.auth.login.LoginException
-import net.enilink.platform.core.security.SecurityUtil
+import net.enilink.platform.core.security.{LoginUtil, SecurityUtil}
 import net.enilink.platform.lift.util.EnilinkRules
 import net.enilink.platform.lift.util.Globals
 import net.enilink.platform.security.callbacks.RealmCallback
@@ -65,8 +63,9 @@ class Login {
   object loginState extends SessionVar[Box[State]](Empty)
 
   object LoginDataHelpers {
-    import EnilinkRules.LOGIN_METHODS
     import net.liftweb.json._
+
+    lazy val methods = LoginUtil.getLoginMethods.asScala.map(m => (m.getFirst, m.getSecond))
 
     def loadLoginData = {
       var loginData = new mutable.HashMap[String, Any]
@@ -81,7 +80,7 @@ class Login {
       loginData
     }
 
-    def loginMethods = if (isLinkIdentity) LOGIN_METHODS.tail else LOGIN_METHODS
+    def loginMethods = if (isLinkIdentity) methods.tail else methods
   }
 
   case class LoginData(props: mutable.Map[String, Any], currentMethod: (String, String)) {
@@ -97,7 +96,7 @@ class Login {
   object loginDataVar extends TransientRequestVar[LoginData]({
     val props = LoginDataHelpers.loadLoginData
     val methods = LoginDataHelpers.loginMethods
-    var currentMethod = param("method").orElse(props.get("method")).flatMap {
+    val currentMethod = param("method").orElse(props.get("method")).flatMap {
       mParam => methods.collectFirst { case m @ (_, name) if name == mParam => m }
     } getOrElse methods(0)
     if (!props.get("method").exists(_ == currentMethod._2)) {
@@ -231,7 +230,7 @@ class Login {
             val state = new State
             state.referer = S.referer flatMap { r => if (r.startsWith(S.hostAndPath)) Full(r) else Empty }
             state.method = currentMethod._2
-            state.context = LoginContextFactory.createContext(state.method, EnilinkRules.JAAS_CONFIG_URL, state.handler)
+            state.context = LoginContextFactory.createContext(state.method, LoginUtil.getJaasConfigUrl, state.handler)
             loginState.set(Full(state))
             state
           }
@@ -277,7 +276,7 @@ class Login {
                     cb.setApplicationUrl(S.hostAndPath + S.uri)
                   case cb: ResponseCallback =>
                     val params = S.request.map(_._params.map(e => (e._1, e._2.toArray))) openOr Map.empty
-                    cb.setResponseParameters(params)
+                    cb.setResponseParameters(params.asJava)
                     // add parameters for fields as hidden inputs
                     state.params foreach {
                       case (k, v :: Nil) if k.startsWith("f-") => form ++= hidden(k, v)

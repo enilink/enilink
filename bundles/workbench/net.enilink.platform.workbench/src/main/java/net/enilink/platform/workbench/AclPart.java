@@ -24,6 +24,7 @@ import net.enilink.komma.edit.ui.views.AbstractEditingDomainPart;
 import net.enilink.komma.em.concepts.IProperty;
 import net.enilink.komma.em.concepts.IResource;
 import net.enilink.komma.model.IModel;
+import net.enilink.komma.model.IObject;
 import net.enilink.platform.core.security.ISecureEntity;
 import net.enilink.platform.core.security.SecurityUtil;
 import net.enilink.vocab.acl.Authorization;
@@ -322,7 +323,15 @@ public class AclPart extends AbstractEditingDomainPart {
 			ISecureEntity secureTarget = target.as(ISecureEntity.class);
 			// the user is able to change permissions for the target, if he is
 			// the owner or has access type 'Control' for the target
-			boolean canControl = secureTarget != null && (SecurityUtil.getUser().equals(secureTarget.getAclOwner()) || secureTarget.hasAclMode(SecurityUtil.getUser(), WEBACL.MODE_CONTROL));
+			boolean canControl = secureTarget != null &&
+					(SecurityUtil.getUser().equals(secureTarget.getAclOwner()) ||
+							secureTarget.hasAclMode(SecurityUtil.getUser(), WEBACL.MODE_CONTROL));
+			if (! canControl && target instanceof IObject) {
+				secureTarget = ((IEntity)((IObject)target).getModel()).as(ISecureEntity.class);
+				canControl = secureTarget != null &&
+						(SecurityUtil.getUser().equals(secureTarget.getAclOwner()) ||
+								secureTarget.hasAclMode(SecurityUtil.getUser(), WEBACL.MODE_CONTROL));
+			}
 			ownerViewer.getControl().setEnabled(canControl);
 			viewer.getTable().setEnabled(canControl);
 		}

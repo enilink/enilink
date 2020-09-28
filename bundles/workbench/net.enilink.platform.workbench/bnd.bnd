@@ -1,2 +1,1 @@
 Bundle-SymbolicName: ${project.artifactId};singleton:=true
-Bundle-Activator: net.enilink.platform.workbench.Activator

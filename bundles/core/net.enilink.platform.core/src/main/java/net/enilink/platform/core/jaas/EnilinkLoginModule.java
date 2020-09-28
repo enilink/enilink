@@ -148,7 +148,7 @@ public class EnilinkLoginModule implements LoginModule {
 
 			String username = ((NameCallback) callbacks.get(0)).getName();
 			char[] password = ((PasswordCallback) callbacks.get(1)).getPassword();
-			String encodedPassword = AccountHelper.encodePassword(new String(password));
+			String encodedPassword = password == null ? "" : AccountHelper.encodePassword(new String(password));
 			URI userId;
 			IEntityManager em = getEntityManager();
 			try {

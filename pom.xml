@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <project
-	xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd"
-	xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+		xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd"
+		xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
 	<modelVersion>4.0.0</modelVersion>
 	<groupId>net.enilink.platform</groupId>
 	<artifactId>platform-parent</artifactId>
@@ -10,17 +10,17 @@
 
 	<name>eniLINK: Parent</name>
 	<url>https://platform.enilink.net/</url>
-	<description>eniLINK is a web platform for linked data applications based on the KOMMA framework and Lift.</description>
+	<description>eniLINK is a web platform for linked data applications based on the KOMMA framework and Lift.
+	</description>
 
 	<properties>
 		<path.to.root>../../..</path.to.root>
 
 		<project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
 
-		<equinox.version>3.15.300</equinox.version>
 		<lift.version>2.6.3</lift.version>
 		<lift.bundle.version>${lift.version}</lift.bundle.version>
-		<komma.version>1.5.1</komma.version>
+		<komma.version>1.5.2-SNAPSHOT</komma.version>
 		<scala.major.version>2.11</scala.major.version>
 		<scala.version>2.11.12</scala.version>
 		<scala.plugin.version>4.4.0</scala.plugin.version>
@@ -81,6 +81,26 @@
 		<url>${enilink.scm.url}</url>
 	</scm>
 
+	<dependencyManagement>
+		<dependencies>
+			<dependency>
+				<groupId>org.eclipse.platform</groupId>
+				<artifactId>org.eclipse.core.runtime</artifactId>
+				<version>3.19.0</version>
+			</dependency>
+			<dependency>
+				<groupId>org.eclipse.platform</groupId>
+				<artifactId>org.eclipse.core.resources</artifactId>
+				<version>3.13.800</version>
+			</dependency>
+			<dependency>
+				<groupId>org.eclipse.platform</groupId>
+				<artifactId>org.eclipse.osgi</artifactId>
+				<version>3.15.300</version>
+			</dependency>
+		</dependencies>
+	</dependencyManagement>
+
 	<build>
 		<plugins>
 			<plugin>
@@ -122,11 +142,11 @@
 						<configuration>
 							<target>
 								<symlink link="OSGI-INF"
-									resource="${project.build.outputDirectory}/OSGI-INF"
-									failonerror="false" overwrite="true" />
+										 resource="${project.build.outputDirectory}/OSGI-INF"
+										 failonerror="false" overwrite="true"/>
 								<symlink link="META-INF"
-									resource="${project.build.outputDirectory}/META-INF"
-									failonerror="false" overwrite="true" />
+										 resource="${project.build.outputDirectory}/META-INF"
+										 failonerror="false" overwrite="true"/>
 							</target>
 						</configuration>
 						<goals>

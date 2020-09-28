@@ -33,10 +33,6 @@ public abstract class UseService<S, T> {
 
 	protected abstract T withService(S service);
 
-	protected T withoutService() {
-		return null;
-	}
-
 	public T getResult() {
 		return result;
 	}
