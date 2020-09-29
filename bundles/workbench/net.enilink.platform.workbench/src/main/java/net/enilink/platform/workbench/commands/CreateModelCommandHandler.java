@@ -54,6 +54,10 @@ public class CreateModelCommandHandler extends AbstractHandler {
 										segments[i] = URIs.encodeSegment(segments[i], true);
 									}
 									newURI[0] = modelNS.trimSegments(1).appendSegments(segments);
+									if (newText.endsWith("/")) {
+										// add empty segment that is omitted by split
+										newURI[0] = newURI[0].appendSegment("");
+									}
 								}
 							} catch (Exception e) {
 								return "The given URI is invalid: " + e.getMessage();
@@ -84,6 +88,7 @@ public class CreateModelCommandHandler extends AbstractHandler {
 
 					if (dialog.open() == Window.OK) {
 						IModel model = modelSet.createModel(newURI[0]);
+						model.setLoaded(true);
 						// set current user as owner
 						((ISecureEntity)model).setAclOwner(user);
 						// ensure that at least one fact is contained in the

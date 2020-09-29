@@ -96,6 +96,18 @@ public class SecurityUtil {
 	}
 
 	/**
+	 * Returns a user name for the given user URI.
+	 *
+	 * @param uri
+	 *            The user URI
+	 * @return The user name
+	 */
+	public static String uriToUsername(URI uri) {
+		String uriStr = uri.toString();
+		return uriStr.replaceFirst("enilink:user:", "");
+	}
+
+	/**
 	 * Returns the current user.
 	 * 
 	 * If the current user is unknown then {@link SecurityUtil#UNKNOWN_USER} is

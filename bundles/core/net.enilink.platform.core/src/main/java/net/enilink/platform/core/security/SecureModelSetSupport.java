@@ -6,12 +6,14 @@ import java.util.Set;
 import net.enilink.composition.annotations.ParameterTypes;
 import net.enilink.composition.cache.annotations.Cacheable;
 import net.enilink.composition.traits.Behaviour;
+import net.enilink.komma.core.IEntityManager;
 import net.enilink.komma.core.IReference;
 import net.enilink.komma.core.URI;
 import net.enilink.komma.dm.IDataManager;
 import net.enilink.komma.em.ThreadLocalDataManager;
 import net.enilink.komma.model.IModel;
 import net.enilink.komma.model.IModelSet;
+import net.enilink.komma.model.concepts.ModelSet;
 import net.enilink.vocab.acl.ENILINKACL;
 import net.enilink.vocab.acl.WEBACL;
 
@@ -86,7 +88,9 @@ public abstract class SecureModelSetSupport implements ISecureModelSet,
 	public boolean isReadableBy(IReference model, IReference agent) {
 		if (model == null
 				|| model.equals(((IModelSet.Internal) getBehaviourDelegate())
-						.getDefaultGraph())) {
+						.getDefaultGraph())
+				|| model.equals(((ModelSet)getBehaviourDelegate()).getMetaDataContext())
+		) {
 			return true;
 		}
 		ISecureEntity secureEntity = getMetaDataManager().findRestricted(model,
@@ -107,6 +111,9 @@ public abstract class SecureModelSetSupport implements ISecureModelSet,
 				|| model.equals(((IModelSet.Internal) getBehaviourDelegate())
 						.getDefaultGraph())) {
 			return null;
+		}
+		if (model.equals(((ModelSet)getBehaviourDelegate()).getMetaDataContext())) {
+			return WEBACL.MODE_WRITE;
 		}
 		ISecureEntity secureEntity = getMetaDataManager().findRestricted(model,
 				ISecureEntity.class);

@@ -1,12 +1,10 @@
 package net.enilink.platform.workbench;
 
-import com.google.inject.AbstractModule;
-import com.google.inject.Guice;
-import com.google.inject.Provides;
 import net.enilink.komma.common.adapter.IAdapterFactory;
 import net.enilink.komma.common.command.CommandResult;
 import net.enilink.komma.common.command.ICommand;
 import net.enilink.komma.common.command.SimpleCommand;
+import net.enilink.komma.common.ui.assist.ContentProposals;
 import net.enilink.komma.core.*;
 import net.enilink.komma.edit.command.DeleteCommand;
 import net.enilink.komma.edit.domain.IEditingDomain;
@@ -15,29 +13,31 @@ import net.enilink.komma.edit.properties.ResourceEditingSupport;
 import net.enilink.komma.edit.ui.celleditor.PropertyCellEditingSupport;
 import net.enilink.komma.edit.ui.properties.IEditUIPropertiesImages;
 import net.enilink.komma.edit.ui.properties.KommaEditUIPropertiesPlugin;
+import net.enilink.komma.edit.ui.provider.AdapterFactoryContentProvider;
 import net.enilink.komma.edit.ui.provider.AdapterFactoryLabelProvider;
 import net.enilink.komma.edit.ui.provider.ExtendedImageRegistry;
-import net.enilink.komma.edit.ui.provider.reflective.StatementPatternContentProvider;
 import net.enilink.komma.edit.ui.util.EditUIUtil;
-import net.enilink.komma.edit.ui.viewers.PropertyViewer;
 import net.enilink.komma.edit.ui.views.AbstractEditingDomainPart;
 import net.enilink.komma.em.concepts.IProperty;
 import net.enilink.komma.em.concepts.IResource;
+import net.enilink.komma.em.util.ISparqlConstants;
 import net.enilink.komma.model.IModel;
 import net.enilink.komma.model.IObject;
 import net.enilink.platform.core.security.ISecureEntity;
 import net.enilink.platform.core.security.SecurityUtil;
 import net.enilink.vocab.acl.Authorization;
 import net.enilink.vocab.acl.WEBACL;
+import net.enilink.vocab.foaf.Agent;
+import net.enilink.vocab.foaf.FOAF;
 import net.enilink.vocab.rdfs.Class;
 import org.eclipse.core.commands.ExecutionException;
 import org.eclipse.core.runtime.IAdaptable;
 import org.eclipse.core.runtime.IProgressMonitor;
 import org.eclipse.core.runtime.IStatus;
-import org.eclipse.core.runtime.Status;
 import org.eclipse.jface.action.Action;
 import org.eclipse.jface.action.IToolBarManager;
 import org.eclipse.jface.dialogs.MessageDialog;
+import org.eclipse.jface.fieldassist.*;
 import org.eclipse.jface.layout.GridDataFactory;
 import org.eclipse.jface.viewers.*;
 import org.eclipse.swt.SWT;
@@ -47,14 +47,16 @@ import org.eclipse.swt.layout.GridData;
 import org.eclipse.swt.layout.GridLayout;
 import org.eclipse.swt.widgets.Composite;
 import org.eclipse.swt.widgets.Table;
+import org.eclipse.swt.widgets.Text;
 import org.eclipse.ui.forms.widgets.Section;
 
+import java.util.Arrays;
 import java.util.Set;
 
 public class AclPart extends AbstractEditingDomainPart {
 	private IAdapterFactory adapterFactory;
 	private TableViewer viewer;
-	private PropertyViewer ownerViewer;
+	private Text ownerText;
 	private Action addAction, deleteAction;
 
 	private CLabel targetLabel;
@@ -62,6 +64,15 @@ public class AclPart extends AbstractEditingDomainPart {
 	private IEntity target;
 
 	private static final URI[] accessModes = {WEBACL.MODE_READ, WEBACL.MODE_WRITE, WEBACL.MODE_CONTROL};
+
+	static class ContentProposalExt extends ContentProposal {
+		final IReference resource;
+
+		public ContentProposalExt(String content, IReference resource) {
+			super(content);
+			this.resource = resource;
+		}
+	}
 
 	@Override
 	public void createContents(Composite parent) {
@@ -76,23 +87,35 @@ public class AclPart extends AbstractEditingDomainPart {
 
 		section = getWidgetFactory().createSection(parent, Section.TITLE_BAR | Section.EXPANDED);
 		section.setText("Owner");
-		ownerViewer = new PropertyViewer(section, SWT.SINGLE, getWidgetFactory());
-		Guice.createInjector(new AbstractModule() {
+		ownerText = getWidgetFactory().createText(section, "", SWT.SINGLE);
+		ownerText.setLayoutData(new GridData(SWT.FILL, SWT.BEGINNING, true,
+				false));
+
+		ContentProposalAdapter proposalAdapter = ContentProposals.enableContentProposal(ownerText, (IContentProposalProvider) (contents, position) -> {
+			if (target != null) {
+				IDialect dialect = target.getEntityManager().getFactory().getDialect();
+				QueryFragment searchPatterns = dialect.fullTextSearch(Arrays.asList("agent"), IDialect.DEFAULT, contents.substring(0, position));
+				IQuery<?> query = target.getEntityManager().createQuery(ISparqlConstants.PREFIX + //
+						"prefix foaf: <" + FOAF.NAMESPACE + "> " + //
+						"select ?agent { ?agent a [ rdfs:subClassOf* foaf:Agent ] . " + //
+						searchPatterns + //
+						"filter isIri(?agent)" + //
+						" }");
+				searchPatterns.addParameters(query);
+				return query.evaluate(IReference.class).toList().stream()
+						.map(agent -> new ContentProposalExt(SecurityUtil.uriToUsername(agent.getURI()), agent))
+						.toArray(IContentProposal[]::new);
+			} else {
+				return new IContentProposal[0];
+			}
+		}, null);
+		proposalAdapter.addContentProposalListener(new IContentProposalListener() {
 			@Override
-			protected void configure() {
+			public void proposalAccepted(IContentProposal proposal) {
 			}
+		});
 
-			@Provides
-			IAdapterFactory provideAdapterFactory() {
-				return getAdapterFactory();
-			}
-
-			@Provides
-			IEditingDomain provideEditingDomain() {
-				return getEditingDomain();
-			}
-		}).injectMembers(ownerViewer);
-		section.setClient(ownerViewer.getControl());
+		section.setClient(ownerText);
 		section.setLayoutData(new GridData(SWT.FILL, SWT.BEGINNING, true, false));
 
 		section = getWidgetFactory().createSection(parent, Section.TITLE_BAR | Section.EXPANDED);
@@ -110,7 +133,9 @@ public class AclPart extends AbstractEditingDomainPart {
 		agentColumn.setEditingSupport(new PropertyCellEditingSupport(viewer) {
 			@Override
 			protected IStatement getStatement(Object element) {
-				return new Statement((IEntity) element, ((IEntity) element).getEntityManager().find(WEBACL.PROPERTY_AGENT, IProperty.class), ((Authorization) element).getAclAgent());
+				return new Statement((IEntity) element,
+						((IEntity) element).getEntityManager().find(WEBACL.PROPERTY_AGENT, IProperty.class),
+						((Authorization) element).getAclAgent());
 			}
 
 			@Override
@@ -139,7 +164,9 @@ public class AclPart extends AbstractEditingDomainPart {
 		agentClassColumn.setEditingSupport(new PropertyCellEditingSupport(viewer) {
 			@Override
 			protected IStatement getStatement(Object element) {
-				return new Statement((IEntity) element, ((IEntity) element).getEntityManager().find(WEBACL.PROPERTY_AGENTCLASS, IProperty.class), ((Authorization) element).getAclAgentClass());
+				return new Statement((IEntity) element,
+						((IEntity) element).getEntityManager().find(WEBACL.PROPERTY_AGENTCLASS, IProperty.class),
+						((Authorization) element).getAclAgentClass());
 			}
 
 			@Override
@@ -196,7 +223,6 @@ public class AclPart extends AbstractEditingDomainPart {
 			});
 			modeColumn.getColumn().pack();
 		}
-		viewer.setContentProvider(new StatementPatternContentProvider());
 		createActions();
 		viewer.addSelectionChangedListener(new ISelectionChangedListener() {
 			public void selectionChanged(SelectionChangedEvent event) {
@@ -206,7 +232,7 @@ public class AclPart extends AbstractEditingDomainPart {
 	}
 
 	private void executeCommand(ICommand command) {
-		IStatus status = Status.CANCEL_STATUS;
+		IStatus status;
 		try {
 			status = getEditingDomain().getCommandStack().execute(command, null, null);
 		} catch (ExecutionException exception) {
@@ -233,6 +259,7 @@ public class AclPart extends AbstractEditingDomainPart {
 						return CommandResult.newOKCommandResult(auth);
 					}
 				});
+				viewer.refresh();
 			}
 		};
 		addAction.setImageDescriptor(ExtendedImageRegistry.getInstance().getImageDescriptor(KommaEditUIPropertiesPlugin.INSTANCE.getImage(IEditUIPropertiesImages.ADD)));
@@ -242,6 +269,7 @@ public class AclPart extends AbstractEditingDomainPart {
 			public void run() {
 				ICommand deleteCommand = DeleteCommand.create(getEditingDomain(), ((IStructuredSelection) viewer.getSelection()).getFirstElement());
 				executeCommand(deleteCommand);
+				viewer.refresh();
 			}
 		};
 		deleteAction.setImageDescriptor(ExtendedImageRegistry.getInstance().getImageDescriptor(KommaEditUIPropertiesPlugin.INSTANCE.getImage(IEditUIPropertiesImages.REMOVE)));
@@ -271,7 +299,19 @@ public class AclPart extends AbstractEditingDomainPart {
 		IAdapterFactory newAdapterFactory = getAdapterFactory();
 		if (adapterFactory == null || !adapterFactory.equals(newAdapterFactory)) {
 			adapterFactory = newAdapterFactory;
-			ownerViewer.setLabelProvider(new AdapterFactoryLabelProvider(adapterFactory));
+			viewer.setContentProvider(new AdapterFactoryContentProvider(adapterFactory) {
+				@Override
+				public Object[] getElements(Object inputElement) {
+					if (inputElement != null) {
+						IQuery<?> query = ((IEntity) inputElement).getEntityManager().createQuery(
+								"select ?authorization { ?authorization ?accessTo ?target }");
+						query.setParameter("target", inputElement);
+						query.setParameter("accessTo", WEBACL.PROPERTY_ACCESSTO);
+						return query.evaluate().toList().toArray();
+					}
+					return new Object[0];
+				}
+			});
 			viewer.setLabelProvider(new AdapterFactoryLabelProvider(adapterFactory) {
 				static final int MODES_OFFSET = 2;
 
@@ -294,13 +334,21 @@ public class AclPart extends AbstractEditingDomainPart {
 							return null;
 						}
 					}
-					return super.getImage(getTarget(object, columnIndex));
+					return null;
 				}
 
 				@Override
 				public String getColumnText(Object object, int columnIndex) {
 					if (columnIndex >= MODES_OFFSET) {
 						return null;
+					}
+					if (columnIndex == 0) {
+						Agent agent = ((IEntity) object).as(Authorization.class).getAclAgent();
+						if (agent == null) {
+							return null;
+						}
+						URI uri = ((IReference)agent).getURI();
+						return SecurityUtil.uriToUsername(uri);
 					}
 					return super.getText(getTarget(object, columnIndex));
 				}
@@ -309,30 +357,31 @@ public class AclPart extends AbstractEditingDomainPart {
 		if (target == null) {
 			targetLabel.setImage(null);
 			targetLabel.setText("");
-			ownerViewer.setEditingSupport(null);
-			ownerViewer.setInput(null);
+			ownerText.setText("");
 			viewer.setInput(null);
 		} else {
 			targetLabel.setImage(((ILabelProvider) viewer.getLabelProvider()).getImage(target));
 			targetLabel.setText(((ILabelProvider) viewer.getLabelProvider()).getText(target));
 			targetLabel.getParent().layout(true);
-			ownerViewer.setEditingSupport(new ResourceEditingSupport(getAdapterFactory()));
-			ownerViewer.setInput(new StatementPattern(target, WEBACL.PROPERTY_OWNER, null));
-			viewer.setInput(new StatementPattern(null, WEBACL.PROPERTY_ACCESSTO, target));
+			viewer.setInput(target);
 
 			ISecureEntity secureTarget = target.as(ISecureEntity.class);
+
 			// the user is able to change permissions for the target, if he is
 			// the owner or has access type 'Control' for the target
 			boolean canControl = secureTarget != null &&
 					(SecurityUtil.getUser().equals(secureTarget.getAclOwner()) ||
 							secureTarget.hasAclMode(SecurityUtil.getUser(), WEBACL.MODE_CONTROL));
-			if (! canControl && target instanceof IObject) {
-				secureTarget = ((IEntity)((IObject)target).getModel()).as(ISecureEntity.class);
+			if (!canControl && target instanceof IObject) {
+				secureTarget = ((IEntity) ((IObject) target).getModel()).as(ISecureEntity.class);
 				canControl = secureTarget != null &&
 						(SecurityUtil.getUser().equals(secureTarget.getAclOwner()) ||
 								secureTarget.hasAclMode(SecurityUtil.getUser(), WEBACL.MODE_CONTROL));
 			}
-			ownerViewer.getControl().setEnabled(canControl);
+
+			IReference owner = secureTarget.getAclOwner();
+			ownerText.setText(owner != null ? SecurityUtil.uriToUsername(owner.getURI()) : null);
+			ownerText.setEnabled(canControl);
 			viewer.getTable().setEnabled(canControl);
 		}
 		super.refresh();

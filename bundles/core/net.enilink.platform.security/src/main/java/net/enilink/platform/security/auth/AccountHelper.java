@@ -101,7 +101,7 @@ public class AccountHelper {
 	public static String encodePassword(String password) {
 		try {
 			MessageDigest md = MessageDigest.getInstance("SHA-1");
-			byte[] digest = md.digest(new String(password).getBytes("UTF-8"));
+			byte[] digest = md.digest(password.getBytes("UTF-8"));
 			return new String(new Base64().encode(digest));
 		} catch (Exception e) {
 			throw new UnsupportedOperationException(
@@ -128,7 +128,7 @@ public class AccountHelper {
 		URI userId = getUserURI(username);
 		try (IExtendedIterator<IEntity> users = em
 				.createQuery(
-						"select ?user where { ?user ?property ?password filter isIRI(?user) }")
+						"select ?user { ?user ?property ?password filter isIRI(?user) }")
 				.setParameter("property", AUTH.PROPERTY_PASSWORD)
 				.setParameter("user", userId)
 				.setParameter("password", encodedPassword)
@@ -136,6 +136,7 @@ public class AccountHelper {
 			if (users.hasNext()) {
 				return users.next();
 			}
+
 		}
 		return null;
 	}

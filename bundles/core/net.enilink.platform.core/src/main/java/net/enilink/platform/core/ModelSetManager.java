@@ -195,7 +195,6 @@ class ModelSetManager {
 
 	protected IModelSet createMetaModelSet(Config config) {
 		KommaModule module = ModelPlugin.createModelSetModule(getClass().getClassLoader());
-		module.addBehaviour(OwlimSeModelSetSupport.class);
 		module.addBehaviour(SessionModelSetSupport.class);
 		module.addConcept(ISecureEntity.class);
 		module.addBehaviour(SecureEntitySupport.class);
@@ -221,12 +220,7 @@ class ModelSetManager {
 		IGraph graph = createModelSetConfig(config, msUri);
 		// remove old config
 		metaDataModel.getManager().remove(WrappedIterator.create(graph.filter(msUri, null, null).iterator())
-				.mapWith(new IMap<IStatement, IStatement>() {
-					@Override
-					public IStatement map(IStatement stmt) {
-						return new Statement(stmt.getSubject(), stmt.getPredicate(), null);
-					}
-				}));
+				.mapWith(stmt -> new Statement(stmt.getSubject(), stmt.getPredicate(), null)));
 		graph.add(msUri, RDF.PROPERTY_TYPE, MODELS.NAMESPACE_URI.appendLocalPart("ProjectModelSet"));
 		metaDataModel.getManager().add(graph);
 
@@ -238,12 +232,6 @@ class ModelSetManager {
 	}
 
 	protected IModelSet createModelSet(Config config) {
-		KommaModule module = createDataModelSetModule();
-		module.includeModule(new AuthModule());
-
-		Injector injector = Guice.createInjector(createModelSetGuiceModule(module), new ContextProviderModule());
-		IModelSetFactory factory = injector.getInstance(IModelSetFactory.class);
-
 		URI msUri = DATA_MODELSET;
 		boolean hasConfig = config.contains(msUri, null, null);
 		IGraph graph = createModelSetConfig(config, msUri);
@@ -251,14 +239,23 @@ class ModelSetManager {
 			// config file was not specified
 			graph.add(msUri, MODELS.NAMESPACE_URI.appendFragment("inference"), false);
 			graph.add(msUri, RDF.PROPERTY_TYPE, MODELS.NAMESPACE_URI.appendLocalPart(//
-					// "OwlimModelSet" //
 					"MemoryModelSet" //
-			// "VirtuosoModelSet" //
-			// "AGraphModelSet" //
-			// "RemoteModelSet" //
 			));
 		}
-		graph.add(msUri, RDF.PROPERTY_TYPE, MODELS.NAMESPACE_URI.appendLocalPart("ProjectModelSet"));
+
+		KommaModule module = createDataModelSetModule();
+		module.includeModule(new AuthModule());
+
+		// directly use meta data context for creating the model
+		IReference metaDataContext = graph.filter(msUri, MODELS.PROPERTY_METADATACONTEXT, null).objectReference();
+		if (metaDataContext != null && metaDataContext.getURI() != null) {
+			module.addReadableGraph(metaDataContext.getURI());
+			module.addWritableGraph(metaDataContext.getURI());
+		}
+
+		Injector injector = Guice.createInjector(createModelSetGuiceModule(module), new ContextProviderModule());
+		IModelSetFactory factory = injector.getInstance(IModelSetFactory.class);
+
 		IModelSet modelSet = factory.createModelSet(msUri, graph);
 		return modelSet;
 	}
@@ -335,12 +332,13 @@ class ModelSetManager {
 							// register foaf namespace
 							modelSet.getModule().addNamespace("foaf", FOAF.NAMESPACE_URI);
 
-							modelSet.getMetaDataManager().createNamed(FOAF.TYPE_AGENT, RDFS.TYPE_CLASS);
-							modelSet.getMetaDataManager().createNamed(SecurityUtil.UNKNOWN_USER, FOAF.TYPE_AGENT);
+							IEntityManager em = modelSet.getMetaDataManager();
+							em.createNamed(FOAF.TYPE_AGENT, RDFS.TYPE_CLASS);
+							em.createNamed(SecurityUtil.UNKNOWN_USER, FOAF.TYPE_AGENT);
 
 							// load users, groups and ACL config
-							loadUsersAndGroups(modelSet.getMetaDataManager(), config);
-							loadAcls(modelSet.getMetaDataManager(), config);
+							loadUsersAndGroups(em, config);
+							loadAcls(em, config);
 
 							createModels(modelSet);
 							return modelSet;

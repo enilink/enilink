@@ -14,6 +14,10 @@ import java.util.LinkedList;
 import java.util.Queue;
 import java.util.Set;
 
+import net.enilink.komma.core.*;
+import net.enilink.platform.security.auth.AccountHelper;
+import net.enilink.vocab.auth.AUTH;
+import net.enilink.vocab.foaf.FOAF;
 import org.eclipse.core.runtime.Platform;
 import org.eclipse.osgi.service.datalocation.Location;
 import org.osgi.service.component.annotations.Activate;
@@ -25,17 +29,6 @@ import com.google.common.collect.ForwardingSet;
 import com.google.inject.AbstractModule;
 import com.google.inject.Guice;
 
-import net.enilink.komma.core.IGraph;
-import net.enilink.komma.core.ILiteral;
-import net.enilink.komma.core.ILiteralFactory;
-import net.enilink.komma.core.IReference;
-import net.enilink.komma.core.IStatement;
-import net.enilink.komma.core.IValue;
-import net.enilink.komma.core.KommaException;
-import net.enilink.komma.core.LinkedHashGraph;
-import net.enilink.komma.core.LiteralFactory;
-import net.enilink.komma.core.URI;
-import net.enilink.komma.core.URIs;
 import net.enilink.komma.core.visitor.IDataVisitor;
 import net.enilink.komma.literals.LiteralConverter;
 import net.enilink.komma.model.IURIConverter;
