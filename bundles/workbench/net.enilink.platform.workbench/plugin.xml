@@ -41,6 +41,7 @@
 				contributorClass="net.enilink.platform.workbench.BasicModelEditorBarContributor"
 				default="false"
 				id="net.enilink.platform.workbench.modelEditor"
+				icon="img/enilink/models.png"
 				matchingStrategy="net.enilink.platform.workbench.ModelEditorMatchingStrategy"
 				name="Model Editor">
 		</editor>

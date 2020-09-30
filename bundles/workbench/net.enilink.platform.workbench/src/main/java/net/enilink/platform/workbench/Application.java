@@ -192,12 +192,11 @@ public class Application implements IApplication {
 				configurer.setShowFastViewBars(true);
 				configurer.setShowPerspectiveBar(true);
 				configurer.setShowCoolBar(true);
-				configurer.setShowMenuBar(true);
+				configurer.setShowMenuBar(false);
 				return new WorkbenchWindowAdvisor(configurer) {
 					@Override
 					public void preWindowOpen() {
 						getWindowConfigurer().setShellStyle(SWT.NO_TRIM);
-						getWindowConfigurer().setShowMenuBar(false);
 					}
 
 					@Override

@@ -199,4 +199,10 @@ public class BasicModelEditor extends KommaMultiPageEditor implements IViewerMen
 	public void createContextMenuFor(StructuredViewer viewer, Control menuParent, IWorkbenchPartSite partSite) {
 		getEditorSupport().createContextMenuFor(viewer, menuParent, partSite);
 	}
+
+	@Override
+	public boolean isDirty() {
+		// ignore any changes to dirty state
+		return false;
+	}
 }
