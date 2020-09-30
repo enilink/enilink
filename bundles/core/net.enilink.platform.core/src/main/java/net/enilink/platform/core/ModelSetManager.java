@@ -260,9 +260,13 @@ class ModelSetManager {
 		return modelSet;
 	}
 
-	protected void createModels(final IModelSet modelSet) {
+	protected void createModels(final IModelSet modelSet, Config config) {
 		// create default users model
-		modelSet.createModel(SecurityUtil.USERS_MODEL);
+		IModel usersModel = modelSet.createModel(SecurityUtil.USERS_MODEL);
+		usersModel.setLoaded(true);
+		// load public data about users and groups into users model
+		loadUsersAndGroups(usersModel.getManager(), config, true);
+
 		// set ACL mode "RESTRICTED" for users model
 		IEntityManager em = modelSet.getMetaDataManager();
 		Authorization auth = em.createNamed(URIs.createURI("urn:auth:usersModelRestricted"), Authorization.class);
@@ -337,10 +341,11 @@ class ModelSetManager {
 							em.createNamed(SecurityUtil.UNKNOWN_USER, FOAF.TYPE_AGENT);
 
 							// load users, groups and ACL config
-							loadUsersAndGroups(em, config);
+							loadUsersAndGroups(em, config, false);
 							loadAcls(em, config);
 
-							createModels(modelSet);
+							createModels(modelSet, config);
+
 							return modelSet;
 						}
 					});
@@ -352,7 +357,7 @@ class ModelSetManager {
 		return modelSet;
 	}
 
-	protected void loadUsersAndGroups(IEntityManager em, Config config) {
+	protected void loadUsersAndGroups(IEntityManager em, Config config, boolean typesOnly) {
 		// seenAgents filters users and/or groups with multiple matching types
 		Set<IReference> seenAgents = new HashSet<>();
 		for (IReference rdfType : Arrays.asList(FOAF.TYPE_AGENT, FOAF.TYPE_PERSON)) {
@@ -362,7 +367,7 @@ class ModelSetManager {
 				}
 
 				Set<IStatement> toAdd = new HashSet<>();
-				IGraph about = config.filter(agent, null, null);
+				IGraph about = config.filter(agent, typesOnly ? RDF.PROPERTY_TYPE : null, null);
 				for (IStatement stmt : about) {
 					// encode given password
 					if (AUTH.PROPERTY_PASSWORD.equals(stmt.getPredicate())) {
@@ -375,19 +380,23 @@ class ModelSetManager {
 					}
 				}
 
-				// derive nick name from URI
-				if (config.filter(agent, FOAF.PROPERTY_NICK, null).isEmpty()) {
-					toAdd.add(new Statement(agent, FOAF.PROPERTY_NICK, agent.getURI().localPart()));
+				if (! typesOnly) {
+					// derive nick name from URI
+					if (config.filter(agent, FOAF.PROPERTY_NICK, null).isEmpty()) {
+						toAdd.add(new Statement(agent, FOAF.PROPERTY_NICK, agent.getURI().localPart()));
+					}
 				}
 
 				// add statements about agent
 				em.add(toAdd);
 
-				// add referenced objects
-				Set<IReference> seen = new HashSet<>();
-				for (IStatement stmt : toAdd) {
-					if (stmt.getObject() instanceof IReference && seen.add((IReference) stmt.getObject())) {
-						copyFromGraph(em, (IReference) stmt.getObject(), config);
+				if (! typesOnly) {
+					// add referenced objects
+					Set<IReference> seen = new HashSet<>();
+					for (IStatement stmt : toAdd) {
+						if (stmt.getObject() instanceof IReference && seen.add((IReference) stmt.getObject())) {
+							copyFromGraph(em, (IReference) stmt.getObject(), config);
+						}
 					}
 				}
 			}

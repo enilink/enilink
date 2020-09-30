@@ -95,7 +95,7 @@ public class AuthAdapterFactory extends ReflectiveItemProviderAdapterFactory {
 
 	@Override
 	protected Object createItemProvider(Object object, Collection<IClass> types, Object providerType) {
-		if (object instanceof Agent || types.contains(FOAF.TYPE_AGENT) || types.contains(FOAF.TYPE_GROUP)) {
+		if (types.contains(FOAF.TYPE_AGENT) || types.contains(FOAF.TYPE_GROUP)) {
 			return new AuthItemProvider(this, resourceLocator, types);
 		}
 		return null;

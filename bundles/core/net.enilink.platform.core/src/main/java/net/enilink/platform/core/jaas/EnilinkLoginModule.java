@@ -1,34 +1,28 @@
 package net.enilink.platform.core.jaas;
 
-import java.security.Principal;
-import java.security.acl.Group;
-import java.util.ArrayList;
-import java.util.Iterator;
-import java.util.List;
-import java.util.Map;
-import java.util.regex.Pattern;
-
-import javax.security.auth.Subject;
-import javax.security.auth.callback.Callback;
-import javax.security.auth.callback.CallbackHandler;
-import javax.security.auth.callback.NameCallback;
-import javax.security.auth.callback.PasswordCallback;
-import javax.security.auth.callback.UnsupportedCallbackException;
-import javax.security.auth.login.LoginException;
-import javax.security.auth.spi.LoginModule;
-
+import net.enilink.komma.core.IEntity;
+import net.enilink.komma.core.Statement;
+import net.enilink.komma.core.URI;
+import net.enilink.komma.model.IModelSet;
+import net.enilink.platform.core.Activator;
+import net.enilink.platform.core.security.SecurityUtil;
+import net.enilink.platform.security.auth.AccountHelper;
+import net.enilink.platform.security.auth.EnilinkPrincipal;
+import net.enilink.platform.security.callbacks.RegisterCallback;
+import net.enilink.vocab.foaf.FOAF;
+import net.enilink.vocab.rdf.RDF;
 import org.osgi.framework.ServiceReference;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import net.enilink.komma.core.IEntity;
-import net.enilink.komma.core.IEntityManager;
-import net.enilink.komma.core.URI;
-import net.enilink.komma.model.IModelSet;
-import net.enilink.platform.core.Activator;
-import net.enilink.platform.security.auth.AccountHelper;
-import net.enilink.platform.security.auth.EnilinkPrincipal;
-import net.enilink.platform.security.callbacks.RegisterCallback;
+import javax.security.auth.Subject;
+import javax.security.auth.callback.*;
+import javax.security.auth.login.LoginException;
+import javax.security.auth.spi.LoginModule;
+import java.security.Principal;
+import java.security.acl.Group;
+import java.util.*;
+import java.util.regex.Pattern;
 
 /**
  * Login module for the eniLINK platform. Usable in a stack of modules
@@ -71,14 +65,14 @@ public class EnilinkLoginModule implements LoginModule {
 
 	private EnilinkPrincipal enilinkPrincipal;
 
-	private IEntityManager entityManager;
+	private IModelSet modelSet;
 	private ServiceReference<IModelSet> modelSetRef;
 
 	private final static Logger logger = LoggerFactory.getLogger(EnilinkLoginModule.class);
 
 	@Override
 	public void initialize(Subject subject, CallbackHandler callbackHandler, Map<String, ?> sharedState,
-			Map<String, ?> options) {
+						   Map<String, ?> options) {
 		this.subject = subject;
 		this.callbackHandler = callbackHandler;
 		this.standalone = "standalone".equalsIgnoreCase(String.valueOf(options.get("mode")));
@@ -101,7 +95,7 @@ public class EnilinkLoginModule implements LoginModule {
 		// query if this is a 'register' action
 		RegisterCallback registerCallback = new RegisterCallback();
 		try {
-			callbackHandler.handle(new Callback[] { registerCallback });
+			callbackHandler.handle(new Callback[]{registerCallback});
 		} catch (Exception e) {
 			// ignore and assume this is not a 'register' action
 			return false;
@@ -109,23 +103,23 @@ public class EnilinkLoginModule implements LoginModule {
 		return registerCallback.isRegister();
 	}
 
-	protected void releaseEntityManager() {
-		if (entityManager != null) {
+	protected void releaseModelSet() {
+		if (modelSet != null) {
 			Activator.getContext().ungetService(modelSetRef);
-			entityManager = null;
+			modelSet = null;
 			modelSetRef = null;
 		}
 	}
 
-	protected IEntityManager getEntityManager() throws LoginException {
-		if (entityManager != null) {
-			return entityManager;
+	protected IModelSet getModelSet() throws LoginException {
+		if (modelSet != null) {
+			return modelSet;
 		}
 		modelSetRef = Activator.getContext().getServiceReference(IModelSet.class);
 		if (modelSetRef != null) {
 			IModelSet modelSet = Activator.getContext().getService(modelSetRef);
 			if (modelSet != null) {
-				return entityManager = modelSet.getMetaDataManager();
+				return modelSet;
 			}
 		}
 		throw new LoginException("Unable to connect to the user database.");
@@ -150,15 +144,14 @@ public class EnilinkLoginModule implements LoginModule {
 			char[] password = ((PasswordCallback) callbacks.get(1)).getPassword();
 			String encodedPassword = password == null ? "" : AccountHelper.encodePassword(new String(password));
 			URI userId;
-			IEntityManager em = getEntityManager();
 			try {
-				IEntity user = AccountHelper.findUser(em, username, encodedPassword);
+				IEntity user = AccountHelper.findUser(getModelSet().getMetaDataManager(), username, encodedPassword);
 				if (user == null) {
 					throw new LoginException("Unknown user or wrong password.");
 				}
 				userId = user.getURI();
 			} finally {
-				releaseEntityManager();
+				releaseModelSet();
 			}
 			enilinkPrincipal = new EnilinkPrincipal(userId);
 			return true;
@@ -178,7 +171,7 @@ public class EnilinkLoginModule implements LoginModule {
 						userId = principals.next().getId();
 					}
 					if (userId == null) {
-						IEntity user = AccountHelper.findUser(getEntityManager(), externalIds);
+						IEntity user = AccountHelper.findUser(getModelSet().getMetaDataManager(), externalIds);
 						if (user != null) {
 							userId = user.getURI();
 						}
@@ -198,10 +191,15 @@ public class EnilinkLoginModule implements LoginModule {
 						}
 						if (username != null) {
 							// create this user and link the external IDs
-							IEntity user = AccountHelper.createUser(getEntityManager(), username, null, null);
+							IEntity user = AccountHelper.createUser(getModelSet().getMetaDataManager(),
+									username, null, null);
 							if (user != null) {
+								Optional.ofNullable(getModelSet().getModel(SecurityUtil.USERS_MODEL,
+										false)).ifPresent(model -> {
+									model.getManager().add(new Statement(user, RDF.PROPERTY_TYPE, FOAF.TYPE_AGENT));
+								});
 								userId = user.getURI();
-								AccountHelper.linkExternalIds(getEntityManager(), userId, externalIds);
+								AccountHelper.linkExternalIds(getModelSet().getMetaDataManager(), userId, externalIds);
 								logger.info("auto-registered user '{}' as {}", username, userId);
 							}
 						} else {
@@ -226,7 +224,7 @@ public class EnilinkLoginModule implements LoginModule {
 			}
 			return true;
 		} finally {
-			releaseEntityManager();
+			releaseModelSet();
 		}
 	}
 

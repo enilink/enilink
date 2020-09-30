@@ -1,23 +1,20 @@
 package net.enilink.platform.web.snippet
 
-import scala.xml.Node
-import scala.xml.NodeSeq.seqToNodeSeq
-
 import javax.security.auth.Subject
-import net.enilink.platform.lift.util.EnilinkRules
-import net.enilink.platform.lift.util.Fields
-import net.enilink.platform.lift.util.Globals
-import net.enilink.platform.security.auth.AccountHelper
-import net.enilink.platform.security.auth.EnilinkPrincipal
-import net.liftweb.common.Box
-import net.liftweb.common.Empty
-import net.liftweb.common.Full
-import net.liftweb.http.S
-import net.liftweb.http.SHtml
+import net.enilink.komma.core.Statement
+import net.enilink.platform.core.security.SecurityUtil
+import net.enilink.platform.lift.util.{EnilinkRules, Fields, Globals}
+import net.enilink.platform.security.auth.{AccountHelper, EnilinkPrincipal}
+import net.enilink.vocab.foaf.FOAF
+import net.enilink.vocab.rdf.RDF
+import net.liftweb.common.{Box, Empty, Full}
+import net.liftweb.http.{S, SHtml}
 import net.liftweb.http.js.JsCmds
 import net.liftweb.util.AnyVar.whatVarIs
-import net.liftweb.util.Helpers.pairToUnprefixed
-import net.liftweb.util.Helpers.strToSuperArrowAssoc
+import net.liftweb.util.Helpers.{pairToUnprefixed, strToSuperArrowAssoc}
+
+import scala.xml.Node
+import scala.xml.NodeSeq.seqToNodeSeq
 
 class Register extends Login {
   def createUser(name: String, email: String, s: Subject) {
@@ -28,6 +25,9 @@ class Register extends Login {
     } else {
       try {
         val user = AccountHelper.createUser(em, name, email)
+        Globals.contextModelSet.vend.flatMap(ms => Option(ms.getModel(SecurityUtil.USERS_MODEL, false)))
+          .foreach { model => model.getManager.add(new Statement(user, RDF.PROPERTY_TYPE, FOAF.TYPE_AGENT)) }
+
         // link external IDs
         AccountHelper.linkExternalIds(em, user, externalIds)
         s.getPrincipals.add(new EnilinkPrincipal(user.getURI))
@@ -82,18 +82,23 @@ class Register extends Login {
   }
 
   override def initializeForm = {
-    var form: Seq[Node] = <div id="input-username" class="form-group"><label>Your new user name</label><input name="username" type="text" value={ S.param("username") openOr "" } placeholder="&lt;Username&gt;" class="form-control" onblur={
-      SHtml.onEvent(name => { validateUsername(name); JsCmds._Noop })._2.toJsCmd
-    }/>{ Fields.msgBox("input-username") }</div> ++
-      <div id="input-email" class="form-group"><label>Your email address</label><input name="email" type="text" value={ S.param("email") openOr "" } placeholder="&lt;EMail&gt;" class="form-control" onblur={
-        SHtml.onEvent(email => { validateEmail(email); JsCmds._Noop })._2.toJsCmd
-      }/>{ Fields.msgBox("input-email") }</div>
+    var form: Seq[Node] = <div id="input-username" class="form-group">
+      <label>Your new user name</label> <input name="username" type="text" value={S.param("username") openOr ""} placeholder="&lt;Username&gt;" class="form-control" onblur={SHtml.onEvent(name => {
+      validateUsername(name);
+      JsCmds._Noop
+    })._2.toJsCmd}/>{Fields.msgBox("input-username")}
+    </div> ++
+      <div id="input-email" class="form-group">
+        <label>Your email address</label> <input name="email" type="text" value={S.param("email") openOr ""} placeholder="&lt;EMail&gt;" class="form-control" onblur={SHtml.onEvent(email => {
+        validateEmail(email);
+        JsCmds._Noop
+      })._2.toJsCmd}/>{Fields.msgBox("input-email")}
+      </div>
     if (loginWithEnilink) {
       form ++= <div id="input-password" class="form-group">
-                 <label>Password</label><input name="password" type="password" value="" class="form-control"/>
-                 <label>Confirm the password</label><input name="password-confirmed" type="password" value="" class="form-control"/>
-                 { Fields.msgBox("input-password") }
-               </div>
+        <label>Password</label> <input name="password" type="password" value="" class="form-control"/>
+        <label>Confirm the password</label> <input name="password-confirmed" type="password" value="" class="form-control"/>{Fields.msgBox("input-password")}
+      </div>
     } else {
       form ++= <hr/>
     }
