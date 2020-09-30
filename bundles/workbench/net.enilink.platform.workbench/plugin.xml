@@ -17,6 +17,13 @@
 				name="Access control"
 				restorable="true">
 		</view>
+		<view
+				class="net.enilink.platform.workbench.HistoryView"
+				icon="img/enilink/control-panel-access-icon.png"
+				id="net.enilink.platform.workbench.historyView"
+				name="History"
+				restorable="true">
+		</view>
 	</extension>
 	<extension
 			point="org.eclipse.ui.perspectives">
@@ -232,5 +239,11 @@
 				id="net.enilink.platform.workbench.command.deleteModel"
 				name="DeleteModelCommand">
 		</command>
+	</extension>
+	<extension
+			point="net.enilink.komma.model.modules">
+		<module
+				class="net.enilink.platform.workbench.model.WorkbenchModule">
+		</module>
 	</extension>
 </plugin>

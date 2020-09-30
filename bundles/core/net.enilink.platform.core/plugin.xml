@@ -51,4 +51,13 @@
          </run>
       </application>
    </extension>
+   <extension
+           point="net.enilink.komma.edit.itemProviderAdapterFactories">
+      <factory
+              class="net.enilink.platform.core.edit.AuthAdapterFactory"
+              supportedTypes="net.enilink.komma.edit.provider.IItemLabelProvider
+              net.enilink.komma.edit.properties.IEditingSupport"
+              uri="http://xmlns.com/foaf/0.1/ http://www.w3.org/ns/auth/acl#">
+      </factory>
+   </extension>
 </plugin>

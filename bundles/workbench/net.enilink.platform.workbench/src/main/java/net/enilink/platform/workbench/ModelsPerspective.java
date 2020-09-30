@@ -25,6 +25,7 @@ public class ModelsPerspective implements IPerspectiveFactory {
 		bottom.addView(EditUIViews.ID_DETAILS);
 		bottom.addView(OWLViews.ID_NAMESPACES);
 		bottom.addView(AclView.ID);
+		bottom.addView(HistoryView.ID);
 		bottom.addView("net.enilink.komma.sparql.ui.views.SparqlView");
 	}
 }

@@ -8,8 +8,11 @@ import net.enilink.komma.common.ui.assist.ContentProposals;
 import net.enilink.komma.core.*;
 import net.enilink.komma.edit.command.DeleteCommand;
 import net.enilink.komma.edit.domain.IEditingDomain;
+import net.enilink.komma.edit.properties.EditingHelper;
 import net.enilink.komma.edit.properties.IEditingSupport;
 import net.enilink.komma.edit.properties.ResourceEditingSupport;
+import net.enilink.komma.edit.provider.IItemLabelProvider;
+import net.enilink.komma.edit.ui.assist.JFaceProposalProvider;
 import net.enilink.komma.edit.ui.celleditor.PropertyCellEditingSupport;
 import net.enilink.komma.edit.ui.properties.IEditUIPropertiesImages;
 import net.enilink.komma.edit.ui.properties.KommaEditUIPropertiesPlugin;
@@ -65,15 +68,6 @@ public class AclPart extends AbstractEditingDomainPart {
 
 	private static final URI[] accessModes = {WEBACL.MODE_READ, WEBACL.MODE_WRITE, WEBACL.MODE_CONTROL};
 
-	static class ContentProposalExt extends ContentProposal {
-		final IReference resource;
-
-		public ContentProposalExt(String content, IReference resource) {
-			super(content);
-			this.resource = resource;
-		}
-	}
-
 	@Override
 	public void createContents(Composite parent) {
 		parent.setLayout(new GridLayout(2, false));
@@ -91,23 +85,20 @@ public class AclPart extends AbstractEditingDomainPart {
 		ownerText.setLayoutData(new GridData(SWT.FILL, SWT.BEGINNING, true,
 				false));
 
+		EditingHelper helper = new EditingHelper(EditingHelper.Type.VALUE) {
+			@Override
+			protected IEditingDomain getEditingDomain() {
+				return AclPart.this.getEditingDomain();
+			}
+		};
 		ContentProposalAdapter proposalAdapter = ContentProposals.enableContentProposal(ownerText, (IContentProposalProvider) (contents, position) -> {
 			if (target != null) {
-				IDialect dialect = target.getEntityManager().getFactory().getDialect();
-				QueryFragment searchPatterns = dialect.fullTextSearch(Arrays.asList("agent"), IDialect.DEFAULT, contents.substring(0, position));
-				IQuery<?> query = target.getEntityManager().createQuery(ISparqlConstants.PREFIX + //
-						"prefix foaf: <" + FOAF.NAMESPACE + "> " + //
-						"select ?agent { ?agent a [ rdfs:subClassOf* foaf:Agent ] . " + //
-						searchPatterns + //
-						"filter isIri(?agent)" + //
-						" }");
-				searchPatterns.addParameters(query);
-				return query.evaluate(IReference.class).toList().stream()
-						.map(agent -> new ContentProposalExt(SecurityUtil.uriToUsername(agent.getURI()), agent))
-						.toArray(IContentProposal[]::new);
-			} else {
-				return new IContentProposal[0];
+				IStatement stmt = new Statement(target,
+						target.getEntityManager().find(WEBACL.PROPERTY_OWNER), null);
+				return JFaceProposalProvider.wrap(helper.getProposalSupport(stmt).getProposalProvider())
+						.getProposals(contents, position);
 			}
+			return new IContentProposal[0];
 		}, null);
 		proposalAdapter.addContentProposalListener(new IContentProposalListener() {
 			@Override
@@ -145,7 +136,7 @@ public class AclPart extends AbstractEditingDomainPart {
 
 			@Override
 			protected IEditingSupport getEditingSupport(Object element) {
-				return new ResourceEditingSupport(getAdapterFactory());
+				return super.getEditingSupport(element);
 			}
 
 			@Override
@@ -342,14 +333,6 @@ public class AclPart extends AbstractEditingDomainPart {
 					if (columnIndex >= MODES_OFFSET) {
 						return null;
 					}
-					if (columnIndex == 0) {
-						Agent agent = ((IEntity) object).as(Authorization.class).getAclAgent();
-						if (agent == null) {
-							return null;
-						}
-						URI uri = ((IReference)agent).getURI();
-						return SecurityUtil.uriToUsername(uri);
-					}
 					return super.getText(getTarget(object, columnIndex));
 				}
 			});
@@ -380,7 +363,9 @@ public class AclPart extends AbstractEditingDomainPart {
 			}
 
 			IReference owner = secureTarget.getAclOwner();
-			ownerText.setText(owner != null ? SecurityUtil.uriToUsername(owner.getURI()) : null);
+			IItemLabelProvider ownerLabelProvider = (IItemLabelProvider) adapterFactory
+					.adapt(owner, IItemLabelProvider.class);
+			ownerText.setText(ownerLabelProvider != null ? ownerLabelProvider.getText(owner) : null);
 			ownerText.setEnabled(canControl);
 			viewer.getTable().setEnabled(canControl);
 		}
