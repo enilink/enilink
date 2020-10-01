@@ -12,6 +12,8 @@
 	models:inference false ;
 	models:repository <workspace:/data/> .
 
-@base <plugin://net.enilink.platform.core/Login/> .
-<> <jaasConfigUrl> <platform:/plugin/net.enilink.platform.core/config/jaas.conf> ;
-	<loginModule> [ <jaasConfigName> "eniLINK" ; rdfs:label "eniLINK" ] .
+@prefix login: <plugin://net.enilink.platform.core/Login/> .
+login: login:jaasConfigUrl <./jaas.conf> ;
+	login:loginModule
+        [ login:jaasConfigName "Fraunhofer" ; rdfs:label "Fraunhofer Directory" ],
+	    [ login:jaasConfigName "eniLINK" ; rdfs:label "eniLINK" ] .
