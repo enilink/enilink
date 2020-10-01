@@ -581,7 +581,7 @@ public class SecureDataManager extends DelegatingDataManager {
 		} else {
 			super.add(statements, contexts);
 		}
-		if (secureOps != null && !secureTransaction.isActive()) {
+		if (secureOps != null && (secureTransaction == null || !secureTransaction.isActive())) {
 			secureOps.execute();
 		}
 		return this;
@@ -596,7 +596,7 @@ public class SecureDataManager extends DelegatingDataManager {
 		} else {
 			super.add(statements, assertReadable(readContexts), addContexts);
 		}
-		if (secureOps != null && !secureTransaction.isActive()) {
+		if (secureOps != null && (secureTransaction == null || !secureTransaction.isActive())) {
 			secureOps.execute();
 		}
 		return this;
@@ -722,7 +722,7 @@ public class SecureDataManager extends DelegatingDataManager {
 		} else {
 			super.remove(statements, contexts);
 		}
-		if (secureOps != null && !secureTransaction.isActive()) {
+		if (secureOps != null && (secureTransaction == null || !secureTransaction.isActive())) {
 			secureOps.execute();
 		}
 		return this;
