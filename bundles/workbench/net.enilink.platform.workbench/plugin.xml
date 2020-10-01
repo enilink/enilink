@@ -19,7 +19,7 @@
 		</view>
 		<view
 				class="net.enilink.platform.workbench.HistoryView"
-				icon="img/enilink/control-panel-access-icon.png"
+				icon="img/enilink/history.png"
 				id="net.enilink.platform.workbench.historyView"
 				name="History"
 				restorable="true">
@@ -82,17 +82,6 @@
 					class="net.enilink.platform.workbench.Application">
 			</run>
 		</application>
-	</extension>
-	<extension
-			point="org.eclipse.ui.menus">
-		<menuContribution
-				allPopups="false"
-				locationURI="toolbar:net.enilink.platform.statusArea">
-			<dynamic
-					class="net.enilink.platform.workbench.auth.UserMenu"
-					id="net.enilink.platform.workbench.auth.UserMenu">
-			</dynamic>
-		</menuContribution>
 	</extension>
 	<extension
 			point="org.eclipse.rap.ui.entrypoint">
@@ -173,11 +162,15 @@
 				</command>
 			</toolbar>
 		</menuContribution>
-		<menuContribution
-				locationURI="menu:org.eclipse.ui.main.menu">
-			<menu
-					label="Edit">
-			</menu>
+		<menuContribution locationURI="toolbar:org.eclipse.ui.main.toolbar?after=additions">
+			<toolbar id="net.enilink.platform.workbench.user.toolbar">
+				<separator name="net.enilink.platform.workbench.user.toolbar.separator1" visible="true">
+				</separator>
+				<dynamic
+						class="net.enilink.platform.workbench.auth.UserMenu"
+						id="net.enilink.platform.workbench.auth.UserMenu">
+				</dynamic>
+			</toolbar>
 		</menuContribution>
 		<menuContribution
 				locationURI="menu:net.enilink.platform.workbench.addModelToolbar">
