@@ -20,6 +20,9 @@ import javax.security.auth.callback.*;
 import javax.security.auth.login.LoginException;
 import javax.security.auth.spi.LoginModule;
 import java.security.Principal;
+import java.security.PrivilegedAction;
+import java.security.PrivilegedActionException;
+import java.security.PrivilegedExceptionAction;
 import java.security.acl.Group;
 import java.util.*;
 import java.util.regex.Pattern;
@@ -161,6 +164,19 @@ public class EnilinkLoginModule implements LoginModule {
 
 	@Override
 	public boolean commit() throws LoginException {
+		try {
+			return Subject.doAs(SecurityUtil.SYSTEM_USER_SUBJECT,
+					(PrivilegedExceptionAction<Boolean>) () -> internalCommit());
+		} catch (PrivilegedActionException pae) {
+			if (pae.getException() instanceof LoginException) {
+				throw (LoginException) pae.getException();
+			} else {
+				throw (RuntimeException) pae.getException();
+			}
+		}
+	}
+
+	protected boolean internalCommit() throws LoginException {
 		try {
 			if (enilinkPrincipal == null) {
 				List<URI> externalIds = AccountHelper.getExternalIds(subject);
