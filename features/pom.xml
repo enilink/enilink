@@ -30,5 +30,7 @@
 		<module>net.enilink.platform.feature</module>
 		<module>net.enilink.platform.equinox.feature</module>
 		<module>net.enilink.platform.karaf.feature</module>
+		<module>net.enilink.platform.workbench.feature</module>
+		<module>net.enilink.platform.workbench.karaf.feature</module>
 	</modules>
 </project>

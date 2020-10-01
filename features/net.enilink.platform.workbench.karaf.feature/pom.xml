@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project
+		xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd"
+		xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+	<modelVersion>4.0.0</modelVersion>
+
+	<name>eniLINK: Karaf Feature for the Workbench</name>
+
+	<parent>
+		<groupId>net.enilink.platform</groupId>
+		<artifactId>platform-features</artifactId>
+		<version>1.3.2-SNAPSHOT</version>
+	</parent>
+
+	<scm>
+		<connection>${enilink.scm.connection}</connection>
+		<developerConnection>${enilink.scm.developerConnection}</developerConnection>
+		<url>${enilink.scm.url}</url>
+	</scm>
+
+	<artifactId>net.enilink.platform.workbench.karaf.feature</artifactId>
+	<packaging>kar</packaging>
+
+	<dependencies>
+		<dependency>
+			<groupId>net.enilink.platform</groupId>
+			<artifactId>net.enilink.platform.workbench.feature</artifactId>
+			<version>${project.version}</version>
+			<type>pom</type>
+		</dependency>
+	</dependencies>
+
+	<build>
+		<plugins>
+			<plugin>
+				<groupId>org.apache.karaf.tooling</groupId>
+				<artifactId>karaf-maven-plugin</artifactId>
+			</plugin>
+		</plugins>
+	</build>
+</project>

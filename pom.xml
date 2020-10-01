@@ -349,6 +349,7 @@
 		<module>bundles/core/net.enilink.platform.security</module>
 		<module>bundles/web/net.enilink.platform.lift</module>
 		<module>bundles/web/net.enilink.platform.web</module>
+		<module>bundles/workbench/net.enilink.platform.workbench</module>
 	</modules>
 
 	<profiles>
@@ -377,6 +378,7 @@
 				<module>features</module>
 				<module>products/enilink-server</module>
 				<module>launch/equinox</module>
+				<module>launch/equinox-workbench</module>
 				<module>launch/karaf</module>
 				<module>launch/pde</module>
 			</modules>
