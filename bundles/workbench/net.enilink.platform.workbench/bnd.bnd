@@ -1,1 +1,2 @@
 Bundle-SymbolicName: ${project.artifactId};singleton:=true
+-dsannotations-options: norequirements

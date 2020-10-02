@@ -21,15 +21,6 @@
 	<artifactId>net.enilink.platform.workbench.karaf.feature</artifactId>
 	<packaging>kar</packaging>
 
-	<dependencies>
-		<dependency>
-			<groupId>net.enilink.platform</groupId>
-			<artifactId>net.enilink.platform.workbench.feature</artifactId>
-			<version>${project.version}</version>
-			<type>pom</type>
-		</dependency>
-	</dependencies>
-
 	<build>
 		<plugins>
 			<plugin>

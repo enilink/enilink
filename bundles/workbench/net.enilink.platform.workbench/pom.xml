@@ -43,22 +43,22 @@
 		<dependency>
 			<groupId>org.eclipse.rap</groupId>
 			<artifactId>org.eclipse.rap.ui.workbench</artifactId>
-			<version>3.13.0</version>
+			<version>${rap.version}</version>
 		</dependency>
 		<dependency>
 			<groupId>org.eclipse.rap</groupId>
 			<artifactId>org.eclipse.rap.ui.forms</artifactId>
-			<version>3.13.0</version>
+			<version>${rap.version}</version>
 		</dependency>
 		<dependency>
 			<groupId>org.eclipse.rap</groupId>
 			<artifactId>org.eclipse.rap.ui.views</artifactId>
-			<version>3.13.0</version>
+			<version>${rap.version}</version>
 		</dependency>
 		<dependency>
 			<groupId>org.eclipse.rap</groupId>
 			<artifactId>org.eclipse.rap.filedialog</artifactId>
-			<version>3.13.0</version>
+			<version>${rap.version}</version>
 			<exclusions>
 				<!-- conflicts with version required by RDF4J -->
 				<exclusion>
