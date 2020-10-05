@@ -16,6 +16,7 @@ import org.eclipse.core.commands.ExecutionEvent;
 import org.eclipse.core.commands.ExecutionException;
 import org.eclipse.jface.dialogs.IInputValidator;
 import org.eclipse.jface.window.Window;
+import org.eclipse.rap.rwt.RWT;
 import org.eclipse.swt.SWT;
 import org.eclipse.swt.layout.GridData;
 import org.eclipse.swt.layout.GridLayout;
@@ -39,7 +40,8 @@ public class CreateModelCommandHandler extends AbstractHandler {
 				protected String withService(final IModelSet modelSet) {
 					final boolean isAdmin = SecurityUtil.isMemberOf(modelSet.getMetaDataManager(), SecurityUtil.ADMINISTRATORS_GROUP);
 					URI user = SecurityUtil.getUser();
-					final URI modelNS = URIs.createURI("http://enilink.net/models/" + user.localPart() + "/");
+					final URI requestURI = URIs.createURI(RWT.getRequest().getRequestURL().toString());
+					final URI modelNS = URIs.createURI(requestURI.scheme() + "://" + requestURI.authority() + "/models/" + user.localPart() + "/");
 					final URI[] newURI = new URI[1];
 					// let the user choose a model uri
 					InputDialog dialog = new InputDialog(shell, "Name the new model.", "Please enter a URI for your model.", isAdmin ? modelNS.toString() : "", new IInputValidator() {

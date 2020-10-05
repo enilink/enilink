@@ -333,7 +333,8 @@ public class AclPart extends AbstractEditingDomainPart {
 					if (columnIndex >= MODES_OFFSET) {
 						return null;
 					}
-					return super.getText(getTarget(object, columnIndex));
+					Object target = getTarget(object, columnIndex);
+					return target == null ? null : super.getText(target);
 				}
 			});
 		}
