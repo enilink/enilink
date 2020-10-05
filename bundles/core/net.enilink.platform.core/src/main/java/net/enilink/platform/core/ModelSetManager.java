@@ -33,7 +33,6 @@ import com.google.inject.Provides;
 import com.google.inject.name.Named;
 import com.google.inject.util.Modules;
 
-import net.enilink.commons.iterator.IMap;
 import net.enilink.commons.iterator.WrappedIterator;
 import net.enilink.composition.properties.PropertySetFactory;
 import net.enilink.komma.core.BlankNode;
@@ -60,7 +59,6 @@ import net.enilink.komma.model.MODELS;
 import net.enilink.komma.model.ModelPlugin;
 import net.enilink.komma.model.ModelSetModule;
 import net.enilink.komma.model.ModelUtil;
-import net.enilink.komma.model.base.IURIMapRule;
 import net.enilink.komma.model.base.IURIMapRuleSet;
 import net.enilink.komma.model.base.SimpleURIMapRule;
 import net.enilink.platform.core.security.ISecureEntity;
@@ -245,13 +243,6 @@ class ModelSetManager {
 
 		KommaModule module = createDataModelSetModule();
 		module.includeModule(new AuthModule());
-
-		// directly use meta data context for creating the model
-		IReference metaDataContext = graph.filter(msUri, MODELS.PROPERTY_METADATACONTEXT, null).objectReference();
-		if (metaDataContext != null && metaDataContext.getURI() != null) {
-			module.addReadableGraph(metaDataContext.getURI());
-			module.addWritableGraph(metaDataContext.getURI());
-		}
 
 		Injector injector = Guice.createInjector(createModelSetGuiceModule(module), new ContextProviderModule());
 		IModelSetFactory factory = injector.getInstance(IModelSetFactory.class);
