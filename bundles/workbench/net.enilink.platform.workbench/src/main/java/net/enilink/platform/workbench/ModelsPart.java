@@ -1,6 +1,8 @@
 package net.enilink.platform.workbench;
 
 import net.enilink.komma.common.adapter.IAdapterFactory;
+import net.enilink.komma.core.URI;
+import net.enilink.komma.core.URIs;
 import net.enilink.komma.edit.ui.provider.AdapterFactoryContentProvider;
 import net.enilink.komma.edit.ui.provider.AdapterFactoryLabelProvider;
 import net.enilink.komma.edit.ui.util.PartListener2Adapter;
@@ -11,6 +13,7 @@ import org.eclipse.jface.action.Action;
 import org.eclipse.jface.action.IToolBarManager;
 import org.eclipse.jface.action.MenuManager;
 import org.eclipse.jface.viewers.*;
+import org.eclipse.rap.rwt.RWT;
 import org.eclipse.swt.SWT;
 import org.eclipse.swt.layout.FillLayout;
 import org.eclipse.swt.widgets.Composite;
@@ -31,6 +34,8 @@ public class ModelsPart extends AbstractEditingDomainPart {
 	private final List<IModel> openModels = new ArrayList<IModel>();
 	private IModel currentModel;
 	private OpenModelListener listener;
+
+	private String urlPrefix = null;
 
 	private class OpenModelListener extends PartListener2Adapter {
 		private IModel getModel(IWorkbenchPartReference partRef) {
@@ -89,6 +94,9 @@ public class ModelsPart extends AbstractEditingDomainPart {
 
 	@Override
 	public void createContents(Composite parent) {
+		final URI requestURI = URIs.createURI(RWT.getRequest().getRequestURL().toString());
+		urlPrefix = requestURI.scheme() + "://" + requestURI.authority() + "/models/";
+
 		parent.setLayout(new FillLayout(SWT.VERTICAL));
 		createActions();
 
@@ -186,11 +194,35 @@ public class ModelsPart extends AbstractEditingDomainPart {
 				adapterFactory = newAdapterFactory;
 
 				allModelsViewer.setContentProvider(new AdapterFactoryContentProvider(getAdapterFactory()));
-				allModelsViewer.setLabelProvider(new AdapterFactoryLabelProvider(getAdapterFactory()));
+				allModelsViewer.setLabelProvider(new AdapterFactoryLabelProvider(getAdapterFactory()) {
+					@Override
+					public String getColumnText(Object object, int columnIndex) {
+						String text;
+						if (object instanceof IModel && urlPrefix != null) {
+							text = ((IModel) object).getURI().toString();
+							// shorten model name by replacing URL prefix
+							if (text.startsWith(urlPrefix)) {
+								text = text.substring(urlPrefix.length());
+							}
+						} else {
+							text = super.getColumnText(object, columnIndex);
+						}
+						return text;
+					}
+				});
 				openModelsViewer.setLabelProvider(new AdapterFactoryLabelProvider(getAdapterFactory()) {
 					@Override
 					public String getColumnText(Object object, int columnIndex) {
-						String text = super.getColumnText(object, columnIndex);
+						String text;
+						if (object instanceof IModel && urlPrefix != null) {
+							text = ((IModel)object).getURI().toString();
+							// shorten model name by replacing URL prefix
+							if (text.startsWith(urlPrefix)) {
+								text = text.substring(urlPrefix.length());
+							}
+						} else {
+							text = super.getColumnText(object, columnIndex);
+						}
 						if (object == currentModel) {
 							return ">> " + text;
 						}
