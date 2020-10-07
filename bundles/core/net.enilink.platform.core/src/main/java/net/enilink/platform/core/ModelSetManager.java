@@ -256,7 +256,7 @@ class ModelSetManager {
 		IModel usersModel = modelSet.createModel(SecurityUtil.USERS_MODEL);
 		usersModel.setLoaded(true);
 		// load public data about users and groups into users model
-		loadUsersAndGroups(usersModel.getManager(), config, true);
+		loadPublicUsersAndGroups(usersModel.getManager(), config);
 
 		// set ACL mode "RESTRICTED" for users model
 		IEntityManager em = modelSet.getMetaDataManager();
@@ -332,7 +332,7 @@ class ModelSetManager {
 							em.createNamed(SecurityUtil.UNKNOWN_USER, FOAF.TYPE_AGENT);
 
 							// load users, groups and ACL config
-							loadUsersAndGroups(em, config, false);
+							loadUsersAndGroups(em, config);
 							loadAcls(em, config);
 
 							createModels(modelSet, config);
@@ -348,19 +348,53 @@ class ModelSetManager {
 		return modelSet;
 	}
 
-	protected void loadUsersAndGroups(IEntityManager em, Config config, boolean typesOnly) {
-		// seenAgents filters users and/or groups with multiple matching types
-		Set<IReference> seenAgents = new HashSet<>();
-		for (IReference rdfType : Arrays.asList(FOAF.TYPE_AGENT, FOAF.TYPE_PERSON)) {
-			for (IReference agent : config.filter(null, RDF.PROPERTY_TYPE, rdfType).subjects()) {
-				if (!seenAgents.add(agent)) {
-					continue;
-				}
+	/**
+	 * Copies types of agents and groups to an entity manager.
+	 *
+	 * @param em     The target entity manager
+	 * @param config The source graph
+	 */
+	protected void loadPublicUsersAndGroups(IEntityManager em, Config config) {
+		for (IReference rdfType : Arrays.asList(FOAF.TYPE_AGENT, FOAF.TYPE_PERSON,
+				FOAF.TYPE_GROUP, FOAF.TYPE_ORGANIZATION)) {
+			em.add(config.filter(null, RDF.PROPERTY_TYPE, rdfType));
+		}
+	}
 
+	/**
+	 * Copies data about agents and groups to an entity manager.
+	 * Passwords given via http://enilink.net/vocab/auth#" are encoded.
+	 *
+	 * @param em     The target entity manager
+	 * @param config The source graph
+	 */
+	protected void loadUsersAndGroups(IEntityManager em, Config config) {
+		Set<IReference> seen = new HashSet<>();
+		for (IReference rdfType : Arrays.asList(FOAF.TYPE_AGENT, FOAF.TYPE_PERSON,
+				FOAF.TYPE_GROUP, FOAF.TYPE_ORGANIZATION)) {
+			for (IReference group : config.filter(null, RDF.PROPERTY_TYPE, rdfType).subjects()) {
+				copyFromGraph(em, group, config, seen);
+			}
+		}
+	}
+
+	protected void loadAcls(IEntityManager em, Config config) {
+		Set<IReference> seen = new HashSet<>();
+		for (IReference aclAuth : config.filter(null, RDF.PROPERTY_TYPE, WEBACL.TYPE_AUTHORIZATION).subjects()) {
+			copyFromGraph(em, aclAuth, config, seen);
+		}
+	}
+
+	protected void copyFromGraph(IEntityManager em, IReference subject, IGraph graph, Set<IReference> seen) {
+		Queue<IReference> queue = new LinkedList<>();
+		queue.add(subject);
+		while (!queue.isEmpty()) {
+			IReference s = queue.remove();
+			if (seen.add(s)) {
 				Set<IStatement> toAdd = new HashSet<>();
-				IGraph about = config.filter(agent, typesOnly ? RDF.PROPERTY_TYPE : null, null);
+				IGraph about = graph.filter(s, null, null);
 				for (IStatement stmt : about) {
-					// encode given password
+					// ensure that passwords are always encoded
 					if (AUTH.PROPERTY_PASSWORD.equals(stmt.getPredicate())) {
 						if (stmt.getObject() instanceof ILiteral) {
 							toAdd.add(new Statement(stmt.getSubject(), stmt.getPredicate(),
@@ -370,55 +404,7 @@ class ModelSetManager {
 						toAdd.add(stmt);
 					}
 				}
-
-				if (! typesOnly) {
-					// derive nick name from URI
-					if (config.filter(agent, FOAF.PROPERTY_NICK, null).isEmpty()) {
-						toAdd.add(new Statement(agent, FOAF.PROPERTY_NICK, agent.getURI().localPart()));
-					}
-				}
-
-				// add statements about agent
 				em.add(toAdd);
-
-				if (! typesOnly) {
-					// add referenced objects
-					Set<IReference> seen = new HashSet<>();
-					for (IStatement stmt : toAdd) {
-						if (stmt.getObject() instanceof IReference && seen.add((IReference) stmt.getObject())) {
-							copyFromGraph(em, (IReference) stmt.getObject(), config);
-						}
-					}
-				}
-			}
-		}
-
-		for (IReference rdfType : Arrays.asList(FOAF.TYPE_GROUP, FOAF.TYPE_ORGANIZATION)) {
-			for (IReference group : config.filter(null, RDF.PROPERTY_TYPE, rdfType).subjects()) {
-				if (!seenAgents.add(group)) {
-					continue;
-				}
-
-				copyFromGraph(em, group, config);
-			}
-		}
-	}
-
-	protected void loadAcls(IEntityManager em, Config config) {
-		for (IReference aclAuth : config.filter(null, RDF.PROPERTY_TYPE, WEBACL.TYPE_AUTHORIZATION).subjects()) {
-			copyFromGraph(em, aclAuth, config);
-		}
-	}
-
-	protected void copyFromGraph(IEntityManager em, IReference subject, IGraph graph) {
-		Set<IReference> seen = new HashSet<>();
-		Queue<IReference> queue = new LinkedList<>();
-		queue.add(subject);
-		while (!queue.isEmpty()) {
-			IReference s = queue.remove();
-			if (seen.add(s)) {
-				IGraph about = graph.filter(s, null, null);
-				em.add(about);
 				for (Object o : about.objects()) {
 					if (o instanceof IReference && !seen.contains(o)) {
 						queue.add((IReference) o);
