@@ -29,7 +29,7 @@ import java.util.concurrent.Future;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 
-@Component
+@Component(immediate = true)
 public class ChangeTracker {
 	static final Logger log = LoggerFactory.getLogger(ChangeTracker.class);
 
@@ -47,7 +47,7 @@ public class ChangeTracker {
 
 	protected Future<?> future;
 
-	protected Map<IReference, List<IDataChange>> changesByModel = new HashMap<>();
+	protected Map<IReference, Map<URI, List<IDataChange>>> changesByModelAndUser = new HashMap<>();
 
 	@Reference
 	protected void setModelSet(IModelSet modelSet) {
@@ -62,7 +62,8 @@ public class ChangeTracker {
 
 			URI metaDataContext = ((ModelSet) modelSet).getMetaDataContext();
 			changeListener = list -> {
-				synchronized (changesByModel) {
+				URI user = SecurityUtil.getUser();
+				synchronized (changesByModelAndUser) {
 					list.stream()
 							.filter(change -> change instanceof IStatementChange)
 							.filter(change -> {
@@ -71,12 +72,18 @@ public class ChangeTracker {
 										|| ctx.toString().startsWith("enilink:audit:"));
 							}).forEach(change -> {
 						IReference ctx = ((IStatementChange) change).getStatement().getContext();
-						changesByModel.compute(ctx, (k, l) -> {
-							if (l == null) {
-								l = new ArrayList<>();
+						changesByModelAndUser.compute(ctx, (ctxKey, map) -> {
+							if (map == null) {
+								map = new HashMap<>();
 							}
-							l.add(change);
-							return l;
+							map.compute(user, (userKey, l) -> {
+								if (l == null) {
+									l = new ArrayList<>();
+								}
+								l.add(change);
+								return l;
+							});
+							return map;
 						});
 					});
 
@@ -95,52 +102,53 @@ public class ChangeTracker {
 	}
 
 	protected void commitChanges() {
-		Map<IReference, List<IDataChange>> localChanges;
-		synchronized (changesByModel) {
-			localChanges = new HashMap<>(changesByModel);
-			changesByModel.clear();
+		Map<IReference, Map<URI, List<IDataChange>>> localChanges;
+		synchronized (changesByModelAndUser) {
+			localChanges = new HashMap<>(changesByModelAndUser);
+			changesByModelAndUser.clear();
 			future = null;
 		}
-		localChanges.entrySet().stream().forEach(entry -> {
-			XMLGregorianCalendar now = dtFactory.newXMLGregorianCalendar(new GregorianCalendar());
-			IReference modelRef = entry.getKey();
-			List<IDataChange> modelChanges = new ArrayList<>(entry.getValue());
-			Collections.sort(modelChanges, Comparator.comparing(v -> ((IStatementChange) v).isAdd() ? 1 : 0));
+		localChanges.entrySet().stream().forEach(changesByUser -> {
+			IReference modelRef = changesByUser.getKey();
+			changesByUser.getValue().entrySet().stream().forEach(entry -> {
+				URI user = entry.getKey();
+				XMLGregorianCalendar now = dtFactory.newXMLGregorianCalendar(new GregorianCalendar());
+				List<IDataChange> modelChanges = new ArrayList<>(entry.getValue());
+				Collections.sort(modelChanges, Comparator.comparing(v -> ((IStatementChange) v).isAdd() ? 1 : 0));
 
-			UUID uuid = UUID.randomUUID();
-			URI changeUri = URIs.createURI("enilink:change:" + uuid.toString());
-			List<IStatement> changeDescription = new ArrayList<>();
-			modelChanges.forEach(change -> {
-				IStatement stmt = ((IStatementChange) change).getStatement();
-				boolean isAdd = ((IStatementChange) change).isAdd();
-				IReference stmtRef = new BlankNode(BlankNode.generateId("stmt-"));
-				changeDescription.add(new Statement(changeUri, isAdd ? PROPERTY_ADDSTATEMENT : PROPERTY_REMOVESTATEMENT, stmtRef));
-				changeDescription.add(new Statement(stmtRef, RDF.PROPERTY_SUBJECT, stmt.getSubject()));
-				changeDescription.add(new Statement(stmtRef, RDF.PROPERTY_PREDICATE, stmt.getPredicate()));
-				changeDescription.add(new Statement(stmtRef, RDF.PROPERTY_OBJECT, stmt.getObject()));
-			});
-			changeDescription.add(new Statement(changeUri, RDF.PROPERTY_TYPE, TYPE_CHANGEDESCRIPTION));
-			Optional.ofNullable(SecurityUtil.getUser()).ifPresent(user -> {
+				UUID uuid = UUID.randomUUID();
+				URI changeUri = URIs.createURI("enilink:change:" + uuid.toString());
+				List<IStatement> changeDescription = new ArrayList<>();
+				modelChanges.forEach(change -> {
+					IStatement stmt = ((IStatementChange) change).getStatement();
+					boolean isAdd = ((IStatementChange) change).isAdd();
+					IReference stmtRef = new BlankNode(BlankNode.generateId("stmt-"));
+					changeDescription.add(new Statement(changeUri, isAdd ? PROPERTY_ADDSTATEMENT : PROPERTY_REMOVESTATEMENT, stmtRef));
+					changeDescription.add(new Statement(stmtRef, RDF.PROPERTY_SUBJECT, stmt.getSubject()));
+					changeDescription.add(new Statement(stmtRef, RDF.PROPERTY_PREDICATE, stmt.getPredicate()));
+					changeDescription.add(new Statement(stmtRef, RDF.PROPERTY_OBJECT, stmt.getObject()));
+				});
+				changeDescription.add(new Statement(changeUri, RDF.PROPERTY_TYPE, TYPE_CHANGEDESCRIPTION));
 				changeDescription.add(new Statement(changeUri, PROPERTY_AGENT, user));
-			});
-			changeDescription.add(new Statement(changeUri, PROPERTY_DATE, now));
+				changeDescription.add(new Statement(changeUri, PROPERTY_DATE, now));
 
-			Subject.doAs(SecurityUtil.SYSTEM_USER_SUBJECT, (PrivilegedAction<Object>) () -> {
-				URI auditModelUri = URIs.createURI("enilink:audit:" + modelRef.toString());
-				try {
-					modelSet.getUnitOfWork().begin();
+				Subject.doAs(SecurityUtil.SYSTEM_USER_SUBJECT, (PrivilegedAction<Object>) () -> {
+					URI auditModelUri = URIs.createURI("enilink:audit:" + modelRef.toString());
+					try {
+						modelSet.getUnitOfWork().begin();
 
-					IModel auditModel = modelSet.getModel(auditModelUri, false);
-					if (auditModel == null) {
-						auditModel = modelSet.createModel(auditModelUri);
-						auditModel.setLoaded(true);
+						IModel auditModel = modelSet.getModel(auditModelUri, false);
+						if (auditModel == null) {
+							auditModel = modelSet.createModel(auditModelUri);
+							auditModel.setLoaded(true);
+						}
+
+						auditModel.getManager().add(changeDescription);
+					} finally {
+						modelSet.getUnitOfWork().end();
 					}
-
-					auditModel.getManager().add(changeDescription);
-				} finally {
-					modelSet.getUnitOfWork().end();
-				}
-				return null;
+					return null;
+				});
 			});
 		});
 	}
