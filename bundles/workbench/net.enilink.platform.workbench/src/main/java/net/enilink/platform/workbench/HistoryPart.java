@@ -72,17 +72,15 @@ public class HistoryPart extends AbstractEditingDomainPart {
 		viewer.setContentProvider(new ITreeContentProvider() {
 			@Override
 			public Object[] getElements(Object inputElement) {
-				return Subject.doAs(SecurityUtil.SYSTEM_USER_SUBJECT, (PrivilegedAction<Object[]>) () -> {
-					if (inputElement instanceof IModel) {
-						IQuery<?> query = ((IModel) inputElement).getManager().createQuery(
-								ISparqlConstants.PREFIX +
-										"prefix dcterms: <http://purl.org/dc/terms/> " +
-										"select ?change { ?change a ?changeDescription ; dcterms:date ?date } order by desc(?date) limit 10");
-						query.setParameter("changeDescription", KOMMA.NAMESPACE_URI.appendLocalPart("ChangeDescription"));
-						return query.evaluate().toList().toArray();
-					}
-					return new Object[0];
-				});
+				if (inputElement instanceof IModel) {
+					IQuery<?> query = ((IModel) inputElement).getManager().createQuery(
+							ISparqlConstants.PREFIX +
+									"prefix dcterms: <http://purl.org/dc/terms/> " +
+									"select ?change { ?change a ?changeDescription ; dcterms:date ?date } order by desc(?date) limit 10");
+					query.setParameter("changeDescription", KOMMA.NAMESPACE_URI.appendLocalPart("ChangeDescription"));
+					return query.evaluate().toList().toArray();
+				}
+				return new Object[0];
 			}
 
 			@Override
