@@ -27,8 +27,8 @@
 		<rap.version>3.13.0</rap.version>
 
 		<bnd.version>4.3.1</bnd.version>
-		<karaf.version>4.3.0.RC1</karaf.version>
-		<karaf.tooling.version>4.3.0.RC1</karaf.tooling.version>
+		<karaf.version>4.3.0</karaf.version>
+		<karaf.tooling.version>4.3.0</karaf.tooling.version>
 
 		<bundles.liftweb.deploy.skip>true</bundles.liftweb.deploy.skip>
 
