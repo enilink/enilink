@@ -1,4 +1,4 @@
-package net.enilink.ldp.sail;
+package net.enilink.platform.ldp.sail;
 
 import net.enilink.komma.core.KommaModule;
 

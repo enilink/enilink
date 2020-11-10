@@ -1,4 +1,4 @@
-package net.enilink.ldp.remote;
+package net.enilink.platform.ldp.remote;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -32,7 +32,7 @@ import org.eclipse.rdf4j.rio.helpers.AbstractRDFHandler;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import net.enilink.ldp.remote.LdpCache.LdpCacheConnection;
+import net.enilink.platform.ldp.remote.LdpCache.LdpCacheConnection;
 
 /**
  * Simple LDP client on top of commons HttpClient.

@@ -1,4 +1,4 @@
-package net.enilink.ldp.impl;
+package net.enilink.platform.ldp.impl;
 
 import java.util.Set;
 
@@ -7,9 +7,9 @@ import net.enilink.composition.traits.Behaviour;
 import net.enilink.komma.core.IQuery;
 import net.enilink.komma.core.IStatement;
 import net.enilink.komma.em.util.ISparqlConstants;
-import net.enilink.ldp.LDP;
-import net.enilink.ldp.LdpDirectContainer;
-import net.enilink.ldp.PreferenceHelper;
+import net.enilink.platform.ldp.LDP;
+import net.enilink.platform.ldp.LdpDirectContainer;
+import net.enilink.platform.ldp.PreferenceHelper;
 
 @Precedes(RdfSourceSupport.class)
 public abstract class DirectContainerSupport implements LdpDirectContainer, Behaviour<LdpDirectContainer> {

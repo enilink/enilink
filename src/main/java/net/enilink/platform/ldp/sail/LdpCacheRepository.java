@@ -1,4 +1,4 @@
-package net.enilink.ldp.sail;
+package net.enilink.platform.ldp.sail;
 
 import java.io.File;
 import java.util.ArrayList;
@@ -29,8 +29,8 @@ import org.eclipse.rdf4j.repository.base.AbstractRepositoryConnection;
 import org.eclipse.rdf4j.rio.RDFHandler;
 import org.eclipse.rdf4j.rio.RDFHandlerException;
 
-import net.enilink.ldp.remote.LdpCache;
-import net.enilink.ldp.remote.LdpClient;
+import net.enilink.platform.ldp.remote.LdpCache;
+import net.enilink.platform.ldp.remote.LdpClient;
 
 /**
  * Repository to be used as federation member for the LDP cache.

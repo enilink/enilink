@@ -1,4 +1,4 @@
-package net.enilink.ldp.sail;
+package net.enilink.platform.ldp.sail;
 
 import java.util.Set;
 
@@ -18,7 +18,7 @@ import net.enilink.komma.em.concepts.IResource;
 import net.enilink.komma.model.IModelSet;
 import net.enilink.komma.model.MODELS;
 import net.enilink.komma.model.rdf4j.IRepositoryModelSet;
-import net.enilink.ldp.remote.LdpCache;
+import net.enilink.platform.ldp.remote.LdpCache;
 
 @Iri(MODELS.NAMESPACE + "FederationModelSet")
 public abstract class FederationModelSetSupport

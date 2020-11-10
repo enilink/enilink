@@ -1,4 +1,4 @@
-package net.enilink.ldp;
+package net.enilink.platform.ldp;
 
 import java.util.Set;
 

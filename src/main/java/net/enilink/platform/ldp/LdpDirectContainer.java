@@ -1,4 +1,4 @@
-package net.enilink.ldp;
+package net.enilink.platform.ldp;
 
 import net.enilink.composition.annotations.Iri;
 import net.enilink.vocab.rdf.Property;

@@ -8,12 +8,16 @@
  * Contributors:
  *     Fraunhofer IWU - initial API and implementation
  *******************************************************************************/
-package net.enilink.ldp;
+package net.enilink.platform.ldp;
 
 import net.enilink.komma.core.URI;
 import net.enilink.komma.core.URIs;
 
-// FIXME: move into separate LDP base bundle
+/**
+ * Linked Data Platform: namespace, type and property constants
+ * 
+ *  @see http://www.w3.org/TR/ldp/
+ */
 public interface LDP {
 	public static final String NAMESPACE = "http://www.w3.org/ns/ldp#";
 	public static final URI NAMESPACE_URI = URIs.createURI(NAMESPACE);

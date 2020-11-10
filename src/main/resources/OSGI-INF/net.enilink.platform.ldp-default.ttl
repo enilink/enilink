@@ -1,0 +1,2 @@
+@base <plugin://net.enilink.platform.ldp/> .
+<cache> <extraRepository> true .

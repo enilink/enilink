@@ -5,8 +5,8 @@
 	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
 	<modelVersion>4.0.0</modelVersion>
 	<groupId>net.enilink.platform</groupId>
-	<artifactId>net.enilink.ldp</artifactId>
-	<version>1.0.0-SNAPSHOT</version>
+	<artifactId>net.enilink.platform.ldp</artifactId>
+	<version>0.1.0-SNAPSHOT</version>
 	<packaging>jar</packaging>
 
 	<properties>

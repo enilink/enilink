@@ -1,4 +1,4 @@
-package net.enilink.ldp.remote;
+package net.enilink.platform.ldp.remote;
 
 import java.security.PrivilegedAction;
 import java.util.ArrayList;
@@ -44,7 +44,7 @@ import net.enilink.vocab.rdf.RDF;
 
 public class LdpCache {
 
-	public final static URI PLUGIN_CONFIG_URI = URIs.createURI("plugin://net.enilink.ldp/");
+	public final static URI PLUGIN_CONFIG_URI = URIs.createURI("plugin://net.enilink.platform.ldp/");
 
 	public final static URI ENDPOINT_MODEL_URI = URIs.createURI("enilink:model:ldp:endpoints");
 
