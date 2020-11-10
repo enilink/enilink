@@ -25,8 +25,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import net.enilink.commons.iterator.IMap;
-import net.enilink.core.PluginConfigModel;
-import net.enilink.core.security.SecurityUtil;
+import net.enilink.platform.core.PluginConfigModel;
+import net.enilink.platform.core.security.SecurityUtil;
 import net.enilink.komma.core.BlankNode;
 import net.enilink.komma.core.IQuery;
 import net.enilink.komma.core.IReference;
@@ -92,7 +92,7 @@ public class LdpCache {
 			if (useExtraRepository) {
 				// TODO: make this configurable
 				repository = new SailRepository(new MemoryStore());
-				repository.initialize();
+				repository.init();
 				logger.trace("LdpCache initialized internal MemoryStore repository.");
 			}
 		} catch (RepositoryException re) {
