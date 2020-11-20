@@ -49,9 +49,9 @@ class RDFaParser()(implicit val s: Scope = new Scope()) extends CURIE with RDFaU
    *
    * @param subj1: [parent subject] from step 1
    * @param obj1: [parent object] from step 1
-   * @param pending1f: propertys of [list of incomplete triples]
+   * @param pending1f: properties of [list of incomplete triples]
    *                   from evaluation context, forward direction
-   * @param pending1r: propertys of [list of incomplete triples]
+   * @param pending1r: properties of [list of incomplete triples]
    *                   from evaluation context, reverse direction
    * @param lang1: [language] from step 1
    *
@@ -129,7 +129,7 @@ class RDFaParser()(implicit val s: Scope = new Scope()) extends CURIE with RDFaU
       // TODO find out why newE.child.toStream.flatMap misses some child elements
       val childArcs = walkChildren(newE, {
         case c: xml.Elem => {
-          var (newC, arcs) = if (skip) {
+          val (newC, arcs) = if (skip) {
             walk(c, base, subj1, obj1, pending1f, pending1r, lang)
           } else {
             walk(c, base,
@@ -192,7 +192,7 @@ class RDFaParser()(implicit val s: Scope = new Scope()) extends CURIE with RDFaU
     val subj45 = if (subj45x != undef) subj45x else obj1
     val skip = norel && (subj45x == undef) && props.isEmpty
 
-    return (e2, subj45, objref5, skip)
+    (e2, subj45, objref5, skip)
   }
 
   def handleArcs(e: xml.Elem, arcs: Stream[Arc], isLiteral : Boolean) = {
@@ -217,8 +217,8 @@ class RDFaParser()(implicit val s: Scope = new Scope()) extends CURIE with RDFaU
       for (p <- props.toStream) yield (subj, p, obj)
     }
 
-    var (e1, literal1, xmlobj) = createLiteral(e, lang, datatype, content)
-    var (e2, literal2) = transformLiteral(e1, content, literal1)
+    val (e1, literal1, xmlobj) = createLiteral(e, lang, datatype, content)
+    val (e2, literal2) = transformLiteral(e1, content, literal1)
     (e2, (if (literal2 != null) sayit(literal2) else Stream.empty), xmlobj)
   }
 

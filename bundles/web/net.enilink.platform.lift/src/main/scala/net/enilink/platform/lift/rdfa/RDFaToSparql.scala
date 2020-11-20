@@ -58,10 +58,19 @@ trait SparqlFromRDFa {
 class SubSelectRDFaToSparqlParser(
     e: xml.Elem,
     base: String,
+    subj1: Reference,
+    obj1: Reference,
+    pending1f: Iterable[Reference],
+    pending1r: Iterable[Reference],
+    lang1: Symbol,
     varResolver: Option[VariableResolver],
     val explicitProjection: Option[String],
     override val initialIndentation: Int,
     override val initialStrictness: Boolean)(implicit s: Scope = new Scope()) extends RDFaToSparqlParser(e, base, varResolver) {
+
+  override def walkRootElement : (xml.Elem, Stream[Arc]) = {
+    walk(e, base, subj1, obj1, pending1f, pending1r, lang1)
+  }
 
   override def projection = {
     explicitProjection.map(_.toString) getOrElse super.projection
@@ -102,7 +111,7 @@ class RDFaToSparqlParser(e: xml.Elem, base: String, varResolver: Option[Variable
   }
 
   {
-    val (e1, _) = walk(e, base, uri(base), undef, Nil, Nil, null)
+    val (e1, _) = walkRootElement
     val result = new StringBuilder
     addPrefixDecls(result, e1.scope)
     result.append("select distinct " + projection + " where {\n")
@@ -111,6 +120,10 @@ class RDFaToSparqlParser(e: xml.Elem, base: String, varResolver: Option[Variable
     modifiers(e, result)
     resultQuery = result.toString
     resultElem = e1
+  }
+
+  def walkRootElement : (xml.Elem, Stream[Arc]) = {
+    walk(e, base, uri(base), undef, Nil, Nil, null)
   }
 
   def addPrefixDecls(query: StringBuilder, scope: NamespaceBinding, seen: Set[String] = Set.empty) {
@@ -197,7 +210,7 @@ class RDFaToSparqlParser(e: xml.Elem, base: String, varResolver: Option[Variable
         case _ => true
       } getOrElse strict
 
-    var old = strict
+    val old = strict
     strict = current
     val result = block
     strict = old
@@ -212,17 +225,17 @@ class RDFaToSparqlParser(e: xml.Elem, base: String, varResolver: Option[Variable
       // this usually includes <script>, <link> etc.
       (e, Stream.empty)
     } else if (e.attribute("data-select").isDefined) {
+      // remove data-select to prevent endless recursion
+      val e1 = e.copy(attributes = e.attributes.remove("data-select"))
       // create sub select
-      e.child.collect { case element: xml.Elem => element }.headOption.map(
-        m => {
-          indent
-          val innerQuery = new SubSelectRDFaToSparqlParser(m, "", varResolver, nonempty(e, "data-select"), indentation, strict).getQuery
-          sparql.append("{\n" + innerQuery + "}\n")
-          dedent
-        })
-      (e, Stream.empty)
+      indent
+      val innerQuery = new SubSelectRDFaToSparqlParser(
+        e1, base, subj1, obj1, pending1f, pending1r, lang1, varResolver, nonempty(e, "data-select"), indentation, strict
+      ).getQuery
+      sparql.append("{\n" + innerQuery + "}\n")
+      dedent
+      (e1, Stream.empty)
     } else {
-
       doMaybeStrict(e, {
         var close = 0
         var closeFilter = 0
@@ -307,7 +320,7 @@ class RDFaToSparqlParser(e: xml.Elem, base: String, varResolver: Option[Variable
       thisStack.push(new ThisScope(obj, e1))
     }
 
-    return (e1, subj, obj, skip)
+    (e1, subj, obj, skip)
   }
 
   /** Adds orderBy modifier for the given variable */
