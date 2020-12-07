@@ -3,6 +3,7 @@ package net.enilink.platform.core.security;
 import java.util.*;
 
 import com.google.inject.*;
+import com.google.inject.name.Names;
 import net.enilink.composition.annotations.ParameterTypes;
 import net.enilink.composition.cache.annotations.Cacheable;
 import net.enilink.composition.traits.Behaviour;
@@ -55,7 +56,7 @@ public abstract class SecureModelSetSupport implements IModelSet.Internal, ISecu
 
 					@Override
 					protected void configure() {
-						bind(IDataManager.class).to(
+						bind(Key.get(IDataManager.class, Names.named("thread-local"))).to(
 								SecureThreadLocalDataManager.class).in(
 								Singleton.class);
 					}
