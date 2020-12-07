@@ -1,35 +1,19 @@
 package net.enilink.platform.lift.snippet
 
-import scala.collection.JavaConversions.asScalaIterator
-import scala.util.control.Exception._
-import scala.xml.Elem
-import scala.xml.NodeSeq
-import scala.xml.NodeSeq.seqToNodeSeq
-import scala.xml.UnprefixedAttribute
-import net.enilink.komma.core._
-import net.enilink.platform.lift.rdfa.template.RDFaTemplates
-import net.enilink.platform.lift.util.CurrentContext
-import net.enilink.platform.lift.util.Globals
-import net.liftweb.common.Full
-import net.liftweb.http.PageName
-import net.liftweb.http.S
-import net.liftweb.util.ClearClearable
-import net.enilink.komma.core.IValue
-import scala.xml.Null
-import net.liftweb.http.RequestVar
-import net.enilink.platform.lift.rdfa.template.TemplateNode
-import scala.xml.Text
-import scala.xml.MetaData
-import net.liftweb.util.Helpers._
-import net.liftweb.builtin.snippet.Embed
-import net.enilink.platform.lift.util.TemplateHelpers
-import net.liftweb.common.Empty
-import net.liftweb.common.Box
-import net.enilink.platform.lift.util.RdfContext
-import net.enilink.komma.model.IModel
+import net.enilink.komma.core.{IValue, _}
 import net.enilink.komma.model.IModelAware
-import net.enilink.platform.lift.util.RdfContext
-import scala.xml.Node
+import net.enilink.platform.lift.rdfa.template.RDFaTemplates
+import net.enilink.platform.lift.util.{CurrentContext, Globals, RdfContext, TemplateHelpers}
+import net.liftweb.builtin.snippet.Embed
+import net.liftweb.common.{Box, Empty, Full}
+import net.liftweb.http.{PageName, RequestVar, S}
+import net.liftweb.util.ClearClearable
+import net.liftweb.util.Helpers._
+
+import scala.jdk.CollectionConverters._
+import scala.util.control.Exception._
+import scala.xml.NodeSeq.seqToNodeSeq
+import scala.xml.{Elem, NodeSeq, Null, UnprefixedAttribute}
 
 /**
  * Global SPARQL parameters that can be shared between different snippets.
@@ -43,13 +27,13 @@ object QueryParams extends RequestVar[Map[String, _]](Map.empty) {
 
 object RdfHelpers {
   import scala.language.implicitConversions
-  implicit def bindingsToMap(bindings: IBindings[_]): Map[String, _] = bindings.getKeys.iterator.map(k => k -> bindings.get(k)).toMap
+  implicit def bindingsToMap(bindings: IBindings[_]): Map[String, _] = bindings.getKeys.asScala.map(k => k -> bindings.get(k)).toMap
 }
 
 trait SparqlHelper {
-  def extractParams(ns: NodeSeq) = (ns \ "@data-params").text.split("\\s+").filterNot(_.isEmpty).map(_.stripPrefix("?")).toSeq
+  def extractParams(ns: NodeSeq): Seq[String] = (ns \ "@data-params").text.split("\\s+").filterNot(_.isEmpty).map(_.stripPrefix("?")).toSeq
 
-  def bindParams(params: Seq[String]) = convertParams(params.flatMap { name => S.param(name) map (name -> _) }.toMap)
+  def bindParams(params: Seq[String]): Map[String, Any] = convertParams(params.flatMap { name => S.param(name) map (name -> _) }.toMap)
 
   def convertParams(params: Map[String, _]): Map[String, Any] = {
     params flatMap {
@@ -67,7 +51,7 @@ trait SparqlHelper {
     }
   }
 
-  def withParameters[T](query: IQuery[T], params: Map[String, _]) = {
+  def withParameters[T](query: IQuery[T], params: Map[String, _]): IQuery[T] = {
     params foreach { p => query.setParameter(p._1, p._2) }
     query
   }
@@ -108,16 +92,16 @@ trait SparqlHelper {
     }
     target match {
       case Full(t) => (f) => Globals.contextModel.doWith(targetModel) { CurrentContext.withSubject(t) { f } }
-      case _ => (f) => f
+      case _ => f => f
     }
   }
 }
 
 class Sparql extends SparqlHelper with RDFaTemplates {
   // trigger includeInferred either by HTTP parameter or by snippet attribute
-  def includeInferred = !S.param("inferred").exists(_ == "false") && S.attr("inferred", _ != "false", true)
+  def includeInferred: Boolean = !S.param("inferred").exists(_ == "false") && S.attr("inferred", _ != "false", true)
 
-  def render(ns: NodeSeq) = renderWithoutPrepare(prepare(ns))
+  def render(ns: NodeSeq): NodeSeq = renderWithoutPrepare(prepare(ns))
 
   def renderWithoutPrepare(n: NodeSeq): NodeSeq = {
     // check if inferred statements should be distinguished from explicit statements
@@ -147,15 +131,16 @@ class Sparql extends SparqlHelper with RDFaTemplates {
                     n1 //renderGraph(new LinkedHashGraph(r.toList()))
                   case r: ITupleResult[_] =>
                     val firstBinding = r.getBindingNames.get(0)
-                    val allTuples = r.map { row => (toBindings(firstBinding, row), includeInferred) }
+                    val allTuples = r.iterator.asScala.map { row => (toBindings(firstBinding, row), includeInferred) }
                     var toRender = (if (queryAsserted) {
                       // query explicit statements and prepend them to the results
                       withParameters(em.createQuery(sparql, false), params)
                         .bindResultType(null: String, classOf[IValue]).evaluate.asInstanceOf[ITupleResult[_]]
+                        .iterator.asScala
                         .map { row => (toBindings(firstBinding, row), false) } ++ allTuples
                     } else allTuples)
                     // ensure at least one template iteration with empty binding set if no results where found
-                    if (!toRender.hasNext) toRender = List((new LinkedHashBindings[Object], false)).toIterator
+                    if (!toRender.hasNext) toRender = List((new LinkedHashBindings[Object], false)).iterator
                     val transformers = (".query *" #> sparql) & ClearClearable
                     val result = renderTuples(rdfCtx, transformers(n1), toRender)
                     result
@@ -163,7 +148,7 @@ class Sparql extends SparqlHelper with RDFaTemplates {
                 }
             } openOr {
               // ensure at least one template iteration with empty binding set
-              renderTuples(rdfCtx, ClearClearable(n), List((new LinkedHashBindings[Object], false)).toIterator)
+              renderTuples(rdfCtx, ClearClearable(n), List((new LinkedHashBindings[Object], false)).iterator)
             }
           case _ => n
         }
@@ -178,7 +163,7 @@ class Sparql extends SparqlHelper with RDFaTemplates {
       (n, e.attribute("data-sparql").map(_.text).get, globalQueryParameters ++ bindParams(extractParams(n)))
   }
 
-  def prepare(ns: NodeSeq) = {
+  def prepare(ns: NodeSeq): NodeSeq = {
     def applyRules(ns: NodeSeq): NodeSeq = {
       import TemplateHelpers._
       ns flatMap {
@@ -186,11 +171,11 @@ class Sparql extends SparqlHelper with RDFaTemplates {
           // process the data-embed attribute
           e.attribute("data-embed") match {
             case Some(what) =>
-              S.withAttrs(S.mapToAttrs(List("what" -> what.text) toMap)) {
+              S.withAttrs(S.mapToAttrs(List("what" -> what.text).toMap)) {
                 val embedded = withTemplateNames(Embed.render(e.child))
                 // allows to specify a template name
                 (e.attribute("data-template") match {
-                  case Some(tname) => find(embedded, tname.text) toSeq
+                  case Some(tname) => find(embedded, tname.text).toSeq
                   case _ => embedded
                 }) map {
                   // annotate with template path
@@ -205,8 +190,8 @@ class Sparql extends SparqlHelper with RDFaTemplates {
         // process data-if*** and data-unless*** attributes
         case e: Elem =>
           var condTransform: Box[ConditionalTransform] = Empty
-          def throwException { throw new IllegalArgumentException("data-if-* and data-unless-* may not be applied at the same time") }
-          def setTransform(isIf: Boolean) = condTransform match {
+          def throwException : Unit = { throw new IllegalArgumentException("data-if-* and data-unless-* may not be applied at the same time") }
+          def setTransform(isIf: Boolean): Unit = condTransform match {
             case Empty => condTransform = Full(if (isIf) new If() else new Unless())
             case Full(_: If) if !isIf => throwException
             case Full(_: Unless) if isIf => throwException
@@ -224,8 +209,8 @@ class Sparql extends SparqlHelper with RDFaTemplates {
     applyRules(ns)
   }
 
-  def renderTuples(ctx: RdfContext, ns: Seq[xml.Node], rows: Iterator[(IBindings[_], Boolean)]) = {
-    var template = createTemplate(ns)
+  def renderTuples(ctx: RdfContext, ns: Seq[xml.Node], rows: Iterator[(IBindings[_], Boolean)]): NodeSeq = {
+    val template = createTemplate(ns)
     rows foreach { row => template.transform(ctx, row._1, row._2) }
 
     val result = ClearClearable.apply(S.session.map(_.processSurroundAndInclude(PageName.get, template.render)) openOr Nil)

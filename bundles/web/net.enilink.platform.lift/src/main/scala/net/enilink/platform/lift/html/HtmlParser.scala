@@ -15,21 +15,15 @@
  */
 package net.enilink.platform.lift.html
 
-import java.io.ByteArrayInputStream
-import net.liftweb.util.Helpers
-import net.liftweb.common.Box
-import scala.xml.Node
-import java.io.InputStream
-import scala.xml.Elem
-import nu.validator.htmlparser._
-import scala.xml.Null
-import scala.xml.parsing.NoBindingFactoryAdapter
-import scala.xml.TopScope
-import org.xml.sax.InputSource
-import net.liftweb.common.Empty
-import net.liftweb.common.Full
-import org.xml.sax.Attributes
 import net.enilink.platform.lift.rdfa.RDFaUtils
+import net.liftweb.common.{Box, Empty, Full}
+import net.liftweb.util.Helpers
+import nu.validator.htmlparser._
+import org.xml.sax.{Attributes, InputSource}
+
+import java.io.{ByteArrayInputStream, InputStream}
+import scala.xml.{Elem, Node, Null, TopScope}
+import scala.xml.parsing.NoBindingFactoryAdapter
 
 /**
  * A utility that supports parsing of HTML5 file.
@@ -53,7 +47,7 @@ trait Html5ParserWithRDFaPrefixes extends RDFaUtils {
         // extracts RDFa prefix mappings (@prefix attribute) and adds them as additional namespace bindings
         override def startElement(uri: String, _localName: String, qname: String, attributes: Attributes): Unit = {
           super.startElement(uri, _localName, qname, attributes)
-          var scpe = scopeStack.top
+          val scpe = scopeStack.top
           val prefixIndex = attributes.getIndex("", "prefix")
           if (prefixIndex >= 0) {
             val prefix = attributes.getValue(prefixIndex)

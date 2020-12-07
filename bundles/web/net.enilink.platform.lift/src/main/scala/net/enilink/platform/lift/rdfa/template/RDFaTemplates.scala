@@ -1,33 +1,15 @@
 package net.enilink.platform.lift.rdfa.template
 
-import scala.collection.mutable
-import scala.xml.Elem
-import scala.xml.MetaData
-import scala.xml.NodeSeq
-import scala.xml.UnprefixedAttribute
-import net.enilink.komma.core.IBindings
-import net.enilink.komma.core.IReference
-import net.enilink.platform.lift.util.CurrentContext
-import net.enilink.platform.lift.util.RdfContext
+import net.enilink.komma.core._
+import net.enilink.platform.lift.rdfa.template.BinderHelpers.{Attribute, _}
+import net.enilink.platform.lift.rdfa.{RDFaHelpers, RDFaUtils}
+import net.enilink.platform.lift.util.{CurrentContext, RdfContext}
 import net.liftweb.common.Full
-import net.liftweb.http.PageName
-import net.liftweb.http.S
-import net.liftweb.util.Helpers.pairToUnprefixed
-import net.liftweb.util.Helpers.strToSuperArrowAssoc
-import net.enilink.platform.lift.rdfa.RDFaUtils
-import net.enilink.komma.core.ILiteral
-import scala.xml.Null
-import net.enilink.komma.core.URI
-import net.enilink.komma.core.IEntity
-import net.enilink.komma.core.URIs
-import scala.xml.NamespaceBinding
-import scala.collection.mutable.LinkedHashMap
-import scala.xml.Node
-import net.enilink.platform.lift.rdfa.RDFaUtils
-import net.enilink.platform.lift.rdfa.RDFaHelpers
+import net.liftweb.http.{PageName, S}
 
-import BinderHelpers._
-import scala.xml.Text
+import scala.collection.mutable
+import scala.collection.mutable.LinkedHashMap
+import scala.xml._
 
 sealed trait Operation {
   def merge(other: Operation): Operation = other match {
@@ -241,7 +223,7 @@ class TemplateNode(
     attributes: MetaData = this.attributes,
     scope: NamespaceBinding = this.scope,
     minimizeEmpty: Boolean = this.minimizeEmpty,
-    child: Seq[xml.Node] = this.child.toSeq): TemplateNode = new TemplateNode(prefix, label, attributes, scope, binders, child: _*)
+    child: collection.Seq[xml.Node] = this.child.toSeq): TemplateNode = new TemplateNode(prefix, label, attributes, scope, binders, child: _*)
 }
 
 class Template(val ns: NodeSeq) {
@@ -250,8 +232,8 @@ class Template(val ns: NodeSeq) {
     case other => other
   }
 
-  def transform(ctx: RdfContext, bindings: IBindings[_], inferred: Boolean) {
-    def internalTransform(ctx: RdfContext, template: Seq[xml.Node]) {
+  def transform(ctx: RdfContext, bindings: IBindings[_], inferred: Boolean) : Unit = {
+    def internalTransform(ctx: RdfContext, template: Seq[xml.Node]) : Unit = {
       template foreach {
         case t: TemplateNode => {
           // run registered template binders

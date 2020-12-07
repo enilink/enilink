@@ -2,10 +2,10 @@ package net.enilink.platform.lift.snippet
 
 import net.liftweb.common.{Box, Empty, Full}
 import net.liftweb.http.S
-import net.liftweb.util.Helpers.{appendParams, strToSuperArrowAssoc}
+import net.liftweb.util.Helpers._
 
-import scala.xml.{Elem, NodeSeq}
 import scala.xml.NodeSeq.seqToNodeSeq
+import scala.xml.{Elem, NodeSeq}
 
 class RdfaUtils {
   /**

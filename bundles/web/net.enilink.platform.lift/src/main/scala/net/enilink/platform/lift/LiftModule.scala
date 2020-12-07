@@ -1,39 +1,25 @@
 package net.enilink.platform.lift
 
-import java.security.AccessController
-import java.security.PrivilegedAction
-import java.util.Locale
-
-import scala.language.postfixOps
-import scala.xml.NodeSeq
-import javax.security.auth.Subject
-import net.enilink.komma.core.BlankNode
-import net.enilink.komma.core.IUnitOfWork
-import net.enilink.komma.core.URIs
+import net.enilink.komma.core.{BlankNode, IUnitOfWork, URIs}
 import net.enilink.platform.lift.files.FileService
 import net.enilink.platform.lift.html.Html5ParserWithRDFaPrefixes
-import net.enilink.platform.lift.util.CurrentContext
-import net.enilink.platform.lift.util.Globals
-import net.enilink.platform.lift.util.NotAllowedModel
-import net.enilink.platform.lift.util.RdfContext
+import net.enilink.platform.lift.util.{CurrentContext, Globals, NotAllowedModel, RdfContext}
 import net.enilink.platform.security.auth.EnilinkPrincipal
-import net.liftweb.common.Box
 import net.liftweb.common.Box.option2Box
-import net.liftweb.common.Empty
-import net.liftweb.common.Full
-import net.liftweb.common.Logger
-import net.liftweb.http.{ForbiddenResponse, Html5Properties, LiftRules, LiftSession, NoticeType, OnDiskFileParamHolder, Req, ResourceServer, S}
+import net.liftweb.common.{Box, Empty, Full, Logger}
+import net.liftweb.http.ContentSourceRestriction.{Self, UnsafeEval, UnsafeInline}
 import net.liftweb.http.LiftRulesMocker.toLiftRules
 import net.liftweb.http.js.jquery.JQueryArtifacts
-import net.liftweb.util.DynoVar
+import net.liftweb.http.{ContentSecurityPolicy, ForbiddenResponse, Html5Properties, LiftRules, LiftSession, NoticeType, OnDiskFileParamHolder, Req, ResourceServer, S, SecurityRules}
 import net.liftweb.util.Helpers.intToTimeSpanBuilder
-import net.liftweb.util.Helpers.strToSuperArrowAssoc
-import net.liftweb.util.LRU
-import net.liftweb.util.LoanWrapper
-import net.liftweb.util.Props
-import net.liftweb.util.TemplateCache
-import net.liftweb.util.Vendor.funcToVendor
-import net.liftweb.util.Vendor.valToVendor
+import net.liftweb.util._
+import net.liftweb.util.Vendor.{funcToVendor, valToVendor}
+
+import java.security.{AccessController, PrivilegedAction}
+import java.util.Locale
+import javax.security.auth.Subject
+import scala.language.postfixOps
+import scala.xml.NodeSeq
 
 /**
  * A class that's instantiated early and run.  It allows the application
@@ -57,14 +43,27 @@ class LiftModule extends Logger {
       node
     }
 
-    override def delete(key: T) {
+    override def delete(key: T) : Unit = {
       cache.synchronized(cache.remove(withApp(key)))
     }
   }
 
-  def boot {
+  def boot : Unit = {
     // enable this to rewrite application paths (WIP)
     // ApplicationPaths.rewriteApplicationPaths
+
+    // enable this to extract inline Javascript for using a more restrictive CSP
+    LiftRules.extractInlineJavaScript = false
+
+    // define liberal security rules for now
+    LiftRules.securityRules = () => SecurityRules(
+      content = Some(
+        ContentSecurityPolicy(
+          defaultSources = List(Self, UnsafeInline),
+          scriptSources = List(Self, UnsafeInline, UnsafeEval)
+        )
+      )
+    )
     
     // remove X-Frame-Options for now to allow embedding via iframe
     val supplementalHeaders = LiftRules.supplementalHeaders.vend

@@ -44,7 +44,7 @@ class SiteMapXml {
     })
   }
 
-  def parse(in: InputStream) {
+  def parse(in: InputStream) : Unit = {
     val xml = XML.load(in)
     menuList = xml match {
       case sm @ <sitemap>{ _* }</sitemap> => {
@@ -92,7 +92,7 @@ class SiteMapXml {
       Option(model \@ "location").filter(_.nonEmpty).map(URIs.createURI(_)))
   }
 
-  protected def parseModelRule(path : List[String], loc: Node) {
+  protected def parseModelRule(path : List[String], loc: Node) : Unit = {
     (loc \@ "model") match {
       case m if m.nonEmpty => (try {
         Option(URIs.createURI(m)).filter(! _.isRelative)

@@ -2,12 +2,12 @@ package net.enilink.platform.lift.rdfa
 
 import org.scalatest._
 import net.enilink.platform.lift.rdf._
-
 import org.junit.runner.RunWith
+import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatestplus.junit.JUnitRunner
 
 @RunWith(classOf[JUnitRunner])
-class RDFaMiscTestSpecs extends FlatSpec {
+class RDFaMiscTestSpecs extends AnyFlatSpec {
   val s = new net.enilink.platform.lift.rdf.Scope(Nil)
   "XML variable scope" should "make distinct fresh vars" in {
     assert(s.fresh("x").qual != s.fresh("x").qual)

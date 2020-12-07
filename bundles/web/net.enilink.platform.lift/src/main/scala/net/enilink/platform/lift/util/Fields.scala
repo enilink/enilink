@@ -11,27 +11,27 @@ import scala.xml.NodeSeq
 object Fields {
   private def msgId(id: String) = "msg-" + id
 
-  def error(id: String, n: String) {
+  def error(id: String, n: String) : Unit = {
     S.appendJs(Run("$('#" + id + "').removeClass('has-warning has-success').addClass('has-error')"))
     S.error(msgId(id), n)
   }
 
-  def warning(id: String, n: String) {
+  def warning(id: String, n: String) : Unit = {
     S.appendJs(Run("$('#" + id + "').removeClass('has-error has-success').addClass('has-warning')"))
     S.warning(msgId(id), n)
   }
 
-  def notice(id: String, n: String) {
+  def notice(id: String, n: String) : Unit = {
     S.appendJs(Run("$('#" + id + "').removeClass('has-error has-success has-warning')"))
     S.notice(msgId(id), n)
   }
 
-  def success(id: String) {
+  def success(id: String) : Unit = {
     S.appendJs(Run("$('#" + id + "').removeClass('has-error has-warning').addClass('has-success')"))
     S.notice(msgId(id), "")
   }
   
-  def default(id: String) {
+  def default(id: String) : Unit = {
     S.appendJs(Run("$('#" + id + "').removeClass('has-error has-success has-warning')"))
     S.notice(msgId(id), "")
   }

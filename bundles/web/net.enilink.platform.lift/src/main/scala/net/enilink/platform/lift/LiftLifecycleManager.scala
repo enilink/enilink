@@ -21,7 +21,7 @@ import org.osgi.framework.{Bundle, BundleContext, ServiceRegistration}
 import org.osgi.service.component.annotations.{Activate, Component, Deactivate}
 import org.slf4j.LoggerFactory
 
-import scala.collection.JavaConversions._
+import scala.jdk.CollectionConverters._
 
 @Component(service = Array(classOf[LiftLifecycleManager]))
 class LiftLifecycleManager extends Loggable {
@@ -33,7 +33,7 @@ class LiftLifecycleManager extends Loggable {
 
 	private var contextServiceReg: ServiceRegistration[_] = _
 
-	def bootBundle(bundle: Bundle, config: LiftBundleConfig) {
+	def bootBundle(bundle: Bundle, config: LiftBundleConfig) : Unit = {
 		// add packages to search path
 		config.packages filterNot (_.isEmpty) foreach (LiftRules.addToPackages(_))
 
@@ -133,7 +133,7 @@ class LiftLifecycleManager extends Loggable {
 		bundleTracker.getTracked
 	}
 
-	def initialize {
+	def initialize : Unit = {
 		val bundlesToStart = context.getBundles filter { bundle =>
 			val headers = bundle.getHeaders
 			val moduleStr = Box.legacyNullTest(headers.get("Lift-Module"))
@@ -161,11 +161,11 @@ class LiftLifecycleManager extends Loggable {
 		// Force the request to be UTF-8
 		LiftRules.early.append(_.setCharacterEncoding("UTF-8"))
 
-		val bundlesByStartLevel = bundles.entrySet.toSeq.sortBy(_.getValue.startLevel)
+		val bundlesByStartLevel = bundles.entrySet.asScala.toSeq.sortBy(_.getValue.startLevel)
 		bundlesByStartLevel foreach { entry =>
 			// boot bundle as system user to allow modifications of RDF data
 			Subject.doAs(SecurityUtil.SYSTEM_USER_SUBJECT, new PrivilegedAction[Unit]() {
-				def run {
+				def run : Unit = {
 					val bundle = entry.getKey
 					bootBundle(bundle, entry.getValue)
 				}
@@ -211,12 +211,12 @@ class LiftLifecycleManager extends Loggable {
 	}
 
 	@Activate
-	def start(context: BundleContext) {
+	def start(context: BundleContext) : Unit = {
 		this.context = context
 	}
 
 	@Deactivate
-	def stop(context: BundleContext) {
+	def stop(context: BundleContext) : Unit = {
 		if (bundleTracker != null) {
 			bundleTracker.close
 			bundleTracker = null

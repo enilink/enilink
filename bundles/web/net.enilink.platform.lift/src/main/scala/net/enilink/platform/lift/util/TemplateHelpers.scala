@@ -84,7 +84,7 @@ object TemplateHelpers {
   }
 
   def render(template: NodeSeq, snips: (String, NodeSeq => NodeSeq)*): Box[RenderResult] = {
-    S.eval(template, snips: _*) map { ns => S.session.map(_.fixHtml(ns)) openOr ns } map { ns =>
+    S.eval(template, snips: _*) map { ns => S.session.map(_.normalizeHtml(ns)) openOr ns } map { ns =>
       import net.liftweb.util.Helpers._
       import scala.collection.mutable.ListBuffer
       val cmds = new ListBuffer[JsCmd]

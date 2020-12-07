@@ -27,15 +27,15 @@ class LiftFilterComponent extends LiftFilter with Loggable {
   var config : FilterConfig = null
   @volatile var booted = false
 
-  override def init(config: FilterConfig) {
+  override def init(config: FilterConfig) : Unit = {
     this.config = config;
   }
 
-  override def bootLift(loader: Box[String]) {
+  override def bootLift(loader: Box[String]) : Unit = {
     super.bootLift(Full(classOf[OsgiBootable].getName))
   }
 
-  override def doFilter(req: ServletRequest, res: ServletResponse, chain: FilterChain) {
+  override def doFilter(req: ServletRequest, res: ServletResponse, chain: FilterChain) : Unit = {
     // lazy initialize lift on first request
     if (!booted) {
       this.synchronized {
@@ -54,7 +54,7 @@ class LiftFilterComponent extends LiftFilter with Loggable {
   }
 
   @Deactivate
-  def deactivate {
+  def deactivate : Unit = {
     logger.debug("LiftFilterComponent::deactivate()")
 
     // access private schedule service field by reflection
@@ -91,7 +91,7 @@ class LiftFilterWrapper extends Filter with Loggable {
     liftFilter.init(config)
   }
 
-  override def doFilter(req: ServletRequest, res: ServletResponse, chain: FilterChain) {
+  override def doFilter(req: ServletRequest, res: ServletResponse, chain: FilterChain) : Unit = {
     liftFilter.doFilter(req, res, chain)
   }
 
@@ -114,7 +114,7 @@ class LiftFilterWrapper extends Filter with Loggable {
     //"osgi.http.whiteboard.servlet.multipart.enabled=true",
     "osgi.http.whiteboard.context.select=(osgi.http.whiteboard.context.name=liftweb)"))
 class LiftServletComponent extends HttpServlet with Loggable {
-  override def doGet(req: HttpServletRequest, resp: HttpServletResponse) {
+  override def doGet(req: HttpServletRequest, resp: HttpServletResponse) : Unit = {
     // this is a request for a static resource, other request are already handled by the lift filter
     logger.debug("LiftServletComponent::doGet(): " + req.getRequestURI)
     val pathInfo = req.getRequestURI
@@ -151,7 +151,7 @@ class LiftServiceComponent extends LiftService {
   var port: Integer = -1
 
   @Activate
-  def activate(ctx: ComponentContext) {
+  def activate(ctx: ComponentContext) : Unit = {
     for {
       httpServiceRef <- Option(ctx.getBundleContext.getServiceReference(classOf[HttpService]))
       portKey <- httpServiceRef.getPropertyKeys.find(_.endsWith("http.port"))

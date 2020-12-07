@@ -1,46 +1,23 @@
 package net.enilink.platform.lift.snippet
 
-import scala.collection.JavaConversions.iterableAsScalaIterable
-import scala.util.DynamicVariable
-import scala.xml.Elem
-import scala.xml.NodeSeq
-import scala.xml.UnprefixedAttribute
-import net.enilink.komma.model.ModelUtil
-import net.enilink.komma.parser.manchester.ManchesterSyntaxGenerator
-import net.enilink.platform.lift.util.Globals
-import net.enilink.platform.lift.rdfa.template.RDFaTemplates
-import net.liftweb.common.Box.box2Option
-import net.liftweb.common.Box
-import net.liftweb.common.Empty
-import net.liftweb.common.Full
-import net.liftweb.http.DispatchSnippet
-import net.liftweb.http.PageName
-import net.liftweb.http.S
-import net.liftweb.util.Helpers.strToCssBindPromoter
-import net.liftweb.util.Helpers.tryo
-import net.liftweb.util.IterableConst.itNodeSeqFunc
-import net.liftweb.util.ClearNodes
-import net.liftweb.util.Helpers
-import net.liftweb.util.HttpHelpers
-import net.liftweb.util.HttpHelpers
-import scala.xml.NamespaceBinding
-import scala.xml.TopScope
-import net.enilink.komma.model.IObject
-import net.enilink.komma.core.IReference
+import net.enilink.komma.core.{ILiteral, IReference}
 import net.enilink.komma.em.concepts.IClass
-import net.enilink.komma.core.ILiteral
+import net.enilink.komma.model.{IObject, ModelUtil}
+import net.enilink.komma.parser.manchester.ManchesterSyntaxGenerator
+import net.enilink.platform.lift.rdfa.template.RDFaTemplates
+import net.enilink.platform.lift.util.{CurrentContext, Globals}
 import net.enilink.vocab.xmlschema.XMLSCHEMA
-import java.text.NumberFormat
-import java.util.Date
-import java.text.DateFormat
+import net.liftweb.common.{Box, Empty, Full}
+import net.liftweb.http.{DispatchSnippet, PageName, S}
+import net.liftweb.util.Helpers._
+import net.liftweb.util.{ClearNodes, Helpers, PassThru}
+
 import java.sql.Time
-import java.util.Locale
-import net.liftweb.http.LiftRules
-import net.enilink.platform.lift.util.CurrentContext
-import net.enilink.platform.lift.util.RdfContext
-import net.liftweb.util.PassThru
+import java.text.{DateFormat, NumberFormat, SimpleDateFormat}
+import java.util.{Date, Locale}
 import javax.xml.datatype.XMLGregorianCalendar
-import java.text.SimpleDateFormat
+import scala.jdk.CollectionConverters._
+import scala.xml.{Elem, NodeSeq, UnprefixedAttribute}
 
 class Rdf extends DispatchSnippet with RDFaTemplates {
   def dispatch: DispatchIt = {
@@ -148,7 +125,7 @@ class Rdf extends DispatchSnippet with RDFaTemplates {
               case m if runMethod.isDefinedAt(m) => selector #> runMethod(m)
               case _ => tryo(target.getClass.getMethod(method)) match {
                 case Full(meth) => meth.invoke(target) match {
-                  case i: java.lang.Iterable[_] if hasChildren => selector #> i.map(withChangedContext _)
+                  case i: java.lang.Iterable[_] if hasChildren => selector #> i.asScala.map(withChangedContext _)
                   case i: Iterable[_] if hasChildren => selector #> i.map(withChangedContext _)
                   case null => PassThru
                   case o @ _ if hasChildren => selector #> withChangedContext(o) _

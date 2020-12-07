@@ -55,7 +55,7 @@ object Globals extends Factory {
     }
   }
 
-  implicit val time = new FactoryMaker(Helpers.now _) {}
+  implicit val time = new FactoryMaker(() => Helpers.now) {}
 
   implicit val application = new FactoryMaker(() => Empty: Box[Application]) {}
   application.default.set(() => {
@@ -121,7 +121,7 @@ object Globals extends Factory {
     new FileStore(path)
   }) {}
 
-  private[lift] def close {
+  private[lift] def close : Unit = {
     contextModelSet.default.set(Empty)
 
     // close trackers

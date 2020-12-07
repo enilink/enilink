@@ -1,6 +1,5 @@
 package net.enilink.platform.web.snippet
 
-import javax.security.auth.Subject
 import net.enilink.komma.core.Statement
 import net.enilink.platform.core.security.SecurityUtil
 import net.enilink.platform.lift.util.{EnilinkRules, Fields, Globals}
@@ -8,16 +7,17 @@ import net.enilink.platform.security.auth.{AccountHelper, EnilinkPrincipal}
 import net.enilink.vocab.foaf.FOAF
 import net.enilink.vocab.rdf.RDF
 import net.liftweb.common.{Box, Empty, Full}
-import net.liftweb.http.{S, SHtml}
 import net.liftweb.http.js.JsCmds
+import net.liftweb.http.{S, SHtml}
 import net.liftweb.util.AnyVar.whatVarIs
-import net.liftweb.util.Helpers.{pairToUnprefixed, strToSuperArrowAssoc}
+import net.liftweb.util.Helpers._
 
+import javax.security.auth.Subject
 import scala.xml.Node
 import scala.xml.NodeSeq.seqToNodeSeq
 
 class Register extends Login {
-  def createUser(name: String, email: String, s: Subject) {
+  def createUser(name: String, email: String, s: Subject) : Unit = {
     val externalIds = AccountHelper.getExternalIds(s)
     val em = getEntityManager
     if (AccountHelper.findUser(em, externalIds) != null) {
@@ -105,7 +105,7 @@ class Register extends Login {
     form
   }
 
-  override def saveSubjectToSession(s: Subject) {
+  override def saveSubjectToSession(s: Subject) : Unit = {
     if (isLinkIdentity) {
       val currentUser = Globals.contextUser.vend
       if (currentUser != Globals.UNKNOWN_USER) {

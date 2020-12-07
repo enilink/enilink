@@ -4,9 +4,8 @@ import java.io.ByteArrayOutputStream
 import java.io.OutputStream
 import java.net.URISyntaxException
 
-import scala.collection.JavaConversions.asScalaIterator
-import scala.collection.JavaConversions.asScalaSet
-import scala.collection.mutable.MutableList
+import scala.jdk.CollectionConverters._
+import scala.collection.mutable.ListBuffer
 
 import net.enilink.komma.core.IReference
 import net.enilink.komma.core.IStatement
@@ -23,7 +22,6 @@ import net.enilink.vocab.rdf.RDF
 import net.liftweb.common.Box
 import net.liftweb.common.Box.option2Box
 import net.liftweb.common.BoxOrRaw
-import net.liftweb.common.BoxOrRaw.boxToBoxOrRaw
 import net.liftweb.common.Empty
 import net.liftweb.common.Failure
 import net.liftweb.common.Full
@@ -78,7 +76,7 @@ object LDPService extends RestHelper {
       case Nil => Empty
       // FIXME: /ldp/ will return a container with all models in the modelset
       case "index" :: Nil =>
-        val stmts = MutableList[IStatement]()
+        val stmts = ListBuffer[IStatement]()
         stmts += new Statement(requestUri, RDF.PROPERTY_TYPE, TYPE_RESOURCE)
         stmts += new Statement(requestUri, RDF.PROPERTY_TYPE, TYPE_CONTAINER)
         stmts += new Statement(requestUri, RDF.PROPERTY_TYPE, TYPE_BASICCONTAINER)
@@ -86,7 +84,7 @@ object LDPService extends RestHelper {
         // containment triples, get all model URIs
         for (
           modelSet <- Globals.contextModelSet.vend;
-          model <- modelSet.getModels
+          model <- modelSet.getModels.asScala
         ) {
           val modelLdpUri = LdpUri(model.getURI, req)
           stmts += new Statement(requestUri, PROPERTY_CONTAINS, modelLdpUri)
@@ -97,7 +95,7 @@ object LDPService extends RestHelper {
       case _ =>
         try {
           val resourceUri = (URIs.createURI(req.request.url), req) match { case LdpUri(x) => x }
-          val stmts = MutableList[IStatement]()
+          val stmts = ListBuffer[IStatement]()
           // FIXME: if $path has been extracted, add a sameAs relation between request uri and $path
           if (resourceUri != requestUri) stmts += new Statement(requestUri, OWL.PROPERTY_SAMEAS, resourceUri)
           // FIXME: returns a resource for the request uri; no checks are made
@@ -115,8 +113,8 @@ object LDPService extends RestHelper {
                 // FIXME: query for something appropriate
                 // currently queries all instances of OWL class and adds those to ldp:contains (pretty-print order, containment first)
                 val query = model.getManager.createQuery("CONSTRUCT { ?s ?p ?o } WHERE { ?s ?p ?o . ?s a <" + OWL.TYPE_CLASS + "> }", false)
-                val contentStmts = MutableList[IStatement]()
-                for (stmt <- query.evaluateRestricted(classOf[IStatement])) {
+                val contentStmts = ListBuffer[IStatement]()
+                for (stmt <- query.evaluateRestricted(classOf[IStatement]).iterator.asScala) {
                   if (stmt.getPredicate == RDF.PROPERTY_TYPE && stmt.getObject == OWL.TYPE_CLASS)
                     stmts += new Statement(requestUri, PROPERTY_CONTAINS, stmt.getSubject)
                   contentStmts += stmt
@@ -137,7 +135,7 @@ object LDPService extends RestHelper {
       case Full(statements) =>
         // FIXME: get types from all <$requestUri> a <$typeUri> statements
         // these will be added to the response's Link: header
-        var types = MutableList[IReference]()
+        var types = ListBuffer[IReference]()
         for (stmt <- statements if (stmt.getSubject == requestUri && stmt.getPredicate == RDF.PROPERTY_TYPE))
           types += stmt.getObject.asInstanceOf[IReference]
 
@@ -296,7 +294,7 @@ object LDPService extends RestHelper {
    * Generate the LiftResponse appropriate for the output format from the query result T.
    */
   implicit def cvt[T]: PartialFunction[(TurtleJsonLdSelect, T, Req), LiftResponse] = {
-    case (s: TurtleJsonLdSelect, t, r: Req) => generateResponse(s, t, r)
+    case (s, t, r: Req) => generateResponse(s, t, r)
   }
 
   /**

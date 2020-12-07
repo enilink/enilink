@@ -1,28 +1,10 @@
 package net.enilink.platform.lift.rdfa
 
-import net.enilink.komma.core.LinkedHashBindings
-import net.enilink.komma.core.IBindings
-import scala.collection.mutable.HashSet
-import scala.collection.mutable.LinkedHashSet
-import scala.collection.mutable.StringBuilder
-import scala.collection.mutable
-import scala.xml.NodeSeq
-import scala.xml.UnprefixedAttribute
-import net.enilink.platform.lift.rdf.Label
-import net.enilink.platform.lift.rdf.Literal
-import net.enilink.platform.lift.rdf.Node
-import net.enilink.platform.lift.rdf.PlainLiteral
-import net.enilink.platform.lift.rdf.Reference
-import net.enilink.platform.lift.rdf.Scope
-import net.enilink.platform.lift.rdf.TypedLiteral
-import net.enilink.platform.lift.rdf.Variable
-import net.enilink.platform.lift.rdf.Vocabulary
-import net.enilink.platform.lift.rdf.XmlLiteral
-import net.enilink.platform.lift.rdf.PlainLiteral
-import scala.xml.NamespaceBinding
-import java.util.regex.Pattern
-import scala.xml.Null
-import net.liftweb.common.Box
+import net.enilink.komma.core.{IBindings, LinkedHashBindings}
+import net.enilink.platform.lift.rdf._
+
+import scala.collection.mutable.{LinkedHashSet, StringBuilder}
+import scala.xml.{NamespaceBinding, NodeSeq, Null, UnprefixedAttribute}
 
 /**
  * Can be used to replace relative CURIEs with absolute URIs
@@ -38,7 +20,7 @@ trait CURIEExpander extends CURIE {
 }
 
 object SparqlFromRDFa {
-  def apply(e: xml.Elem, base: String, varResolver: Option[VariableResolver] = None): SparqlFromRDFa = return new RDFaToSparqlParser(e, base, varResolver) with CURIEExpander
+  def apply(e: xml.Elem, base: String, varResolver: Option[VariableResolver] = None): SparqlFromRDFa = new RDFaToSparqlParser(e, base, varResolver) with CURIEExpander
 }
 
 trait VariableResolver {
@@ -68,7 +50,7 @@ class SubSelectRDFaToSparqlParser(
     override val initialIndentation: Int,
     override val initialStrictness: Boolean)(implicit s: Scope = new Scope()) extends RDFaToSparqlParser(e, base, varResolver) {
 
-  override def walkRootElement : (xml.Elem, Stream[Arc]) = {
+  override def walkRootElement : (xml.Elem, LazyList[Arc]) = {
     walk(e, base, subj1, obj1, pending1f, pending1r, lang1)
   }
 
@@ -76,13 +58,14 @@ class SubSelectRDFaToSparqlParser(
     explicitProjection.map(_.toString) getOrElse super.projection
   }
 
-  override def addPrefixDecls(query: StringBuilder, scope: NamespaceBinding, seen: Set[String]) {
+  override def addPrefixDecls(query: StringBuilder, scope: NamespaceBinding, seen: Set[String]) : Unit = {
     // do not add any prefixes
   }
 }
 
 class RDFaToSparqlParser(e: xml.Elem, base: String, varResolver: Option[VariableResolver] = None)(implicit s: Scope = new Scope()) extends RDFaParser with SparqlFromRDFa {
   import RDFaHelpers._
+
   import scala.collection.mutable
   class ThisScope(val thisNode: Reference = Variable("this", None), val elem: xml.Elem = null)
   val thisStack = new mutable.Stack[ThisScope].push(new ThisScope)
@@ -97,8 +80,8 @@ class RDFaToSparqlParser(e: xml.Elem, base: String, varResolver: Option[Variable
   val initialStrictness = false
 
   var indentation = initialIndentation
-  def indent { indentation = indentation + 1 }
-  def dedent { indentation = indentation - 1 }
+  def indent : Unit = { indentation = indentation + 1 }
+  def dedent : Unit = { indentation = indentation - 1 }
 
   var strict = initialStrictness
   var withinFilter = 0
@@ -122,11 +105,11 @@ class RDFaToSparqlParser(e: xml.Elem, base: String, varResolver: Option[Variable
     resultElem = e1
   }
 
-  def walkRootElement : (xml.Elem, Stream[Arc]) = {
+  def walkRootElement : (xml.Elem, LazyList[Arc]) = {
     walk(e, base, uri(base), undef, Nil, Nil, null)
   }
 
-  def addPrefixDecls(query: StringBuilder, scope: NamespaceBinding, seen: Set[String] = Set.empty) {
+  def addPrefixDecls(query: StringBuilder, scope: NamespaceBinding, seen: Set[String] = Set.empty) : Unit = {
     scope match {
       case xml.TopScope | null => // do nothing
       case NamespaceBinding(prefix, uri, parent) =>
@@ -192,7 +175,7 @@ class RDFaToSparqlParser(e: xml.Elem, base: String, varResolver: Option[Variable
     result.append("}\n").toString
   }
 
-  def modifiers(e: xml.Elem, sb: StringBuilder, includeLimitOffset: Boolean = true) {
+  def modifiers(e: xml.Elem, sb: StringBuilder, includeLimitOffset: Boolean = true) : Unit = {
     if (!orderBy.isEmpty) {
       orderBy.addString(sb, "order by ", " ", "\n")
     }
@@ -203,7 +186,7 @@ class RDFaToSparqlParser(e: xml.Elem, base: String, varResolver: Option[Variable
     }
   }
 
-  def doMaybeStrict(e: xml.Elem, block: => (xml.Elem, Stream[Arc])) = {
+  def doMaybeStrict(e: xml.Elem, block: => (xml.Elem, LazyList[Arc])) = {
     val current = e.attribute("data-strict").map(_.toString)
       .collect {
         case m if "false" == m.toLowerCase => false;
@@ -219,11 +202,11 @@ class RDFaToSparqlParser(e: xml.Elem, base: String, varResolver: Option[Variable
 
   override def walk(e: xml.Elem, base: String, subj1: Reference, obj1: Reference,
     pending1f: Iterable[Reference], pending1r: Iterable[Reference],
-    lang1: Symbol): (xml.Elem, Stream[Arc]) = {
+    lang1: Symbol): (xml.Elem, LazyList[Arc]) = {
     if (nonempty(e, "data-lift") exists { _ == "head" }) {
       // ignore elements that are later pulled up into <head>
       // this usually includes <script>, <link> etc.
-      (e, Stream.empty)
+      (e, LazyList.empty)
     } else if (e.attribute("data-select").isDefined) {
       // remove data-select to prevent endless recursion
       val e1 = e.copy(attributes = e.attributes.remove("data-select"))
@@ -234,13 +217,13 @@ class RDFaToSparqlParser(e: xml.Elem, base: String, varResolver: Option[Variable
       ).getQuery
       sparql.append("{\n" + innerQuery + "}\n")
       dedent
-      (e1, Stream.empty)
+      (e1, LazyList.empty)
     } else {
       doMaybeStrict(e, {
         var close = 0
         var closeFilter = 0
-        def addBlock(block: String) { addLine(block + "{"); indent; close += 1 }
-        def addFilter(block: String) { addBlock(block); withinFilter += 1; closeFilter += 1 }
+        def addBlock(block: String) : Unit = { addLine(block + "{"); indent; close += 1 }
+        def addFilter(block: String) : Unit = { addBlock(block); withinFilter += 1; closeFilter += 1 }
         if (hasCssClass(e, "group")) addBlock("")
         if (hasCssClass(e, "optional")) addBlock("optional ")
         if (hasCssClass(e, "exists")) addFilter("filter exists ")
@@ -280,7 +263,7 @@ class RDFaToSparqlParser(e: xml.Elem, base: String, varResolver: Option[Variable
     }
   }
 
-  override def handleArcs(e: xml.Elem, arcs: Stream[Arc], isLiteral: Boolean) = {
+  override def handleArcs(e: xml.Elem, arcs: LazyList[Arc], isLiteral: Boolean) = {
     for ((s, p, o) <- arcs.filter(seen.add(_))) {
       addLine(toString(s) + " " + toString(p) + " " + toString(o) + " . ")
       if (strict) {
@@ -324,7 +307,7 @@ class RDFaToSparqlParser(e: xml.Elem, base: String, varResolver: Option[Variable
   }
 
   /** Adds orderBy modifier for the given variable */
-  def addToOrderBy(e: xml.Elem, variable: Variable) {
+  def addToOrderBy(e: xml.Elem, variable: Variable) : Unit = {
     lazy val orderAsc = hasCssClass(e, "asc")
     lazy val orderDesc = hasCssClass(e, "desc")
     (if (orderAsc) toString(variable) else if (orderDesc) "desc(" + toString(variable) + ")" else null) match {
