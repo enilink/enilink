@@ -1,54 +1,30 @@
 package net.enilink.platform.lift.snippet
 
-import java.io.ByteArrayInputStream
-import java.util.UUID
-import scala.collection.JavaConversions._
-import scala.collection.mutable
-import scala.collection.mutable.LinkedHashSet
-import scala.collection.mutable.ListBuffer
-import scala.xml.NodeSeq
-import org.eclipse.core.runtime.IStatus
-import net.enilink.komma.common.command.AbortExecutionException
-import net.enilink.komma.common.command.CommandResult
-import net.enilink.komma.common.command.ICommand
-import net.enilink.komma.core.BlankNode
-import net.enilink.komma.core.IEntityManager
-import net.enilink.komma.core.IReference
-import net.enilink.komma.core.IStatement
-import net.enilink.komma.core.IStatementPattern
-import net.enilink.komma.core.Statement
-import net.enilink.komma.core.URI
-import net.enilink.komma.core.URIs
+import net.enilink.komma.common.command.{AbortExecutionException, CommandResult, ICommand}
+import net.enilink.komma.core._
 import net.enilink.komma.core.visitor.IDataVisitor
 import net.enilink.komma.edit.domain.IEditingDomainProvider
-import net.enilink.komma.edit.properties.EditingHelper
+import net.enilink.komma.edit.properties.{EditingHelper, IResourceProposal}
 import net.enilink.komma.edit.util.PropertyUtil
-import net.enilink.komma.em.concepts.IProperty
-import net.enilink.komma.em.concepts.IResource
-import net.enilink.komma.model.IModel
+import net.enilink.komma.em.concepts.{IProperty, IResource}
 import net.enilink.komma.model.ModelUtil
 import net.enilink.platform.lift.rdfa.RDFaParser
-import net.enilink.platform.lift.util.AjaxHelpers
-import net.enilink.platform.lift.util.Globals
-import net.enilink.platform.lift.util.CurrentContext
-import net.enilink.platform.lift.util.TemplateHelpers
-import net.liftweb.common.Box
-import net.liftweb.http.DispatchSnippet
-import net.liftweb.http.S
+import net.enilink.platform.lift.util.{AjaxHelpers, CurrentContext, Globals, TemplateHelpers}
+import net.liftweb.common.{Box, Empty, Full}
+import net.liftweb.http.{DispatchSnippet, S}
 import net.liftweb.http.js.JE._
 import net.liftweb.http.js.JsCmds._
 import net.liftweb.http.js.JsExp.strToJsExp
 import net.liftweb.json._
 import net.liftweb.util.JsonCommand
-import net.liftweb.util.LiftFlowOfControlException
-import net.liftweb.common.Full
-import net.enilink.komma.edit.properties.IResourceProposal
-import net.liftweb.common.Empty
-import scala.xml.Group
-import net.enilink.komma.core.IEntity
 import org.eclipse.core.runtime.Status
-import net.enilink.komma.core.ILiteral
-import net.enilink.vocab.komma.KOMMA
+
+import java.io.ByteArrayInputStream
+import java.util.UUID
+import scala.collection.mutable
+import scala.collection.mutable.{LinkedHashSet, ListBuffer}
+import scala.jdk.CollectionConverters._
+import scala.xml.{Group, NodeSeq}
 
 case class ProposeInput(rdf: JValue, query: String, index: Option[Int])
 case class GetValueInput(rdf: JValue)
@@ -73,7 +49,7 @@ class JsonCallHandler {
       super.getEditingSupport(element)
     }
 
-    override def setProperty(element: Any, property: IProperty) {}
+    override def setProperty(element: Any, property: IProperty) : Unit = {}
 
     override def execute(command: ICommand) = command match {
       case c: ICommand if c.canExecute => try {
@@ -141,10 +117,9 @@ class JsonCallHandler {
       case _ => Empty
     }).flatMap { p => model.flatMap(m => Box.legacyNullTest(m.getManager.getNamespace(p))) }.map(ns => JString(ns.toString)) openOr JNull
     case JsonCommand("namespaces", _, _) => JObject(for {
-      m <- model.toList; ns <- m.getManager.getNamespaces.iterator
+      m <- model.toList; ns <- m.getManager.getNamespaces.iterator.asScala
     } yield JField(ns.getPrefix, JString(ns.getURI.toString)))
     case JsonCommand("updateTriples", _, params) => {
-      import scala.collection.JavaConversions._
       var success = false
       var replacements: mutable.Map[String, IReference] = null
       for (
@@ -156,14 +131,14 @@ class JsonCallHandler {
           // TODO recursive removal of BNodes
           (params \ "remove") match {
             case JNothing =>
-            case remove: JValue => em.remove(statements(remove): java.lang.Iterable[IStatementPattern])
+            case remove: JValue => em.remove(statements(remove).asJava)
           }
           (params \ "add") match {
             case JNothing =>
             case add: JValue => {
               replacements = new mutable.HashMap[String, IReference]
               val stmts = renameNewNodes(statements(add), em, model.getURI, replacements)
-              em.add(stmts)
+              em.add(stmts.asJava)
             }
           }
           em.getTransaction.commit
@@ -209,7 +184,6 @@ class JsonCallHandler {
       } map (v => JString(v.toString)) getOrElse JString("")
     }
     case JsonCommand("removeValue", _, rdf) => {
-      import scala.collection.JavaConversions._
       var successful = false
       for (
         model <- model ?~ "No active model found"
@@ -229,19 +203,15 @@ class JsonCallHandler {
               successful &= helper.execute(removeCommand).getStatus.isOK
             }
           }
-          em.getTransaction.commit
+          em.getTransaction.commit()
           successful = true
         } catch {
-          case e: Exception => if (em.getTransaction.isActive) em.getTransaction.rollback
+          case e: Exception => if (em.getTransaction.isActive) em.getTransaction.rollback()
         }
       }
       JBool(successful)
     }
     case JsonCommand("setValue", _, params) => {
-      import scala.collection.JavaConversions._
-      import net.enilink.platform.lift.util.TemplateHelpers._
-      import net.liftweb.util.Helpers._
-
       lazy val okResult = JObject(Nil)
       params.extractOpt[SetValueInput] map {
         case SetValueInput(rdf, value, template, templatePath) =>
@@ -266,7 +236,7 @@ class JsonCallHandler {
                       // println("Template: " + template)
                       // TODO check if template already got an rdfa root snippet
                       val wrappedTemplate = <div about="?this" data-lift="rdfa">{ template }</div>
-                      val resultValue = cmdResult.flatMap(_.getReturnValues.headOption)
+                      val resultValue = cmdResult.flatMap(_.getReturnValues.asScala.headOption)
                       val vars = new LinkedHashSet[Variable]()
                       var params = new RDFaParser {
                         override def createVariable(name: String) = {
@@ -291,9 +261,9 @@ class JsonCallHandler {
                       }.toMap
                       // [rel] or [rev] was not contained in current HTML fragment
                       // simply bind first var that is different from ?this
-                      if (params.isEmpty) params = resultValue flatMap { value =>
+                      if (params.isEmpty) params = resultValue.flatMap { value =>
                         vars.collectFirst { case v if v.n != "this" => v } map { v => (v.sym.name, value) }
-                      } toMap
+                      }.toMap
                       val renderResult = model flatMap { m =>
                         Globals.contextModel.doWith(Full(m)) {
                           CurrentContext.withSubject(m.getManager.find(stmt.getSubject)) {
@@ -325,10 +295,10 @@ class JsonCallHandler {
    */
   def statementsFromJSON(rdf: JObject): Seq[IStatement] = {
     def toResource(ref: String) = if (ref.startsWith("_:")) new BlankNode(ref) else URIs.createURI(ref)
-    rdf.children flatMap {
+    rdf.obj flatMap {
       case JField(s, po: JObject) =>
         val sResource = toResource(s)
-        po.children flatMap {
+        po.obj flatMap {
           case JField(p, JArray(objs)) => objs map { o =>
             val pResource = toResource(p)
             val stmt = new Statement(sResource, pResource, valueFromJSON(o))
@@ -369,8 +339,8 @@ class JsonCallHandler {
       case JString(rdfStr) =>
         val stmts = new ListBuffer[IStatement]
         ModelUtil.readData(new ByteArrayInputStream(rdfStr.getBytes("UTF-8")), "", null, true, new IDataVisitor[Unit]() {
-          override def visitBegin {}
-          override def visitEnd {}
+          override def visitBegin : Unit = {}
+          override def visitEnd : Unit = {}
           override def visitStatement(stmt: IStatement) = stmts += stmt
         })
         stmts.toSeq

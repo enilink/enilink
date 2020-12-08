@@ -1,16 +1,13 @@
 package net.enilink.platform.lift.rdfa
 
-import scala.Array.fallbackCanBuildFrom
-import scala.util.matching.Regex
-import scala.xml.NodeSeq.seqToNodeSeq
-import net.enilink.platform.lift.rdf._
-import Util.combine
-import scala.collection.mutable.ListBuffer
-import scala.xml.NodeSeq
-import scala.xml.TopScope
-import scala.xml.NamespaceBinding
 import net.enilink.komma.core.URIs
+import net.enilink.platform.lift.rdf._
+import net.enilink.platform.lift.rdfa.Util.combine
+
+import scala.collection.mutable.ListBuffer
 import scala.language.postfixOps
+import scala.xml.{NamespaceBinding, NodeSeq}
+import scala.xml.NodeSeq.seqToNodeSeq
 
 object RDFaParser extends RDFaParser()(new Scope())
 
@@ -37,7 +34,7 @@ trait RDFaUtils {
 class RDFaParser()(implicit val s: Scope = new Scope()) extends CURIE with RDFaUtils {
   val undef = fresh("undef") // null seems to cause type mismatch errors
 
-  def getArcs(e: xml.Elem, base: String): Stream[Arc] = {
+  def getArcs(e: xml.Elem, base: String): LazyList[Arc] = {
     walk(e, base, uri(base), undef, Nil, Nil, null) _2
   }
 
@@ -59,7 +56,7 @@ class RDFaParser()(implicit val s: Scope = new Scope()) extends CURIE with RDFaU
   def walk(e: xml.Elem, base: String,
     subj1: Reference, obj1: Reference,
     pending1f: Iterable[Reference], pending1r: Iterable[Reference],
-    lang1: Symbol): (xml.Elem, Stream[Arc]) = {
+    lang1: Symbol): (xml.Elem, LazyList[Arc]) = {
     assert(subj1 != undef) // with NotNull doesn't seem to work. scalaq?
 
     // step 2., URI mappings, xmlns is taken care of by scala.xml
@@ -86,9 +83,9 @@ class RDFaParser()(implicit val s: Scope = new Scope()) extends CURIE with RDFaU
     val (e1, subj45, objref5, skip) = subjectObject(obj1, e04, base, norel, types, props)
 
     // step 6. typeof
-    val arcs6 = {
+    val arcs6 : LazyList[Arc] = {
       val target = if (objref5 != undef) objref5 else subj45
-      if (target != undef) types.toStream.map(cls => (target, rdf_type, cls)) else Stream.empty
+      if (target != undef) LazyList.from(types).map(cls => (target, rdf_type, cls)) else LazyList.empty
     }
 
     // step 7 rel/rev triples
@@ -96,9 +93,9 @@ class RDFaParser()(implicit val s: Scope = new Scope()) extends CURIE with RDFaU
     // but in an effort to stay host-language-neutral, let's double-check
     val arcs7 = {
       if (objref5 != undef && subj45 != undef) {
-        (for (p <- relterms.toStream) yield (subj45, p, objref5)) ++
-          (for (p <- revterms.toStream) yield (objref5, p, subj45))
-      } else Stream.empty
+        (for (p <- relterms) yield (subj45, p, objref5)) ++
+          (for (p <- revterms) yield (objref5, p, subj45))
+      } else LazyList.empty
     }
 
     // step 8 incomplete triples.
@@ -111,14 +108,14 @@ class RDFaParser()(implicit val s: Scope = new Scope()) extends CURIE with RDFaU
     // step 9 literal object
     val ((e2, arcs9, xmlobj), isLiteral) = {
       if (!props.isEmpty) (literalObject(subj45, props, lang, e1), true)
-      else ((e1, Stream.empty, false), false)
+      else ((e1, LazyList.empty, false), false)
     }
 
     // step 10 complete incomplete triples.
-    val arcs10: Stream[Arc] = if (!skip && subj45 != undef) {
-      pending1f.toStream.map((subj1, _, subj45)) ++
-        pending1r.toStream.map((subj45, _, subj1))
-    } else Stream.empty
+    val arcs10: LazyList[Arc] = if (!skip && subj45 != undef) {
+      LazyList.from(pending1f.map((subj1, _, subj45))) ++
+        pending1r.map((subj45, _, subj1))
+    } else LazyList.empty
 
     // step 11. recur
     var newE = e2
@@ -126,7 +123,7 @@ class RDFaParser()(implicit val s: Scope = new Scope()) extends CURIE with RDFaU
     val childArcs = (if (!xmlobj) {
       val newChild = new ListBuffer[xml.Node]
       var changedChild = false
-      // TODO find out why newE.child.toStream.flatMap misses some child elements
+      // TODO find out why newE.child.toLazyList.flatMap misses some child elements
       val childArcs = walkChildren(newE, {
         case c: xml.Elem => {
           val (newC, arcs) = if (skip) {
@@ -146,13 +143,13 @@ class RDFaParser()(implicit val s: Scope = new Scope()) extends CURIE with RDFaU
         /* never mind stuff other than elements */
         case c: xml.Node => {
           newChild.append(c)
-          Stream.empty
+          LazyList.empty
         }
-        case _ => Stream.empty
+        case _ => LazyList.empty
       })
       if (changedChild) newE = newE.copy(child = newChild)
       childArcs
-    } else Stream.empty)
+    } else LazyList.empty)
 
     if (hasPrefixMappings) s.namespaces.pop
     (newE, arcs ++ childArcs)
@@ -195,7 +192,7 @@ class RDFaParser()(implicit val s: Scope = new Scope()) extends CURIE with RDFaU
     (e2, subj45, objref5, skip)
   }
 
-  def handleArcs(e: xml.Elem, arcs: Stream[Arc], isLiteral : Boolean) = {
+  def handleArcs(e: xml.Elem, arcs: LazyList[Arc], isLiteral : Boolean) = {
     arcs
   }
 
@@ -209,17 +206,13 @@ class RDFaParser()(implicit val s: Scope = new Scope()) extends CURIE with RDFaU
    * @return: (arcs, xmllit) where xmllit is true iff object is XMLLiteral
    */
   def literalObject(subj: Reference, props: Iterable[Reference], lang: Symbol,
-    e: xml.Elem): (xml.Elem, Stream[Arc], Boolean) = {
+    e: xml.Elem): (xml.Elem, LazyList[Arc], Boolean) = {
     val content = e \ "@content"
     val datatype = e \ "@datatype"
 
-    def sayit(obj: Node) = {
-      for (p <- props.toStream) yield (subj, p, obj)
-    }
-
     val (e1, literal1, xmlobj) = createLiteral(e, lang, datatype, content)
     val (e2, literal2) = transformLiteral(e1, content, literal1)
-    (e2, (if (literal2 != null) sayit(literal2) else Stream.empty), xmlobj)
+    (e2, if (literal2 != null) LazyList.from(props).map((subj, _,literal2)) else LazyList.empty, xmlobj)
   }
 
   def createLiteral(e: xml.Elem, lang: Symbol, datatype: NodeSeq, content: NodeSeq): (xml.Elem, Literal, Boolean) = {

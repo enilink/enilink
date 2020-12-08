@@ -6,11 +6,9 @@ import net.liftweb.http.LiftRules
 import org.osgi.framework.FrameworkUtil
 import org.osgi.framework.wiring.FrameworkWiring
 import org.osgi.service.http.HttpService
-
-
 import org.osgi.service.http.context.ServletContextHelper
 
-import scala.collection.JavaConversions._
+import scala.jdk.CollectionConverters._
 
 object LiftBootHelper extends Loggable {
 	var rebooting: Boolean = false
@@ -30,7 +28,7 @@ object LiftBootHelper extends Loggable {
 
 			// refresh dependency closure
 			val frameworkWiring = systemBundle.adapt(classOf[FrameworkWiring])
-			frameworkWiring.refreshBundles(liftBundle :: enilinkCore :: httpService :: httpWhiteboard :: Nil)
+			frameworkWiring.refreshBundles(List(liftBundle, enilinkCore, httpService, httpWhiteboard).asJava)
 		}
 	}
 }

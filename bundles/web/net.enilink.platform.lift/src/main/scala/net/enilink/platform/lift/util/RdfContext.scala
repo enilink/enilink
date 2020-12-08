@@ -44,5 +44,5 @@ object CurrentContext extends DynamicVariable[Box[RdfContext]](Empty) {
 
   def withSubject[T](s: Any)(thunk: => T) = withValue(Full(RdfContext(s, null)))(thunk)
 
-  def forRequest(value: Box[RdfContext]) { request.set(value) }
+  def forRequest(value: Box[RdfContext]) : Unit = { request.set(value) }
 }

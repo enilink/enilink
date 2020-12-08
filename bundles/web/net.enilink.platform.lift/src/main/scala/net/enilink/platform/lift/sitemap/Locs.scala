@@ -26,7 +26,7 @@ case object HideIfInactive extends Loc.LocInfo[Loc.AnyLocParam] {
 object KeepQueryParameters {
   def apply() = QueryParameters(() => {
     S.request.toList.flatMap {
-      r => r.params.view.flatMap { case (k, v :: _) => Full(k, v) case _ => Empty }
+      r => r.params.view.flatMap { case (k, v :: _) => Some(k, v) case _ => None }
     }
   })
 }

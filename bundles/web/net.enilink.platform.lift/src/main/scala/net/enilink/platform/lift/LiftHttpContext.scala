@@ -15,7 +15,7 @@ import org.osgi.service.component.annotations.{Component, Reference, ServiceScop
 import org.osgi.service.http.context.ServletContextHelper
 import org.webjars.WebJarAssetLocator
 
-import scala.collection.JavaConversions.asScalaSet
+import scala.jdk.CollectionConverters._
 import scala.collection.mutable
 
 /**
@@ -37,7 +37,7 @@ class LiftHttpContext extends ServletContextHelper with Logger {
     val webjarAssets = new java.util.HashSet[String]
     val seenPaths = mutable.Map.empty[String, Set[Bundle]]
 
-    liftLifecycleManager.bundles.entrySet.toSeq foreach { entry =>
+    liftLifecycleManager.bundles.entrySet.asScala.toSeq foreach { entry =>
       val bundle = entry.getKey
       val hasWebJars = bundle.getEntry(WebJarAssetLocator.WEBJARS_PATH_PREFIX) != null
       if (hasWebJars) {
@@ -147,7 +147,7 @@ class LiftHttpContext extends ServletContextHelper with Logger {
     }
     debug("""Places for resource "%s".""" format places)
 
-    val liftBundles = liftLifecycleManager.bundles.entrySet.toSeq.view
+    val liftBundles = liftLifecycleManager.bundles.entrySet.asScala.toSeq.view
     (places.view.flatMap { place =>
       liftBundles.flatMap { b =>
         b.getKey getResource (b.getValue mapResource place) match {

@@ -41,7 +41,7 @@ class LiftBundleTracker(context: BundleContext) extends BundleTracker[LiftBundle
               case i: Int => i
               case o => o.toString.toInt
             }
-            LiftBundleConfig(module, packages, siteMapStr, startLevel openOr 0)
+            LiftBundleConfig(module, packages.toList, siteMapStr, startLevel openOr 0)
         }
       } else {
         if (context.getBundle(0).getState != Bundle.STOPPING) {
@@ -55,7 +55,7 @@ class LiftBundleTracker(context: BundleContext) extends BundleTracker[LiftBundle
     } else null
   }
 
-  override def removedBundle(bundle: Bundle, event: BundleEvent, config: LiftBundleConfig) {
+  override def removedBundle(bundle: Bundle, event: BundleEvent, config: LiftBundleConfig) : Unit = {
     config.module.map { module =>
       try {
         // only shutdown bundles which where actually booted
@@ -76,6 +76,6 @@ class LiftBundleTracker(context: BundleContext) extends BundleTracker[LiftBundle
     }
   }
 
-  override def modifiedBundle(bundle: Bundle, event: BundleEvent, config: LiftBundleConfig) {
+  override def modifiedBundle(bundle: Bundle, event: BundleEvent, config: LiftBundleConfig) : Unit = {
   }
 }

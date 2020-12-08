@@ -6,5 +6,5 @@ import net.liftweb.http.Bootable
  */
 class OsgiBootable extends Bootable {
   /** Do nothing! */
-  override def boot() {}
+  override def boot() : Unit = {}
 }

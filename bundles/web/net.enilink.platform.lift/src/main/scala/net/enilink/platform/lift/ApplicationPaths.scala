@@ -15,7 +15,7 @@ import net.liftweb.http.LiftRulesMocker.toLiftRules
 import scala.xml.NodeSeq.seqToNodeSeq
 
 object ApplicationPaths {
-    def rewriteApplicationPaths {
+  def rewriteApplicationPaths: Unit = {
     LiftRules.urlDecorate.append {
       case url => fixUrl(url)
     }

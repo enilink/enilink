@@ -1,52 +1,34 @@
 package net.enilink.platform.web.snippet
 
-import java.io.IOException
-import java.io.StringWriter
-
-import scala.Array.canBuildFrom
-import scala.collection._
-import scala.collection.JavaConverters._
-import scala.xml.Node
-import scala.xml.NodeBuffer
-import scala.xml.NodeSeq
-import scala.xml.NodeSeq.seqToNodeSeq
-import scala.xml.Text
-import org.eclipse.equinox.security.auth.ILoginContext
-import org.eclipse.equinox.security.auth.LoginContextFactory
-import javax.security.auth.Subject
-import javax.security.auth.callback.Callback
-import javax.security.auth.callback.CallbackHandler
-import javax.security.auth.callback.NameCallback
-import javax.security.auth.callback.PasswordCallback
-import javax.security.auth.callback.TextInputCallback
-import javax.security.auth.callback.TextOutputCallback
-import javax.security.auth.login.LoginException
+import net.enilink.komma.core.IEntityManager
 import net.enilink.platform.core.security.{LoginUtil, SecurityUtil}
-import net.enilink.platform.lift.util.EnilinkRules
 import net.enilink.platform.lift.util.Globals
-import net.enilink.platform.security.callbacks.RealmCallback
-import net.enilink.platform.security.callbacks.RedirectCallback
-import net.enilink.platform.security.callbacks.RegisterCallback
-import net.enilink.platform.security.callbacks.ResponseCallback
-import net.liftweb.common.Box
+import net.enilink.platform.security.callbacks.{RealmCallback, RedirectCallback, RegisterCallback, ResponseCallback}
 import net.liftweb.common.Box.box2Option
-import net.liftweb.common.Empty
-import net.liftweb.common.Full
-import net.liftweb.http.S
-import net.liftweb.http.SHtml
-import net.liftweb.http.SessionVar
-import net.liftweb.http.Templates
-import net.liftweb.http.TransientRequestVar
+import net.liftweb.common.{Box, Empty, Full}
+import net.liftweb.http.{S, SessionVar, Templates, TransientRequestVar}
 import net.liftweb.http.js.JsCmds._
-import net.liftweb.http.js.JsCmds
 import net.liftweb.http.provider.HTTPCookie
-import net.liftweb.util.Helpers
-import net.liftweb.util.Helpers.strToCssBindPromoter
+import net.liftweb.json.DefaultFormats
+import net.liftweb.json.JsonAST.RenderSettings.compact
+import net.liftweb.util.{CssSel, Helpers}
+import net.liftweb.util.Helpers._
+import org.eclipse.equinox.security.auth.{ILoginContext, LoginContextFactory}
+
+import java.io.IOException
+import java.util.Collections
+import javax.security.auth.Subject
+import javax.security.auth.callback._
+import javax.security.auth.login.LoginException
+import scala.collection._
+import scala.jdk.CollectionConverters._
+import scala.xml.{Elem, Node, NodeSeq}
+import scala.xml.NodeSeq.seqToNodeSeq
 
 class Login {
   class DelegatingCallbackHandler extends CallbackHandler {
     var delegate: CallbackHandler = _
-    def handle(callbacks: Array[Callback]) = delegate.handle(callbacks)
+    def handle(callbacks: Array[Callback]): Unit = delegate.handle(callbacks)
   }
 
   /**
@@ -65,9 +47,9 @@ class Login {
   object LoginDataHelpers {
     import net.liftweb.json._
 
-    lazy val methods = LoginUtil.getLoginMethods.asScala.map(m => (m.getFirst, m.getSecond))
+    lazy val methods: mutable.Buffer[(String, String)] = LoginUtil.getLoginMethods.asScala.map(m => (m.getFirst, m.getSecond))
 
-    def loadLoginData = {
+    def loadLoginData: mutable.HashMap[String, Any] = {
       var loginData = new mutable.HashMap[String, Any]
       // initialize login data from cookie
       S.cookieValue("loginData").map {
@@ -80,16 +62,15 @@ class Login {
       loginData
     }
 
-    def loginMethods = if (isLinkIdentity) methods.tail else methods
+    def loginMethods: mutable.Buffer[(String, String)] = if (isLinkIdentity) methods.tail else methods
   }
 
   case class LoginData(props: mutable.Map[String, Any], currentMethod: (String, String)) {
-    implicit val formats = net.liftweb.json.DefaultFormats
-    import net.liftweb.json.JsonAST
+    implicit val formats: DefaultFormats.type = net.liftweb.json.DefaultFormats
     import net.liftweb.json.Extraction._
-    import net.liftweb.json.Printer._
-    def save {
-      S.addCookie(HTTPCookie("loginData", Helpers.urlEncode(compact(JsonAST.render(decompose(props.toMap))))).setMaxAge(3600 * 24 * 90 /* 3 months */ ))
+    import net.liftweb.json.JsonAST
+    def save : Unit = {
+      S.addCookie(HTTPCookie("loginData", Helpers.urlEncode(JsonAST.compactRender(decompose(props.toMap)))).setMaxAge(3600 * 24 * 90 /* 3 months */ ))
     }
   }
 
@@ -99,7 +80,7 @@ class Login {
     val currentMethod = param("method").orElse(props.get("method")).flatMap {
       mParam => methods.collectFirst { case m @ (_, name) if name == mParam => m }
     } getOrElse methods(0)
-    if (!props.get("method").exists(_ == currentMethod._2)) {
+    if (!props.get("method").contains(currentMethod._2)) {
       // clear data if login method has been changed
       props.clear
     }
@@ -112,21 +93,21 @@ class Login {
     case s: Subject => Full(s)
     case _ => Empty
   })
-  def saveSubjectToSession(s: Subject) = S.containerSession.foreach(_.setAttribute(SUBJECT_KEY, s))
+  def saveSubjectToSession(s: Subject): Unit = S.containerSession.foreach(_.setAttribute(SUBJECT_KEY, s))
 
-  def isLinkIdentity = S.attr("mode").exists(_ == "link") && Globals.contextUser.vend != SecurityUtil.UNKNOWN_USER
+  def isLinkIdentity: Boolean = S.attr("mode").exists(_ == "link") && Globals.contextUser.vend != SecurityUtil.UNKNOWN_USER
 
-  def getEntityManager = Globals.contextModelSet.vend.map(_.getMetaDataManager) openOrThrowException ("Unable to retrieve the model set")
+  def getEntityManager: IEntityManager = Globals.contextModelSet.vend.map(_.getMetaDataManager) openOrThrowException ("Unable to retrieve the model set")
 
   /**
    * Retrieve a HTTP param from the login state or from the request
    */
-  def param(name: String) = loginState.get.flatMap(_.params.get(name).flatMap(_.headOption)) or S.param(name)
+  def param(name: String): Box[String] = loginState.get.flatMap(_.params.get(name).flatMap(_.headOption)) or S.param(name)
 
   /**
    * Retrieve a HTTP param while omitting empty strings.
    */
-  def value(cb: Callback, name: String, values: Map[String, Any] = Map.empty) = (cb match {
+  def value(cb: Callback, name: String, values: Map[String, Any] = Map.empty): Box[String] = (cb match {
     // automatically login user after successful registration
     case _ if !loginWithEnilink => Empty
     case _: NameCallback => param("username").filter(_.length > 0)
@@ -137,7 +118,7 @@ class Login {
   /**
    * Creates a menu for choosing the login method (OpenID, Kerberos, etc.).
    */
-  def createMethodButtons(currentMethod: (String, String)) = {
+  def createMethodButtons(currentMethod: (String, String)): Elem = {
     <div class="clearfix" style="margin-bottom: 20px">
       <input type="hidden" id="method" name="method" value={ currentMethod._2 }/>
       <ul class="nav nav-pills pull-right">
@@ -201,20 +182,19 @@ class Login {
     }
   }
 
-  def loginWithEnilink = loginDataVar.currentMethod._1 == "eniLINK"
+  def loginWithEnilink: Boolean = loginDataVar.currentMethod._1 == "eniLINK"
 
   def initializeForm: NodeSeq = Nil
 
-  def render = doRender(false)
+  def render: CssSel = doRender(false)
 
-  def doRender(accountCreated: Boolean) = {
+  def doRender(accountCreated: Boolean): CssSel = {
     val isRegister = this.isInstanceOf[Register] && Globals.contextUser.vend == SecurityUtil.UNKNOWN_USER
     val currentMethod = loginDataVar.currentMethod
 
     var form: NodeSeq = if (accountCreated || isLinkIdentity) Nil else initializeForm
     var buttons: Seq[Node] = <button class="btn btn-primary" type="submit">Sign { if (isRegister) "up" else "in" }</button>
 
-    val session = S.session.get.httpSession.get
     val subject = getSubjectFromSession match {
       case Full(s) if !(isRegister || isLinkIdentity) => s // already logged in
       // in the process of creating an enilink account with username and password
@@ -239,8 +219,8 @@ class Login {
         // update handler, since the handle method is actually a closure over some variables of this snippet instance
         state.handler.delegate = new CallbackHandler {
           var stage = 0
-          def fieldName(index: Int) = "f-" + currentMethod._2 + "-" + stage + "-" + index
-          def handle(callbacks: Array[Callback]) = {
+          def fieldName(index: Int): String = "f-" + currentMethod._2 + "-" + stage + "-" + index
+          def handle(callbacks: Array[Callback]): Unit = {
             requiresInput = callbacks.zipWithIndex.foldLeft(false) {
               case (reqInput, (cb, index)) => reqInput || (
                 cb match {
@@ -275,8 +255,8 @@ class Login {
                     cb.setContextUrl(S.hostAndPath)
                     cb.setApplicationUrl(S.hostAndPath + S.uri)
                   case cb: ResponseCallback =>
-                    val params = S.request.map(_._params.map(e => (e._1, e._2.toArray))) openOr Map.empty
-                    cb.setResponseParameters(params.asJava)
+                    val params = S.request.map(_._params.map(e => (e._1, e._2.toArray)).asJava)
+                    cb.setResponseParameters(params openOr Collections.emptyMap())
                     // add parameters for fields as hidden inputs
                     state.params foreach {
                       case (k, v :: Nil) if k.startsWith("f-") => form ++= hidden(k, v)

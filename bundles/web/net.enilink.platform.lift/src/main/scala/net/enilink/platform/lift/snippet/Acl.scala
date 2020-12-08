@@ -13,7 +13,7 @@ object Acl {
   def render(ns: NodeSeq): NodeSeq = {
     var bindingVar = (ns \ "@data-for").text
     if (!bindingVar.isEmpty) {
-      val agentVar = '?' + Helpers.nextFuncName
+      val agentVar = "?" + Helpers.nextFuncName
       <span prefix={ "acl: " + WEBACL.NAMESPACE + " rdf: " + RDF.NAMESPACE } class="clearable">
         <span class="exists union" data-filter="bound(?currentUser)">
           <!-- user either owns the target resource -->

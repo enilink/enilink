@@ -49,7 +49,7 @@ class LiftModule {
     Menus.sitemapMutator(entries)
   }
 
-  def boot {
+  def boot : Unit = {
     LiftRules.httpAuthProtectedResource.prepend {
       case Req("services" :: _, _, _) => Full(AuthRole("rest"))
     }

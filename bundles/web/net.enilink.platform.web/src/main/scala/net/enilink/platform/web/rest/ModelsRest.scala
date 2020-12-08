@@ -1,44 +1,17 @@
 package net.enilink.platform.web.rest
 
-import java.io.ByteArrayOutputStream
-import scala.Array.canBuildFrom
-import scala.collection.JavaConversions.mapAsJavaMap
-import org.eclipse.core.runtime.Platform
-import org.eclipse.core.runtime.QualifiedName
-import org.eclipse.core.runtime.content.IContentDescription
-import org.eclipse.core.runtime.content.IContentType
 import net.enilink.komma.core.URI
-import net.enilink.komma.core.URIs
-import net.enilink.komma.model.ModelPlugin
-import net.enilink.platform.lift.util.Globals
+import net.enilink.komma.model.{IModel, ModelPlugin}
 import net.enilink.platform.lift.util.NotAllowedModel
-import net.liftweb.common.Box
-import net.liftweb.common.Box.box2Option
-import net.liftweb.common.Box.option2Box
-import net.liftweb.common.Empty
-import net.liftweb.common.Full
-import net.liftweb.http.ContentType
-import net.liftweb.http.ForbiddenResponse
-import net.liftweb.http.InMemoryResponse
-import net.liftweb.http.LiftResponse
-import net.liftweb.http.NotFoundResponse
-import net.liftweb.http.Req
-import net.liftweb.http.S
+import net.liftweb.common.Box.{box2Option, option2Box}
+import net.liftweb.common.{Box, Failure, Full}
 import net.liftweb.http.rest.RestHelper
-import net.enilink.komma.model.IModel
-import net.liftweb.http.JsonResponse
-import net.liftweb.json._
-import net.liftweb.json.JsonAST._
-import net.liftweb.json.JsonDSL._
-import net.liftweb.http.OnDiskFileParamHolder
-import java.io.ByteArrayInputStream
-import java.io.InputStream
-import net.liftweb.http.BadResponse
-import net.liftweb.http.OkResponse
-import net.liftweb.common.Failure
-import org.eclipse.rdf4j.rio.RDFFormat
-import net.liftweb.http.OkResponse
-import net.liftweb.http.UnsupportedMediaTypeResponse
+import net.liftweb.http.{BadRequestResponse, BadResponse, ContentType, ForbiddenResponse, InMemoryResponse, LiftResponse, NotFoundResponse, OkResponse, Req, S, UnsupportedMediaTypeResponse}
+import org.eclipse.core.runtime.content.{IContentDescription, IContentType}
+import org.eclipse.core.runtime.{Platform, QualifiedName}
+
+import java.io.{ByteArrayOutputStream, InputStream}
+import scala.jdk.CollectionConverters._
 
 object ModelsRest extends RestHelper {
   import Util._
@@ -49,7 +22,7 @@ object ModelsRest extends RestHelper {
   case class RdfResponse(data: Array[Byte], contentDescription: IContentDescription, headers: List[(String, String)], code: Int) extends LiftResponse {
     def toResponse = {
       val typeName = contentDescription.getProperty(mimeTypeProp)
-      InMemoryResponse(data, ("Content-Length", data.length.toString) :: ("Content-Type", typeName + "; charset=utf-8") :: headers, Nil, code)
+      InMemoryResponse(data, ("Content-Length", data.length.toString) :: ("Content-Type", typeName.toString + "; charset=utf-8") :: headers, Nil, code)
     }
   }
 
@@ -71,7 +44,6 @@ object ModelsRest extends RestHelper {
         case null => Nil
         case mimeType(superType, subType) => List((superType -> subType) -> contentType)
         case superType: String => List((superType -> "*") -> contentType)
-        case _ => Nil
       }
   }.toMap
 
@@ -132,17 +104,16 @@ object ModelsRest extends RestHelper {
    * Serialize and return RDF data according to the requested content type.
    */
   def serveRdf(r: Req, modelUri: URI) = {
-    getModel(modelUri).dmap(Full(new NotFoundResponse("Model " + modelUri + " not found.")): Box[LiftResponse])(model =>
-      model match {
-        case NotAllowedModel(_) => Full(ForbiddenResponse("You don't have permissions to access " + model.getURI + "."))
-        case _ => getResponseContentType(r) map (_.getDefaultDescription) match {
-          case Some(cd) if "true".equals(String.valueOf(cd.getProperty(hasWriter))) =>
-            val baos = new ByteArrayOutputStream
-            model.save(baos, Map(IModel.OPTION_CONTENT_DESCRIPTION -> cd))
-            Full(new RdfResponse(baos.toByteArray, cd, Nil, 200))
-          case _ => Full(new UnsupportedMediaTypeResponse())
-        }
-      })
+    getModel(modelUri).dmap(Full(new NotFoundResponse("Model " + modelUri + " not found.")): Box[LiftResponse]) {
+      case model@NotAllowedModel(_) => Full(ForbiddenResponse("You don't have permissions to access " + model.getURI + "."))
+      case model => getResponseContentType(r) map (_.getDefaultDescription) match {
+        case Some(cd) if "true".equals(String.valueOf(cd.getProperty(hasWriter))) =>
+          val baos = new ByteArrayOutputStream
+          model.save(baos, Map(IModel.OPTION_CONTENT_DESCRIPTION -> cd).asJava)
+          Full(new RdfResponse(baos.toByteArray, cd, Nil, 200))
+        case _ => Full(new UnsupportedMediaTypeResponse())
+      }
+    }
   }
 
   def uploadRdf(r: Req, modelUri: URI, in: InputStream) : Box[LiftResponse] = {
@@ -150,7 +121,7 @@ object ModelsRest extends RestHelper {
       case NotAllowedModel(_) => ForbiddenResponse("You don't have permissions to access " + modelUri + ".")
       case model => getRequestContentType(r) map (_.getDefaultDescription) match {
         case Full(cd) =>
-          model.load(in, Map(IModel.OPTION_CONTENT_DESCRIPTION -> cd));
+          model.load(in, Map(IModel.OPTION_CONTENT_DESCRIPTION -> cd).asJava)
           // refresh the model
           // model.unloadManager
           OkResponse()
@@ -176,23 +147,21 @@ object ModelsRest extends RestHelper {
   }
 
   def deleteModel(r: Req, modelUri: URI) = {
-    getModel(modelUri).dmap(Full(new NotFoundResponse("Model " + modelUri + " not found.")): Box[LiftResponse]) { model =>
-      model match {
-        case NotAllowedModel(_) => Full(ForbiddenResponse("You don't have permissions to access " + model.getURI + "."))
-        case _ =>
-          val modelSet = model.getModelSet
-          val changeSupport = modelSet.getDataChangeSupport
-          try {
-            changeSupport.setEnabled(null, false)
-            model.getManager.clear
-          } finally {
-            changeSupport.setEnabled(null, true)
-          }
-          model.unload
-          modelSet.getModels.remove(model)
-          modelSet.getMetaDataManager.remove(model)
-          Full(OkResponse())
-      }
+    getModel(modelUri).dmap(Full(new NotFoundResponse("Model " + modelUri + " not found.")): Box[LiftResponse]) {
+      case model@NotAllowedModel(_) => Full(ForbiddenResponse("You don't have permissions to access " + model.getURI + "."))
+      case model =>
+        val modelSet = model.getModelSet
+        val changeSupport = modelSet.getDataChangeSupport
+        try {
+          changeSupport.setEnabled(null, false)
+          model.getManager.clear
+        } finally {
+          changeSupport.setEnabled(null, true)
+        }
+        model.unload
+        modelSet.getModels.remove(model)
+        modelSet.getMetaDataManager.remove(model)
+        Full(OkResponse())
     }
   }
 
@@ -223,7 +192,7 @@ object ModelsRest extends RestHelper {
             }
           case other => other
         }
-      } else Full(BadResponse())
+      } else Full(BadRequestResponse())
     }
     case ("vocab" | "models") :: modelName Post req => {
       val response = if (validModel(modelName)) {
@@ -244,7 +213,7 @@ object ModelsRest extends RestHelper {
             }
         }
       } else Full(NotFoundResponse("Unknown model: " + modelName.mkString("/")))
-      response or Full(BadResponse())
+      response or Full(BadRequestResponse())
     }
     case ("vocab" | "models") :: modelName Delete req => {
       if (validModel(modelName)) {

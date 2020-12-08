@@ -1,47 +1,23 @@
 package net.enilink.platform.lift.snippet
 
-import scala.xml._
-import net.enilink.komma.core.IEntityManager
-import net.enilink.komma.core.IValue
-import net.enilink.platform.lift.rdfa.SparqlFromRDFa
-import net.liftweb.common.Box
-import net.liftweb.common.Empty
-import net.liftweb.http.PaginatorSnippet
-import net.liftweb.builtin.snippet.Form
-import net.liftweb.util.CssSel
-import net.liftweb.util.PassThru
-import net.liftweb.util.Helpers._
-import net.liftweb.util.Helpers
-import net.liftweb.util.Helpers.strToCssBindPromoter
-import net.liftweb.http.Templates
-import net.liftweb.common.Full
-import net.liftweb.http.S
-import net.enilink.komma.core.IReference
-import net.enilink.komma.core.URIs
-import scala.util.control.Exception._
-import net.liftweb.http.js.JE._
-import net.liftweb.http.S.SFuncHolder
-import net.enilink.platform.lift.util.Globals
-import net.enilink.platform.core.ModelSetManager
-import net.enilink.komma.core.IDialect
-import net.liftweb.http.JsonResponse
-import net.liftweb.http.PageName
-import net.liftweb.json._
-import net.liftweb.http.SHtml
-import net.liftweb.http.AjaxContext
-import net.enilink.komma.core.IEntity
-import scala.collection.JavaConversions._
-import net.enilink.komma.core.URI
-import net.enilink.platform.lift.util.CurrentContext
-import net.enilink.platform.lift.util.TemplateHelpers
-import net.liftweb.http.js.JsCmds
-import net.liftweb.http.js.JsCmd
-import net.enilink.komma.core.QueryFragment
-import net.liftweb.util.CanBind._
-import net.liftweb.util.DynoVar
-import scala.util.DynamicVariable
+import net.enilink.komma.core._
 import net.enilink.komma.model.ModelUtil
-import java.util.regex.Pattern
+import net.enilink.platform.lift.rdfa.SparqlFromRDFa
+import net.enilink.platform.lift.util.{CurrentContext, Globals, TemplateHelpers}
+import net.liftweb.builtin.snippet.Form
+import net.liftweb.common.{Box, Empty, Full}
+import net.liftweb.http.S.SFuncHolder
+import net.liftweb.http.js.JE._
+import net.liftweb.http.js.JsCmds
+import net.liftweb.http.{AjaxContext, JsonResponse, PaginatorSnippet, S, SHtml, Templates}
+import net.liftweb.json._
+import net.liftweb.util.CanBind.StringToCssBindPromoter
+import net.liftweb.util.Helpers._
+import net.liftweb.util.{CssSel, PassThru}
+
+import scala.jdk.CollectionConverters._
+import scala.util.DynamicVariable
+import scala.xml._
 
 /**
  * Helper object for query parameters.
@@ -99,14 +75,14 @@ object Search extends SparqlHelper with SparqlExtractor {
               val em = entity.getEntityManager
               val keywords = bindingNames.flatMap { bindingName =>
                 // add search patterns to template
-                val fragment = em.getFactory.getDialect.fullTextSearch(List(bindingName), IDialect.DEFAULT, query)
+                val fragment = em.getFactory.getDialect.fullTextSearch(List(bindingName).asJava, IDialect.DEFAULT, query)
                 val nsWithPatterns = (".search-patterns" #> <div data-pattern={ fragment.toString } class="clearable"></div>).apply(ns)
                 val sparqlFromRdfa = extractSparql(nsWithPatterns)
                 val queryParams = origParams ++ globalQueryParameters ++ bindParams(extractParams(ns)) ++ bindingsToMap(fragment.bindings)
                 val sparql = sparqlFromRdfa.getQuery(bindingName, 0, 1000)
                 val results = withParameters(em.createQuery(sparql), queryParams).evaluateRestricted(classOf[IValue])
                 val queryRegex = patternToRegex(query.toLowerCase).r
-                results.iterator.flatMap(toTokens(_).filter(token => queryRegex.findFirstIn(token.toLowerCase).isDefined)) ++ toTokens(query.toLowerCase)
+                results.iterator.asScala.flatMap(toTokens(_).filter(token => queryRegex.findFirstIn(token.toLowerCase).isDefined)) ++ toTokens(query.toLowerCase)
               }
               JsonResponse(JArray(keywords.toSet[String].toList.sorted.map(JString(_))))
             }
@@ -136,7 +112,7 @@ object Search extends SparqlHelper with SparqlExtractor {
         searchString = Full((ns \ "@data-value").text).filter(_.nonEmpty) or S.param(param).filter(_.nonEmpty)
         searchString.dmap(Nil: NodeSeq) { searchStr =>
           (Globals.contextModel.vend.map(_.getManager) or Globals.contextModelSet.vend.map(_.getMetaDataManager)) map { em =>
-            fragment = Full(em.getFactory.getDialect.fullTextSearch(bindingNames, IDialect.DEFAULT, searchStr))
+            fragment = Full(em.getFactory.getDialect.fullTextSearch(bindingNames.asJava, IDialect.DEFAULT, searchStr))
             <div data-pattern={ fragment.dmap("")(_.toString) } class="clearable"></div>
           } openOr Nil
         }
@@ -270,14 +246,6 @@ class Rdfa extends Sparql with SparqlExtractor {
 
           // select last page if count < offset
           override def first = super.first min (count - ((count % itemsPerPage) match { case 0 => itemsPerPage case r => r })) max 0
-
-          override def paginate(ns: NodeSeq) = {
-            // support lower case tags
-            bind(navPrefix, super.paginate(ns),
-              "recordsfrom" -> Text(recordsFrom),
-              "recordsto" -> Text(recordsTo),
-              "recordscount" -> Text(count.toString))
-          }
         }
         paginatedQuery = Full(sparqlFromRdfa.getPaginatedQuery(bindingName, paginator.first, paginator.itemsPerPage))
         if (ns.head.child.forall(_.isInstanceOf[Text])) {

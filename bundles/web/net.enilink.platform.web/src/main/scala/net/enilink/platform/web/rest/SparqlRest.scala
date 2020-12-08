@@ -1,56 +1,33 @@
 package net.enilink.platform.web.rest
 
-import java.io.ByteArrayOutputStream
-
-import scala.collection.JavaConversions.asScalaIterator
-import scala.collection.JavaConversions.asJavaIterator
-
+import net.enilink.commons.iterator.IExtendedIterator
+import net.enilink.komma.core._
+import net.enilink.komma.model.{IModelSet, ModelUtil}
+import net.enilink.komma.rdf4j.RDF4JValueConverter
+import net.enilink.platform.lift.util.{Globals, NotAllowedModel}
+import net.liftweb.common.{Box, Full}
+import net.liftweb.http.rest.RestHelper
+import net.liftweb.http.{BadRequestResponse, ForbiddenResponse, InMemoryResponse, LiftResponse, NotFoundResponse, OkResponse, S}
+import net.liftweb.util.Helpers.tryo
 import org.eclipse.rdf4j.model.impl.SimpleValueFactory
-import org.eclipse.rdf4j.query.resultio.QueryResultIO
-import org.eclipse.rdf4j.query.resultio.QueryResultWriter
+import org.eclipse.rdf4j.query.resultio.{QueryResultIO, QueryResultWriter}
 import org.eclipse.rdf4j.rio.WriterConfig
 import org.eclipse.rdf4j.rio.helpers.BasicWriterSettings
 
-import net.enilink.commons.iterator.IExtendedIterator
-import net.enilink.komma.core.IBindings
-import net.enilink.komma.core.IBooleanResult
-import net.enilink.komma.core.IGraphResult
-import net.enilink.komma.core.ITupleResult
-import net.enilink.komma.core.IValue
-import net.enilink.komma.core.URI
-import net.enilink.komma.model.ModelUtil
-import net.enilink.komma.rdf4j.RDF4JValueConverter
-import net.enilink.platform.lift.util.NotAllowedModel
-import net.liftweb.common.Box
-import net.liftweb.common.Full
-import net.liftweb.http.BadResponse
-import net.liftweb.http.ForbiddenResponse
-import net.liftweb.http.InMemoryResponse
-import net.liftweb.http.LiftResponse
-import net.liftweb.http.NotFoundResponse
-import net.liftweb.http.rest.RestHelper
-import java.lang.Boolean
-import net.enilink.platform.lift.util.Globals
-import net.liftweb.http.S
-import net.liftweb.util.Helpers.tryo
-import net.liftweb.common.Failure
-import net.liftweb.http.OkResponse
-import net.enilink.komma.model.IModelSet
-import net.enilink.komma.core.URIs
-import org.eclipse.rdf4j.query.BindingSet
-import org.eclipse.rdf4j.query.impl.ListBindingSet
+import java.io.ByteArrayOutputStream
+import scala.jdk.CollectionConverters._
 
 object SparqlRest extends RestHelper {
   import Util._
 
   val converter = new RDF4JValueConverter(SimpleValueFactory.getInstance)
 
-  def configure(writer: QueryResultWriter) {
+  def configure(writer: QueryResultWriter) : Unit = {
     val config = new WriterConfig
     config.useDefaults
     // there is a incompatibility between the Jackson version included in eniLINK and the Jackson version that is required by RDF4J
     // RDF4J expects the class com.fasterxml.jackson.core.util.DefaultPrettyPrinter.Lf2SpacesIndenter to be public
-    config.set(BasicWriterSettings.PRETTY_PRINT, Boolean.FALSE)
+    config.set(BasicWriterSettings.PRETTY_PRINT, java.lang.Boolean.FALSE)
     writer.setWriterConfig(config)
   }
 
@@ -67,7 +44,7 @@ object SparqlRest extends RestHelper {
 
         dm.createQuery(queryStr, null, true, defaultGraphs: _*)
 
-        BadResponse()
+        BadRequestResponse()
       } finally {
         dm.close
       }
@@ -98,14 +75,14 @@ object SparqlRest extends RestHelper {
                 writer.startQueryResult(r.getBindingNames)
 
                 try {
-                  r.iterator.foreach {
+                  r.iterator.asScala.foreach {
                     case bindings: IBindings[_] =>
                       val bindingSet = converter.toRdf4j(bindings)
                       writer.handleSolution(bindingSet)
                     case value: IValue =>
                       // select with only one variable like "select ?s where { ?s ?p ?o }" for which KOMMA returns direct object instances
                       val bindings = new IBindings[IValue] {
-                        val values = value :: Nil
+                        val values = List(value).asJava
                         override def get(key: String) = value
                         override def getKeys = r.getBindingNames
                         override def iterator = values.iterator
@@ -126,7 +103,7 @@ object SparqlRest extends RestHelper {
 
                 writer.visitBegin
                 try {
-                  r.iterator.foreach { stmt => writer.visitStatement(stmt) }
+                  r.iterator.asScala.foreach { stmt => writer.visitStatement(stmt) }
                 } finally {
                   r.close
                 }
@@ -148,9 +125,9 @@ object SparqlRest extends RestHelper {
 
                 val data = baos.toByteArray
                 Full(InMemoryResponse(data, ("Content-Length", data.length.toString) :: ("Content-Type", resultMimeType + "; charset=utf-8") :: Nil, Nil, 200))
-              case _ => Full(BadResponse()) // unexpected, should not happen
+              case _ => Full(BadRequestResponse()) // unexpected, should not happen
             }
-          } else Full(BadResponse())
+          } else Full(BadRequestResponse())
       })
   }
 
@@ -168,7 +145,7 @@ object SparqlRest extends RestHelper {
             update.execute
             Full(OkResponse())
           } catch {
-            case _: Exception => Full(BadResponse())
+            case _: Exception => Full(BadRequestResponse())
           }
       })
   }
