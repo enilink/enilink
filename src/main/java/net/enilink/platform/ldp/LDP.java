@@ -38,8 +38,10 @@ public interface LDP {
 
 	public static final URI TYPE_MEMBERSUBJECT = NAMESPACE_URI.appendFragment("MemberSubject");
 
+	public static final URI PROPERTY_CONSTRAINED_BY = NAMESPACE_URI.appendFragment("constrainedBy");
+	
 	public static final URI PROPERTY_CONTAINS = NAMESPACE_URI.appendFragment("contains");
-
+	
 	public static final URI PROPERTY_MEMBER = NAMESPACE_URI.appendFragment("member");
 
 	public static final URI PROPERTY_MEMBERSHIPRESOURCE = NAMESPACE_URI.appendFragment("membershipResource");

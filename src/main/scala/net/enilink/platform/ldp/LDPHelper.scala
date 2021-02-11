@@ -2,10 +2,16 @@ package net.enilink.platform.ldp;
 
 import java.io.ByteArrayOutputStream
 import java.io.OutputStream
+import java.time.Instant
 import java.util.Comparator
 
+import scala.collection.JavaConversions.asJavaIterable
 import scala.collection.JavaConversions.asScalaSet
 import scala.collection.mutable.ListBuffer
+import scala.util.Try
+
+import org.eclipse.rdf4j.model.impl.SimpleValueFactory
+import org.eclipse.rdf4j.rio.Rio
 
 import javax.xml.datatype.XMLGregorianCalendar
 import net.enilink.komma.core.IReference
@@ -15,16 +21,19 @@ import net.enilink.komma.core.Namespace
 import net.enilink.komma.core.Statement
 import net.enilink.komma.core.URI
 import net.enilink.komma.core.URIs
+import net.enilink.komma.em.util.ISparqlConstants
 import net.enilink.komma.model.IModel
 import net.enilink.komma.model.ModelUtil
+import net.enilink.komma.rdf4j.RDF4JValueConverter
 import net.enilink.platform.lift.util.Globals
+import net.enilink.platform.web.rest.ModelsRest
 import net.enilink.vocab.owl.OWL
 import net.enilink.vocab.rdf.RDF
+import net.enilink.vocab.rdfs.RDFS
 import net.enilink.vocab.xmlschema.XMLSCHEMA
 import net.liftweb.common.Box
 import net.liftweb.common.Box.option2Box
 import net.liftweb.common.BoxOrRaw
-import net.liftweb.common.BoxOrRaw.boxToBoxOrRaw
 import net.liftweb.common.Empty
 import net.liftweb.common.Failure
 import net.liftweb.common.Full
@@ -42,9 +51,16 @@ import net.liftweb.http.rest.RestHelper
  * @see http://www.w3.org/TR/ldp/
  */
 class LDPHelper extends RestHelper {
+  val OMM_NS = "http://www.w3.org/2005/Incubator/omm/elements/1.0/"
+  val OMM = URIs.createURI(OMM_NS)
+  val PROP_PROV_GENATTIME = URIs.createURI("http://www.w3.org/ns/prov#generatedAtTime")
+  val DCTERMS_RELATION = URIs.createURI("http://purl.org/dc/terms/relation")
 
   val MIME_TURTLE = ("text", "turtle")
   val MIME_JSONLD = ("application", "ld+json")
+  var reqNr = 0
+  val notUpdatableP = List(PROP_PROV_GENATTIME, PROP_PROV_GENATTIME, LDP.PROPERTY_MEMBERSHIPRESOURCE, LDP.PROPERTY_HASMEMBERRELATION)
+  val notUdaptableO = List(LDP.TYPE_RDFSOURCE, OMM.appendLocalPart("memory"), LDP.TYPE_DIRECTCONTAINER, LDP.TYPE_CONTAINER, LDP.TYPE_BASICCONTAINER)
 
   // turtle/json-ld distinction is made by tjSel and using the Convertible in cvt below
   // FIXME: support LDP without extra prefix, on requests for plain resource URIs with no other match
@@ -53,6 +69,10 @@ class LDPHelper extends RestHelper {
     case Options(`path` :: refs, req) => getOptions(refs, req)
     case Head(`path` :: refs, req) => getContainerContent(refs, req, uri)
     case Get(`path` :: refs, req) => getContainerContent(refs, req, uri)
+    case Post(`path` :: refs, req) => { reqNr = reqNr + 1; createContainerContent(refs, req, uri, reqNr) }
+    case Put(`path` :: refs, req) => updateContainerContent(refs, req, uri)
+    case Delete(`path` :: refs, req) => deleteContainerContent(refs, req, uri)
+
   }
 
   trait Convertible {
@@ -66,14 +86,25 @@ class LDPHelper extends RestHelper {
 
   class OptionNoContent extends Convertible {
     def noContent: Box[(Int, OutputStream, String, List[(String, String)])] =
-      Full(0, new ByteArrayOutputStream, "", ("Allow" -> "OPTIONS, HEAD, GET") :: Nil)
+      Full(0, new ByteArrayOutputStream, "", ("Allow" -> "OPTIONS, HEAD, GET, POST, PUT") :: ("Accept-Post" -> "*/*") :: Nil)
 
     override def toTurtle(): Box[(Int, OutputStream, String, List[(String, String)])] = noContent
     override def toJsonLd(): Box[(Int, OutputStream, String, List[(String, String)])] = noContent
   }
+  class UpdateResponse(location: String) extends Convertible {
+    def noContent: Box[(Int, OutputStream, String, List[(String, String)])] = {
+      val relTypes = ListBuffer[IReference]() ++= List(LDP.TYPE_RESOURCE, LDP.TYPE_DIRECTCONTAINER)
+      Full((0, new ByteArrayOutputStream, location, linkHeader(relTypes.sortBy(_.toString))))
+    }
+
+    override def toTurtle(): Box[(Int, OutputStream, String, List[(String, String)])] = noContent
+    override def toJsonLd(): Box[(Int, OutputStream, String, List[(String, String)])] = noContent
+
+  }
 
   protected def getContainerContent(refs: List[String], req: Req, uri: URI): Box[Convertible] = {
     val requestUri = URIs.createURI(req.request.url)
+
     val content: Box[ContainerContent] = refs match {
       case Nil => Empty
       // FIXME: /DOM/ will return a container with all registered memories
@@ -97,7 +128,7 @@ class LDPHelper extends RestHelper {
       // FIXME: /DOM/$path
       case path @ _ =>
         try {
-          val resourceUri = URIs.createURI(req.request.url.replace(req.hostAndPath + "/", uri.trimSegments(2).toString))
+         val resourceUri = URIs.createURI(req.request.url.replace(req.hostAndPath + "/", uri.trimSegments(2).toString))
           // FIXME: assumption: resource is contained in model using the memory as URI
           path.headOption.flatMap { id =>
             findModel(uri.appendLocalPart(id).appendSegment("")).flatMap { m =>
@@ -136,7 +167,272 @@ class LDPHelper extends RestHelper {
       case _ => Empty
     }
   }
+  protected def updateContainerContent(refs: List[String], req: Req, uri: URI) = Box[Convertible] {
+    val response: Box[Convertible] = refs match {
+      //user is not allowed to update DOM container directly, but memories and blocks
+      //FIXME make graceful and configurable constraints
+      case Nil => Failure("412", Empty, Empty)  
+      case "index" :: Nil => Failure("412", Empty, Empty)
+      case path @ _ =>
+        val rdfFormat = Rio.getParserFormatForMIMEType(req.request.contentType.openOr(MIME_TURTLE._1 + "/" + MIME_TURTLE._2))
+        if (!rdfFormat.isPresent) Failure("415", Empty, Empty) // unsupported mime
+        else if (!req.header("If-Match").isEmpty) {
+          val containerContent = getContainerContent(refs, req, uri)
+          containerContent match {
+            // FIXME PUT only update existing memories, create new memory when it is not exist ?
+            case Empty => Empty 
+            case Failure(x, y, z) => Failure(x, y, z)
+            case Full(content) => {
+              val containerContent = content.asInstanceOf[ContainerContent]
+              containerContent.generate("text" -> "turtle") match {
+                case Empty => Empty
+                case Failure(x, y, z) => Failure(x, y, z)
+                case Full((size, stream, mime, headers)) => {
+                  val sEtag = generateETag(stream)
+                  if (sEtag == req.header("If-Match").get) {
+                    val resourceUri = URIs.createURI(req.request.url.replace(req.hostAndPath + "/", uri.trimSegments(2).toString))
+                    val model = Rio.parse(req.request.inputStream, req.request.url, rdfFormat.get)
+                    val valueConverter = new RDF4JValueConverter(SimpleValueFactory.getInstance)
+                    val updateStmts = for {
+                      statement <- model
+                      //skip the new statements that violate container statements
+                      if (!notUpdatableP.contains(valueConverter.fromRdf4j(statement.getPredicate))
+                          && !notUdaptableO.contains(valueConverter.fromRdf4j(statement.getObject)))
+                    } yield statement
 
+                    Globals.contextModelSet.vend.flatMap(ms => {
+                      ms.getUnitOfWork.begin()
+                      val m = ms.getModel(resourceUri, false)
+                      val manager = m.getManager
+                      val isMemory = manager.hasMatch(resourceUri, RDF.PROPERTY_TYPE, OMM.appendLocalPart("memory"))
+                      manager.remove(resourceUri)
+
+                      try {
+
+                        if (isMemory) {
+
+                          manager.add(new Statement(resourceUri, RDF.PROPERTY_TYPE, LDP.TYPE_RDFSOURCE))
+                          manager.add(new Statement(resourceUri, RDF.PROPERTY_TYPE, OMM.appendLocalPart("memory")))
+                          manager.add(new Statement(resourceUri, PROP_PROV_GENATTIME, new Literal(Instant.now.toString, XMLSCHEMA.TYPE_DATETIME)))
+                          manager.add(new Statement(resourceUri, LDP.PROPERTY_MEMBERSHIPRESOURCE, resourceUri))
+                          manager.add(new Statement(resourceUri, DCTERMS_RELATION, resourceUri.appendLocalPart("relatedResource")))
+                          val toc = resourceUri.appendLocalPart("toc").appendSegment("")
+                          manager.add(new Statement(toc, RDF.PROPERTY_TYPE, LDP.TYPE_DIRECTCONTAINER))
+                          manager.add(new Statement(toc, RDF.PROPERTY_TYPE, LDP.TYPE_CONTAINER))
+                          manager.add(new Statement(toc, RDF.PROPERTY_TYPE, LDP.TYPE_RDFSOURCE))
+                          manager.add(new Statement(toc, LDP.PROPERTY_HASMEMBERRELATION, OMM.appendLocalPart("element")))
+                          manager.add(new Statement(toc, LDP.PROPERTY_MEMBERSHIPRESOURCE, resourceUri))
+
+                        }
+                        manager.add(updateStmts.map(smt => {
+                          new Statement(
+                            valueConverter.fromRdf4j(smt.getSubject()),
+                            valueConverter.fromRdf4j(smt.getPredicate()),
+                            valueConverter.fromRdf4j(smt.getObject()))
+                        }))
+                        Full(new UpdateResponse(req.request.url))
+                      } catch {
+                        case e: Exception => {
+                          e.printStackTrace()
+                          Failure(e.getMessage, Some(e), Empty)
+                        }
+                      } finally { ms.getUnitOfWork.end }
+
+                    })
+                  } //avoid mid-air update
+                  else Failure("412", Empty, Empty)
+                }
+              }
+            }
+          }
+        } // FIXME 
+        else Failure("428", Empty, Empty)
+
+    }
+    response match {
+      case c @ Full(content) => c
+      case f @ Failure(msg, _, _) =>
+        //FIXME adding a Link header with rel='http://www.w3.org/ns/ldp#constrainedBy' [RFC5988]
+        //to all responses to requests which fail due to violation of those constraints
+        Try(msg.toInt).toOption match {
+          case Some(code) =>
+            code match {
+              case 412 => f ~> 412
+              case 428 => f ~> 428
+              case 415 => f ~> 415
+              case 405 => f ~> 405
+              case _ => f ~> 500
+            }
+          case None => f ~> 500 // something happened, return a 500 status (lift defaults to 404 here)
+        }
+
+      case _ => Empty
+    }
+
+  }
+  protected def deleteContainerContent(refs: List[String], req: Req, uri: URI) = Box[Convertible] {
+    val response: Box[Convertible] = refs match {
+      case Nil => Failure("405", Empty, Empty)
+      case "index" :: Nil => Failure("405", Empty, Empty)
+      case path @ _ =>
+        val resourceUri = URIs.createURI(req.request.url.replace(req.hostAndPath + "/", uri.trimSegments(2).toString))
+        Globals.contextModelSet.vend.flatMap(ms => {
+          ms.getUnitOfWork.begin
+          try {
+            val m = ms.getModel(resourceUri, false)
+            val manager = m.getManager
+            if (manager.hasMatch(resourceUri, RDF.PROPERTY_TYPE, OMM.appendLocalPart("memory"))) {
+
+              val dom = ms.getModel(uri, false)
+              dom.getManager.removeRecursive(resourceUri, true)
+              val query = manager.createQuery(ISparqlConstants.PREFIX
+                + "PREFIX omm: <" + OMM + "> " //
+                + "SELECT ?block {" //
+                + "  ?memory a omm:memory ; omm:element ?block  . " //
+                + "}")
+              val blocks = query.evaluate().iterator
+              while (blocks.hasNext) {
+                val block = blocks.next.asInstanceOf[IReference].getURI
+                ms.getModel(block, false).getManager.removeRecursive(block, true)
+                manager.remove(block.getURI)
+                ModelsRest.deleteModel(null, block)
+              }
+              manager.removeRecursive(resourceUri, true)
+
+              manager.clearNamespaces()
+              ModelsRest.deleteModel(null, resourceUri)
+
+              Full(new UpdateResponse(""))
+            } else {
+              // delete block
+
+              path.headOption.flatMap(id => {
+                val mem = ms.getModel(uri.appendLocalPart(id).appendSegment(""), false)
+                mem.getManager.remove(resourceUri)
+                manager.removeRecursive(resourceUri, true)
+                ModelsRest.deleteModel(null, resourceUri)
+                Full(new UpdateResponse(""))
+              })
+
+            }
+
+          } catch {
+            case e: Exception => {
+              e.printStackTrace()
+              Failure("404", Empty, Empty)
+            }
+          } finally { ms.getUnitOfWork.end }
+        })
+    }
+
+    response match {
+      case c @ Full(content) => c
+      case f @ Failure(msg, _, _) => {
+        Try(msg.toInt).toOption match {
+          case Some(405) => f ~> 405
+          case Some(404) => f ~> 404
+          case None => f ~> 500
+        }
+      }
+      case _ => Empty
+    }
+  }
+
+  protected def createContainerContent(refs: List[String], req: Req, uri: URI, reqNr: Int) = Box[Convertible] {
+    val response: Box[Convertible] = refs match {
+      case Nil => Empty
+      case "index" :: Nil => {
+        def memoryName = (req.header("Slug").openOr("Memory") + reqNr.toString()).toLowerCase().replaceAll("[^a-z0-9-]", "-")
+        //          val rdfFormat = {
+        //             if (req.request.contentType == "application/ld+json") RDFFormat.JSONLD
+        //             else RDFFormat.TURTLE
+        //          }
+        val containerUri = URIs.createURI(req.request.url.replace(req.hostAndPath + "/", uri.trimSegments(2).toString))
+        // val model = Rio.parse(req.request.inputStream,containerUri.toString(), rdfFormat)
+
+        // create memory
+        createMemory(memoryName, containerUri)
+      }
+
+      case path @ _ => {
+        val resourceUri = URIs.createURI(req.request.url.replace(req.hostAndPath + "/", uri.trimSegments(2).toString))
+        def blockName = (req.header("Slug").openOr("Block") + reqNr.toString()).toLowerCase().replaceAll("[^a-z0-9-]", "-")
+        try {
+          path.headOption.flatMap { id =>
+            findModel(uri.appendLocalPart(id).appendSegment("")).flatMap { m =>
+              createBlock(blockName, m.getURI)
+            }
+          }
+
+        } catch {
+          case e: Exception => {
+            e.printStackTrace()
+            Failure(e.getMessage, Some(e), Empty)
+          }
+        }
+      }
+    }
+    response
+  }
+
+  def createMemory(memoryName: String, containerUri: URI): Box[Convertible] = {
+    Globals.contextModelSet.vend.flatMap(modelSet =>
+      {
+        modelSet.getUnitOfWork.begin
+        try {
+          val model = Box.legacyNullTest(modelSet.getModel(containerUri, false)).openOrThrowException("DOM model not initialized")
+          val resourceUri = containerUri.appendLocalPart(memoryName).appendSegment("")
+          val em = model.getManager
+          em.add(new Statement(containerUri, LDP.PROPERTY_CONTAINS, resourceUri))
+          val memoryModel = modelSet.createModel(resourceUri)
+          memoryModel.setLoaded(true)
+          val manager = memoryModel.getManager
+          manager.add(new Statement(resourceUri, RDF.PROPERTY_TYPE, LDP.TYPE_RDFSOURCE))
+          manager.add(new Statement(resourceUri, RDF.PROPERTY_TYPE, OMM.appendLocalPart("memory")))
+          manager.add(new Statement(resourceUri, PROP_PROV_GENATTIME, new Literal(Instant.now.toString, XMLSCHEMA.TYPE_DATETIME)))
+          manager.add(new Statement(resourceUri, LDP.PROPERTY_MEMBERSHIPRESOURCE, resourceUri))
+          manager.add(new Statement(resourceUri, DCTERMS_RELATION, resourceUri.appendLocalPart("relatedResource")))
+          val toc = resourceUri.appendLocalPart("toc").appendSegment("")
+          manager.add(new Statement(toc, RDF.PROPERTY_TYPE, LDP.TYPE_DIRECTCONTAINER))
+          manager.add(new Statement(toc, RDF.PROPERTY_TYPE, LDP.TYPE_CONTAINER))
+          manager.add(new Statement(toc, RDF.PROPERTY_TYPE, LDP.TYPE_RDFSOURCE))
+          manager.add(new Statement(toc, LDP.PROPERTY_HASMEMBERRELATION, OMM.appendLocalPart("element")))
+          manager.add(new Statement(toc, LDP.PROPERTY_MEMBERSHIPRESOURCE, resourceUri))
+          Full(new UpdateResponse(resourceUri.toString()))
+        } catch {
+          case t: Throwable => Failure(t.getMessage)
+        } finally {
+          modelSet.getUnitOfWork.end
+        }
+      })
+
+  }
+  def createBlock(blockName: String, memoryURI: URI): Box[Convertible] = {
+    Globals.contextModelSet.vend.flatMap(modelSet =>
+      {
+        modelSet.getUnitOfWork.begin
+        try {
+          val model = Box.legacyNullTest(modelSet.getModel(memoryURI, false)).openOrThrowException("DOM model not initialized")
+          val blockUri = memoryURI.appendLocalPart(blockName).appendSegment("")
+          val em = model.getManager
+          em.add(new Statement(memoryURI, OMM.appendLocalPart("element"), blockUri))
+          em.add(new Statement(memoryURI.appendLocalPart("toc").appendSegment(""), LDP.PROPERTY_CONTAINS, blockUri))
+          val blockModel = modelSet.createModel(blockUri)
+          blockModel.setLoaded(true)
+          val manager = blockModel.getManager
+          manager.add(new Statement(blockUri, RDF.PROPERTY_TYPE, LDP.TYPE_RDFSOURCE))
+          manager.add(new Statement(blockUri, RDF.PROPERTY_TYPE, OMM.appendLocalPart("element")))
+          manager.add(new Statement(blockUri, PROP_PROV_GENATTIME, new Literal(Instant.now.toString, XMLSCHEMA.TYPE_DATETIME)))
+          manager.add(new Statement(blockUri, RDFS.PROPERTY_LABEL, "Memory Block"))
+          Full(new UpdateResponse(blockUri.toString()))
+        } catch {
+          case t: Throwable => Failure(t.getMessage)
+        } finally {
+          modelSet.getUnitOfWork.end
+        }
+      })
+
+  }
   /**
    * Comparator for IStatements that orders according to S, P, O.
    */
@@ -233,13 +529,13 @@ class LDPHelper extends RestHelper {
       }
     }
 
-    /**
-     * Generates the Link header from the list of types.
-     */
-    protected def linkHeader(types: Iterable[IReference]) = types match {
-      case Nil => Nil
-      case _ => ("Link", types.map(t => s"""<${t}>;rel=type""").mkString(", ")) :: Nil
-    }
+  }
+  /**
+   * Generates the Link header from the list of types.
+   */
+  protected def linkHeader(types: Iterable[IReference]) = types match {
+    case Nil => Nil
+    case _ => ("Link", types.map(t => s"""<${t}>;rel=type""").mkString(", ")) :: Nil
   }
 
   protected def generateETag(stream: OutputStream): String = {
@@ -250,6 +546,7 @@ class LDPHelper extends RestHelper {
   protected def generateResponse[T](s: TurtleJsonLdSelect, t: T, r: Req): LiftResponse = {
     t match {
       case c: Convertible => {
+
         // refactor Convertable's methods
         val output = s match {
           case TurtleSelect => c.toTurtle
@@ -264,14 +561,21 @@ class LDPHelper extends RestHelper {
             }
         }
         val (status: Int, size: Int, text: String, headers: List[(String, String)]) = output match {
-          case Full((length, stream, contentType, types)) => (200, length, stream.toString, ("Content-Type", contentType) :: ("ETag", generateETag(stream)) :: types)
+
+          case Full((length, stream, contentTypeOrLocation, types)) => {
+            r.requestType.post_? match {
+              case true => (201, length, stream.toString, ("Location", contentTypeOrLocation) :: types)
+              case false => (200, length, stream.toString, ("Content-Type", contentTypeOrLocation) :: ("Accept-Post", "*/*") :: ("ETag", generateETag(stream)) :: types)
+            }
+          }
           case Failure(msg, _, _) => (500, msg.length, msg, Nil)
+
           case Empty => (404, 0, "", Nil)
         }
 
         r.requestType.head_? match {
-          case true => new HeadResponse(size, ("Allow", "OPTIONS, HEAD, GET") :: headers, Nil, status)
-          case false => PlainTextResponse(text, ("Allow", "OPTIONS, HEAD, GET") :: headers, status)
+          case true => new HeadResponse(size, ("Allow", "OPTIONS, HEAD, GET, POST, PUT, DELETE") :: headers, Nil, status)
+          case false => PlainTextResponse(text, ("Allow", "OPTIONS, HEAD, GET, POST, PUT, DELETE") :: headers, status)
         }
       }
       // ATTN: these next two cases don't actually end up here, lift handles them on its own
