@@ -13,7 +13,7 @@
 		<project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
 		<enilink.version>1.3.2-SNAPSHOT</enilink.version>
 		<scala.version>2.11.12</scala.version>
-		<scala.plugin.version>4.4.0</scala.plugin.version>
+		<scala.plugin.version>3.4.2</scala.plugin.version>
 	</properties>
 
 	<dependencies>

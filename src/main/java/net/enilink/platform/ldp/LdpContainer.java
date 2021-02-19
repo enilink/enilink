@@ -26,4 +26,5 @@ public interface LdpContainer extends LdpRdfSource {
 	 */
 	@Iri("http://www.w3.org/ns/ldp#contains")
 	Set<LdpResource> contains();
+	void contains(Set<LdpResource> resources);
 }
