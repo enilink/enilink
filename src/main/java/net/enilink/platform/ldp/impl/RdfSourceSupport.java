@@ -11,8 +11,10 @@ import net.enilink.komma.em.util.ISparqlConstants;
 import net.enilink.platform.ldp.LDP;
 import net.enilink.platform.ldp.LdpRdfSource;
 import net.enilink.platform.ldp.PreferenceHelper;
+import net.enilink.platform.ldp.confog.RdfResourceHandler;
 
 public abstract class RdfSourceSupport implements LdpRdfSource, Behaviour<LdpRdfSource> {
+	private RdfResourceHandler handler;
 
 	@Override
 	public IReference getRelType() {
@@ -86,4 +88,10 @@ public abstract class RdfSourceSupport implements LdpRdfSource, Behaviour<LdpRdf
 		query.setParameter("this", getBehaviourDelegate());
 		return query.evaluate(IStatement.class).toSet();
 	}
+	
+	@Override
+	public RdfResourceHandler getHandler() {return handler;}
+	
+	@Override
+	public void setHandler(RdfResourceHandler handler) { this.handler = handler;}
 }

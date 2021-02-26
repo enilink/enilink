@@ -54,6 +54,7 @@ import net.enilink.komma.parser.sparql.tree.BNode
 import org.eclipse.rdf4j.model.IRI
 import net.enilink.komma.em.concepts.IResource
 import org.eclipse.rdf4j.model.impl.SimpleNamespace
+import net.enilink.platform.confog._
 
 /**
  * Linked Data Platform (LDP) endpoint support.
@@ -78,16 +79,16 @@ class LDPHelper extends RestHelper {
   val valueConverter = new RDF4JValueConverter(SimpleValueFactory.getInstance)
   // turtle/json-ld distinction is made by tjSel and using the Convertible in cvt below
   // FIXME: support LDP without extra prefix, on requests for plain resource URIs with no other match
-  def register(path: String, uri: URI) = {
+  def register(path: String, uri: URI, handler:RdfResourceHandler) = {
     serveTj {
     // use backticks to match on path's value
     
     case Options(`path` :: refs, req) => getOptions(refs, req)
-    case Head(`path` :: refs, req) => getContainerContent(refs, req, uri)
-    case Get(`path` :: refs, req) => println(refs); getContainerContent(refs, req, uri)
-    case Post(`path` :: refs, req) => { println(refs);reqNr = reqNr + 1; createContainerContent(refs, req, uri, reqNr) }
-    case Put(`path` :: refs, req) => updateContainerContent(refs, req, uri)
-    case Delete(`path` :: refs, req) => deleteContainerContent(refs, req, uri)
+    case Head(`path` :: refs, req) => getContent(refs, req, uri)
+    case Get(`path` :: refs, req) => println(refs); getContent(refs, req, uri)
+    case Post(`path` :: refs, req) => { println(refs);reqNr = reqNr + 1; createContent(refs, req, uri, reqNr) }
+    case Put(`path` :: refs, req) => updateContent(refs, req, uri)
+    case Delete(`path` :: refs, req) => deleteContent(refs, req, uri)
 
     }
   }
@@ -126,7 +127,7 @@ class LDPHelper extends RestHelper {
     override def toJsonLd() =Failure(msg, Empty, Empty)
   }
   
-  protected def getContainerContent(refs: List[String], req: Req, uri: URI): Box[Convertible] = {
+  protected def getContent(refs: List[String], req: Req, uri: URI): Box[Convertible] = {
     val requestUri = URIs.createURI(req.request.url)
     val preferences:(Int,String) = req.header(PREFER) match{
               case Empty => (PreferenceHelper.defaultPreferences,"")
@@ -232,11 +233,11 @@ println("preferences: "+preferences)
       case _ => Empty
     }
   }
-  protected def updateContainerContent(refs: List[String], req: Req, uri: URI) = Box[Convertible] {
+  protected def updateContent(refs: List[String], req: Req, uri: URI) = Box[Convertible] {
     def headerMatch(requestUri:URI): Box[Boolean] ={
       if (req.header("If-Match").isEmpty) Empty
       else{
-        val containerContent = getContainerContent(refs, req, requestUri)
+        val containerContent = getContent(refs, req, requestUri)
         println("container content: " + containerContent)
           containerContent match {
            case Full(content) => 
@@ -418,7 +419,7 @@ println("preferences: "+preferences)
     }
 
   }
-  protected def deleteContainerContent(refs: List[String], req: Req, uri: URI) = Box[Convertible] {
+  protected def deleteContent(refs: List[String], req: Req, uri: URI) = Box[Convertible] {
     val response: Box[Convertible] = refs match {
       case Nil => Empty
       case "index" :: Nil => 
@@ -473,7 +474,7 @@ println("preferences: "+preferences)
     }
   }
 
-  protected def createContainerContent(refs: List[String], req: Req, uri: URI, reqNr: Int) = Box[Convertible] {
+  protected def createContent(refs: List[String], req: Req, uri: URI, reqNr: Int) = Box[Convertible] {
     def createResource(modelSet:IModelSet, containerUri: URI, isRoot:Boolean) = {
       val resourceUri =  containerUri.appendLocalPart(resourceName).appendSegment("")
       ReqBodyHelper.getBodyEntity(req,  resourceUri.toString()) match{

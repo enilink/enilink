@@ -5,6 +5,7 @@ import java.util.Set;
 import net.enilink.composition.annotations.Iri;
 import net.enilink.komma.core.IReference;
 import net.enilink.komma.core.IStatement;
+import net.enilink.platform.ldp.confog.RdfResourceHandler;
 
 /**
  * LDP RDF Source (LDP-RS)
@@ -31,4 +32,10 @@ public interface LdpRdfSource extends LdpResource {
 	 * Return the list of statements for this RDFSource, with applied preferences.
 	 */
 	Set<IStatement> getTriples(int preferences);
+	
+	RdfResourceHandler getHandler();
+	
+	void setHandler(RdfResourceHandler handler);
+	
+	
 }
