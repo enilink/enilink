@@ -1,10 +1,10 @@
-package net.enilink.platform.confog;
+package net.enilink.platform.ldp.config;
 
 
 public class ContainerHandler extends RdfResourceHandler {
+	// default configurations
 	private boolean creatable =true;
-
-	private RdfResourceHandler containsHandler;
+	private RdfResourceHandler containsHandler = new RdfResourceHandler();
 	
 	public boolean isCreatable() {
 		return creatable;
@@ -21,6 +21,6 @@ public class ContainerHandler extends RdfResourceHandler {
 		return this;
 	}
 	
-	private RdfResourceHandler getContainsHandler() { return this.containsHandler;}
+	public RdfResourceHandler getContainsHandler() { return this.containsHandler;}
 
 }

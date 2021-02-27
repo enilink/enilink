@@ -1,5 +1,6 @@
-package net.enilink.platform.ldp.confog;
+package net.enilink.platform.ldp.config;
 
+import java.util.ArrayList;
 import java.util.List;
 
 import net.enilink.komma.core.URI;
@@ -7,8 +8,9 @@ import net.enilink.komma.core.URI;
 public class RdfResourceHandler {
 	private boolean deleteble = true;
 	private boolean modifyable = true;
-	private List<URI> types;
+	private List<URI> types = new ArrayList<>();
     private  DirectContainerHandler membershipRelSrcFor;
+    private URI assignedTo;
     
     public RdfResourceHandler withDeleteable(boolean isDeletable) {
     	this.deleteble=isDeletable;
@@ -34,4 +36,12 @@ public class RdfResourceHandler {
     }
     public List<URI> getTypes(){ return this.types; }
     public DirectContainerHandler getDirectContainerHandler() { return this.membershipRelSrcFor;}
+    
+    public URI getAssignedTo() {
+		return assignedTo;
+	}
+	public RdfResourceHandler withAssignedTo(URI assignedTo) {
+		this.assignedTo = assignedTo;
+		return this;
+	}
 }

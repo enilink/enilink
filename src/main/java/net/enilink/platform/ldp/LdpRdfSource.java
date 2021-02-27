@@ -5,7 +5,7 @@ import java.util.Set;
 import net.enilink.composition.annotations.Iri;
 import net.enilink.komma.core.IReference;
 import net.enilink.komma.core.IStatement;
-import net.enilink.platform.ldp.confog.RdfResourceHandler;
+import net.enilink.platform.ldp.config.RdfResourceHandler;
 
 /**
  * LDP RDF Source (LDP-RS)

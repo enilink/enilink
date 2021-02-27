@@ -54,7 +54,12 @@ import net.enilink.komma.parser.sparql.tree.BNode
 import org.eclipse.rdf4j.model.IRI
 import net.enilink.komma.em.concepts.IResource
 import org.eclipse.rdf4j.model.impl.SimpleNamespace
-import net.enilink.platform.confog._
+import net.enilink.platform.ldp.config._
+import net.liftweb.http.provider.HTTPRequest
+import org.apache.http.HttpRequest
+import scala.collection.JavaConverters._
+import net.enilink.komma.core.IEntityManager
+
 
 /**
  * Linked Data Platform (LDP) endpoint support.
@@ -74,20 +79,22 @@ class LDPHelper extends RestHelper {
   val constrainedLink ="""<https://www.w3.org/TR/ldp/>;rel="http://www.w3.org/ns/ldp#constrainedBy" """
   val MIME_TURTLE = ("text", "turtle")
   val MIME_JSONLD = ("application", "ld+json")
+  //modification time threshold in ms. the resource considered remain the same if two modifications take place within this time window 
+  // FIXME add this parameter to configurations
+  val TIME_SLOT = 60000
   var reqNr = 0
  
   val valueConverter = new RDF4JValueConverter(SimpleValueFactory.getInstance)
   // turtle/json-ld distinction is made by tjSel and using the Convertible in cvt below
   // FIXME: support LDP without extra prefix, on requests for plain resource URIs with no other match
-  def register(path: String, uri: URI, handler:RdfResourceHandler) = {
+  def register(path: String, uri: URI, config:BasicContainerHandler) = {
     serveTj {
     // use backticks to match on path's value
-    
     case Options(`path` :: refs, req) => getOptions(refs, req)
     case Head(`path` :: refs, req) => getContent(refs, req, uri)
-    case Get(`path` :: refs, req) => println(refs); getContent(refs, req, uri)
-    case Post(`path` :: refs, req) => { println(refs);reqNr = reqNr + 1; createContent(refs, req, uri, reqNr) }
-    case Put(`path` :: refs, req) => updateContent(refs, req, uri)
+    case Get(`path` :: refs, req) =>  getContent(refs, req, uri)
+    case Post(`path` :: refs, req) => reqNr = reqNr + 1; createContent(refs, req, uri, reqNr, config) 
+    case Put(`path` :: refs, req) => updateContent(refs, req, uri, config)
     case Delete(`path` :: refs, req) => deleteContent(refs, req, uri)
 
     }
@@ -134,7 +141,6 @@ class LDPHelper extends RestHelper {
               case Full(s) => 
                 s.split(";").map(_.trim).toList match{
                   case rep::action::Nil =>
-                    //content.applyPreference(rep)
                     val uriToPrefs = Map(LDP.PREFERENCE_MINIMALCONTAINER.toString() -> PreferenceHelper.MINIMAL_CONTAINER, 
                             LDP.PREFERENCE_CONTAINMENT.toString() ->PreferenceHelper.INCLUDE_CONTAINMENT,
                             LDP.PREFERENCE_MEMBERSHIP.toString() ->PreferenceHelper.INCLUDE_MEMBERSHIP)
@@ -144,9 +150,6 @@ class LDPHelper extends RestHelper {
                       case "include"::prefs::Nil =>
                         var  acc =0
                         prefs.split(" ").map(_.trim).map{p => 
-                          println("p: "+p)
-                          println("p stripped: "+ p.replace("\"",""))
-                          println(" mapped to: "+  uriToPrefs(p.replace("\"","")))
                           acc = acc | uriToPrefs(p.replace("\"",""))
                           }
                         if (acc > 0) (acc, rep)
@@ -161,8 +164,7 @@ class LDPHelper extends RestHelper {
                 }
               case _ => (PreferenceHelper.defaultPreferences(),"")
             }
-            
-println("preferences: "+preferences)
+
     val content: Box[ContainerContent] = refs match {
       case Nil =>  Empty
       // FIXME: /DOM/ will return a container with all registered memories
@@ -189,10 +191,6 @@ println("preferences: "+preferences)
         try {
          val resourceUri = URIs.createURI(req.request.url.replace(req.hostAndPath + "/", uri.trimSegments(2).toString))
           // FIXME: assumption: resource is contained in model using the memory as URI
-         println( "path head options: "+ path.headOption)
-         println("uri :" +uri)
-         println("resourceUri: "+resourceUri)
-         println("request url*: "+ req.request.url) 
          path.headOption.flatMap { id =>
             findModel(uri.appendLocalPart(id).appendSegment("")).flatMap { m =>
               println("trying model=" + m + " for resource=" + resourceUri)
@@ -233,29 +231,32 @@ println("preferences: "+preferences)
       case _ => Empty
     }
   }
-  protected def updateContent(refs: List[String], req: Req, uri: URI) = Box[Convertible] {
+  protected def updateContent(refs: List[String], req: Req, uri: URI, config: BasicContainerHandler):Box[Convertible]= {
+  
     def headerMatch(requestUri:URI): Box[Boolean] ={
-      if (req.header("If-Match").isEmpty) Empty
+      val ifMatch = req.header("If-Match")
+      if (ifMatch.isEmpty) Empty
       else{
-        val containerContent = getContent(refs, req, requestUri)
-        println("container content: " + containerContent)
-          containerContent match {
-           case Full(content) => 
-             val c = content.asInstanceOf[ContainerContent]
-             println("generated Etag: "+c.generate("text" -> "turtle"))
-              c.generate("text" -> "turtle") match {
-               case Full((size, stream, mime, headers)) => 
-                 val cEtag = req.header("If-Match").get
-                 val sEtag = generateETag(stream)
-                 println("cEtag: "+cEtag)
-                 println("cEtag: "+sEtag)
-                  if(sEtag == cEtag) Full(true)
+        val sEtag =generateETag
+        val cEtag = ifMatch.get
+        if (cEtag == sEtag ) Full(true)
+        else if (cEtag.length != sEtag.length) Full(false)
+           else{
+              val res =findModel(requestUri) match{
+              case Full(m) =>m.getManager.findRestricted(requestUri, classOf[LdpRdfSource])
+              //FIXME create new Resource (LDP Server may allow the creation of new resources using HTTP PUT   
+              }
+              val containerContent = new ContainerContent(Nil, requestUri.toString())
+              containerContent ++= res.getTriples(PreferenceHelper.defaultPreferences())
+              containerContent.addRelType(res.getRelType)
+              containerContent.generate(MIME_TURTLE) match{
+              case Full((size, _, _, _)) => 
+                  if(!res.hasModified(size.toString) ) Full(true)
                   else Full(false)
-               case _ => Full(false)
-             }
-            //FIXME create new Resource (LDP Server may allow the creation of new resources using HTTP PUT
-           case _ => Full(false)  
-        }
+              case _ => Full(false) 
+       
+              }
+          }
       }
     }
     val response: Box[Convertible] = refs match {
@@ -272,25 +273,41 @@ println("preferences: "+preferences)
            case Full(true) =>
             findModel(uri).flatMap(m => {
               val manager = m.getManager
-              if( manager.hasMatch(uri, RDF.PROPERTY_TYPE, LDP.TYPE_BASICCONTAINER)) {
-                ReqBodyHelper.getBodyEntity(req, uri.toString()) match{
+              if( manager.hasMatch(uri, RDF.PROPERTY_TYPE, LDP.TYPE_BASICCONTAINER)) { 
+                if(!config.isModifyable())
+                   Full(new FailedResponse(427, "container configured not modifya+ble", ("Link", tail)::Nil))
+                else 
+                  getBodyEntity(req, uri.toString()) match{
                    case Left(rdfBody) =>
-                     if (ReqBodyHelper.isBasicContainer(rdfBody, uri)) {
+                     val body = new ReqBodyHelper(rdfBody,uri)
+                     //TODO ReqBodyHeloer -> class(rdfBody) + matchConfig method 
+                     if (body.isBasicContainer) {
                      //replace
                        manager.removeRecursive(uri, true)
+                       //add statements resulting from the configuration
+                       body.matchConfig(config).map(stmt => manager.add(stmt))
+                       
                        rdfBody.map(stmt => {
                          val subj = valueConverter.fromRdf4j(stmt.getSubject())
                          val pred = valueConverter.fromRdf4j(stmt.getPredicate())
                          val obj =  valueConverter.fromRdf4j(stmt.getObject())
-                         if(subj ==uri && !ReqBodyHelper.isServerProperty(pred))
+                         if(subj ==uri && !body.isServerProperty(pred))
                            manager.add( new Statement(subj, pred, obj))  
                         })
                         manager.add(new Statement(uri, DCTERMS_PROPERTY_MODIFIED, 
                                                         new Literal(Instant.now.toString, XMLSCHEMA.TYPE_DATETIME)))
-                  
-                        Full(new UpdateResponse(uri.toString(),  LDP.TYPE_BASICCONTAINER))
+                        // update last ETag for this resource
+                        val res = manager.findRestricted(uri, classOf[LdpBasicContainer])
+                        val content = new ContainerContent(Nil, res.toString)
+                       content ++= res.getTriples(PreferenceHelper.defaultPreferences())
+                       content.addRelType(res.getRelType)
+                       content.generate(MIME_TURTLE) match{
+                         case Full((size, _, _, _)) => res.setLastEtag(size.toString)
+                       }
+                        
+                       Full(new UpdateResponse(uri.toString(),  LDP.TYPE_BASICCONTAINER))
                        } else {
-                         Full(new FailedResponse(409, "Basic Container should be replaced with basic container",   ("Link", tail)::Nil))
+                         Full(new FailedResponse(412, "Basic Container should be replaced with basic container",   ("Link", tail)::Nil))
                        }
                      case Right(bin) => 
                        Full(new FailedResponse(412, "Basic Container can not be replaced with binary object", ("Link", tail)::Nil))
@@ -309,31 +326,38 @@ println("preferences: "+preferences)
         val typelinks = linkHeader(LDP.TYPE_RESOURCE::LDP.TYPE_BASICCONTAINER::Nil)
         val tail = typelinks.head._2 + " ," + constrainedLink
         val resourceUri = URIs.createURI(req.request.url.replace(req.hostAndPath + "/", uri.trimSegments(2).toString))
-        println(resourceUri)
         headerMatch(resourceUri) match{
           case Full(true) =>
            findModel(resourceUri).flatMap( m => {
             val manager = m.getManager
             if( manager.hasMatch(resourceUri, RDF.PROPERTY_TYPE, LDP.TYPE_BASICCONTAINER)){
               
-              ReqBodyHelper.getBodyEntity(req, resourceUri.toString()) match{
+              getBodyEntity(req, resourceUri.toString()) match{
                    case Left(rdfBody) =>
-                     if (ReqBodyHelper.isBasicContainer(rdfBody, resourceUri)) {
+                     val body = new ReqBodyHelper(rdfBody,resourceUri)
+                     val res = manager.findRestricted(resourceUri, classOf[LdpBasicContainer])
+                     if (body.isBasicContainer) {
                      //replace
                        manager.removeRecursive(resourceUri, true)
+                       body.matchConfig(res.getHandler).map(stmt =>manager.add(stmt))
                        rdfBody.map(stmt => {
                          val subj = valueConverter.fromRdf4j(stmt.getSubject())
                          val pred = valueConverter.fromRdf4j(stmt.getPredicate())
                          val obj =  valueConverter.fromRdf4j(stmt.getObject())
-                         if(subj ==resourceUri && !ReqBodyHelper.isServerProperty(pred))
+                         if(subj ==resourceUri && !body.isServerProperty(pred))
                            manager.add( new Statement(subj, pred, obj))  
                         })
                         manager.add(new Statement(resourceUri, DCTERMS_PROPERTY_MODIFIED, 
                                                         new Literal(Instant.now.toString, XMLSCHEMA.TYPE_DATETIME)))
-                  
-                        Full(new UpdateResponse(resourceUri.toString(),  LDP.TYPE_BASICCONTAINER))
+                        val content = new ContainerContent(Nil, res.toString)
+                       content ++= res.getTriples(PreferenceHelper.defaultPreferences())
+                       content.addRelType(res.getRelType)
+                       content.generate(MIME_TURTLE) match{
+                         case Full((size, _, _, _)) => res.setLastEtag(size.toString)
+                       }
+                       Full(new UpdateResponse(resourceUri.toString(),  LDP.TYPE_BASICCONTAINER))
                        } else {
-                         Full(new FailedResponse(409, "Basic Container should be replaced with basic container", ("Link", tail)::Nil))
+                         Full(new FailedResponse(412, "Basic Container should be replaced with basic container", ("Link", tail)::Nil))
                        }
                      case Right(bin) => 
                        Full(new FailedResponse(412, "Changing container type not allowed. Basic Container can not be replaced with binary object", ("Link", tail)::Nil))
@@ -341,9 +365,13 @@ println("preferences: "+preferences)
                  }
             } else if( manager.hasMatch(resourceUri, RDF.PROPERTY_TYPE, LDP.TYPE_DIRECTCONTAINER)){
               val typelinks = linkHeader(LDP.TYPE_RESOURCE::LDP.TYPE_DIRECTCONTAINER::Nil)
-              ReqBodyHelper.getBodyEntity(req, resourceUri.toString()) match{
+              getBodyEntity(req, resourceUri.toString()) match{
                    case Left(rdfBody) =>
-                     if (ReqBodyHelper.isDirectContainer(rdfBody, resourceUri)) {
+                     val body = new ReqBodyHelper(rdfBody, resourceUri)
+                     val res = manager.findRestricted(resourceUri, classOf[LdpDirectContainer])
+                     if (body.isDirectContainer) {
+                       // if this direct container is also a relationship source for another direct container
+                       body.matchConfig(res.getHandler).map(stmt => manager.add(stmt))
                        //repair membership relations
                        val c = manager.findRestricted(resourceUri, classOf[LdpDirectContainer])
                        findModel(c.membershipResource.getURI) match{
@@ -362,7 +390,7 @@ println("preferences: "+preferences)
                          val subj = valueConverter.fromRdf4j(stmt.getSubject())
                          val pred = valueConverter.fromRdf4j(stmt.getPredicate())
                          val obj =  valueConverter.fromRdf4j(stmt.getObject())
-                         if(subj ==resourceUri && !ReqBodyHelper.isServerProperty(pred))
+                         if(subj ==resourceUri && !body.isServerProperty(pred))
                            manager.add( new Statement(subj, pred, obj)) 
                          if (pred == LDP.PROPERTY_CONTAINS && subj ==  resourceUri) obj::contains
                          if( pred == LDP.PROPERTY_HASMEMBERRELATION && subj == resourceUri) hasRel = obj.asInstanceOf[IReference].getURI
@@ -373,6 +401,12 @@ println("preferences: "+preferences)
                        findModel(relSrc) match{
                            case Full(relM) => contains.map(elem => relM.getManager.add(new Statement(relSrc,hasRel,elem)))
                          }
+                       val content = new ContainerContent(Nil, res.toString)
+                       content ++= res.getTriples(PreferenceHelper.defaultPreferences())
+                       content.addRelType(res.getRelType)
+                       content.generate(MIME_TURTLE) match{
+                         case Full((size, _, _, _)) => res.setLastEtag(size.toString)
+                       }
                        Full(new UpdateResponse(resourceUri.toString(),  LDP.TYPE_DIRECTCONTAINER))
                      } else 
                          Full(new FailedResponse(409, "Changing container type not allowed. Direct Container should be replaced with Direct container",("Link", tail)::Nil))
@@ -381,25 +415,34 @@ println("preferences: "+preferences)
               }
             } else if( manager.hasMatch(resourceUri, RDF.PROPERTY_TYPE, LDP.TYPE_RDFSOURCE)) {
               val typelinks = linkHeader(LDP.TYPE_RDFSOURCE::Nil)
-              ReqBodyHelper.getBodyEntity(req, resourceUri.toString()) match{
+              getBodyEntity(req, resourceUri.toString()) match{
                    case Left(rdfBody) =>
+                     val body = new ReqBodyHelper(rdfBody,resourceUri)
+                     val res = manager.findRestricted(resourceUri, classOf[LdpRdfSource])
+                       manager.add(new Statement(resourceUri,RDF.PROPERTY_TYPE, LDP.TYPE_RDFSOURCE))
+                       body.matchConfig(res.getHandler).map(stmt => manager.add(stmt))
                        manager.removeRecursive(resourceUri, true)
                        rdfBody.map(stmt => {
                          val subj = valueConverter.fromRdf4j(stmt.getSubject())
                          val pred = valueConverter.fromRdf4j(stmt.getPredicate())
                          val obj =  valueConverter.fromRdf4j(stmt.getObject())
-                         if(subj ==resourceUri && !ReqBodyHelper.isServerProperty(pred))
+                         if(subj ==resourceUri && !body.isServerProperty(pred))
                            manager.add( new Statement(subj, pred, obj))  
                         })
                         manager.add(new Statement(resourceUri, DCTERMS_PROPERTY_MODIFIED, 
                                                         new Literal(Instant.now.toString, XMLSCHEMA.TYPE_DATETIME)))
-                  
-                        Full(new UpdateResponse(resourceUri.toString(),  LDP.TYPE_RDFSOURCE))
-                     
-                   case Right => Full(new FailedResponse(412, "conflict ..", ("Link", tail)::Nil))  
+                      val content = new ContainerContent(Nil, res.toString)
+                       content ++= res.getTriples(PreferenceHelper.defaultPreferences())
+                       content.addRelType(res.getRelType)
+                       content.generate(MIME_TURTLE) match{
+                         case Full((size, _, _, _)) => res.setLastEtag(size.toString)
+                       }
+                       Full(new UpdateResponse(resourceUri.toString(),  LDP.TYPE_RDFSOURCE))
+                    
+                   case Right => Full(new FailedResponse(412, "conflict ..", ("Link", tail)::Nil)) 
               }
-             // Full(new FailedResponse(428, "RDF Resource should be replaced with resource from same type",  ("Link", tail)::Nil))  
-            }else if( manager.hasMatch(resourceUri, RDF.PROPERTY_TYPE, LDP.TYPE_RESOURCE)){
+             
+            } else if( manager.hasMatch(resourceUri, RDF.PROPERTY_TYPE, LDP.TYPE_RESOURCE)){
                Full(new FailedResponse(412, "not supported yet ..",  ("Link", tail)::Nil)) 
             }else  Full(new FailedResponse(412, "not recognized Resource",  ("Link", tail)::Nil))
             })
@@ -407,9 +450,7 @@ println("preferences: "+preferences)
             case Empty => Full(new FailedResponse(428, "", ("Link", tail)::Nil))  
            }  
         } 
-                     
-       
-    println("put respobse: "+response)
+         
     response match {
       case c @ Full(content) => c
       case f @ Failure(msg, _, _)  => f ~> 500 
@@ -419,7 +460,7 @@ println("preferences: "+preferences)
     }
 
   }
-  protected def deleteContent(refs: List[String], req: Req, uri: URI) = Box[Convertible] {
+  protected def deleteContent(refs: List[String], req: Req, uri: URI): Box[Convertible]= {
     val response: Box[Convertible] = refs match {
       case Nil => Empty
       case "index" :: Nil => 
@@ -435,13 +476,16 @@ println("preferences: "+preferences)
             // DELETE on root container is not allowed, but cause to empty it
            // FIXME DE+LETE specification: the sequence DELETE-GET does'nt produce NOT-FOUND response status code
           //Nevertheless DELETE remains idempotent in such implementation
-             c.contains(new java.util.HashSet)
+             if(c.getHandler.isDeleteable()){
+               c.contains(new java.util.HashSet)
 //           val stmts= m.getManager.`match`(uri, LDP.PROPERTY_CONTAINS, null)
 //           stmts.forEach(stmt => m.getManager.removeRecursive(stmt.getObject, true))
            
-            Full(new UpdateResponse("",LDP.TYPE_BASICCONTAINER))
+              Full(new UpdateResponse("",LDP.TYPE_BASICCONTAINER))
+             }else 
+               Full(new FailedResponse(422, "container configured not deleteable", ("Link",constrainedLink)::Nil)) 
           } else {
-             // not supported
+             // not supported yet
             Full(new FailedResponse(422, "root container schoud be of type Basic, but found another type", ("Link",constrainedLink)::Nil)) 
           }
           
@@ -455,12 +499,17 @@ println("preferences: "+preferences)
               Some(requestedUri.trimSegments(1).appendSegment(""))
             else None
           findModel(requestedUri).flatMap ( m => {
-               m.getManager.removeRecursive(requestedUri, true)
-               if(m.getURI == requestedUri) ModelsRest.deleteModel(null, requestedUri)
-               if(!parentUri.isEmpty) 
-                 findModel(parentUri.get).foreach(m => m.getManager.removeRecursive(requestedUri, true))
+               val manager = m.getManager
+               val res = manager.findRestricted(requestedUri, classOf[LdpRdfSource])
+               if(res.getHandler.isDeleteable()){
+                 manager.removeRecursive(requestedUri, true)
+                 if(res.getURI == requestedUri) ModelsRest.deleteModel(null, requestedUri)
+                 if(!parentUri.isEmpty) 
+                   findModel(parentUri.get).foreach(m => m.getManager.removeRecursive(requestedUri, true))
                
-                Full(new UpdateResponse("",LDP.TYPE_RESOURCE))
+                  Full(new UpdateResponse("",LDP.TYPE_RESOURCE))
+               } else
+                  Full(new FailedResponse(422, "container configured not deleteable", ("Link",constrainedLink)::Nil)) 
                })
       } catch {
         case e: Exception => Failure(e.getMessage, Some(e), Empty)
@@ -474,41 +523,62 @@ println("preferences: "+preferences)
     }
   }
 
-  protected def createContent(refs: List[String], req: Req, uri: URI, reqNr: Int) = Box[Convertible] {
-    def createResource(modelSet:IModelSet, containerUri: URI, isRoot:Boolean) = {
+  protected def createContent(refs: List[String], req: Req, uri: URI, reqNr: Int, config:BasicContainerHandler): Box[Convertible]= {
+    def createResource(modelSet:IModelSet, containerUri: URI, isRoot:Boolean, conf: RdfResourceHandler) = {
       val resourceUri =  containerUri.appendLocalPart(resourceName).appendSegment("")
-      ReqBodyHelper.getBodyEntity(req,  resourceUri.toString()) match{
+      getBodyEntity(req,  resourceUri.toString()) match{
            case Left(rdfBody) =>
-             println(s"model in req: ${rdfBody}")
+             val body = new ReqBodyHelper(rdfBody,resourceUri)
               val typ =isRoot match {
                   case true => LDP.TYPE_BASICCONTAINER
                   case false => resourceType
                   }
-              println(s"Resource to be created is from type ${typ}")
               val valid = typ match {
-                  case LDP.TYPE_BASICCONTAINER =>  ReqBodyHelper.isBasicContainer(rdfBody, resourceUri)
-                  case LDP.TYPE_DIRECTCONTAINER  => ReqBodyHelper.isDirectContainer(rdfBody, resourceUri)
+                  case LDP.TYPE_BASICCONTAINER =>  body.isBasicContainer
+                  case LDP.TYPE_DIRECTCONTAINER  => body.isDirectContainer
                   case LDP.TYPE_RDFSOURCE => true
                 //TODO add support to indirect containers
                   case _ => false
                  }
               if(valid){
-                   println("content ist valid")
                  modelSet.getUnitOfWork.begin
                  try{
                      val resourceModel = modelSet.createModel(resourceUri)
                      resourceModel.setLoaded(true)
                      val resourceManager = resourceModel.getManager
+                     //add server-managed properties
+                      resourceManager.add(List(
+                          new Statement(resourceUri,  RDF.PROPERTY_TYPE, LDP.TYPE_RDFSOURCE),
+                          new Statement(resourceUri, DCTERMS_PROPERTY_CREATED, new Literal(Instant.now.toString, XMLSCHEMA.TYPE_DATETIME))
+                        ))
                      rdfBody.map(stmt =>{
                        val subj = valueConverter.fromRdf4j(stmt.getSubject())
                        val pred = valueConverter.fromRdf4j(stmt.getPredicate())
                        val obj =  valueConverter.fromRdf4j(stmt.getObject())
-                       if(!(subj==resourceUri && ReqBodyHelper.isServerProperty(pred)))
+                       //ignore server-managed properz
+                       if(!(subj==resourceUri && body.isServerProperty(pred)))
                          resourceManager.add( new Statement(subj, pred, obj))  
                       })
-                      resourceManager.add(List(
-                          new Statement(resourceUri, DCTERMS_PROPERTY_CREATED, new Literal(Instant.now.toString, XMLSCHEMA.TYPE_DATETIME)),
-                          new Statement(resourceUri,  RDF.PROPERTY_TYPE, LDP.TYPE_RDFSOURCE)))
+                      // handle configuration
+                      val it = conf.getTypes.iterator
+                      while(it.hasNext())  resourceManager.add(new Statement(resourceUri,RDF.PROPERTY_TYPE,it.next))
+                       val dh =  conf.getDirectContainerHandler
+                       if(null != dh){
+                         // if the new Resource to be created was configured to be Relationship Source for a direct container
+                         //this direct container will be also created.
+                         //it should be no previously created direct containers whose relationship source does not exist(assignable = null or ignored)
+                         // for this reason the two resources shall be created in the same model
+                         val dc = resourceUri.appendLocalPart(dh.getName).appendSegment("")
+                         resourceManager.add(List(new Statement(dc, RDF.PROPERTY_TYPE, LDP.TYPE_DIRECTCONTAINER),
+                               new Statement(dc, LDP.PROPERTY_HASMEMBERRELATION, dh.getMembership),
+                               new Statement(dc, LDP.PROPERTY_MEMBERSHIPRESOURCE, resourceUri)))
+                         val res=resourceManager.findRestricted(resourceUri, classOf[LdpRdfSource])
+                         res.setHandler(conf.withAssignedTo(resourceUri))
+                         val directC = resourceManager.findRestricted(dc, classOf[LdpDirectContainer])
+                         directC.setHandler(dh.withAssignedTo(dc))
+                         
+                       }
+                      
                       Full(resourceUri,typ)
                     } catch {
                        case t: Throwable => Failure(t.getMessage, Some(t), Empty)
@@ -525,7 +595,6 @@ println("preferences: "+preferences)
     def resourceName =  (req.header(SLUG).openOr(DEFAULT_NAME) + reqNr.toString()).
         toLowerCase().replaceAll("[^a-z0-9-]", "-")
     def requestedUri = URIs.createURI(req.request.url.replace(req.hostAndPath + "/", uri.trimSegments(2).toString))
-    println("requested uri : "+requestedUri)
     //FIXME
     def resourceType =req.header(LINK)  match {
       case Full(l) =>
@@ -533,30 +602,29 @@ println("preferences: "+preferences)
         URIs.createURI(t.substring(1, t.length -1), true)
       case _ => LDP.TYPE_RDFSOURCE
     }
-    
-        println("resource type: "+resourceType)
-       println("headers; "+req.request.headers(LINK))
-    
-    
     val response: Box[Convertible] = refs match {
       //root container can only be  basic
       case Nil => Empty
       case "index" :: Nil => {
        findModel(uri).flatMap(m => 
-            if (m.getManager.hasMatch(uri, RDF.PROPERTY_TYPE, LDP.TYPE_BASICCONTAINER)) {
-               println("create resource in root container..")
-               println("uri : "+uri)
-              createResource(m.getModelSet,uri,false) match {
+            if (config.isCreatable() && m.getManager.hasMatch(uri, RDF.PROPERTY_TYPE, LDP.TYPE_BASICCONTAINER)) {
+              createResource(m.getModelSet,uri,false, config.getContainsHandler) match {
                 case Full((resultUri, typ)) =>
-                  println("resultUri: "+resultUri)
-                  println("type: "+typ)
                    m.getManager.add(new Statement(uri, LDP.PROPERTY_CONTAINS, resultUri))
+                   val res = m.getManager.findRestricted(resultUri, classOf[LdpRdfSource])
+                   res.getHandler.withAssignedTo(resultUri)
+                   val content = new ContainerContent(Nil, res.toString)
+                   content ++= res.getTriples(PreferenceHelper.defaultPreferences())
+                   content.addRelType(res.getRelType)
+                   content.generate(MIME_TURTLE) match{
+                     case Full((size, _, _, _)) => res.setLastEtag(size.toString)
+                   }
                    Full(new UpdateResponse(resultUri.toString(),typ))
                 case Empty => 
                   Full(new FailedResponse(415,"not valid body entety or violation of constraints",("Link",constrainedLink)::Nil))
                 case f: Failure => f 
               }
-            } else Full(new FailedResponse(412,"root container should be of type basic",("Link",constrainedLink)::Nil))
+            } else Full(new FailedResponse(412,"root container should be of type basic and configured to be createable",("Link",constrainedLink)::Nil))
           )
           
       }
@@ -564,21 +632,30 @@ println("preferences: "+preferences)
       case path @ _ => {
         
         findModel(requestedUri).flatMap(m => {
-          println("model: "+m)
-          
-          if (m.getManager.hasMatch(requestedUri, RDF.PROPERTY_TYPE, LDP.TYPE_BASICCONTAINER)) 
-            createResource(m.getModelSet,requestedUri,false) match {
+          if (m.getManager.hasMatch(requestedUri, RDF.PROPERTY_TYPE, LDP.TYPE_BASICCONTAINER)){
+            val bc = m.getManager.findRestricted(requestedUri, classOf[LdpBasicContainer])
+            val conf = bc.getHandler.asInstanceOf[BasicContainerHandler]
+            createResource(m.getModelSet,requestedUri,false,conf.getContainsHandler) match {
               case Full((resultUri,typ)) => 
                  m.getManager.add(new Statement(requestedUri, LDP.PROPERTY_CONTAINS, resultUri))
+                 val res = m.getManager.findRestricted(resultUri, classOf[LdpRdfSource])
+                 res.getHandler.withAssignedTo(resultUri)
+                 val content = new ContainerContent(Nil, res.toString)
+                       content ++= res.getTriples(PreferenceHelper.defaultPreferences())
+                       content.addRelType(res.getRelType)
+                       content.generate(MIME_TURTLE) match{
+                         case Full((size, _,_, _)) => res.setLastEtag(size.toString)
+                       }
                  Full(new UpdateResponse(resultUri.toString(),typ))
               case Empty =>
                 Full(new FailedResponse(415,"not valid body entety or violation of constraints",("Link",constrainedLink)::Nil))
               case f: Failure => f
             }
-           
-          else if (m.getManager.hasMatch(requestedUri, RDF.PROPERTY_TYPE, LDP.TYPE_DIRECTCONTAINER)) {
-            println("creating resource in direct container, not root")
-            createResource(m.getModelSet,requestedUri,false) match {
+          
+          }else if (m.getManager.hasMatch(requestedUri, RDF.PROPERTY_TYPE, LDP.TYPE_DIRECTCONTAINER)) {
+            val dc = m.getManager.findRestricted(requestedUri, classOf[LdpDirectContainer])
+            val conf = dc.getHandler.asInstanceOf[DirectContainerHandler]
+            createResource(m.getModelSet,requestedUri,false,config.getContainsHandler) match {
               case Full((resultUri,typ)) => 
                  m.getManager.add(new Statement(requestedUri, LDP.PROPERTY_CONTAINS, resultUri))
                  val c = m.getManager.findRestricted(requestedUri, classOf[LdpDirectContainer] )
@@ -586,6 +663,14 @@ println("preferences: "+preferences)
                  val relationSourceModel = m.getModelSet.getModel(relationSourceUri, false)
                  relationSourceModel.getManager.add(new Statement(relationSourceUri, 
                                                      c.hasMemberRelation().getURI, resultUri))
+                 val res = m.getManager.findRestricted(resultUri, classOf[LdpRdfSource])
+                 res.getHandler.withAssignedTo(resultUri)
+                val content = new ContainerContent(Nil, res.toString)
+                       content ++= res.getTriples(PreferenceHelper.defaultPreferences())
+                       content.addRelType(res.getRelType)
+                       content.generate(MIME_TURTLE) match{
+                         case Full((size, _, _, _)) => res.setLastEtag(size.toString)
+                       }
                  Full(new UpdateResponse(resultUri.toString(),typ))
               case Empty => 
                 Full(new FailedResponse(415,"not valid body entety or violation of constraints",("Link",constrainedLink)::Nil)) //bad request
@@ -605,8 +690,8 @@ println("preferences: "+preferences)
       case _ => Empty
     }
   }
-  object ReqBodyHelper {
-    val systemProperties = List(DCTERMS_PROPERTY_CREATED,DCTERMS_PROPERTY_MODIFIED)
+
+  val systemProperties = List(DCTERMS_PROPERTY_CREATED,DCTERMS_PROPERTY_MODIFIED)
     def getBodyEntity(req:Req, base: String):Either[Model,Box[Array[Byte]]]={
       val rdfFormat = Rio.getParserFormatForMIMEType(
                 req.request.contentType.openOr(MIME_TURTLE._1 + "/" + MIME_TURTLE._2)) 
@@ -615,38 +700,60 @@ println("preferences: "+preferences)
       else 
         Right(req.body)
     }
-   def isResource(m:Model, resourceUri:URI) =  m.contains(
+  class ReqBodyHelper(m:Model, resourceUri:URI) {
+    
+   def isResource =  m.contains(
                     valueConverter.toRdf4j(resourceUri), 
                     valueConverter.toRdf4j(RDF.PROPERTY_TYPE),
                     valueConverter.toRdf4j(LDP.TYPE_RESOURCE))
-   def isRdfResource(m:Model, resourceUri:URI):Boolean = m.contains(
+   def isRdfResource:Boolean = m.contains(
                     valueConverter.toRdf4j(resourceUri), 
                     valueConverter.toRdf4j(RDF.PROPERTY_TYPE),
                     valueConverter.toRdf4j(LDP.TYPE_RDFSOURCE))
-   def isContainer(m: Model,resourceUri:URI): Boolean = isRdfResource(m, resourceUri) && m.contains(
+   def isContainer: Boolean = isRdfResource && m.contains(
                     valueConverter.toRdf4j(resourceUri), 
                     valueConverter.toRdf4j(RDF.PROPERTY_TYPE),
-                    valueConverter.toRdf4j(LDP.TYPE_CONTAINER)) && isNoContains(m,resourceUri)
-   def isBasicContainer(m:Model, resourceUri:URI) = isRdfResource(m, resourceUri) && m.contains(
+                    valueConverter.toRdf4j(LDP.TYPE_CONTAINER)) && isNoContains
+   def isBasicContainer = isRdfResource && m.contains(
                     valueConverter.toRdf4j(resourceUri), 
                     valueConverter.toRdf4j(RDF.PROPERTY_TYPE),
-                    valueConverter.toRdf4j(LDP.TYPE_BASICCONTAINER)) && isNoContains(m,resourceUri)
-   def hasRelationshipResource(m:Model, resourceUri:URI) = m.predicates.contains(
-                                        valueConverter.toRdf4j(LDP.PROPERTY_MEMBERSHIPRESOURCE))
-   def hasReletionship(m:Model, resourceUri:URI) = {println(s"request model has predicates: ${m.predicates}");  m.predicates.contains(
-                                        valueConverter.toRdf4j(LDP.PROPERTY_HASMEMBERRELATION))}
-   def isNoContains(m:Model, resourceUri:URI) =  m.filter(valueConverter.toRdf4j(resourceUri), valueConverter.toRdf4j(LDP.PROPERTY_CONTAINS), null).isEmpty()
+                    valueConverter.toRdf4j(LDP.TYPE_BASICCONTAINER)) && isNoContains
+   def hasRelationshipResource = m.filter(valueConverter.toRdf4j(resourceUri),
+                    valueConverter.toRdf4j(LDP.PROPERTY_MEMBERSHIPRESOURCE),null).nonEmpty
+      
+   def hasReletionship =  m.filter(valueConverter.toRdf4j(resourceUri),
+                                        valueConverter.toRdf4j(LDP.PROPERTY_HASMEMBERRELATION),null).nonEmpty
+   def isNoContains =  m.filter(valueConverter.toRdf4j(resourceUri), valueConverter.toRdf4j(LDP.PROPERTY_CONTAINS), null).isEmpty()
   
-   def isDirectContainer(m:Model, resourceUri:URI) =isRdfResource(m, resourceUri) && m.contains(
+   def isDirectContainer =isRdfResource && m.contains(
                     valueConverter.toRdf4j(resourceUri), 
                     valueConverter.toRdf4j(RDF.PROPERTY_TYPE),
                     valueConverter.toRdf4j(LDP.TYPE_DIRECTCONTAINER)) &&
-                    hasReletionship(m, resourceUri) &&
-                    hasRelationshipResource(m, resourceUri) && isNoContains(m, resourceUri)
+                    hasReletionship &&
+                    hasRelationshipResource && isNoContains
                     
    def isServerProperty(prop: IReference) = systemProperties.contains(prop)
+   def matchConfig(conf:RdfResourceHandler):Set[IStatement]={
+     val stmts = ListBuffer[IStatement]()
+     val it=conf.getTypes.iterator
+     while(it.hasNext()) stmts +=  new Statement(resourceUri,RDF.PROPERTY_TYPE,it.next)
+     val dh =conf.getDirectContainerHandler
+     if (dh != null){
+       val dc = dh.getAssignedTo
+       findModel(dc) match{
+         case Full(dm) =>
+           val ldpDC = dm.getManager.findRestricted(dc,classOf[LdpDirectContainer])
+           val contains = ldpDC.contains
+           val it = contains.iterator()
+           while(it.hasNext()) stmts += new Statement(resourceUri,ldpDC.hasMemberRelation().getURI,it.next.getURI)
+       }
+    }
+    stmts.toSet
+   }
                           
  }
+  
+  
  
   /**
    * Comparator for IStatements that orders according to S, P, O.
@@ -672,7 +779,6 @@ println("preferences: "+preferences)
     while (!done) {
       result = Globals.contextModelSet.vend.flatMap { ms =>
         // try to get the model from the model set
-        println("trying "+ candidateUri)
         try {
           Box.legacyNullTest(ms.getModel(candidateUri, false))
         } catch {
@@ -765,16 +871,19 @@ println("preferences: "+preferences)
     case _ => ("Link", types.map(t => s"""<${t}>;rel=type""").mkString(", ")) :: Nil
   }
 
-  protected def generateETag(stream: OutputStream): String = {
+  /*FIXME weak validator if it is possible for the representation to be modified twice during
+   *   TIME_SLOT and retrieved between those modifications.
+   *   For now the resource considered as modified if the time window between tow modifications is greater than TIME_SLOT
+   *   and result in changing it's size
+   */
+  protected def generateETag: String = {
     val date = System.currentTimeMillis
-    "W/\"" + java.lang.Long.toString(date - date % 60000) + "\""
+    "W/\"" + java.lang.Long.toString(date - date % TIME_SLOT) + "\""
   }
 
   protected def generateResponse[T](s: TurtleJsonLdSelect, t: T, r: Req): LiftResponse = {
-    println("t : "+t)
     t match {
       case c: Convertible => {
-       println("c: "+c)
         // refactor Convertable's methods
         val output = s match {
           case TurtleSelect => c.toTurtle
@@ -793,17 +902,16 @@ println("preferences: "+preferences)
           case Full((length, stream, contentType, types)) => {
             r.requestType.post_? match {
               case true => (201, length, stream.toString,  ("Accept-Post", "*/*") :: types)
-              case false => (200, length, stream.toString, ("Content-Type", contentType) :: ("Accept-Post", "*/*") :: ("ETag", generateETag(stream)) :: types)
+              case false => (200, length, stream.toString, ("Content-Type", contentType) :: ("Accept-Post", "*/*") :: ("ETag", generateETag) :: types)
             }
           }
           case Failure(msg, _, _) =>
             c match {
-              case FailedResponse(code, msg, links) =>println("code: "+code)
-                (code, msg.length,msg, links)
+              case FailedResponse(code, msg, links) => (code, msg.length,msg, links)
               case _ => (500, msg.length, msg, Nil)
           }
 
-         case Empty =>{println("empty inner"); (404, 0, "", Nil)}
+         case Empty => (404, 0, "", Nil)
         }
 
         r.requestType.head_? match {
@@ -813,7 +921,7 @@ println("preferences: "+preferences)
       }
       // ATTN: these next two cases don't actually end up here, lift handles them on its own
       case f @ Failure(msg, _, _) =>  PlainTextResponse("Unable to complete request: " + msg, ("Content-Type", "text/plain") :: Nil, 500) 
-      case Empty => {println("empty out");NotFoundResponse()}
+      case Empty => NotFoundResponse()
     }
   }
 

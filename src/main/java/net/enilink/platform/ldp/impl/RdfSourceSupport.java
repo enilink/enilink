@@ -11,10 +11,11 @@ import net.enilink.komma.em.util.ISparqlConstants;
 import net.enilink.platform.ldp.LDP;
 import net.enilink.platform.ldp.LdpRdfSource;
 import net.enilink.platform.ldp.PreferenceHelper;
-import net.enilink.platform.ldp.confog.RdfResourceHandler;
+import net.enilink.platform.ldp.config.RdfResourceHandler;
 
 public abstract class RdfSourceSupport implements LdpRdfSource, Behaviour<LdpRdfSource> {
-	private RdfResourceHandler handler;
+	// apply default configuration 
+	private RdfResourceHandler handler = new RdfResourceHandler();
 
 	@Override
 	public IReference getRelType() {
