@@ -12,7 +12,6 @@ import net.enilink.platform.ldp.LdpBasicContainer;
 
 @Precedes(RdfSourceSupport.class)
 public abstract class BasicContainerSupport implements LdpBasicContainer, Behaviour<LdpBasicContainer> {
-
 	@Override
 	public IReference getRelType() {
 		return LDP.TYPE_BASICCONTAINER;
@@ -22,4 +21,5 @@ public abstract class BasicContainerSupport implements LdpBasicContainer, Behavi
 	public Set<IReference> getTypes() {
 		return ImmutableSet.of(LDP.TYPE_CONTAINER, LDP.TYPE_BASICCONTAINER);
 	}
+	
 }

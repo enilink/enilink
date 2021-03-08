@@ -87,8 +87,7 @@ class LDPHelper extends RestHelper {
   
   // turtle/json-ld distinction is made by tjSel and using the Convertible in cvt below
   // FIXME: support LDP without extra prefix, on requests for plain resource URIs with no other match
-  def register(path: String, uri: URI, config: BasicContainerHandler) = {
-    object x { val v = config }
+  def register(path: String, uri: URI, config:BasicContainerHandler) = {
     serveTj {
       // use backticks to match on path's value
       case Options(`path` :: refs, req) => getOptions(refs, req)
@@ -159,8 +158,8 @@ class LDPHelper extends RestHelper {
                 else (PreferenceHelper.defaultPreferences(), rep)
               case "omit" :: prefs :: Nil =>
                 var acc = PreferenceHelper.defaultPreferences()
-                prefs.split(" ").map(_.trim).map(p => acc = acc - uriToPrefs(p.replace("\"", "")))
-                 if(acc!=0) (acc, rep)
+                 prefs.split(" ").map(_.trim).map(p => acc = acc - uriToPrefs(p.replace("\"", "")))
+                 if(acc != 0) (acc, rep)
                  else (PreferenceHelper.MINIMAL_CONTAINER, rep)
               case _ => (PreferenceHelper.defaultPreferences(), rep)
             }
