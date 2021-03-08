@@ -16,6 +16,4 @@ import net.enilink.vocab.rdfs.Resource;
 
 @Iri("http://www.w3.org/ns/ldp#Resource")
 public interface LdpResource extends Resource {
-	boolean hasModified(String tag);
-	void setLastEtag(String tag);
 }

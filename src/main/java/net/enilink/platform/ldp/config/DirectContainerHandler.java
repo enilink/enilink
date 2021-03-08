@@ -1,11 +1,39 @@
 package net.enilink.platform.ldp.config;
 
+import java.util.Set;
+
 import net.enilink.komma.core.URI;
+import net.enilink.platform.ldp.LDP;
 
 public class DirectContainerHandler extends ContainerHandler{
-	private RdfResourceHandler RelSource = new RdfResourceHandler();
+	private RdfResourceHandler RelSource ;
     private URI membership;
-    private String name ="direct-container";
+    private String name ;
+    
+    public DirectContainerHandler() {
+    	super();
+    	RelSource = new RdfResourceHandler();
+    	name ="direct-container";
+    }
+    public DirectContainerHandler(DirectContainerHandler handler) {
+    	new DirectContainerHandler();
+    	if(handler != null) {
+    		withtName(handler.getName()).
+        	withRelSource(handler.getRelSource()).
+        	withMembership(handler.getMembership()).
+        	withContainsHandler(handler.getContainsHandler()).
+            withCreatable(handler.isCreatable()).
+            withDeleteable(handler.isDeleteable()).
+            withModifyable(handler.isModifyable()).
+            withTypes(handler.getTypes()).
+            withMembershipRelSrcFor(handler.getDirectContainerHandler());
+    	}
+    }
+    @Override
+	public Set<URI> getTypes(){
+		 super.getTypes().add(LDP.TYPE_DIRECTCONTAINER);
+		 return super.getTypes();
+	}
     
 	public String getName() {
 		return name;

@@ -12,7 +12,6 @@ import net.enilink.platform.ldp.LdpDirectContainer;
 
 @Precedes(RdfSourceSupport.class)
 public abstract class DirectContainerSupport implements LdpDirectContainer, Behaviour<LdpDirectContainer> {
-
 	@Override
 	public IReference getRelType() {
 		return LDP.TYPE_DIRECTCONTAINER;
