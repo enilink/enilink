@@ -3,7 +3,6 @@ package net.enilink.platform.ldp;
 import net.enilink.komma.core.KommaModule;
 import net.enilink.platform.ldp.impl.BasicContainerSupport;
 import net.enilink.platform.ldp.impl.DirectContainerSupport;
-import net.enilink.platform.ldp.impl.LdpResourceSupport;
 import net.enilink.platform.ldp.impl.RdfSourceSupport;
 
 public class LdpModule extends KommaModule {
@@ -19,6 +18,5 @@ public class LdpModule extends KommaModule {
 		addBehaviour(RdfSourceSupport.class);
 		addBehaviour(BasicContainerSupport.class);
 		addBehaviour(DirectContainerSupport.class);
-		addBehaviour(LdpResourceSupport.class);
 	}
 }

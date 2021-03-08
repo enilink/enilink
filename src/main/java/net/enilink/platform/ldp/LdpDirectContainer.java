@@ -54,4 +54,5 @@ public interface LdpDirectContainer extends LdpContainer {
 	Property isMemberOfRelation();
 
 	void isMemberOfRelation(Property isMemberOfRelation);
+	
 }

@@ -7,15 +7,14 @@ import net.enilink.composition.traits.Behaviour;
 import net.enilink.komma.core.IQuery;
 import net.enilink.komma.core.IReference;
 import net.enilink.komma.core.IStatement;
+import net.enilink.komma.core.URI;
 import net.enilink.komma.em.util.ISparqlConstants;
 import net.enilink.platform.ldp.LDP;
+import net.enilink.platform.ldp.LdpDirectContainer;
 import net.enilink.platform.ldp.LdpRdfSource;
 import net.enilink.platform.ldp.PreferenceHelper;
-import net.enilink.platform.ldp.config.RdfResourceHandler;
 
 public abstract class RdfSourceSupport implements LdpRdfSource, Behaviour<LdpRdfSource> {
-	// apply default configuration 
-	private RdfResourceHandler handler = new RdfResourceHandler();
 
 	@Override
 	public IReference getRelType() {
@@ -89,10 +88,16 @@ public abstract class RdfSourceSupport implements LdpRdfSource, Behaviour<LdpRdf
 		query.setParameter("this", getBehaviourDelegate());
 		return query.evaluate(IStatement.class).toSet();
 	}
-	
 	@Override
-	public RdfResourceHandler getHandler() {return handler;}
+	public Set<LdpDirectContainer> membershipSourceFor() {
+		String queryStr = ISparqlConstants.PREFIX //
+				+ "PREFIX ldp: <" + LDP.NAMESPACE + "> " //
+				+ "SELECT ?c {" //
+				+ "?c ldp:membershipResource ?this . }";
+		IQuery<?> query = getEntityManager().createQuery(queryStr, false);
+		query.setParameter("this", getBehaviourDelegate());
+		return query.evaluate(LdpDirectContainer.class).toSet();
+		
+	}
 	
-	@Override
-	public void setHandler(RdfResourceHandler handler) { this.handler = handler;}
 }
