@@ -465,11 +465,11 @@ class LDPHelper extends RestHelper {
             // DELETE on root container is not allowed, but cause to empty it
             // FIXME DE+LETE specification: the sequence DELETE-GET does'nt produce NOT-FOUND response status code
             //Nevertheless DELETE remains idempotent in such implementation
-            if (config.isDeleteable()) {
+            if (config.isDeletable()) {
               c.contains(new java.util.HashSet)
               Full(new UpdateResponse("", LDP.TYPE_BASICCONTAINER))
             } else
-              Full(new FailedResponse(422, "container configured not deleteable", ("Link", constrainedLink) :: Nil))
+              Full(new FailedResponse(422, "container configured not deletable", ("Link", constrainedLink) :: Nil))
           } else {
             // not supported yet
             Full(new FailedResponse(422, "root container schoud be of type Basic, but found another type", ("Link", constrainedLink) :: Nil))
@@ -483,7 +483,7 @@ class LDPHelper extends RestHelper {
           val manager = m.getManager
           val res = manager.findRestricted(requestedUri, classOf[LdpRdfSource])
           val handler = getHandler(path, config)
-          if (handler.isDeleteable()) {
+          if (handler.isDeletable()) {
             manager.removeRecursive(requestedUri, true)
             if (res.getURI == requestedUri) ModelsRest.deleteModel(null, requestedUri)
             val parent = parentUri(requestedUri)
@@ -492,7 +492,7 @@ class LDPHelper extends RestHelper {
 
             Full(new UpdateResponse("", LDP.TYPE_RESOURCE))
           } else
-            Full(new FailedResponse(422, "container configured not deleteable", ("Link", constrainedLink) :: Nil))
+            Full(new FailedResponse(422, "container configured not deletable", ("Link", constrainedLink) :: Nil))
         })
       } catch {
         case e: Exception => Failure(e.getMessage, Some(e), Empty)
@@ -508,7 +508,7 @@ class LDPHelper extends RestHelper {
 
   // POST
   protected def createContent(refs: List[String], req: Req, uri: URI, reqNr: Int, config: BasicContainerHandler): Box[Convertible] = {
-    def createResource(modelSet: IModelSet, containerUri: URI, isRoot: Boolean, conf: RdfResourceHandler) = {
+    def createResource(model: IModel, containerUri: URI, isRoot: Boolean, conf: RdfResourceHandler) = {
       val resourceUri = containerUri.appendLocalPart(resourceName).appendSegment("")
       getBodyEntity(req, resourceUri.toString()) match {
         case Left(rdfBody) =>
@@ -536,10 +536,15 @@ class LDPHelper extends RestHelper {
           }
 
           if (valid) {
-            modelSet.getUnitOfWork.begin
+            model.getModelSet.getUnitOfWork.begin
             try {
-              val resourceModel = modelSet.createModel(resourceUri)
-              resourceModel.setLoaded(true)
+              val resourceModel = conf.isSeparateModel match {
+                case false => model
+                case true =>
+                  val m = model.getModelSet.createModel(resourceUri)
+                  m.setLoaded(true)
+                  m
+              }
               val resourceManager = resourceModel.getManager
               //add server-managed properties
               resourceManager.add(List(
@@ -585,7 +590,7 @@ class LDPHelper extends RestHelper {
             } catch {
               case t: Throwable => Failure(t.getMessage, Some(t), Empty)
             } finally {
-              modelSet.getUnitOfWork.end
+              model.getModelSet.getUnitOfWork.end
             }
           } else {
             Failure("invalid or incomplete RDF content")
@@ -615,7 +620,7 @@ class LDPHelper extends RestHelper {
             val configuredHandler = config.getContainsHandler
             val handler = if (configuredHandler == null) new RdfResourceHandler
             else configuredHandler
-            createResource(m.getModelSet, uri, false, handler) match {
+            createResource(m, uri, false, handler) match {
               case Full((resultUri, typ)) =>
                 m.getManager.add(new Statement(uri, LDP.PROPERTY_CONTAINS, resultUri))
 
@@ -636,7 +641,7 @@ class LDPHelper extends RestHelper {
               case _ => println("WARNING: no container handler for req=" + requestedUri); new BasicContainerHandler
             }
             val handler = conf.getContainsHandler
-            createResource(m.getModelSet, requestedUri, false, handler) match {
+            createResource(m, requestedUri, false, handler) match {
               case Full((resultUri, typ)) =>
                 m.getManager.add(new Statement(requestedUri, LDP.PROPERTY_CONTAINS, resultUri))
                 val res = m.getManager.findRestricted(resultUri, classOf[LdpRdfSource])
@@ -653,7 +658,7 @@ class LDPHelper extends RestHelper {
               case _ => println("WARNING: no container handler for req=" + requestedUri); new DirectContainerHandler
             }
             val handler = conf.getContainsHandler
-            createResource(m.getModelSet, requestedUri, false, handler) match {
+            createResource(m, requestedUri, false, handler) match {
               case Full((resultUri, typ)) =>
                 m.getManager.add(new Statement(requestedUri, LDP.PROPERTY_CONTAINS, resultUri))
                 val c = m.getManager.findRestricted(requestedUri, classOf[LdpDirectContainer])
