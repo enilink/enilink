@@ -8,25 +8,27 @@ import java.util.Comparator
 import scala.collection.JavaConversions.asJavaIterable
 import scala.collection.JavaConversions.asScalaSet
 import scala.collection.mutable.ListBuffer
-import scala.util.Try
 
+import org.eclipse.rdf4j.model.Model
 import org.eclipse.rdf4j.model.impl.SimpleValueFactory
 import org.eclipse.rdf4j.rio.Rio
-import org.eclipse.rdf4j.model.Model
 
 import javax.xml.datatype.XMLGregorianCalendar
 import net.enilink.komma.core.IReference
-import net.enilink.komma.core.IValue
 import net.enilink.komma.core.IStatement
 import net.enilink.komma.core.Literal
 import net.enilink.komma.core.Namespace
 import net.enilink.komma.core.Statement
 import net.enilink.komma.core.URI
 import net.enilink.komma.core.URIs
-import net.enilink.komma.em.util.ISparqlConstants
 import net.enilink.komma.model.IModel
 import net.enilink.komma.model.ModelUtil
 import net.enilink.komma.rdf4j.RDF4JValueConverter
+import net.enilink.platform.ldp.config.BasicContainerHandler
+import net.enilink.platform.ldp.config.ContainerHandler
+import net.enilink.platform.ldp.config.DirectContainerHandler
+import net.enilink.platform.ldp.config.Handler
+import net.enilink.platform.ldp.config.RdfResourceHandler
 import net.enilink.platform.lift.util.Globals
 import net.enilink.platform.web.rest.ModelsRest
 import net.enilink.vocab.owl.OWL
@@ -47,18 +49,6 @@ import net.liftweb.http.PlainTextResponse
 import net.liftweb.http.Req
 import net.liftweb.http.provider.HTTPCookie
 import net.liftweb.http.rest.RestHelper
-import org.eclipse.rdf4j.rio.RDFFormat
-import net.enilink.komma.model.IModelSet
-import scala.tools.nsc.interactive.Response
-import net.enilink.komma.parser.sparql.tree.BNode
-import org.eclipse.rdf4j.model.IRI
-import net.enilink.komma.em.concepts.IResource
-import org.eclipse.rdf4j.model.impl.SimpleNamespace
-import net.enilink.platform.ldp.config._
-import net.liftweb.http.provider.HTTPRequest
-import org.apache.http.HttpRequest
-import scala.collection.JavaConverters._
-import net.enilink.komma.core.IEntityManager
 
 /**
  * Linked Data Platform (LDP) endpoint support.
@@ -69,11 +59,12 @@ class LDPHelper extends RestHelper {
   val DCTERMS = URIs.createURI("http://purl.org/dc/terms")
   val DCTERMS_PROPERTY_CREATED = DCTERMS.appendSegment("created")
   val DCTERMS_PROPERTY_MODIFIED = DCTERMS.appendSegment("modified")
-  val DCTERMS_RELATION = URIs.createURI("http://purl.org/dc/terms/relation")
+
   val SLUG = "Slug"
   val LINK = "Link"
   val PREFER = "Prefer"
   val DEFAULT_NAME = "resource"
+
   //FIXME just now for testing
   val constrainedLink = """<https://www.w3.org/TR/ldp/>;rel="http://www.w3.org/ns/ldp#constrainedBy" """
   val MIME_TURTLE = ("text", "turtle")
@@ -81,23 +72,24 @@ class LDPHelper extends RestHelper {
   //modification time threshold in ms. the resource considered remain the same if two modifications take place within this time window
   // FIXME add this parameter to configurations
   val TIME_SLOT = 60000
-  var reqNr = 0
+
+  val requestCounts = scala.collection.mutable.Map[String, Int]()
 
   val valueConverter = new RDF4JValueConverter(SimpleValueFactory.getInstance)
   
   // turtle/json-ld distinction is made by tjSel and using the Convertible in cvt below
   // FIXME: support LDP without extra prefix, on requests for plain resource URIs with no other match
-  def register(path: String, uri: URI, config:BasicContainerHandler) = {
+  def register(path: String, uri: URI, config: BasicContainerHandler) = {
     serveTj {
       // use backticks to match on path's value
       case Options(`path` :: refs, req) => getOptions(refs, req)
       case Head(`path` :: refs, req) => getContent(refs, req, uri)
       case Get(`path` :: refs, req) => getContent(refs, req, uri)
       case Post(`path` :: refs, req) =>
-        reqNr = reqNr + 1; createContent(refs, req, uri, reqNr, config)
+        val reqNr = requestCounts.put(path, requestCounts.getOrElse(path, 0) + 1)
+        createContent(refs, req, uri, reqNr.getOrElse(1), config)
       case Put(`path` :: refs, req) => updateContent(refs, req, uri, config)
       case Delete(`path` :: refs, req) => deleteContent(refs, req, uri, config)
-
     }
   }
 
@@ -135,6 +127,7 @@ class LDPHelper extends RestHelper {
     override def toJsonLd() = Failure(msg, Empty, Empty)
   }
 
+  // HEAD or GET
   protected def getContent(refs: List[String], req: Req, uri: URI): Box[Convertible] = {
     val requestUri = URIs.createURI(req.request.url)
     val preferences: (Int, String) = req.header(PREFER) match {
@@ -170,7 +163,6 @@ class LDPHelper extends RestHelper {
 
     val content: Box[ContainerContent] = refs match {
       case Nil => Empty
-      // FIXME: /DOM/ will return a container with all registered memories
       case "index" :: Nil =>
         findModel(uri).flatMap { m =>
           if (m.getManager.hasMatch(uri, RDF.PROPERTY_TYPE, LDP.TYPE_BASICCONTAINER)) {
@@ -189,11 +181,10 @@ class LDPHelper extends RestHelper {
           }
         }
 
-      // FIXME: /DOM/$path
       case path @ _ =>
         try {
           val resourceUri = URIs.createURI(req.request.url.replace(req.hostAndPath + "/", uri.trimSegments(2).toString))
-          // FIXME: assumption: resource is contained in model using the memory as URI
+          // FIXME: assumption: resource is contained in model using the same URI
           // path.headOption.flatMap { id =>
           //  findModel(uri.appendLocalPart(id).appendSegment("")).flatMap { m =>
           findModel(resourceUri).flatMap { m =>
@@ -236,6 +227,8 @@ class LDPHelper extends RestHelper {
       case _ => Empty ~> 404
     }
   }
+
+  // PUT or PATCH
   protected def updateContent(refs: List[String], req: Req, uri: URI, config: BasicContainerHandler): Box[Convertible] = {
 
     def headerMatch(requestUri: URI, typ: URI, m: IModel): Box[Boolean] = {
@@ -315,6 +308,7 @@ class LDPHelper extends RestHelper {
                 }
               case Full(false) => Full(new FailedResponse(412, "IF-MATCH Avoiding mid-air collisions ", ("Link", tail) :: Nil))
               case Empty => Full(new FailedResponse(428, "", ("Link", tail) :: Nil))
+              case Failure(msg, _, _) => Full(new FailedResponse(428, msg, ("Link", tail) :: Nil))
             }
           } else
             Full(new FailedResponse(412, "root container schould be Basic Container but found another type", ("Link", tail) :: Nil))
@@ -363,6 +357,7 @@ class LDPHelper extends RestHelper {
                   }
                 case Full(false) => Full(new FailedResponse(412, "IF-Match, Avoiding mid-air collisions", ("Link", tail) :: Nil))
                 case Empty => Full(new FailedResponse(428, "", ("Link", tail) :: Nil))
+                case Failure(msg, _, _) => Full(new FailedResponse(428, msg, ("Link", tail) :: Nil))
               }
             } else if (manager.hasMatch(resourceUri, RDF.PROPERTY_TYPE, LDP.TYPE_DIRECTCONTAINER)) {
               val typelinks = linkHeader(LDP.TYPE_RESOURCE :: LDP.TYPE_DIRECTCONTAINER :: Nil)
@@ -406,6 +401,7 @@ class LDPHelper extends RestHelper {
                   }
                 case Full(false) => Full(new FailedResponse(412, "IF-Match, Avoiding mid-air collisions", ("Link", tail) :: Nil))
                 case Empty => Full(new FailedResponse(428, "", ("Link", tail) :: Nil))
+                case Failure(msg, _, _) => Full(new FailedResponse(428, msg, ("Link", tail) :: Nil))
               }
             } else if (manager.hasMatch(resourceUri, RDF.PROPERTY_TYPE, LDP.TYPE_RDFSOURCE)) {
               val typelinks = linkHeader(LDP.TYPE_RDFSOURCE :: Nil)
@@ -431,10 +427,11 @@ class LDPHelper extends RestHelper {
                           new Literal(Instant.now.toString, XMLSCHEMA.TYPE_DATETIME)))
                         Full(new UpdateResponse(resourceUri.toString(), LDP.TYPE_RDFSOURCE))
                       } else Full(new FailedResponse(412, "resource cannot be replaced, type mismatch ", ("Link", tail) :: Nil))
-                    case Right => Full(new FailedResponse(412, "conflict ..", ("Link", tail) :: Nil))
+                    case Right(_) => Full(new FailedResponse(412, "conflict ..", ("Link", tail) :: Nil))
                   }
                 case Full(false) => Full(new FailedResponse(412, "IF-Match, Avoiding mid-air collisions", ("Link", tail) :: Nil))
                 case Empty => Full(new FailedResponse(428, "", ("Link", tail) :: Nil))
+                case Failure(msg, _, _) => Full(new FailedResponse(428, msg, ("Link", tail) :: Nil))
               }
             } else if (manager.hasMatch(resourceUri, RDF.PROPERTY_TYPE, LDP.TYPE_RESOURCE)) {
               Full(new FailedResponse(412, "not supported yet ..", ("Link", tail) :: Nil))
@@ -445,11 +442,12 @@ class LDPHelper extends RestHelper {
     response match {
       case c @ Full(content) => c
       case f @ Failure(msg, _, _) => f ~> 500
-
       case _ => Empty
     }
 
   }
+
+  // DELETE
   protected def deleteContent(refs: List[String], req: Req, uri: URI, config: BasicContainerHandler): Box[Convertible] = {
 
     val response: Box[Convertible] = refs match {
@@ -508,6 +506,7 @@ class LDPHelper extends RestHelper {
     }
   }
 
+  // POST
   protected def createContent(refs: List[String], req: Req, uri: URI, reqNr: Int, config: BasicContainerHandler): Box[Convertible] = {
     def createResource(modelSet: IModelSet, containerUri: URI, isRoot: Boolean, conf: RdfResourceHandler) = {
       val resourceUri = containerUri.appendLocalPart(resourceName).appendSegment("")
@@ -561,9 +560,10 @@ class LDPHelper extends RestHelper {
               // if resource to be created was configured to be membership resource for a direct container
               val dh = conf.getDirectContainerHandler
               if (null != dh) {
-                // if the new Resource to be created was configured to be Relationship Source for a direct container
-                //this direct container will be also created.
-                //it should be no previously created direct containers whose relationship source does not exist(assignable = null or ignored)
+                // if the new Resource to be created was configured to be Relationship Source
+                // for a direct container, this direct container will be also created.
+                // it should be no previously created direct containers whose relationship source does
+                // not exist(assignable = null or ignored)
                 // for this reason the two resources shall be created in the same model
                 val dc = resourceUri.appendLocalPart(dh.getName).appendSegment("")
                 resourceManager.add(List(
@@ -587,7 +587,9 @@ class LDPHelper extends RestHelper {
             } finally {
               modelSet.getUnitOfWork.end
             }
-          } else { println("not valid or complete RDF content"); Empty }
+          } else {
+            Failure("invalid or incomplete RDF content")
+          }
 
         // TODO handle LDPNR case
         case Right(binaryBody) => { println("none RDF content, binary content"); Empty }
@@ -623,16 +625,16 @@ class LDPHelper extends RestHelper {
               case f: Failure => f
             }
           } else Full(new FailedResponse(412, "root container should be of type basic and configured to be createable", ("Link", constrainedLink) :: Nil)))
-
       }
 
       case path @ _ => {
-
         findModel(requestedUri).flatMap(m => {
           if (m.getManager.hasMatch(requestedUri, RDF.PROPERTY_TYPE, LDP.TYPE_BASICCONTAINER)) {
             val bc = m.getManager.findRestricted(requestedUri, classOf[LdpBasicContainer])
-            val conf = if (getHandler(path, config).isInstanceOf[ContainerHandler]) getHandler(path, config).asInstanceOf[ContainerHandler]
-            else new BasicContainerHandler
+            val conf = getHandler(path, config) match {
+              case ch: ContainerHandler => ch
+              case _ => println("WARNING: no container handler for req=" + requestedUri); new BasicContainerHandler
+            }
             val handler = conf.getContainsHandler
             createResource(m.getModelSet, requestedUri, false, handler) match {
               case Full((resultUri, typ)) =>
@@ -646,8 +648,10 @@ class LDPHelper extends RestHelper {
             }
 
           } else if (m.getManager.hasMatch(requestedUri, RDF.PROPERTY_TYPE, LDP.TYPE_DIRECTCONTAINER)) {
-            val conf = if (getHandler(path, config).isInstanceOf[DirectContainerHandler]) getHandler(path, config).asInstanceOf[DirectContainerHandler]
-            else new DirectContainerHandler
+            val conf = getHandler(path, config) match {
+              case dch: DirectContainerHandler => dch
+              case _ => println("WARNING: no container handler for req=" + requestedUri); new DirectContainerHandler
+            }
             val handler = conf.getContainsHandler
             createResource(m.getModelSet, requestedUri, false, handler) match {
               case Full((resultUri, typ)) =>
@@ -662,13 +666,14 @@ class LDPHelper extends RestHelper {
                 val membership = if (c != null) c.hasMemberRelation().getURI
                 else conf.getMembership   
                 findModel(relationSourceUri) match {
-                  case Full(m) =>
-                    m.getManager.add(new Statement(relationSourceUri, membership, resultUri))
+                  case Full(m) => m.getManager.add(new Statement(relationSourceUri, membership, resultUri))
+                  case _ =>
                 }
                 Full(new UpdateResponse(resultUri.toString(), typ))
+              case f: Failure =>
+                Full(new FailedResponse(415, "not valid body entity or violation of constraints: " + f.msg, ("Link", constrainedLink) :: Nil)) //bad request
               case Empty =>
                 Full(new FailedResponse(415, "not valid body entity or violation of constraints", ("Link", constrainedLink) :: Nil)) //bad request
-              case f: Failure => f
             }
           } // TODO add support for indirect containers
           //LDPR and LDPNR don't accept POST (only containers do )
@@ -693,6 +698,7 @@ class LDPHelper extends RestHelper {
     else
       Right(req.body)
   }
+
   class ReqBodyHelper(m: Model, resourceUri: URI) {
 
     def isResource = m.contains(
@@ -736,8 +742,8 @@ class LDPHelper extends RestHelper {
         case c: RdfResourceHandler =>
           val it = c.getTypes.iterator
           while (it.hasNext()) stmts += new Statement(resourceUri, RDF.PROPERTY_TYPE, it.next)
-          //FIXME if the resource to be modified is a membershipResource for a DC. should it's elements contained in that dc if any?
-
+          // FIXME if the resource to be modified is a membershipResource for a DC.
+          // should it's elements contained in that dc if any?
           findModel(resourceUri) match {
             case Full(m) =>
               val dh = c.getDirectContainerHandler
@@ -760,11 +766,11 @@ class LDPHelper extends RestHelper {
                   new Statement(resourceUri, LDP.PROPERTY_MEMBERSHIPRESOURCE, res.membershipResource))
 
               }
+            case _ => println("WARNING: no model found for " + resourceUri)
           }
       }
       stmts.toSet
     }
-
   }
 
   def getHandler(path: List[String], config: Handler): Handler = {
@@ -777,6 +783,7 @@ class LDPHelper extends RestHelper {
         else new RdfResourceHandler
     }
   }
+
   def parentUri(requestedUri: URI): Option[URI] =
     if (requestedUri.segmentCount > 1 && requestedUri.toString.endsWith("/"))
       Some(requestedUri.trimSegments(2).appendSegment(""))
