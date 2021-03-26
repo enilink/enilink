@@ -3,9 +3,12 @@ package net.enilink.platform.ldp.config;
 import java.util.Set;
 
 import net.enilink.komma.core.URI;
+import net.enilink.komma.core.URIs;
 import net.enilink.platform.ldp.LDP;
 
 public class DirectContainerHandler extends ContainerHandler {
+
+	public static URI SELF = URIs.createURI("urn:net.enilink.ldp:resource:self");
 
 	private String name;
 	private RdfResourceHandler RelSource;

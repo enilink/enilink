@@ -570,7 +570,11 @@ class LDPHelper extends RestHelper {
                 // it should be no previously created direct containers whose relationship source does
                 // not exist(assignable = null or ignored)
                 // for this reason the two resources shall be created in the same model
-                val dc = resourceUri.appendLocalPart(dh.getName).appendSegment("")
+                val dc = resourceUri match {
+                  // FIXME: handle URIs with and without trailing '/' differently
+                  case _ if (resourceUri.toString().endsWith("/")) => resourceUri.appendLocalPart(dh.getName).appendSegment("")
+                  case _ => resourceUri.appendSegment(dh.getName).appendSegment("")
+                }
                 resourceManager.add(List(
                   new Statement(dc, RDF.PROPERTY_TYPE, LDP.TYPE_DIRECTCONTAINER),
                   new Statement(dc, LDP.PROPERTY_HASMEMBERRELATION, dh.getMembership),
@@ -580,10 +584,16 @@ class LDPHelper extends RestHelper {
               //if resource was configured to be Direct Container with certain configs take it
               if (conf.isInstanceOf[DirectContainerHandler]) {
                 val relHandler = conf.asInstanceOf[DirectContainerHandler]
-                if (relHandler.getRelSource != null && relHandler.getRelSource.getAssignedTo != null)
+                if (relHandler.getRelSource != null && relHandler.getRelSource.getAssignedTo != null) {
+                  val membershipResource = relHandler.getRelSource.getAssignedTo match {
+                    // special case when a container points to itself as resource
+                    case _ @self if (DirectContainerHandler.SELF.equals(self)) => resourceUri
+                    case _ => relHandler.getRelSource.getAssignedTo
+                  }
                   resourceManager.add(List(
-                    new Statement(resourceUri, LDP.PREFERENCE_MEMBERSHIP, relHandler.getMembership),
-                    new Statement(resourceUri, LDP.PROPERTY_MEMBERSHIPRESOURCE, relHandler.getRelSource.getAssignedTo)))
+                    new Statement(resourceUri, LDP.PROPERTY_HASMEMBERRELATION, relHandler.getMembership),
+                    new Statement(resourceUri, LDP.PROPERTY_MEMBERSHIPRESOURCE, membershipResource)))
+                } else println("DirectContainerHandler not configured correctly")
               }
 
               Full(resourceUri, typ)
