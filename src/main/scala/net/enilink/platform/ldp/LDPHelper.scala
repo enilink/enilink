@@ -702,7 +702,7 @@ class LDPHelper extends RestHelper {
             val bc = m.getManager.findRestricted(requestedUri, classOf[LdpBasicContainer])
             val conf = getHandler(path, config) match {
               case ch: ContainerHandler => ch
-              case _ => println("WARNING: no container handler for req=" + requestedUri); new BasicContainerHandler
+              case _ => println("WARNING: no container handler for req=" + requestedUri); new BasicContainerHandler("")
             }
             val handler = conf.getContainsHandler
             createResource(m, requestedUri, false, handler) match {

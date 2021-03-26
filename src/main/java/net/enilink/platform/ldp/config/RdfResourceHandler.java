@@ -1,9 +1,13 @@
 package net.enilink.platform.ldp.config;
 
+import java.lang.reflect.Method;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.Set;
 
+import net.enilink.composition.annotations.Iri;
 import net.enilink.komma.core.URI;
+import net.enilink.komma.core.URIs;
 
 public class RdfResourceHandler implements Handler {
 
@@ -85,5 +89,35 @@ public class RdfResourceHandler implements Handler {
 	public RdfResourceHandler withAssignedTo(URI assignedTo) {
 		this.assignedTo = assignedTo;
 		return this;
+	}
+
+	static RdfResourceHandler fromConcept(Class<?> concept) {
+		if (null == concept) return null;
+		RdfResourceHandler result = new RdfResourceHandler();
+		Iri iri = concept.getAnnotation(Iri.class);
+		if (null != iri) {
+			result.withTypes(Collections.singleton(URIs.createURI(iri.value())));
+		}
+		for (Method m : concept.getMethods()) {
+			DirectContainer dc = m.getAnnotation(DirectContainer.class);
+			if (null != dc) {
+				DirectContainerHandler dch = DirectContainerHandler.forRelation(m);
+				if (null != dch) {
+					if ("$SELF".equalsIgnoreCase(dc.value())) {
+						// special handling if path is set to "$SELF"
+						// resource itself is also the container
+						// add resource's types to the container
+						dch.withTypes(result.getTypes());
+						// set the container's membership resource to itself
+						// and return the combined handler
+						result = dch.withRelSource(dch).withAssignedTo(DirectContainerHandler.SELF);
+					} else {
+						// otherwise dedicated sub-container using path
+						result.withMembershipRelSrcFor(dch);
+					}
+				}
+			}
+		}
+		return result;
 	}
 }
