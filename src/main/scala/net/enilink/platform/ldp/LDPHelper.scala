@@ -4,6 +4,7 @@ import java.io.ByteArrayOutputStream
 import java.io.OutputStream
 import java.time.Instant
 import java.util.Comparator
+import java.util.Properties
 
 import scala.collection.JavaConversions.asJavaIterable
 import scala.collection.JavaConversions.asScalaSet
@@ -59,6 +60,9 @@ class LDPHelper extends RestHelper {
   val DCTERMS = URIs.createURI("http://purl.org/dc/terms")
   val DCTERMS_PROPERTY_CREATED = DCTERMS.appendSegment("created")
   val DCTERMS_PROPERTY_MODIFIED = DCTERMS.appendSegment("modified")
+  val DCTERMS_PROPERTY_FORMAT = DCTERMS.appendSegment("format")
+  val DCTERMS_PROPERTY_IDENTIFIER = DCTERMS.appendSegment("identifier")
+  val DCTERMS_PROPERTY_TITLE = DCTERMS.appendSegment("title")
 
   val SLUG = "Slug"
   val LINK = "Link"
@@ -204,6 +208,11 @@ class LDPHelper extends RestHelper {
               val r = m.getManager.find(resourceUri, classOf[LdpRdfSource])
               content.addRelType(r.getRelType)
               content ++= r.getTriples(preferences._1)
+              content.applyPreference(preferences._2)
+            } else if (m.getManager.hasMatch(resourceUri, RDF.PROPERTY_TYPE, LDP.TYPE_NONRDFSOURCE)) {
+              // FIXME: return the binary content from the filestore instead?
+              content ++= m.getManager.`match`(resourceUri, null, null).toSet
+              content.addRelType(LDP.TYPE_NONRDFSOURCE)
               content.applyPreference(preferences._2)
             }
             // FIXME: add a sameAs relation between request uri and $path, if not equal
@@ -618,7 +627,42 @@ class LDPHelper extends RestHelper {
           }
 
         // TODO handle LDPNR case
-        case Right(binaryBody) => { println("none RDF content, binary content"); Empty }
+        case Right(binaryBody) if (binaryBody.isDefined && binaryBody.get.length > 0) =>
+          Globals.fileStore.make.map { fs =>
+            val mimeType = req.contentType.openOr("application/octet-stream")
+            val fileName = requestedSlug._1
+            val fsKey = fs.store(binaryBody.getOrElse(null))
+            val props = new Properties
+            props.setProperty("contentType", mimeType)
+            // FileService sends disposition: attachment when the filename is set
+            // that causes browsers to prompt for a download when accessing the uri
+            // we want images inline for now, so leave the filename out for them
+            if (!mimeType.startsWith("image/")) {
+              props.setProperty("fileName", fileName)
+            }
+            fs.setProperties(fsKey, props)
+            println("stored binary content type=" + mimeType + " as key=" + fsKey)
+            val resourceModel = conf.isSeparateModel match {
+              case false => model
+              case true =>
+                val m = model.getModelSet.createModel(resourceUri)
+                m.setLoaded(true)
+                m
+            }
+            val resourceManager = resourceModel.getManager
+            //add server-managed properties
+            resourceManager.add(List(
+              new Statement(resourceUri, RDF.PROPERTY_TYPE, LDP.TYPE_NONRDFSOURCE),
+              new Statement(resourceUri, DCTERMS_PROPERTY_CREATED, new Literal(Instant.now.toString, XMLSCHEMA.TYPE_DATETIME)),
+              new Statement(resourceUri, DCTERMS_PROPERTY_IDENTIFIER, URIs.createURI(s"""blobs:$fsKey""")),
+              new Statement(resourceUri, DCTERMS_PROPERTY_TITLE, fileName),
+              new Statement(resourceUri, RDFS.PROPERTY_LABEL, fileName),
+              new Statement(resourceUri, DCTERMS_PROPERTY_FORMAT, mimeType)
+            ))
+            Full(resourceUri, LDP.TYPE_NONRDFSOURCE)
+          } getOrElse Empty
+
+        case Right(binaryBody) => Failure("invalid or empty binary content")
       }
     }
 
