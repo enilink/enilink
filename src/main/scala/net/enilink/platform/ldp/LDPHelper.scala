@@ -509,7 +509,18 @@ class LDPHelper extends RestHelper {
   // POST
   protected def createContent(refs: List[String], req: Req, uri: URI, reqNr: Int, config: BasicContainerHandler): Box[Convertible] = {
     def createResource(model: IModel, containerUri: URI, isRoot: Boolean, conf: RdfResourceHandler) = {
-      val resourceUri = containerUri.appendLocalPart(resourceName).appendSegment("")
+      // attempt to use the slug as is, but append reqNr to avoid duplicates
+      val resourceUri = requestedSlug match { case (slug, reqNr) =>
+        var candidateUri = containerUri.appendLocalPart(slug)
+        if (model.getManager.hasMatch(containerUri, LDP.PROPERTY_CONTAINS, candidateUri)) {
+          // FIXME: this might still cause a collision
+          candidateUri = containerUri.appendLocalPart(slug + "-" + reqNr)
+        }
+        if (conf.isSeparateModel || conf.isInstanceOf[ContainerHandler]) {
+          candidateUri = candidateUri.appendSegment("")
+        }
+        candidateUri
+      }
       getBodyEntity(req, resourceUri.toString()) match {
         case Left(rdfBody) =>
           val body = new ReqBodyHelper(rdfBody, resourceUri)
@@ -611,8 +622,7 @@ class LDPHelper extends RestHelper {
       }
     }
 
-    def resourceName = (req.header(SLUG).openOr(DEFAULT_NAME) + reqNr.toString()).
-      toLowerCase().replaceAll("[^a-z0-9-]", "-")
+    def requestedSlug = (req.header(SLUG).openOr(DEFAULT_NAME).replaceAll("[^A-Za-z0-9-_.]", "-"), reqNr)
     def requestedUri = URIs.createURI(req.request.url.replace(req.hostAndPath + "/", uri.trimSegments(2).toString))
     //FIXME
     def resourceType = req.header(LINK) match {
