@@ -1,58 +1,38 @@
-package net.enilink.platform.ldp;
+package net.enilink.platform.ldp
 
-import java.io.ByteArrayOutputStream
-import java.io.OutputStream
+;
+
+import java.io.{ByteArrayOutputStream, OutputStream}
 import java.time.Instant
-import java.util.Comparator
-import java.util.Properties
+import java.util.{Comparator, Properties}
 
-import scala.collection.JavaConversions.asJavaIterable
-import scala.collection.JavaConversions.asScalaSet
-import scala.collection.mutable.ListBuffer
-
-import org.eclipse.rdf4j.model.Model
-import org.eclipse.rdf4j.model.impl.SimpleValueFactory
-import org.eclipse.rdf4j.rio.Rio
-
+import scala.jdk.CollectionConverters._
+//import scala.collection.JavaConversions.asScalaSet
 import javax.xml.datatype.XMLGregorianCalendar
-import net.enilink.komma.core.IReference
-import net.enilink.komma.core.IStatement
-import net.enilink.komma.core.Literal
-import net.enilink.komma.core.Namespace
-import net.enilink.komma.core.Statement
-import net.enilink.komma.core.URI
-import net.enilink.komma.core.URIs
-import net.enilink.komma.model.IModel
-import net.enilink.komma.model.ModelUtil
+import net.enilink.komma.core.{IReference, IStatement, Literal, Namespace, Statement, URI, URIs}
+import net.enilink.komma.model.{IModel, ModelUtil}
 import net.enilink.komma.rdf4j.RDF4JValueConverter
-import net.enilink.platform.ldp.config.BasicContainerHandler
-import net.enilink.platform.ldp.config.ContainerHandler
-import net.enilink.platform.ldp.config.DirectContainerHandler
-import net.enilink.platform.ldp.config.Handler
-import net.enilink.platform.ldp.config.RdfResourceHandler
+import net.enilink.platform.ldp.config._
 import net.enilink.platform.lift.util.Globals
 import net.enilink.platform.web.rest.ModelsRest
 import net.enilink.vocab.owl.OWL
 import net.enilink.vocab.rdf.RDF
 import net.enilink.vocab.rdfs.RDFS
 import net.enilink.vocab.xmlschema.XMLSCHEMA
-import net.liftweb.common.Box
 import net.liftweb.common.Box.option2Box
-import net.liftweb.common.BoxOrRaw
-import net.liftweb.common.Empty
-import net.liftweb.common.Failure
-import net.liftweb.common.Full
-import net.liftweb.http.ContentType
-import net.liftweb.http.LiftResponse
-import net.liftweb.http.NotFoundResponse
-import net.liftweb.http.OutputStreamResponse
-import net.liftweb.http.PlainTextResponse
-import net.liftweb.http.Req
+import net.liftweb.common._
+import net.liftweb.http.{ContentType, LiftResponse, NotFoundResponse, OutputStreamResponse, PlainTextResponse, Req}
 import net.liftweb.http.provider.HTTPCookie
 import net.liftweb.http.rest.RestHelper
+import org.eclipse.rdf4j.model.Model
+import org.eclipse.rdf4j.model.impl.SimpleValueFactory
+import org.eclipse.rdf4j.rio.Rio
+
+import scala.collection.mutable.ListBuffer
 
 /**
  * Linked Data Platform (LDP) endpoint support.
+ *
  * @see http://www.w3.org/TR/ldp/
  */
 class LDPHelper extends RestHelper {
@@ -94,6 +74,7 @@ class LDPHelper extends RestHelper {
         createContent(refs, req, uri, reqNr.getOrElse(1), config)
       case Put(`path` :: refs, req) => updateContent(refs, req, uri, config)
       case Delete(`path` :: refs, req) => deleteContent(refs, req, uri, config)
+
     }
   }
 
@@ -173,7 +154,7 @@ class LDPHelper extends RestHelper {
             val root = m.getManager.findRestricted(uri, classOf[LdpBasicContainer])
             val content = new ContainerContent(Nil, m.getURI.toString)
             content.addRelType(root.getRelType)
-            content ++= root.getTriples(preferences._1)
+            content ++= root.getTriples(preferences._1).asScala.toIterable
             content.applyPreference(preferences._2)
             // FIXME: add a sameAs relation between request uri and root, if not equal
             if (uri != requestUri && !content.isEmpty) {
@@ -244,7 +225,7 @@ class LDPHelper extends RestHelper {
       val ifMatch = req.header("If-Match")
       if (ifMatch.isEmpty) Empty
       else {
-        val cEtag = ifMatch.get
+        val cEtag = ifMatch.openOr("")
         val res = typ match {
           case LDP.TYPE_BASICCONTAINER => m.getManager.findRestricted(requestUri, classOf[LdpBasicContainer])
           case LDP.TYPE_DIRECTCONTAINER => m.getManager.findRestricted(requestUri, classOf[LdpDirectContainer])
@@ -298,7 +279,7 @@ class LDPHelper extends RestHelper {
                       manager.add(new Statement(uri, RDF.PROPERTY_TYPE, LDP.TYPE_BASICCONTAINER))
                       configStmts.map(stmt => manager.add(stmt))
 
-                      rdfBody.map(stmt => {
+                      rdfBody.stream().map(stmt => {
                         val subj = valueConverter.fromRdf4j(stmt.getSubject())
                         val pred = valueConverter.fromRdf4j(stmt.getPredicate())
                         val obj = valueConverter.fromRdf4j(stmt.getObject())
@@ -346,7 +327,7 @@ class LDPHelper extends RestHelper {
                         manager.removeRecursive(resourceUri, true)
                         manager.add(new Statement(resourceUri, RDF.PROPERTY_TYPE, LDP.TYPE_BASICCONTAINER))
                         configStmts.map(stmt => manager.add(stmt))
-                        rdfBody.map(stmt => {
+                        rdfBody.asScala.foreach(stmt => {
                           val subj = valueConverter.fromRdf4j(stmt.getSubject())
                           val pred = valueConverter.fromRdf4j(stmt.getPredicate())
                           val obj = valueConverter.fromRdf4j(stmt.getObject())
@@ -389,8 +370,8 @@ class LDPHelper extends RestHelper {
                           res.membershipResource(memberSrc)
                         }
                         configStmts.map(stmt => manager.add(stmt))
-                       
-                        rdfBody.map(stmt => {
+
+                        rdfBody.asScala.foreach(stmt => {
                           val subj = valueConverter.fromRdf4j(stmt.getSubject())
                           val pred = valueConverter.fromRdf4j(stmt.getPredicate())
                           val obj = valueConverter.fromRdf4j(stmt.getObject())
@@ -425,7 +406,7 @@ class LDPHelper extends RestHelper {
                         manager.removeRecursive(resourceUri, true)
                         manager.add(new Statement(resourceUri, RDF.PROPERTY_TYPE, LDP.TYPE_RDFSOURCE))
                         configStmts.map(stmt => manager.add(stmt))
-                        rdfBody.map(stmt => {
+                        rdfBody.asScala.foreach(stmt => {
                           val subj = valueConverter.fromRdf4j(stmt.getSubject())
                           val pred = valueConverter.fromRdf4j(stmt.getPredicate())
                           val obj = valueConverter.fromRdf4j(stmt.getObject())
@@ -569,8 +550,8 @@ class LDPHelper extends RestHelper {
               //add server-managed properties
               resourceManager.add(List(
                 new Statement(resourceUri, RDF.PROPERTY_TYPE, typ),
-                new Statement(resourceUri, DCTERMS_PROPERTY_CREATED, new Literal(Instant.now.toString, XMLSCHEMA.TYPE_DATETIME))))
-              rdfBody.map(stmt => {
+                new Statement(resourceUri, DCTERMS_PROPERTY_CREATED, new Literal(Instant.now.toString, XMLSCHEMA.TYPE_DATETIME))).asJava)
+              rdfBody.asScala.foreach(stmt => {
                 val subj = valueConverter.fromRdf4j(stmt.getSubject())
                 val pred = valueConverter.fromRdf4j(stmt.getPredicate())
                 val obj = valueConverter.fromRdf4j(stmt.getObject())
@@ -598,7 +579,7 @@ class LDPHelper extends RestHelper {
                 resourceManager.add(List(
                   new Statement(dc, RDF.PROPERTY_TYPE, LDP.TYPE_DIRECTCONTAINER),
                   new Statement(dc, LDP.PROPERTY_HASMEMBERRELATION, dh.getMembership),
-                  new Statement(dc, LDP.PROPERTY_MEMBERSHIPRESOURCE, resourceUri)))
+                  new Statement(dc, LDP.PROPERTY_MEMBERSHIPRESOURCE, resourceUri)).asJava)
                
               }
               //if resource was configured to be Direct Container with certain configs take it
@@ -612,7 +593,7 @@ class LDPHelper extends RestHelper {
                   }
                   resourceManager.add(List(
                     new Statement(resourceUri, LDP.PROPERTY_HASMEMBERRELATION, relHandler.getMembership),
-                    new Statement(resourceUri, LDP.PROPERTY_MEMBERSHIPRESOURCE, membershipResource)))
+                    new Statement(resourceUri, LDP.PROPERTY_MEMBERSHIPRESOURCE, membershipResource)).asJava)
                 } else println("DirectContainerHandler not configured correctly")
               }
 
@@ -626,12 +607,11 @@ class LDPHelper extends RestHelper {
             Failure("invalid or incomplete RDF content")
           }
 
-        // TODO handle LDPNR case
-        case Right(binaryBody) if (binaryBody.isDefined && binaryBody.get.length > 0) =>
+        case Right(Full(binaryBody)) if binaryBody.length > 0 =>
           Globals.fileStore.make.map { fs =>
             val mimeType = req.contentType.openOr("application/octet-stream")
             val fileName = requestedSlug._1
-            val fsKey = fs.store(binaryBody.getOrElse(null))
+            val fsKey = fs.store(binaryBody)
             val props = new Properties
             props.setProperty("contentType", mimeType)
             // FileService sends disposition: attachment when the filename is set
@@ -658,11 +638,11 @@ class LDPHelper extends RestHelper {
               new Statement(resourceUri, DCTERMS_PROPERTY_TITLE, fileName),
               new Statement(resourceUri, RDFS.PROPERTY_LABEL, fileName),
               new Statement(resourceUri, DCTERMS_PROPERTY_FORMAT, mimeType)
-            ))
+            ).asJava)
             Full(resourceUri, LDP.TYPE_NONRDFSOURCE)
           } getOrElse Empty
 
-        case Right(binaryBody) => Failure("invalid or empty binary content")
+        case Right(_) => Failure("invalid or empty binary content")
       }
     }
 
@@ -778,33 +758,37 @@ class LDPHelper extends RestHelper {
       valueConverter.toRdf4j(resourceUri),
       valueConverter.toRdf4j(RDF.PROPERTY_TYPE),
       valueConverter.toRdf4j(LDP.TYPE_RDFSOURCE))
+
     def isContainer: Boolean = isRdfResource && m.contains(
       valueConverter.toRdf4j(resourceUri),
       valueConverter.toRdf4j(RDF.PROPERTY_TYPE),
       valueConverter.toRdf4j(LDP.TYPE_CONTAINER)) && isNoContains
+
     def isBasicContainer = isRdfResource && m.contains(
       valueConverter.toRdf4j(resourceUri),
       valueConverter.toRdf4j(RDF.PROPERTY_TYPE),
       valueConverter.toRdf4j(LDP.TYPE_BASICCONTAINER)) && isNoContains
-    def hasRelationshipResource = m.filter(
-      valueConverter.toRdf4j(resourceUri),
-      valueConverter.toRdf4j(LDP.PROPERTY_MEMBERSHIPRESOURCE), null).nonEmpty
 
-    def hasReletionship = m.filter(
-      valueConverter.toRdf4j(resourceUri),
-      valueConverter.toRdf4j(LDP.PROPERTY_HASMEMBERRELATION), null).nonEmpty
-    def isNoContains = m.filter(valueConverter.toRdf4j(resourceUri), valueConverter.toRdf4j(LDP.PROPERTY_CONTAINS), null).isEmpty()
-    def isMembership = m.filter(
-      valueConverter.toRdf4j(resourceUri),
-      valueConverter.toRdf4j(LDP.PROPERTY_ISMEMBEROFRELATION), null).nonEmpty
     def isDirectContainer = isRdfResource && m.contains(
-      valueConverter.toRdf4j(resourceUri),
-      valueConverter.toRdf4j(RDF.PROPERTY_TYPE),
-      valueConverter.toRdf4j(LDP.TYPE_DIRECTCONTAINER)) &&
-      hasReletionship &&
+      valueConverter.toRdf4j(resourceUri), valueConverter.toRdf4j(RDF.PROPERTY_TYPE), valueConverter.toRdf4j(LDP.TYPE_DIRECTCONTAINER)) && hasReletionship &&
       (hasRelationshipResource || isMembership) && isNoContains
 
+    def hasRelationshipResource = !m.filter(
+      valueConverter.toRdf4j(resourceUri),
+      valueConverter.toRdf4j(LDP.PROPERTY_MEMBERSHIPRESOURCE), null).isEmpty
+
+    def isNoContains = m.filter(valueConverter.toRdf4j(resourceUri), valueConverter.toRdf4j(LDP.PROPERTY_CONTAINS), null).isEmpty()
+
+    def hasReletionship = !m.filter(
+      valueConverter.toRdf4j(resourceUri),
+      valueConverter.toRdf4j(LDP.PROPERTY_HASMEMBERRELATION), null).isEmpty
+
+    def isMembership = !m.filter(
+      valueConverter.toRdf4j(resourceUri),
+      valueConverter.toRdf4j(LDP.PROPERTY_ISMEMBEROFRELATION), null).isEmpty
+
     def isServerProperty(prop: IReference) = systemProperties.contains(prop)
+
     def matchConfig(conf: Handler, resourceUri: URI): Set[IStatement] = {
       val stmts = ListBuffer[IStatement]()
       conf match {
@@ -821,7 +805,7 @@ class LDPHelper extends RestHelper {
                 val it = res.membershipSourceFor.iterator
                 while (it.hasNext) {
                   val dc = it.next
-                  dc.contains.map(r => stmts += new Statement(resourceUri, dc.hasMemberRelation, r))
+                  dc.contains.asScala.foreach(r => stmts += new Statement(resourceUri, dc.hasMemberRelation, r))
                   // special case
                   stmts += new Statement(dc, LDP.PROPERTY_MEMBERSHIPRESOURCE, resourceUri)
                 }
@@ -916,6 +900,7 @@ class LDPHelper extends RestHelper {
     var preference: String = ""
 
     override def toTurtle(): Box[(Int, OutputStream, String, List[(String, String)])] = generate(MIME_TURTLE)
+
     override def toJsonLd(): Box[(Int, OutputStream, String, List[(String, String)])] = generate(MIME_JSONLD)
 
     def +=(st: IStatement) = {
@@ -926,9 +911,14 @@ class LDPHelper extends RestHelper {
       stmts ++= st
     }
 
+    def ++=(st: java.util.Set[IStatement]) = {
+      stmts ++= st.asScala
+    }
+
     def addRelType(relType: IReference) = {
       relTypes += relType
     }
+
     def applyPreference(pref: String) {
       preference = pref
     }
