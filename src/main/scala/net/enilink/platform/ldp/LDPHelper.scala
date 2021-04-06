@@ -174,17 +174,17 @@ class LDPHelper extends RestHelper {
             if (m.getManager.hasMatch(resourceUri, RDF.PROPERTY_TYPE, LDP.TYPE_DIRECTCONTAINER)) {
               val c = m.getManager.find(resourceUri, classOf[LdpDirectContainer])
               content.addRelType(c.getRelType)
-              content ++= c.getTriples(preferences._1)
+              content ++= c.getTriples(preferences._1).asScala
               content.applyPreference(preferences._2)
             } else if (m.getManager.hasMatch(resourceUri, RDF.PROPERTY_TYPE, LDP.TYPE_BASICCONTAINER)) {
               val c = m.getManager.find(resourceUri, classOf[LdpBasicContainer])
               content.addRelType(c.getRelType)
-              content ++= c.getTriples(preferences._1)
+              content ++= c.getTriples(preferences._1).asScala
               content.applyPreference(preferences._2)
             } else if (m.getManager.hasMatch(resourceUri, RDF.PROPERTY_TYPE, LDP.TYPE_RDFSOURCE)) {
               val r = m.getManager.find(resourceUri, classOf[LdpRdfSource])
               content.addRelType(r.getRelType)
-              content ++= r.getTriples(preferences._1)
+              content ++= r.getTriples(preferences._1).asScala
               content.applyPreference(preferences._2)
             } else if (m.getManager.hasMatch(resourceUri, RDF.PROPERTY_TYPE, LDP.TYPE_NONRDFSOURCE)) {
               // FIXME: return the binary content from the filestore instead?
@@ -275,7 +275,7 @@ class LDPHelper extends RestHelper {
                       manager.add(new Statement(uri, RDF.PROPERTY_TYPE, LDP.TYPE_BASICCONTAINER))
                       configStmts.map(stmt => manager.add(stmt))
 
-                      rdfBody.stream().map(stmt => {
+                      rdfBody.asScala.foreach(stmt => {
                         val subj = valueConverter.fromRdf4j(stmt.getSubject())
                         val pred = valueConverter.fromRdf4j(stmt.getPredicate())
                         val obj = valueConverter.fromRdf4j(stmt.getObject())
