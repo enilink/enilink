@@ -1,13 +1,13 @@
 package net.enilink.platform.ldp.config;
 
-import java.util.Set;
-
 import net.enilink.komma.core.URI;
 import net.enilink.platform.ldp.LDP;
 
+import java.util.Set;
+
 public class BasicContainerHandler extends ContainerHandler {
 
-	private String path;
+	private final String path;
 
 	public BasicContainerHandler(String path) {
 		this.path = path;
