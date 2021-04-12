@@ -1,10 +1,14 @@
 package net.enilink.platform.ldp;
 
-import java.util.Set;
-
 import net.enilink.composition.annotations.Iri;
 import net.enilink.komma.core.IReference;
 import net.enilink.komma.core.IStatement;
+import net.enilink.komma.core.URI;
+import net.enilink.platform.ldp.config.Handler;
+import net.enilink.platform.ldp.config.RdfResourceHandler;
+
+import java.util.Map;
+import java.util.Set;
 
 /**
  * LDP RDF Source (LDP-RS)
@@ -33,4 +37,10 @@ public interface LdpRdfSource extends LdpResource {
 	Set<IStatement> getTriples(int preferences);
 	
 	Set<LdpDirectContainer> membershipSourceFor();
+
+	Map<Boolean, String> update(ReqBodyHelper body, Handler config);
+
+	Map<Integer,String> preference(String preferenceHeader);
+
+	Set<IStatement> matchConfig(RdfResourceHandler config, URI uri);
 }

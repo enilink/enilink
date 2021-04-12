@@ -57,4 +57,11 @@ public interface LDP {
 	public static final URI PREFERENCE_MEMBERSHIP = NAMESPACE_URI.appendFragment("PreferMembership");
 
 	public static final URI PREFERENCE_MINIMALCONTAINER = NAMESPACE_URI.appendFragment("PreferMinimalContainer");
+
+	public static final URI  DCTERMS = URIs.createURI("http://purl.org/dc/terms");
+
+	public static final URI  DCTERMS_PROPERTY_CREATED = DCTERMS.appendSegment("created");
+
+	public static final URI DCTERMS_PROPERTY_MODIFIED = DCTERMS.appendSegment("modified");
+
 }

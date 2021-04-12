@@ -1,17 +1,19 @@
 package net.enilink.platform.ldp.impl;
 
-import java.util.Collections;
-import java.util.Set;
-
 import net.enilink.composition.traits.Behaviour;
-import net.enilink.komma.core.IQuery;
-import net.enilink.komma.core.IReference;
-import net.enilink.komma.core.IStatement;
+import net.enilink.komma.core.*;
 import net.enilink.komma.em.util.ISparqlConstants;
-import net.enilink.platform.ldp.LDP;
-import net.enilink.platform.ldp.LdpDirectContainer;
-import net.enilink.platform.ldp.LdpRdfSource;
-import net.enilink.platform.ldp.PreferenceHelper;
+import net.enilink.komma.rdf4j.RDF4JValueConverter;
+import net.enilink.platform.ldp.*;
+import net.enilink.platform.ldp.config.DirectContainerHandler;
+import net.enilink.platform.ldp.config.Handler;
+import net.enilink.platform.ldp.config.RdfResourceHandler;
+import net.enilink.vocab.rdf.RDF;
+import net.enilink.vocab.xmlschema.XMLSCHEMA;
+
+import java.time.Instant;
+import java.util.*;
+import java.util.stream.Collectors;
 
 public abstract class RdfSourceSupport implements LdpRdfSource, Behaviour<LdpRdfSource> {
 
@@ -120,5 +122,86 @@ public abstract class RdfSourceSupport implements LdpRdfSource, Behaviour<LdpRdf
 		IQuery<?> query = getEntityManager().createQuery(queryStr, false);
 		query.setParameter("this", getBehaviourDelegate());
 		return query.evaluate(LdpDirectContainer.class).toSet();
+	}
+
+	@Override
+	public Map<Integer,String> preference(String preferenceHeader) {
+		if (null != preferenceHeader) {
+			List<String> prefs = Arrays.stream(preferenceHeader.split(";")).map(s -> s.trim()).collect(Collectors.toList());
+			if (null != prefs && prefs.size() == 2) {
+				Map<String, Integer> uriToPrefs = new HashMap<String, Integer>() {{
+					put(LDP.PREFERENCE_MINIMALCONTAINER.toString(), PreferenceHelper.MINIMAL_CONTAINER);
+					put(LDP.PREFERENCE_CONTAINMENT.toString(), PreferenceHelper.INCLUDE_CONTAINMENT);
+					put(LDP.PREFERENCE_MEMBERSHIP.toString(), PreferenceHelper.INCLUDE_MEMBERSHIP);
+				}};
+				List<String> action = Arrays.stream(prefs.get(1).split("=")).map(s -> s.trim()).collect(Collectors.toList());
+				if (null != action && action.size() == 2) {
+					List<String> requests = Arrays.stream(action.get(1).split(" ")).map(s -> s.trim()).collect(Collectors.toList());
+					if ("include".equals(action.get(0))) {
+						int acc = 0;
+						for (String p : requests) {
+							Integer val = uriToPrefs.get(p.replace("\"", ""));
+							if (null == val) {
+								acc = PreferenceHelper.defaultPreferences();
+								break;
+							}
+							acc = acc | uriToPrefs.get(p.replace("\"", ""));
+						}
+						if (acc > 0) return Collections.singletonMap(acc, prefs.get(0));
+						return Collections.singletonMap(PreferenceHelper.defaultPreferences(), prefs.get(0));
+					} else if ("omit".equals(action.get(0))) {
+						int acc = PreferenceHelper.defaultPreferences();
+						for (String p : requests) acc = acc - uriToPrefs.get(p.replace("\"", ""));
+						if (acc != 0) return Collections.singletonMap(acc, prefs.get(0));
+						return Collections.singletonMap(PreferenceHelper.MINIMAL_CONTAINER, prefs.get(0));
+					}
+					return Collections.singletonMap(PreferenceHelper.defaultPreferences(), prefs.get(0));
+				}
+			}
+		}
+		return Collections.singletonMap(PreferenceHelper.defaultPreferences(), null);
+	}
+
+	@Override
+	public Map<Boolean, String> update( ReqBodyHelper body,  Handler handler){
+		Set<IStatement> configStmts = null;
+		if (null!= body && null != handler && !body.isBasicContainer() && !body.isDirectContainer()) {
+			URI resourceUri = body.getURI();
+			String msg = "";
+			IEntityManager manager = getEntityManager();
+			if (!(handler instanceof  RdfResourceHandler))
+				msg = "wrong configurations, configuration will be ignored";
+			else configStmts = matchConfig((RdfResourceHandler)handler, resourceUri);
+			manager.removeRecursive(resourceUri, true);
+			manager.add(new Statement(resourceUri, RDF.PROPERTY_TYPE, LDP.TYPE_RDFSOURCE));
+			if (null != configStmts) configStmts.forEach(stmt -> manager.add(stmt));
+			RDF4JValueConverter valueConverter = body.valueConverter();
+			body.getRdfBody().forEach(stmt -> {
+				IReference subj = valueConverter.fromRdf4j(stmt.getSubject());
+				IReference pred = valueConverter.fromRdf4j(stmt.getPredicate());
+				IValue obj = valueConverter.fromRdf4j(stmt.getObject());
+				if (subj != resourceUri || !body.isServerProperty(pred))
+					manager.add(new Statement(subj, pred, obj));
+			});
+			manager.add(new Statement(resourceUri, LDP.DCTERMS_PROPERTY_MODIFIED,
+					new Literal(Instant.now().toString(), XMLSCHEMA.TYPE_DATETIME)));
+			return Collections.singletonMap(true,msg);
+		}
+		return Collections.singletonMap(false,"resource cannot be replaced, type mismatch");
+	}
+
+	@Override
+	public Set<IStatement> matchConfig(RdfResourceHandler config, URI uri) {
+		Set<IStatement> stmts = new HashSet<>();
+		config.getTypes().forEach(t -> stmts.add(new Statement(uri, RDF.PROPERTY_TYPE, t)));
+		DirectContainerHandler dh = config.getDirectContainerHandler();
+		if (null != dh) {
+			for (LdpDirectContainer dc : membershipSourceFor()) {
+				dc.contains().forEach(r -> stmts.add(new Statement(uri, dc.hasMemberRelation(), r)));
+				// special case
+				stmts.add(new Statement(dc, LDP.PROPERTY_MEMBERSHIPRESOURCE, uri));
+			}
+		}
+		return stmts;
 	}
 }
