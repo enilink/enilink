@@ -70,35 +70,38 @@ public abstract class DirectContainerSupport implements LdpDirectContainer, Beha
 
 	private Set<IStatement>  matchDirectContainerConfig(DirectContainerHandler handler, URI resourceUri){
 		Set<IStatement> stmts = matchConfig(handler, resourceUri);
-		if(null != handler.getMembership())
+		URI menbership = handler.getMembership();
+		LdpResource mebershipSrc = membershipResource();
+		if(null !=menbership && null!= mebershipSrc)
 			stmts.addAll( Arrays.asList(
-                 new Statement(resourceUri, LDP.PROPERTY_HASMEMBERRELATION, handler.getMembership()),
-                 new Statement(resourceUri, LDP.PROPERTY_MEMBERSHIPRESOURCE, membershipResource())));
+                 new Statement(resourceUri, LDP.PROPERTY_HASMEMBERRELATION,menbership),
+                 new Statement(resourceUri, LDP.PROPERTY_MEMBERSHIPRESOURCE, mebershipSrc.getURI())));
 		return stmts;
 	}
 
 	@Override
 	public Map<Boolean,String> createResource(IModel model, URI resourceType, RdfResourceHandler resourceHandler, ContainerHandler containerHandler, ReqBodyHelper body){
-		Map<Boolean,String> result = getBehaviourDelegate().createResource( model,  resourceType,  resourceHandler, containerHandler,  body);
-		if(result.get(true) != null){
-			getEntityManager().add(new Statement(getURI(), LDP.PROPERTY_CONTAINS, body,getURI()));
+		//Map<Boolean,String> result = getBehaviourDelegate().createResource( model,  resourceType,  resourceHandler, containerHandler,  body);
+		System.out.println("going to create resource in DC: "+ getURI());
+			//getEntityManager().add(new Statement(getURI(), LDP.PROPERTY_CONTAINS, body,getURI()));
 			URI membershipSrc = membershipResource() != null ? membershipResource().getURI() : null;
 			URI membership = null;
-			if(null == membershipSrc && containerHandler instanceof DirectContainerHandler) {
+			if(containerHandler instanceof DirectContainerHandler) {
 				DirectContainerHandler dh = (DirectContainerHandler) containerHandler;
 				RdfResourceHandler memSrcConfig = dh.getRelSource();
-				if (memSrcConfig != null && memSrcConfig.getAssignedTo() != null)
+				if (membership == null && memSrcConfig != null && memSrcConfig.getAssignedTo() != null)
 					membershipSrc = memSrcConfig.getAssignedTo();
-				else  membershipSrc = parentUri();
+				else if (membership == null) membershipSrc = parentUri();
 				membership = hasMemberRelation() != null ? hasMemberRelation().getURI() : dh.getMembership();
 			}
 			if(null != membershipSrc && null != membership){
 				//getEntityManager().find(membershipSrc).getEntityManager().add(new Statement(membershipSrc, membership, body.getURI()));
+				String msg = "membership src: "+membershipSrc +" membership: "+membership;
+				System.out.println(msg);
 				model.getModelSet().getModel(membershipSrc, true).getManager().add(new Statement(membershipSrc, membership, body.getURI()));
+				return Collections.singletonMap(true, msg);
 			}
 			else return Collections.singletonMap(false, "not valid body entity or configuration fault");
-		}
-		return result;
 	}
 
 	private  URI parentUri(){

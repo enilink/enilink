@@ -12,8 +12,10 @@ import net.enilink.vocab.rdf.RDF;
 import net.enilink.vocab.xmlschema.XMLSCHEMA;
 
 import java.time.Instant;
-import java.util.*;
-import java.util.stream.Collectors;
+import java.util.Collections;
+import java.util.HashSet;
+import java.util.Map;
+import java.util.Set;
 
 public abstract class RdfSourceSupport implements LdpRdfSource, Behaviour<LdpRdfSource> {
 
@@ -122,44 +124,6 @@ public abstract class RdfSourceSupport implements LdpRdfSource, Behaviour<LdpRdf
 		IQuery<?> query = getEntityManager().createQuery(queryStr, false);
 		query.setParameter("this", getBehaviourDelegate());
 		return query.evaluate(LdpDirectContainer.class).toSet();
-	}
-
-	@Override
-	public Map<Integer,String> preference(String preferenceHeader) {
-		if (null != preferenceHeader) {
-			List<String> prefs = Arrays.stream(preferenceHeader.split(";")).map(s -> s.trim()).collect(Collectors.toList());
-			if (null != prefs && prefs.size() == 2) {
-				Map<String, Integer> uriToPrefs = new HashMap<String, Integer>() {{
-					put(LDP.PREFERENCE_MINIMALCONTAINER.toString(), PreferenceHelper.MINIMAL_CONTAINER);
-					put(LDP.PREFERENCE_CONTAINMENT.toString(), PreferenceHelper.INCLUDE_CONTAINMENT);
-					put(LDP.PREFERENCE_MEMBERSHIP.toString(), PreferenceHelper.INCLUDE_MEMBERSHIP);
-				}};
-				List<String> action = Arrays.stream(prefs.get(1).split("=")).map(s -> s.trim()).collect(Collectors.toList());
-				if (null != action && action.size() == 2) {
-					List<String> requests = Arrays.stream(action.get(1).split(" ")).map(s -> s.trim()).collect(Collectors.toList());
-					if ("include".equals(action.get(0))) {
-						int acc = 0;
-						for (String p : requests) {
-							Integer val = uriToPrefs.get(p.replace("\"", ""));
-							if (null == val) {
-								acc = PreferenceHelper.defaultPreferences();
-								break;
-							}
-							acc = acc | uriToPrefs.get(p.replace("\"", ""));
-						}
-						if (acc > 0) return Collections.singletonMap(acc, prefs.get(0));
-						return Collections.singletonMap(PreferenceHelper.defaultPreferences(), prefs.get(0));
-					} else if ("omit".equals(action.get(0))) {
-						int acc = PreferenceHelper.defaultPreferences();
-						for (String p : requests) acc = acc - uriToPrefs.get(p.replace("\"", ""));
-						if (acc != 0) return Collections.singletonMap(acc, prefs.get(0));
-						return Collections.singletonMap(PreferenceHelper.MINIMAL_CONTAINER, prefs.get(0));
-					}
-					return Collections.singletonMap(PreferenceHelper.defaultPreferences(), prefs.get(0));
-				}
-			}
-		}
-		return Collections.singletonMap(PreferenceHelper.defaultPreferences(), null);
 	}
 
 	@Override

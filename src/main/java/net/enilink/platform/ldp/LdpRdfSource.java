@@ -40,7 +40,5 @@ public interface LdpRdfSource extends LdpResource {
 
 	Map<Boolean, String> update(ReqBodyHelper body, Handler config);
 
-	Map<Integer,String> preference(String preferenceHeader);
-
 	Set<IStatement> matchConfig(RdfResourceHandler config, URI uri);
 }

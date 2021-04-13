@@ -8,7 +8,6 @@ import javax.xml.datatype.XMLGregorianCalendar
 import net.enilink.komma.core._
 import net.enilink.komma.model.{IModel, ModelUtil}
 import net.enilink.komma.rdf4j.RDF4JValueConverter
-import net.enilink.platform.ldp
 import net.enilink.platform.ldp.config._
 import net.enilink.platform.lift.util.Globals
 import net.enilink.platform.web.rest.ModelsRest
@@ -72,6 +71,7 @@ class LDPHelper extends RestHelper {
         createContent(refs, req, uri, reqNr.getOrElse(1), config)
       case Put(`path` :: refs, req) => updateContent(refs, req, uri, config)
       case Delete(`path` :: refs, req) => deleteContent(refs, req, uri, config)
+      //case Patch e(`path` :: refs, req) => updateWithPatch(refs, req, uri, config)
     }
   }
 
@@ -118,7 +118,7 @@ class LDPHelper extends RestHelper {
       case "index" :: Nil =>
         findModel(uri).flatMap { m =>
           if (m.getManager.hasMatch(uri, RDF.PROPERTY_TYPE, LDP.TYPE_BASICCONTAINER)) {
-            val content = getContainerContent(uri, classOf[LdpBasicContainer], m, preferences.toOption)
+            val content = getContainerContent(uri, classOf[LdpBasicContainer], m, preferences)
             if (uri != requestUri && !content.isEmpty) {
               content += new Statement(uri, OWL.PROPERTY_SAMEAS, requestUri)
             }
@@ -179,7 +179,7 @@ class LDPHelper extends RestHelper {
           case LDP.TYPE_RDFSOURCE =>  getContainerContent(requestUri, classOf[LdpRdfSource],m, Empty)
           case LDP.TYPE_NONRDFSOURCE => getNoneRdfContent(m, requestUri)
         }
-        //FIXME create new Resource (LDP Server may allow the creation of new resources using HTTP PUT
+        //FIXME create new Resource (LDP Server MAY allow the creation of new resources using HTTP PUT
           content.generate(MIME_TURTLE) match {
             case Full((size, _, _, _)) =>
               val sEtag = generateETag(size)
@@ -222,7 +222,7 @@ class LDPHelper extends RestHelper {
                   if (status != null) {
                     if (!status.isEmpty) println(status)
                     Full(new UpdateResponse(resourceUri.toString(), resourceType))
-                  } else Full(new FailedResponse(412, result.get(false), typelinks))
+                  } else Full(new FailedResponse(409, result.get(false), typelinks))
                 case Right(Full(bin)) =>
                   val res = m.getManager.findRestricted(resourceUri, classOf[LdpNoneRdfSource])
                   if(res.format() != req.contentType.openOr("application/octet-stream"))
@@ -250,7 +250,6 @@ class LDPHelper extends RestHelper {
     }
 
     val response: Box[Convertible] = refs match {
-      //FIXME make graceful and configurable constraints
       case Nil =>
         val msg = s"not recognized as Resource: ${req.uri}, try ${req.uri}/ "
         Full(new FailedResponse(404, msg, computeLinkHeader(LDP.TYPE_RDFSOURCE :: Nil)))
@@ -393,29 +392,26 @@ class LDPHelper extends RestHelper {
       }.openOr(false)
     }
 
-    val resourceType = req.header(LINK) match {
-      case Full(l) =>
-        val t = l.split(";").map(_.trim).apply(0)
-        URIs.createURI(t.substring(1, t.length - 1), true)
-      case _ => LDP.TYPE_RDFSOURCE
-    }
-
     // LDP servers that allow member creation via POST SHOULD NOT re-use URIs. also if the resource was deleted
     val resourceName = requestedSlug._1 + "-" + requestedSlug._2
 
     val constraintHeader =("Link", constrainedLink) :: Nil
 
-    def createRdfResource[C <: LdpContainer, RH<: RdfResourceHandler, CH<: ldp.config.ContainerHandler](container :C, m:IModel, resConf:RH, containerConf:CH): Box[Convertible] ={
+    def createRdfResource[C <: LdpContainer, RH <: RdfResourceHandler, CH <: ContainerHandler](container :C, m:IModel, resConf:RH, containerConf:CH): Box[Convertible] ={
       val resourceUri =  container.getURI.appendLocalPart(resourceName)
       getBodyEntity(req, resourceUri.toString()) match {
         case Left(rdf) =>
           val body = new ReqBodyHelper(rdf, resourceUri)
+          val resourceType = ReqBodyHelper.resourceType(req.header(LINK).openOr(null))
           val result = container.createResource (m, resourceType, resConf, containerConf,body)
           if(result.get(true) != null){
             println(result.get(true))
             Full(new UpdateResponse(resourceUri.toString(), resourceType))
           }
-          else  Full(new FailedResponse(415, result.get(false), constraintHeader))
+          else {
+            println(result.get(false))
+            Full(new FailedResponse(415, result.get(false), constraintHeader))
+          }
         case Right(Full(noneRdfContent)) if(noneRdfContent.length > 0) =>
           if (createNoneRdfResource(noneRdfContent,resourceUri,m,resConf))
             Full(new UpdateResponse(resourceUri.toString(), LDP.TYPE_NONRDFSOURCE))
@@ -573,6 +569,7 @@ class LDPHelper extends RestHelper {
     }
 
     def addRelType(relType: IReference) = {
+      if(relType != LDP.TYPE_NONRDFSOURCE) relTypes += LDP.TYPE_RDFSOURCE
       relTypes += relType
     }
 
@@ -620,7 +617,7 @@ class LDPHelper extends RestHelper {
           }
           dataVisitor.visitEnd
           val headers = linkHeader(relTypes.sortBy(_.toString))
-          if (!preference.isEmpty) ("Prefer", preference) :: headers
+          if (!preference.isEmpty) ("Preference-Applied", preference) :: headers
           Full((output.size, output, mimeType, headers))
         } catch {
           case e: Exception => e.printStackTrace(); Failure("Unable to generate " + mimeType + ": " + e.getMessage, Full(e), Empty)
@@ -647,16 +644,14 @@ class LDPHelper extends RestHelper {
 
   }
 
-  def getContainerContent[T<:LdpRdfSource](resourceUri:URI, clazz: Class[T], m:IModel, prefHeader: Option[String]):ContainerContent={
+  def getContainerContent[T<:LdpRdfSource](resourceUri:URI, clazz: Class[T], m:IModel, prefHeader: Box[String]):ContainerContent={
     val content = new ContainerContent(Nil, m.getURI.toString)
     val c = m.getManager.find(resourceUri, clazz)
-    val pref: (Integer, String) =
-      if (!prefHeader.isEmpty) c.preference(prefHeader.get).asScala.toList(0)
-      else (PreferenceHelper.defaultPreferences(), null)
-    content.addRelType(c.getRelType)
+    val pref: (Integer, String) = ReqBodyHelper.preference(prefHeader.openOr(null)).asScala.toList(0)
     content ++= c.getTriples(pref._1).asScala
-    if(pref._1 != PreferenceHelper.defaultPreferences())
-     content.applyPreference(pref._2)
+    content.addRelType(c.getRelType)
+    content.applyPreference(pref._2)
+    //println(s"get content of resource ${resourceUri} of type ${clazz} with preference ${pref} resulting from request pref ${prefHeader}")
     content
   }
 

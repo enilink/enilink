@@ -1,5 +1,6 @@
 package net.enilink.platform.ldp.impl;
 
+import net.enilink.composition.annotations.Precedes;
 import net.enilink.composition.traits.Behaviour;
 import net.enilink.komma.core.*;
 import net.enilink.komma.model.IModel;
@@ -19,10 +20,12 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.Map;
 
+@Precedes(DirectContainerSupport.class)
 public abstract class ContainerSupport implements LdpContainer, Behaviour<LdpContainer> {
     @Override
     //FIXME unnecessary parameter containerURI
     public Map<Boolean, String> createResource(IModel model, URI resourceType, RdfResourceHandler resourceHandler, ContainerHandler ch, ReqBodyHelper body){
+        System.out.println("going to create resource in the container: "+getURI());
         if(body == null || body.getRdfBody() == null) return Collections.singletonMap(false, "no RDF-body content found");
         RdfResourceHandler conf = resourceHandler != null ? resourceHandler : new RdfResourceHandler();
         boolean configuredAsBC = conf instanceof BasicContainerHandler;
@@ -81,8 +84,8 @@ public abstract class ContainerSupport implements LdpContainer, Behaviour<LdpCon
                             new Statement(dc, LDP.PROPERTY_HASMEMBERRELATION, dh.getMembership()),
                             new Statement(dc, LDP.PROPERTY_MEMBERSHIPRESOURCE, resourceUri)));
                 }
+                String msg="";
                 //if resource was configured to be Direct Container with certain configs take it
-                String msg = "" ;
                 if (conf instanceof DirectContainerHandler) {
                     DirectContainerHandler relHandler = (DirectContainerHandler) conf;
                     if (relHandler.getRelSource() != null && relHandler.getRelSource().getAssignedTo() != null) {
@@ -94,9 +97,14 @@ public abstract class ContainerSupport implements LdpContainer, Behaviour<LdpCon
                         resourceManager.add(Arrays.asList(
                                 new Statement(resourceUri, LDP.PROPERTY_HASMEMBERRELATION, relHandler.getMembership()),
                                 new Statement(resourceUri, LDP.PROPERTY_MEMBERSHIPRESOURCE, membershipResource)));
-                    } else msg="DirectContainerHandler not configured correctly";
+                    } else {
+                        msg="WARNING DirectContainerHandler not configured correctly";
+                        System.out.println(msg);
+                    }
                 }
                 getEntityManager().add(new Statement(getURI(), LDP.PROPERTY_CONTAINS, body.getURI()));
+                //Don't break the chain if the container is of type direct
+                if(getEntityManager().hasMatch(getURI(), RDF.PROPERTY_TYPE, LDP.TYPE_DIRECTCONTAINER)) return null;
                 return Collections.singletonMap(true,msg);
             } catch( Throwable t) {
                 t.printStackTrace();
