@@ -4,10 +4,19 @@ import net.enilink.komma.core.IReference;
 import net.enilink.komma.core.URI;
 import net.enilink.komma.core.URIs;
 import net.enilink.komma.rdf4j.RDF4JValueConverter;
+import net.enilink.platform.ldp.ldPatch.parse.LdPatch;
+import net.enilink.platform.ldp.ldPatch.parse.LdPatchParser;
 import net.enilink.vocab.rdf.RDF;
+import org.apache.commons.io.IOUtils;
 import org.eclipse.rdf4j.model.Model;
 import org.eclipse.rdf4j.model.impl.SimpleValueFactory;
+import org.parboiled.Parboiled;
+import org.parboiled.errors.ParseError;
+import org.parboiled.parserunners.RecoveringParseRunner;
+import org.parboiled.support.ParsingResult;
 
+import java.io.IOException;
+import java.io.InputStream;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -15,6 +24,7 @@ public class ReqBodyHelper {
     private Model m;
     private URI resourceUri;
     private static RDF4JValueConverter valueConverter;
+    private static LdPatchParser ldPatchParser ;
     private static Set<URI> systemProperties;
     //  private scala.Array<Byte> binData;
 
@@ -117,6 +127,36 @@ public class ReqBodyHelper {
         return valueConverter;
     }
 
+    public static LdPatch parseLdPatch(String input){
+        if (null == input) return null;
+        if(null == ldPatchParser)
+           ldPatchParser = Parboiled.createParser(LdPatchParser.class);
+        RecoveringParseRunner<LdPatch> runner = new RecoveringParseRunner<>(
+                ldPatchParser.LdPatch());
+        List<ParseError> errors = runner.getParseErrors();
+        if (!errors.isEmpty()) {
+            errors.forEach(er -> System.out.println(er.getErrorMessage()));
+            return null;
+        }
+        ParsingResult<?> result = runner.run(input);
+        if (result.hasErrors()) {
+            result.parseErrors.forEach(er -> System.out.println(er.getErrorMessage()));
+            return null;
+        }
+        return (LdPatch) result.resultValue;
+    }
+
+    public  static LdPatch parseLdPatch(InputStream input)  {
+        try {
+            String body =  IOUtils.toString(input, "UTF-8");
+            System.out.println(body);
+            return parseLdPatch(body);
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+        return  null;
+    }
+
 //     public scala.Array<Byte> binaryContent(){
 //        return isNoneRDF() ? binData : null;
 //     }
@@ -169,6 +209,5 @@ public class ReqBodyHelper {
             return type !=null ? URIs.createURI(type, true) :  LDP.TYPE_RDFSOURCE;
         }
     }
-
 }
 

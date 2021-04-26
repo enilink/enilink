@@ -3,19 +3,22 @@ package net.enilink.platform.ldp.impl;
 import net.enilink.composition.traits.Behaviour;
 import net.enilink.komma.core.*;
 import net.enilink.komma.em.util.ISparqlConstants;
+import net.enilink.komma.parser.sparql.tree.AbstractGraphNode;
+import net.enilink.komma.parser.sparql.tree.GraphNode;
 import net.enilink.komma.rdf4j.RDF4JValueConverter;
 import net.enilink.platform.ldp.*;
 import net.enilink.platform.ldp.config.DirectContainerHandler;
 import net.enilink.platform.ldp.config.Handler;
 import net.enilink.platform.ldp.config.RdfResourceHandler;
+import net.enilink.platform.ldp.ldPatch.parse.Bind;
+import net.enilink.platform.ldp.ldPatch.parse.LdPatch;
+import net.enilink.platform.ldp.ldPatch.parse.PathElement;
+import net.enilink.platform.ldp.ldPatch.parse.Step;
 import net.enilink.vocab.rdf.RDF;
 import net.enilink.vocab.xmlschema.XMLSCHEMA;
 
 import java.time.Instant;
-import java.util.Collections;
-import java.util.HashSet;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 
 public abstract class RdfSourceSupport implements LdpRdfSource, Behaviour<LdpRdfSource> {
 
@@ -152,6 +155,35 @@ public abstract class RdfSourceSupport implements LdpRdfSource, Behaviour<LdpRdf
 			return Collections.singletonMap(true,msg);
 		}
 		return Collections.singletonMap(false,"resource cannot be replaced, type mismatch");
+	}
+
+	@Override
+	public Map<Boolean, String> updatePartially(LdPatch ldPatch){
+        if (null == ldPatch) return Collections.singletonMap(false, "empty patch Document");
+        // resolve variables if any
+		Map<String, Bind> vars = ldPatch.variables();
+		if(null != vars && !vars.isEmpty()){
+			HashMap<String, GraphNode> resolvedVariables = new HashMap<>();
+			for(Map.Entry e: vars.entrySet()) {
+				Bind b =(Bind) e.getValue();
+				if(resolvedVariables.containsKey(b.getName())) continue;
+				if(null != b && (null == b.getPath() || null == b.getPath().getElements() || b.getPath().getElements().isEmpty())){
+					  resolvedVariables.put(b.getName(), b.getValue());
+					  continue;
+				}
+				for(PathElement pe: b.getPath().getElements()){
+					if(pe instanceof Step){
+					  int s =((Step) pe).step();
+					  AbstractGraphNode iri = ((Step) pe).iri();
+					  if(null != iri && s > 0){
+								//queury(b.getValue(), iri), null;
+
+							}
+						}
+				}
+			}
+		}
+		return Collections.singletonMap(true, "test ..");
 	}
 
 	@Override

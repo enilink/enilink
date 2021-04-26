@@ -6,6 +6,7 @@ import net.enilink.komma.core.IStatement;
 import net.enilink.komma.core.URI;
 import net.enilink.platform.ldp.config.Handler;
 import net.enilink.platform.ldp.config.RdfResourceHandler;
+import net.enilink.platform.ldp.ldPatch.parse.LdPatch;
 
 import java.util.Map;
 import java.util.Set;
@@ -39,6 +40,8 @@ public interface LdpRdfSource extends LdpResource {
 	Set<LdpDirectContainer> membershipSourceFor();
 
 	Map<Boolean, String> update(ReqBodyHelper body, Handler config);
+
+	Map<Boolean, String> updatePartially(LdPatch ldpatch);
 
 	Set<IStatement> matchConfig(RdfResourceHandler config, URI uri);
 }
