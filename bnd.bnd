@@ -1,4 +1,5 @@
 Bundle-Version: ${project.version}
 Bundle-SymbolicName: ${project.artifactId};singleton:=true
+Import-Package: org.parboiled.transform,org.parboiled.matchers,org.parboiled.common,*
 Service-Component: OSGI-INF/*.xml
 -exportcontents: net.enilink.platform.ldp.*

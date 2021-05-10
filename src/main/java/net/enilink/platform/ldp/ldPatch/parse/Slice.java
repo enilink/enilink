@@ -1,19 +1,19 @@
 package net.enilink.platform.ldp.ldPatch.parse;
 
 public class Slice {
-    private int min;
-    private int max;
+    private int min = Integer.MIN_VALUE;
+    private int max= Integer.MAX_VALUE;
 
-    public Slice min(int min){
+    public boolean min(int min){
         this.min = min;
-        return  this;
+        return  true;
     }
 
     public int min(){ return  this.min;}
 
-    public Slice max(int max){
+    public boolean max(int max){
         this.max = max;
-        return  this;
+        return  true;
     }
 
     public int max(){ return  this.max;}

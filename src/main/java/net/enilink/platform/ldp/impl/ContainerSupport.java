@@ -7,6 +7,7 @@ import net.enilink.komma.model.IModel;
 import net.enilink.komma.rdf4j.RDF4JValueConverter;
 import net.enilink.platform.ldp.LDP;
 import net.enilink.platform.ldp.LdpContainer;
+import net.enilink.platform.ldp.LdpRdfSource;
 import net.enilink.platform.ldp.ReqBodyHelper;
 import net.enilink.platform.ldp.config.BasicContainerHandler;
 import net.enilink.platform.ldp.config.ContainerHandler;
@@ -14,19 +15,18 @@ import net.enilink.platform.ldp.config.DirectContainerHandler;
 import net.enilink.platform.ldp.config.RdfResourceHandler;
 import net.enilink.vocab.rdf.RDF;
 import net.enilink.vocab.xmlschema.XMLSCHEMA;
+import org.eclipse.rdf4j.model.Namespace;
 
 import java.time.Instant;
 import java.util.Arrays;
-import java.util.Collections;
-import java.util.Map;
 
 @Precedes(DirectContainerSupport.class)
 public abstract class ContainerSupport implements LdpContainer, Behaviour<LdpContainer> {
     @Override
-    //FIXME unnecessary parameter containerURI
-    public Map<Boolean, String> createResource(IModel model, URI resourceType, RdfResourceHandler resourceHandler, ContainerHandler ch, ReqBodyHelper body){
+    public OperationResponse createResource(IModel model, URI resourceType, RdfResourceHandler resourceHandler, ContainerHandler ch, ReqBodyHelper body){
         System.out.println("going to create resource in the container: "+getURI());
-        if(body == null || body.getRdfBody() == null) return Collections.singletonMap(false, "no RDF-body content found");
+        if(body == null || body.getRdfBody() == null)
+            return new OperationResponse(OperationResponse.UNSUPP_MEDIA, "no RDF-body content found");
         RdfResourceHandler conf = resourceHandler != null ? resourceHandler : new RdfResourceHandler();
         boolean configuredAsBC = conf instanceof BasicContainerHandler;
         boolean configuredAsDC = conf instanceof DirectContainerHandler &&
@@ -51,6 +51,9 @@ public abstract class ContainerSupport implements LdpContainer, Behaviour<LdpCon
                     resourceModel =m;
                 }
                 IEntityManager resourceManager = resourceModel.getManager();
+                for (Namespace ns : body.getRdfBody().getNamespaces()){
+                    resourceManager.setNamespace(ns.getPrefix(), URIs.createURI(ns.getName()));
+                }
                 resourceManager.add(Arrays.asList(
                         new Statement(resourceUri, RDF.PROPERTY_TYPE, resourceType),
                         new Statement(resourceUri, LDP.DCTERMS_PROPERTY_CREATED, new Literal(Instant.now().toString(), XMLSCHEMA.TYPE_DATETIME))));
@@ -105,15 +108,17 @@ public abstract class ContainerSupport implements LdpContainer, Behaviour<LdpCon
                 getEntityManager().add(new Statement(getURI(), LDP.PROPERTY_CONTAINS, body.getURI()));
                 //Don't break the chain if the container is of type direct
                 if(getEntityManager().hasMatch(getURI(), RDF.PROPERTY_TYPE, LDP.TYPE_DIRECTCONTAINER)) return null;
-                return Collections.singletonMap(true,msg);
+                LdpRdfSource res = resourceManager.findRestricted(resourceUri, LdpRdfSource.class);
+                res.setContainer(this);
+                return new OperationResponse(OperationResponse.OK,msg);
             } catch( Throwable t) {
                 t.printStackTrace();
-                return Collections.singletonMap(false, t.getMessage());
+                return new OperationResponse(OperationResponse.UNSUPP_MEDIA, t.getMessage());
             } finally {
                 model.getModelSet().getUnitOfWork().end();
             }
         } else {
-            return Collections.singletonMap(false,"invalid or incomplete RDF content");
+            return new OperationResponse(OperationResponse.UNSUPP_MEDIA,"invalid or incomplete RDF content");
         }
     }
 }

@@ -1,4 +1,4 @@
 package net.enilink.platform.ldp.ldPatch.parse;
 
-public class DeleteExisting extends Ande {
+public class DeleteExisting extends Delete {
 }

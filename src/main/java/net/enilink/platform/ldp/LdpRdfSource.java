@@ -6,9 +6,9 @@ import net.enilink.komma.core.IStatement;
 import net.enilink.komma.core.URI;
 import net.enilink.platform.ldp.config.Handler;
 import net.enilink.platform.ldp.config.RdfResourceHandler;
+import net.enilink.platform.ldp.impl.OperationResponse;
 import net.enilink.platform.ldp.ldPatch.parse.LdPatch;
 
-import java.util.Map;
 import java.util.Set;
 
 /**
@@ -36,12 +36,23 @@ public interface LdpRdfSource extends LdpResource {
 	 * Return the list of statements for this RDFSource, with applied preferences.
 	 */
 	Set<IStatement> getTriples(int preferences);
-	
+
+	/**
+	 * Return the the direct containers for which this RDFSource configured as Source, if any
+	 */
 	Set<LdpDirectContainer> membershipSourceFor();
 
-	Map<Boolean, String> update(ReqBodyHelper body, Handler config);
+	/**
+	 * to which containers should this resource belongs.
+	 */
+	@Iri(LDP.NAMESPACE + "resourceContainer")
+	LdpContainer getContainer();
 
-	Map<Boolean, String> updatePartially(LdPatch ldpatch);
+	void setContainer(LdpContainer container);
+
+	OperationResponse update(ReqBodyHelper body, Handler config);
+
+	OperationResponse updatePartially(LdPatch ldpatch);
 
 	Set<IStatement> matchConfig(RdfResourceHandler config, URI uri);
 }

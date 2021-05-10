@@ -5,8 +5,8 @@ import net.enilink.komma.core.URI;
 import net.enilink.komma.model.IModel;
 import net.enilink.platform.ldp.config.ContainerHandler;
 import net.enilink.platform.ldp.config.RdfResourceHandler;
+import net.enilink.platform.ldp.impl.OperationResponse;
 
-import java.util.Map;
 import java.util.Set;
 
 /**
@@ -33,5 +33,5 @@ public interface LdpContainer extends LdpRdfSource {
 	Set<LdpResource> contains();
 	void contains(Set<LdpResource> resources);
 
-	Map<Boolean,String> createResource(IModel model, URI resourceType, RdfResourceHandler resourceHandler, ContainerHandler containerHandler, ReqBodyHelper body);
+	OperationResponse createResource(IModel model, URI resourceType, RdfResourceHandler resourceHandler, ContainerHandler containerHandler, ReqBodyHelper body);
 }

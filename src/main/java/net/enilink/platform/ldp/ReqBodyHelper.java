@@ -24,7 +24,7 @@ public class ReqBodyHelper {
     private Model m;
     private URI resourceUri;
     private static RDF4JValueConverter valueConverter;
-    private static LdPatchParser ldPatchParser ;
+   // private static LdPatchParser ldPatchParser ;
     private static Set<URI> systemProperties;
     //  private scala.Array<Byte> binData;
 
@@ -123,34 +123,30 @@ public class ReqBodyHelper {
         return m;
     }
 
-    public RDF4JValueConverter valueConverter() {
-        return valueConverter;
+    public static RDF4JValueConverter valueConverter() {
+        return valueConverter != null ? valueConverter : new RDF4JValueConverter(SimpleValueFactory.getInstance());
     }
 
-    public static LdPatch parseLdPatch(String input){
-        if (null == input) return null;
-        if(null == ldPatchParser)
-           ldPatchParser = Parboiled.createParser(LdPatchParser.class);
+    public static  LdPatch parseLdPatch(String input){
+        System.out.println("input: "+input);
+        if (null == input || input.isEmpty()) return null;
+        LdPatchParser ldPatchParser = Parboiled.createParser(LdPatchParser.class);
         RecoveringParseRunner<LdPatch> runner = new RecoveringParseRunner<>(
                 ldPatchParser.LdPatch());
         List<ParseError> errors = runner.getParseErrors();
         if (!errors.isEmpty()) {
-            errors.forEach(er -> System.out.println(er.getErrorMessage()));
+            errors.forEach(er -> System.out.println("Error: "+er.getErrorMessage()));
             return null;
         }
         ParsingResult<?> result = runner.run(input);
-        if (result.hasErrors()) {
-            result.parseErrors.forEach(er -> System.out.println(er.getErrorMessage()));
-            return null;
-        }
         return (LdPatch) result.resultValue;
     }
 
-    public  static LdPatch parseLdPatch(InputStream input)  {
-        try {
-            String body =  IOUtils.toString(input, "UTF-8");
-            System.out.println(body);
-            return parseLdPatch(body);
+    public  static  LdPatch parseLdPatch(InputStream input)  {
+        try{
+           String body =  IOUtils.toString(input, "UTF-8");
+            System.out.println("body to parse: "+body);
+             return parseLdPatch(body);
         } catch (IOException e) {
             e.printStackTrace();
         }

@@ -53,26 +53,25 @@ class LDPHelper extends RestHelper {
   val TIME_SLOT = 60000
 
   val requestCounts = scala.collection.mutable.Map[String, Int]()
-
-//  def register(path: String, uri: URI, config: BasicContainerHandler) = serveType(req =>  BoxOrRaw){
-//    case Patch(`path` :: refs, req) => println("just for testing"); Full(new Test)
-//  } (toPlain)
+  var reqNr:Int =0; //LDP servers that allow member creation via POST SHOULD NOT re-use URIs (also if resource deleted).
 
   // turtle/json-ld distinction is made by tjSel and using the Convertible in cvt below
   // FIXME: support LDP without extra prefix, on requests for plain resource URIs with no other match
-  def register(path: String, uri: URI, config: BasicContainerHandler) =  serveTj {
+  def register(path: String, uri: URI, config: BasicContainerHandler) = {
+    val handler: BasicContainerHandler = if (null != config)  config else new BasicContainerHandler(path);
+    serveTj {
       // use backticks to match on path's value
       case Options(`path` :: refs, req) => getOptions(refs, req)
       case Head(`path` :: refs, req) => getContent(refs, req, uri)
-      case Get(`path` :: refs, req) => println("Get test.."); getContent(refs, req, uri)
+      case Get(`path` :: refs, req) =>  getContent(refs, req, uri)
       case Post(`path` :: refs, req) =>
-        val reqNr = requestCounts.put(path, requestCounts.getOrElse(path, 0) + 1)
-        createContent(refs, req, uri, reqNr.getOrElse(1), config)
-      case Patch(`path` :: refs, req) =>
-        println("Patch from servTj ..")
-       updateContent( refs,req, uri, config, true)
-      case Put(`path` :: refs, req) => println("Put test");updateContent(refs, req, uri, config, false)
-      case Delete(`path` :: refs, req) => deleteContent(refs, req, uri, config)
+        //val reqNr = requestCounts.put(path, requestCounts.getOrElse(path, 0) + 1)
+        reqNr = reqNr +1
+        createContent(refs, req, uri,  reqNr, handler)
+      case Patch(`path` :: refs, req) => updateContent(refs, req, uri, handler, true)
+      case Put(`path` :: refs, req) =>  updateContent(refs, req, uri, handler, false)
+      case Delete(`path` :: refs, req) => deleteContent(refs, req, uri,handler)
+    }
     }
 
   trait Convertible {
@@ -115,12 +114,11 @@ class LDPHelper extends RestHelper {
   }
 
   def updateRoot(req:Req, uri: URI, config: BasicContainerHandler, partial: Boolean):Box[Convertible] = {
-    println("test root ..")
+    println("update root ..")
     val typelinks = computeLinkHeader(LDP.TYPE_RESOURCE :: LDP.TYPE_BASICCONTAINER :: Nil)
     if (!config.isModifyable())
       Full(new FailedResponse(427, "container configured not modifiable", typelinks))
     else findModel(uri).flatMap(m => {
-      println("m: "+m)
       val manager = m.getManager
       if (manager.hasMatch(uri, RDF.PROPERTY_TYPE, LDP.TYPE_BASICCONTAINER)) {
         partial match{
@@ -225,10 +223,8 @@ class LDPHelper extends RestHelper {
       case Nil =>
         unrecognizedResource(req.uri)
       case "index" :: Nil =>
-        println("index test...")
         updateRoot(req,uri,config,partial)
       case path @ _ =>
-        println("path test...")
         val resourceUri = URIs.createURI(req.request.url.replace(req.hostAndPath + "/", uri.trimSegments(2).toString))
         val handler = getHandler(path, config)
         updateResource(req,resourceUri, handler, partial)
@@ -256,7 +252,6 @@ class LDPHelper extends RestHelper {
             } else
               Full(new FailedResponse(422, "container configured not deletable", ("Link", constrainedLink) :: Nil))
           } else {
-            // not supported yet
             Full(new FailedResponse(422, "root container should be of type Basic, but found another type", ("Link", constrainedLink) :: Nil))
           }
 
@@ -268,13 +263,23 @@ class LDPHelper extends RestHelper {
           val manager = m.getManager
           val res = manager.findRestricted(requestedUri, classOf[LdpRdfSource])
           val handler = getHandler(path, config)
+          // remove resource from it's container if exists
+          val container = res.getContainer
+          val resourceUri =
+            if(requestedUri.toString.endsWith("/")) requestedUri.trimSegments(1) else requestedUri
           if (handler.isDeletable()) {
+            // remove none RDF resources from store
+            if (manager.hasMatch(resourceUri, RDF.PROPERTY_TYPE, LDP.TYPE_NONRDFSOURCE)){
+              val noneRdf = m.getManager.findRestricted(resourceUri, classOf[LdpNoneRdfSource])
+              val key = noneRdf.identifier().localPart()
+              Globals.fileStore.make.map { fs =>  fs.delete(key)}
+            }
             manager.removeRecursive(requestedUri, true)
             if (res.getURI == requestedUri) ModelsRest.deleteModel(null, requestedUri)
             val parent = parentUri(requestedUri)
             if (!parent.isEmpty)
-              findModel(parent.get).foreach(m => m.getManager.removeRecursive(requestedUri, true))
-
+              findModel(parent.get).foreach(m => m.getManager.removeRecursive(res.getURI, true))
+            findModel(container.getURI).map(m => m.getManager.removeRecursive(resourceUri, true));
             Full(new UpdateResponse("", LDP.TYPE_RESOURCE))
           } else
             Full(new FailedResponse(422, "container configured not deletable", ("Link", constrainedLink) :: Nil))
@@ -347,14 +352,11 @@ class LDPHelper extends RestHelper {
           val body = new ReqBodyHelper(rdf, resourceUri)
           val resourceType = ReqBodyHelper.resourceType(req.header(LINK).openOr(null))
           val result = container.createResource (m, resourceType, resConf, containerConf,body)
-          if(result.get(true) != null){
-            println(result.get(true))
+          println(result.msg())
+          if(!result.hasError)
             Full(new UpdateResponse(resourceUri.toString(), resourceType))
-          }
-          else {
-            println(result.get(false))
-            Full(new FailedResponse(415, result.get(false), constraintHeader))
-          }
+          else
+            Full(new FailedResponse(result.code(), result.msg(), constraintHeader))
         case Right(Full(noneRdfContent)) if(noneRdfContent.length > 0) =>
           if (createNoneRdfResource(noneRdfContent,resourceUri,m,resConf))
             Full(new UpdateResponse(resourceUri.toString(), LDP.TYPE_NONRDFSOURCE))
@@ -398,7 +400,7 @@ class LDPHelper extends RestHelper {
           } // TODO add support for indirect containers
           //LDPR and LDPNR don't accept POST (only containers do )
           else
-            Full(new FailedResponse(412, "none container resource shouldn't accept POST request", ("Link", constrainedLink) :: Nil)) //bad request
+            Full(new FailedResponse(412, "none container resource shouldn't accept POST request", ("Link", constrainedLink) :: Nil))
         })
       }
     }
@@ -488,8 +490,8 @@ class LDPHelper extends RestHelper {
       val content:ContainerContent = typ match {
         case LDP.TYPE_BASICCONTAINER =>  getContainerContent(requestUri, classOf[LdpBasicContainer],m, Empty)
         case LDP.TYPE_DIRECTCONTAINER => getContainerContent(requestUri, classOf[LdpDirectContainer],m, Empty)
-        case LDP.TYPE_RDFSOURCE =>  getContainerContent(requestUri, classOf[LdpRdfSource],m, Empty)
         case LDP.TYPE_NONRDFSOURCE => getNoneRdfContent(m, requestUri)
+        case _ =>  getContainerContent(requestUri, classOf[LdpRdfSource],m, Empty)
       }
       //FIXME create new Resource (LDP Server MAY allow the creation of new resources using HTTP PUT
       content.generate(MIME_TURTLE) match {
@@ -535,11 +537,10 @@ class LDPHelper extends RestHelper {
             val manager = m.getManager
             val res = getResourceObject(manager, resourceUri, resourceType)
             val result = res.update(body, config);
-            val status = result.get(true);
-            if (status != null) {
-              if (!status.isEmpty) println(status)
+            if (!result.hasError) {
+               println(result.msg())
               Full(new UpdateResponse(resourceUri.toString(), resourceType))
-            } else Full(new FailedResponse(409, result.get(false), typelinks))
+            } else Full(new FailedResponse(result.code(), result.msg(), typelinks))
           case Right(Full(bin)) =>
             val res = m.getManager.findRestricted(resourceUri, classOf[LdpNoneRdfSource])
             if(res.format() != req.contentType.openOr("application/octet-stream"))
@@ -567,31 +568,21 @@ class LDPHelper extends RestHelper {
   }
 
   def patchUpdate(req:Req,typelinks: List[(String,String)], resourceUri: URI,resourceType:URI, m:IModel, config: Handler):Box[Convertible] = {
-    println("test...")
+    println("processing patchUpdate..")
     headerMatch(req.header("If-Match").openOr(""),resourceUri, resourceType, m) match {
       case Full(true) =>
-//         val inputStream = IOUtils.toString(req.request.inputStream, "UTF-8")
-//         val index = inputStream.indexOf("@")
-//         val input = inputStream.substring(index)
-//        println(s"index: ${index}, input: ${input}")
         val in = req.request.inputStream
         val ldpach = ReqBodyHelper.parseLdPatch(in)
-        println("ldpach = "+ldpach)
-         if(null == ldpach) Full(new FailedResponse(422, "LD-Patch parse Error ", typelinks))
-         else{
-           val res = getResourceObject(m.getManager, resourceUri, resourceType)
+        val res = m.getManager.findRestricted(resourceUri, classOf[LdpRdfSource])
            val result = res.updatePartially(ldpach)
-           val status = result.get(true);
-           if (status != null) {
-             if (!status.isEmpty) println(status)
+        if (!result.hasError) {
+             println(result.msg())
              Full(new UpdateResponse(resourceUri.toString(), resourceType))
-           } else Full(new FailedResponse(422, result.get(false), typelinks))
-         }
+           } else Full(new FailedResponse(result.code(), result.msg(), typelinks))
       case Full(false) => Full(new FailedResponse(412, "IF-MATCH Avoiding mid-air collisions ", typelinks))
       case Empty => Full(new FailedResponse(428, "", typelinks))
       case Failure(msg, _, _) => Full(new FailedResponse(428, msg, typelinks))
     }
-    Empty
   }
 
   /**
@@ -706,7 +697,6 @@ class LDPHelper extends RestHelper {
     content ++= c.getTriples(pref._1).asScala
     content.addRelType(c.getRelType)
     content.applyPreference(pref._2)
-    //println(s"get content of resource ${resourceUri} of type ${clazz} with preference ${pref} resulting from request pref ${prefHeader}")
     content
   }
 
@@ -833,11 +823,6 @@ class LDPHelper extends RestHelper {
 
   final case class DefaultSelect(preferred: ContentType) extends TurtleJsonLdSelect
 
-//  case class Test()
-//
-//  implicit def toPlain[T]: PartialFunction[(Any, T, Req), LiftResponse]= {
-//    case _ => new PlainTextResponse("just for test",Nil,200)
-//  }
 
 }
 

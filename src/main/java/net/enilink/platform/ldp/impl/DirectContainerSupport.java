@@ -6,10 +6,7 @@ import net.enilink.composition.traits.Behaviour;
 import net.enilink.komma.core.*;
 import net.enilink.komma.model.IModel;
 import net.enilink.komma.rdf4j.RDF4JValueConverter;
-import net.enilink.platform.ldp.LDP;
-import net.enilink.platform.ldp.LdpDirectContainer;
-import net.enilink.platform.ldp.LdpResource;
-import net.enilink.platform.ldp.ReqBodyHelper;
+import net.enilink.platform.ldp.*;
 import net.enilink.platform.ldp.config.ContainerHandler;
 import net.enilink.platform.ldp.config.DirectContainerHandler;
 import net.enilink.platform.ldp.config.Handler;
@@ -20,8 +17,6 @@ import net.enilink.vocab.xmlschema.XMLSCHEMA;
 
 import java.time.Instant;
 import java.util.Arrays;
-import java.util.Collections;
-import java.util.Map;
 import java.util.Set;
 
 @Precedes(RdfSourceSupport.class)
@@ -37,7 +32,7 @@ public abstract class DirectContainerSupport implements LdpDirectContainer, Beha
 	}
 
 	@Override
-	public Map<Boolean, String> update( ReqBodyHelper body,  Handler handler) {
+	public OperationResponse update( ReqBodyHelper body,  Handler handler) {
 		Set<IStatement> configStmts = null;
 		if (body != null && handler != null & (body.isDirectContainer() || handler instanceof DirectContainerHandler) && !body.isBasicContainer() && body.isNoContains()) {
 			URI resourceUri = body.getURI();
@@ -63,9 +58,9 @@ public abstract class DirectContainerSupport implements LdpDirectContainer, Beha
 			});
 			manager.add(new Statement(resourceUri, LDP.DCTERMS_PROPERTY_MODIFIED,
 					new Literal(Instant.now().toString(), XMLSCHEMA.TYPE_DATETIME)));
-			return Collections.singletonMap(true, "");
+			return new OperationResponse(OperationResponse.OK, "");
 		}
-		return Collections.singletonMap(false, " the resource to be modified is direct container, couldn't be replaced with resource of another type . ");
+		return new OperationResponse(OperationResponse.CONFLICT, " the resource to be modified is direct container, couldn't be replaced with resource of another type . ");
 	}
 
 	private Set<IStatement>  matchDirectContainerConfig(DirectContainerHandler handler, URI resourceUri){
@@ -80,28 +75,29 @@ public abstract class DirectContainerSupport implements LdpDirectContainer, Beha
 	}
 
 	@Override
-	public Map<Boolean,String> createResource(IModel model, URI resourceType, RdfResourceHandler resourceHandler, ContainerHandler containerHandler, ReqBodyHelper body){
-		//Map<Boolean,String> result = getBehaviourDelegate().createResource( model,  resourceType,  resourceHandler, containerHandler,  body);
+	public OperationResponse createResource(IModel model, URI resourceType, RdfResourceHandler resourceHandler, ContainerHandler containerHandler, ReqBodyHelper body){
 		System.out.println("going to create resource in DC: "+ getURI());
-			//getEntityManager().add(new Statement(getURI(), LDP.PROPERTY_CONTAINS, body,getURI()));
-			URI membershipSrc = membershipResource() != null ? membershipResource().getURI() : null;
-			URI membership = null;
-			if(containerHandler instanceof DirectContainerHandler) {
-				DirectContainerHandler dh = (DirectContainerHandler) containerHandler;
-				RdfResourceHandler memSrcConfig = dh.getRelSource();
-				if (membership == null && memSrcConfig != null && memSrcConfig.getAssignedTo() != null)
-					membershipSrc = memSrcConfig.getAssignedTo();
-				else if (membership == null) membershipSrc = parentUri();
+		//getEntityManager().add(new Statement(getURI(), LDP.PROPERTY_CONTAINS, body,getURI()));
+		URI membershipSrc = membershipResource() != null ? membershipResource().getURI() : null;
+		URI membership = null;
+		if(containerHandler instanceof DirectContainerHandler) {
+			DirectContainerHandler dh = (DirectContainerHandler) containerHandler;
+			RdfResourceHandler memSrcConfig = dh.getRelSource();
+			if (membership == null && memSrcConfig != null && memSrcConfig.getAssignedTo() != null)
+				membershipSrc = memSrcConfig.getAssignedTo();
+			else if (membership == null) membershipSrc = parentUri();
 				membership = hasMemberRelation() != null ? hasMemberRelation().getURI() : dh.getMembership();
-			}
-			if(null != membershipSrc && null != membership){
+		}
+		if(null != membershipSrc && null != membership){
 				//getEntityManager().find(membershipSrc).getEntityManager().add(new Statement(membershipSrc, membership, body.getURI()));
-				String msg = "membership src: "+membershipSrc +" membership: "+membership;
-				System.out.println(msg);
-				model.getModelSet().getModel(membershipSrc, true).getManager().add(new Statement(membershipSrc, membership, body.getURI()));
-				return Collections.singletonMap(true, msg);
-			}
-			else return Collections.singletonMap(false, "not valid body entity or configuration fault");
+			String msg = "membership src: "+membershipSrc +" membership: "+membership;
+			System.out.println(msg);
+			model.getModelSet().getModel(membershipSrc, true).getManager().add(new Statement(membershipSrc, membership, body.getURI()));
+			LdpRdfSource resource = model.getManager().findRestricted(body.getURI(), LdpRdfSource.class);
+			resource.setContainer(this);
+			return new OperationResponse(OperationResponse.OK, msg);
+		} else
+			return new OperationResponse(OperationResponse.UNSUPP_MEDIA, "not valid body entity or configuration fault");
 	}
 
 	private  URI parentUri(){

@@ -13,8 +13,6 @@ import net.enilink.vocab.rdf.RDF;
 import net.enilink.vocab.xmlschema.XMLSCHEMA;
 
 import java.time.Instant;
-import java.util.Collections;
-import java.util.Map;
 import java.util.Set;
 
 @Precedes(RdfSourceSupport.class)
@@ -31,7 +29,7 @@ public abstract class BasicContainerSupport implements LdpBasicContainer, Behavi
 	}
 
 	@Override
-	public Map<Boolean, String> update( ReqBodyHelper body,  Handler config){
+	public OperationResponse update( ReqBodyHelper body,  Handler config){
 		Set<IStatement> configStmts = null;
 		if (null != body && null != config &&!body.isDirectContainer() && body.isNoContains()) {
 			//replace
@@ -54,8 +52,8 @@ public abstract class BasicContainerSupport implements LdpBasicContainer, Behavi
                       });
 			getEntityManager().add(new Statement(uri, LDP.DCTERMS_PROPERTY_MODIFIED,
 					new Literal(Instant.now().toString(), XMLSCHEMA.TYPE_DATETIME)));
-			return Collections.singletonMap(true, msg);
+			return new OperationResponse(OperationResponse.OK, msg);
 		}
-		return Collections.singletonMap(false, "the resource to be modified is Basic Container and should be replaced with basic container");
+		return new OperationResponse(OperationResponse.CONFLICT, "the resource to be modified is Basic Container and should be replaced with basic container");
 	}
 }
