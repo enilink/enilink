@@ -221,7 +221,7 @@ class Rdfa extends Sparql with SparqlExtractor {
           }
 
           val Nr = "([0-9]+)".r
-          override def pageXml(newFirst: Long, ns: NodeSeq): NodeSeq =
+          override def pageXml(newFirst: Long, ns: NodeSeq): NodeSeq = {
             if (first == newFirst || newFirst < 0 || newFirst >= count)
               <li class={
                 ns match {
@@ -238,6 +238,26 @@ class Rdfa extends Sparql with SparqlExtractor {
                   case _ => <a href={ pageUrl(newFirst) }>{ ns }</a>
                 }
               }</li>
+          }
+
+          // replaces the annotated elements instead of using them as a container
+          override def paginate: CssSel = {
+            import scala.math._
+
+            ".first" #> pageXml(0, firstXml) &
+              ".prev" #> pageXml(max(first - itemsPerPage, 0), prevXml) &
+              ".all-pages" #> pagesXml(0 until numPages) _ &
+              ".zoomed-pages" #> pagesXml(zoomedPages) _ &
+              ".next" #> pageXml(
+                max(0, min(first + itemsPerPage, itemsPerPage * (numPages - 1))),
+                nextXml
+              ) &
+              ".last" #> pageXml(itemsPerPage * (numPages - 1), lastXml) &
+              ".records" #> currentXml &
+              ".records-start" #> recordsFrom &
+              ".records-end" #> recordsTo &
+              ".records-count" #> count
+          }
 
           override def itemsPerPage = try { (ns \ "@data-items").text.toInt } catch { case _: Throwable => 20 }
           lazy val cachedCount = withParameters(em.createQuery(countQuery, includeInferred), queryParams).getSingleResult(classOf[Long])
