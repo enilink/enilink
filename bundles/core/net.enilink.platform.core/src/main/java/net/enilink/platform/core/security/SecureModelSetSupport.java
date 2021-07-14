@@ -1,29 +1,30 @@
 package net.enilink.platform.core.security;
 
-import java.util.*;
-
 import com.google.inject.*;
 import com.google.inject.name.Names;
+import com.google.inject.Module;
+import com.google.inject.util.Modules;
 import net.enilink.composition.annotations.ParameterTypes;
 import net.enilink.composition.cache.annotations.Cacheable;
 import net.enilink.composition.traits.Behaviour;
 import net.enilink.komma.common.notify.INotification;
 import net.enilink.komma.common.notify.INotificationListener;
 import net.enilink.komma.common.notify.NotificationFilter;
-import net.enilink.komma.core.*;
+import net.enilink.komma.core.EntityVar;
+import net.enilink.komma.core.IReference;
+import net.enilink.komma.core.URI;
+import net.enilink.komma.core.URIs;
 import net.enilink.komma.dm.IDataManager;
 import net.enilink.komma.em.ThreadLocalDataManager;
 import net.enilink.komma.model.IModel;
 import net.enilink.komma.model.IModelSet;
-import net.enilink.komma.model.base.ModelSetSupport;
 import net.enilink.komma.model.concepts.ModelSet;
 import net.enilink.komma.model.event.IStatementNotification;
 import net.enilink.vocab.acl.ENILINKACL;
 import net.enilink.vocab.acl.WEBACL;
-
 import org.aopalliance.intercept.MethodInvocation;
 
-import com.google.inject.util.Modules;
+import java.util.*;
 
 public abstract class SecureModelSetSupport implements IModelSet.Internal, ISecureModelSet,
 		Behaviour<ISecureModelSet> {
