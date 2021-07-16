@@ -25,12 +25,12 @@
 		<dependency>
 			<groupId>net.enilink.komma</groupId>
 			<artifactId>net.enilink.komma.em</artifactId>
-			<version>1.4.0</version>
+			<version>${komma.version}</version>
 		</dependency>
 		<dependency>
 			<groupId>net.enilink.komma</groupId>
 			<artifactId>net.enilink.vocab.foaf</artifactId>
-			<version>1.4.0</version>
+			<version>${komma.version}</version>
 		</dependency>
 	</dependencies>
 
