@@ -100,8 +100,11 @@ public class PluginConfigManager {
 			if (!locServices.isEmpty()) {
 				Location location = context.getService(locServices.iterator().next());
 				if (location != null) {
-					Path path = Paths.get(location.getURL().toURI());
-					Path configPath = path.resolve("config");
+					// location.getURL does not properly encode paths (see bug 145096)
+					// workaround as per https://stackoverflow.com/a/14677157
+					Path loc = Paths.get(new java.net.URI( //
+							location.getURL().getProtocol(), location.getURL().getPath(), null));
+					Path configPath = loc.resolve("config");
 					if (Files.exists(configPath)) {
 						pluginConfigPaths.add(configPath);
 					}

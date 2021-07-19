@@ -128,14 +128,16 @@ public class ConfigHashGraph extends LinkedHashGraph implements Config {
 
 	private static URI getConfigFromLocation(Location location) {
 		if (Platform.isRunning()) {
-			java.net.URI path;
 			try {
-				path = location.getURL().toURI().resolve(DEFAULT_CONFIG_FILE);
+				// location.getURL does not properly encode paths (see bug 145096)
+				// workaround as per https://stackoverflow.com/a/14677157
+				Path loc = Paths.get(new java.net.URI(location.getURL().getProtocol(), location.getURL().getPath(), null));
+				Path path = loc.resolve(DEFAULT_CONFIG_FILE);
+				if (Files.exists(path)) {
+					return URIs.createFileURI(path.toAbsolutePath().toString());
+				}
 			} catch (URISyntaxException e) {
 				return null;
-			}
-			if (Files.exists(Paths.get(path))) {
-				return URIs.createFileURI(Paths.get(path).toAbsolutePath().toString());
 			}
 		}
 		return null;
