@@ -130,8 +130,8 @@ public class PluginConfigManager {
 
 							// delete current config
 							modelSet.getDataChangeSupport().setEnabled(null, false);
-							configModel.unloadManager();
 							configModel.getManager().clear();
+							configModel.unloadManager();
 							configModel.unload();
 							modelSet.getModels().remove(configModel);
 						}
