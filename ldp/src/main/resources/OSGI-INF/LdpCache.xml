@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<scr:component xmlns:scr="http://www.osgi.org/xmlns/scr/v1.1.0" activate="activate" deactivate="deactivate" immediate="true" name="LdpCache">
+   <implementation class="net.enilink.platform.ldp.remote.LdpCache"/>
+   <reference interface="net.enilink.komma.model.IModelSet" name="IModelSet" cardinality="1..1" policy="static" bind="setModelSet" unbind="unsetModelSet"/>
+   <reference interface="net.enilink.core.PluginConfigModel" name="PluginConfigModel" cardinality="1..1" policy="static" bind="setPluginConfigModel" unbind="unsetPluginConfigModel"/>
+</scr:component>
