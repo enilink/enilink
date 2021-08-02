@@ -1,4 +1,6 @@
-Algemeine "constraints"
+<h1>Algemeine "constraints"</h1>
+
+**Note**: to see examples click [here](examples.md)
 
 1. root container ist immer basic containers
 
@@ -8,8 +10,8 @@ Algemeine "constraints"
 
 4. standerdmäßig ergibt Post_req herstellung eines RDFSource sofern der type des Resources in req-header nicht bestimmt ist.
 
-5. Post request kann  wegen "conflict" fehlschlagen (einige Statements können automatisch hinzugefügt und als " LDP-server-managed properties" berücksichtigt werden: beispielweise
-- POST_BODY für Direct container hat keine "Relatioship statements", oder MembershipSource ist nicht vorhanden in Req-Body nicht konfugiriert  in server..
+5. Post request kann  wegen "conflict" fehlschlagen (einige Statements können automatisch hinzugefügt und als " LDP-server-managed properties" berücksichtigt werden, beispielweise:
+  - POST_BODY für Direct container hat keine "Relatioship statements", oder MembershipSource ist nicht vorhanden in Req-Body nicht konfugiriert  in server..
 
 6. POST auf DirectContainer: 
 in dieser Implementation werden diese "Triples" nur einmal berücksichtigt. Konfigurationen haben Priorität. Wenn keine Konfiguration dazu gibt, dann nimmt sie der Server von Req-body. wenn sie nicht vorhanden sind, schlägt er fehl
