@@ -62,6 +62,7 @@
 						<feature>shell</feature>
 						<feature>feature</feature>
 						<feature>jaas</feature>
+						<feature>jaas-deployer</feature>
 						<feature>ssh</feature>
 						<feature>bundle</feature>
 						<feature>config</feature>
