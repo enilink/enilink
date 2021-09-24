@@ -25,18 +25,18 @@ public abstract class BasicContainerSupport implements LdpBasicContainer, Behavi
 
 	@Override
 	public Set<IReference> getTypes() {
-		 return ImmutableSet.of(LDP.TYPE_CONTAINER, LDP.TYPE_BASICCONTAINER);
+		return ImmutableSet.of(LDP.TYPE_CONTAINER, LDP.TYPE_BASICCONTAINER);
 	}
 
 	@Override
-	public OperationResponse update( ReqBodyHelper body,  Handler config){
+	public OperationResponse update(ReqBodyHelper body, Handler config) {
 		Set<IStatement> configStmts = null;
-		if (null != body && null != config &&!body.isDirectContainer() && body.isNoContains()) {
+		if (null != body && null != config && !body.isDirectContainer() && body.isNoContains()) {
 			//replace
 			//FIXME use mapping
 			URI uri = body.getURI();
 			String msg = "";
-			if (!(config instanceof  BasicContainerHandler))
+			if (!(config instanceof BasicContainerHandler))
 				msg = "wrong configurations, the resource is basic container but configured as not basic container. configuration will be ignored";
 			else configStmts = matchConfig((BasicContainerHandler) config, uri);
 			getEntityManager().removeRecursive(uri, true);
@@ -44,12 +44,12 @@ public abstract class BasicContainerSupport implements LdpBasicContainer, Behavi
 			getEntityManager().add(new Statement(uri, RDF.PROPERTY_TYPE, LDP.TYPE_BASICCONTAINER));
 			if (null != configStmts) configStmts.forEach(stmt -> getEntityManager().add(stmt));
 			body.getRdfBody().forEach(stmt -> {
-				IReference subj = body.valueConverter().fromRdf4j(stmt.getSubject());
-				IReference pred = body.valueConverter().fromRdf4j(stmt.getPredicate());
-				IValue obj = body.valueConverter().fromRdf4j(stmt.getObject());
-			if (subj != uri || !body.isServerProperty(pred))
-				getEntityManager().add(new Statement(subj, pred, obj));
-                      });
+				IReference subj = ReqBodyHelper.valueConverter().fromRdf4j(stmt.getSubject());
+				IReference pred = ReqBodyHelper.valueConverter().fromRdf4j(stmt.getPredicate());
+				IValue obj = ReqBodyHelper.valueConverter().fromRdf4j(stmt.getObject());
+				if (subj != uri || !body.isServerProperty(pred))
+					getEntityManager().add(new Statement(subj, pred, obj));
+			});
 			getEntityManager().add(new Statement(uri, LDP.DCTERMS_PROPERTY_MODIFIED,
 					new Literal(Instant.now().toString(), XMLSCHEMA.TYPE_DATETIME)));
 			return new OperationResponse(OperationResponse.OK, msg);

@@ -1,14 +1,6 @@
 package net.enilink.platform.ldp.remote;
 
-import java.io.IOException;
-import java.io.InputStream;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Optional;
-
+import net.enilink.platform.ldp.remote.LdpCache.LdpCacheConnection;
 import org.apache.http.Header;
 import org.apache.http.HttpHeaders;
 import org.apache.http.client.methods.CloseableHttpResponse;
@@ -23,16 +15,14 @@ import org.eclipse.rdf4j.model.Statement;
 import org.eclipse.rdf4j.model.ValueFactory;
 import org.eclipse.rdf4j.model.impl.SimpleValueFactory;
 import org.eclipse.rdf4j.repository.RepositoryException;
-import org.eclipse.rdf4j.rio.RDFFormat;
-import org.eclipse.rdf4j.rio.RDFHandlerException;
-import org.eclipse.rdf4j.rio.RDFParser;
-import org.eclipse.rdf4j.rio.Rio;
-import org.eclipse.rdf4j.rio.UnsupportedRDFormatException;
+import org.eclipse.rdf4j.rio.*;
 import org.eclipse.rdf4j.rio.helpers.AbstractRDFHandler;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import net.enilink.platform.ldp.remote.LdpCache.LdpCacheConnection;
+import java.io.IOException;
+import java.io.InputStream;
+import java.util.*;
 
 /**
  * Simple LDP client on top of commons HttpClient.
@@ -56,11 +46,10 @@ public class LdpClient {
 	 * <p>
 	 * It currently does so by issuing a HEAD request for it and comparing the
 	 * response ETag with the cached one.
-	 * 
-	 * @param resource
-	 *            The resource to check.
+	 *
+	 * @param resource The resource to check.
 	 * @return True if the resource needs to be updated (doesn't exist in the
-	 *         cache yet or is out-of-date), false if it is up-to-date.
+	 * cache yet or is out-of-date), false if it is up-to-date.
 	 */
 	public static boolean needsUpdate(Resource resource) throws Exception {
 		return needsUpdate(resource, LdpCache.getInstance().getEndpoint(resource));
@@ -69,9 +58,8 @@ public class LdpClient {
 	/**
 	 * Checks if the given resource representation is up-to-date by issuing a
 	 * HEAD request for it and comparing the response ETag with the cached one.
-	 * 
-	 * @param endpoint
-	 *            The endpoint (short-circuit when already determined).
+	 *
+	 * @param endpoint The endpoint (short-circuit when already determined).
 	 * @see #needsUpdate(Resource)
 	 */
 	public static boolean needsUpdate(Resource resource, IRI endpoint) throws Exception {
@@ -125,11 +113,10 @@ public class LdpClient {
 	/**
 	 * Update the given resource, iff necessary (calls {@link #needsUpdate} to
 	 * check).
-	 * 
-	 * @param resource
-	 *            The resource to check/update.
+	 *
+	 * @param resource The resource to check/update.
 	 * @return True when the resource has been successfully updated, false if it
-	 *         was up-to-date or the update failed.
+	 * was up-to-date or the update failed.
 	 */
 	public static boolean update(Resource resource) throws Exception {
 		return update(resource, LdpCache.getInstance().getEndpoint(resource));
@@ -138,9 +125,8 @@ public class LdpClient {
 	/**
 	 * Update the given resource, iff necessary (calls {@link #needsUpdate} to
 	 * check).
-	 * 
-	 * @param endpoint
-	 *            The endpoint (short-circuit when already determined).
+	 *
+	 * @param endpoint The endpoint (short-circuit when already determined).
 	 * @see #update(Resource)
 	 */
 	public static boolean update(Resource resource, IRI endpoint) throws Exception {
@@ -212,8 +198,7 @@ public class LdpClient {
 	/**
 	 * Returns the value of any cached ETag for the given IRI, or null.
 	 *
-	 * @param uri
-	 *            The IRI to get the cached ETag for.
+	 * @param uri The IRI to get the cached ETag for.
 	 * @return The cached ETag value or null if no ETag is known yet.
 	 * @throws RepositoryException
 	 */
@@ -247,11 +232,10 @@ public class LdpClient {
 
 	/**
 	 * Get the resource representation from the LDP server.
-	 * 
-	 * @param uri
-	 *            The uri to request as LDP resource.
+	 *
+	 * @param uri The uri to request as LDP resource.
 	 * @return The list of statements from the LDP server for the requested LDP
-	 *         resource.
+	 * resource.
 	 */
 	// TODO: check LDP requirements wrt. server response etc.
 	public static List<Statement> acquireRemoteStatements(final IRI uri) {
@@ -306,6 +290,6 @@ public class LdpClient {
 	 */
 	protected static CloseableHttpClient createHttpClient() {
 		Header acceptTurtleHeader = new BasicHeader(HttpHeaders.ACCEPT, "text/turtle");
-		return HttpClients.custom().setDefaultHeaders(Arrays.asList(new Header[] { acceptTurtleHeader })).build();
+		return HttpClients.custom().setDefaultHeaders(Arrays.asList(acceptTurtleHeader)).build();
 	}
 }

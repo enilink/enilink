@@ -1,15 +1,15 @@
 package net.enilink.platform.ldp.remote;
 
-import java.security.PrivilegedAction;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
-
-import javax.security.auth.Subject;
-
+import net.enilink.commons.iterator.IMap;
+import net.enilink.komma.core.*;
+import net.enilink.komma.em.concepts.IResource;
+import net.enilink.komma.model.IModel;
+import net.enilink.komma.model.IModelSet;
+import net.enilink.komma.rdf4j.RDF4JValueConverter;
+import net.enilink.platform.core.PluginConfigModel;
+import net.enilink.platform.core.security.SecurityUtil;
+import net.enilink.vocab.owl.OWL;
+import net.enilink.vocab.rdf.RDF;
 import org.eclipse.rdf4j.common.iteration.Iterations;
 import org.eclipse.rdf4j.model.IRI;
 import org.eclipse.rdf4j.model.Resource;
@@ -24,23 +24,9 @@ import org.eclipse.rdf4j.sail.memory.MemoryStore;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import net.enilink.commons.iterator.IMap;
-import net.enilink.platform.core.PluginConfigModel;
-import net.enilink.platform.core.security.SecurityUtil;
-import net.enilink.komma.core.BlankNode;
-import net.enilink.komma.core.IQuery;
-import net.enilink.komma.core.IReference;
-import net.enilink.komma.core.IStatement;
-import net.enilink.komma.core.Statement;
-import net.enilink.komma.core.StatementPattern;
-import net.enilink.komma.core.URI;
-import net.enilink.komma.core.URIs;
-import net.enilink.komma.em.concepts.IResource;
-import net.enilink.komma.model.IModel;
-import net.enilink.komma.model.IModelSet;
-import net.enilink.komma.rdf4j.RDF4JValueConverter;
-import net.enilink.vocab.owl.OWL;
-import net.enilink.vocab.rdf.RDF;
+import javax.security.auth.Subject;
+import java.security.PrivilegedAction;
+import java.util.*;
 
 public class LdpCache {
 
@@ -175,7 +161,7 @@ public class LdpCache {
 
 	/**
 	 * Binds the ModelSet. Called by OSGi-DS.
-	 * 
+	 *
 	 * @param modelSet
 	 */
 	public void setModelSet(IModelSet modelSet) {
@@ -185,7 +171,7 @@ public class LdpCache {
 
 	/**
 	 * Unbinds the ModelSet. Called by OSGi-DS.
-	 * 
+	 *
 	 * @param modelSet
 	 */
 	public void unsetModelSet(IModelSet modelSet) {
@@ -195,7 +181,7 @@ public class LdpCache {
 
 	/**
 	 * Binds the PluginConfigModel. Called by OSGi-DS.
-	 * 
+	 *
 	 * @param configModel
 	 */
 	protected void setPluginConfigModel(PluginConfigModel configModel) {
@@ -220,7 +206,7 @@ public class LdpCache {
 
 	/**
 	 * Unbinds the PluginConfigModel. Called by OSGi-DS.
-	 * 
+	 *
 	 * @param configModel
 	 */
 	public void unsetPluginConfigModel(PluginConfigModel configModel) {
@@ -336,8 +322,8 @@ public class LdpCache {
 		}
 
 		public List<org.eclipse.rdf4j.model.Statement> getStatements(Resource subject, IRI predicate, Value object,
-				boolean includeInferred, Resource... ctxs) {
-			logger.trace("getStatements({}, {}, {}, {}, {})", new Object[]{ subject, predicate, object, includeInferred, ctxs });
+		                                                             boolean includeInferred, Resource... ctxs) {
+			logger.trace("getStatements({}, {}, {}, {}, {})", subject, predicate, object, includeInferred, ctxs);
 			if (useExtraRepository) {
 				return Iterations.asList(conn.getStatements(subject, predicate, object, includeInferred, ctxs));
 			} else {
@@ -366,7 +352,7 @@ public class LdpCache {
 		}
 
 		public boolean remove(Resource subject, IRI predicate, Value object, Resource... ctxs) {
-			logger.trace("remove({}, {}, {}, {})", new Object[]{ subject, predicate, object, ctxs });
+			logger.trace("remove({}, {}, {}, {})", subject, predicate, object, ctxs);
 			if (useExtraRepository) {
 				conn.remove(subject, predicate, object, ctxs);
 			} else {

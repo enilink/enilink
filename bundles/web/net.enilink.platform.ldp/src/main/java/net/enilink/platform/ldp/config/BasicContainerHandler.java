@@ -24,7 +24,9 @@ public class BasicContainerHandler extends ContainerHandler {
 		return path;
 	}
 
-	/** Configure the handler from the annotations in the given concept class. */
+	/**
+	 * Configure the handler from the annotations in the given concept class.
+	 */
 	public static BasicContainerHandler fromConcept(Class<?> concept) {
 		BasicContainer bc = concept.getAnnotation(BasicContainer.class);
 		if (null == bc) return null;

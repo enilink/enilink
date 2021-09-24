@@ -15,7 +15,7 @@ import java.util.Set;
  * LDP RDF Source (LDP-RS)
  * <p>
  * "An LDPR whose state is fully represented in RDF [...]"
- * 
+ *
  * @see https://www.w3.org/TR/ldp/#h-terms
  */
 @Iri("http://www.w3.org/ns/ldp#RDFSource")

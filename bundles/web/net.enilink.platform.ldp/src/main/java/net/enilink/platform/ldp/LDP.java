@@ -15,53 +15,53 @@ import net.enilink.komma.core.URIs;
 
 /**
  * Linked Data Platform: namespace, type and property constants
- * 
- *  @see http://www.w3.org/TR/ldp/
+ *
+ * @see http://www.w3.org/TR/ldp/
  */
 public interface LDP {
-	public static final String NAMESPACE = "http://www.w3.org/ns/ldp#";
-	public static final URI NAMESPACE_URI = URIs.createURI(NAMESPACE);
+	String NAMESPACE = "http://www.w3.org/ns/ldp#";
+	URI NAMESPACE_URI = URIs.createURI(NAMESPACE);
 
-	public static final URI TYPE_RESOURCE = NAMESPACE_URI.appendFragment("Resource");
+	URI TYPE_RESOURCE = NAMESPACE_URI.appendFragment("Resource");
 
-	public static final URI TYPE_RDFSOURCE = NAMESPACE_URI.appendFragment("RDFSource");
+	URI TYPE_RDFSOURCE = NAMESPACE_URI.appendFragment("RDFSource");
 
-	public static final URI TYPE_NONRDFSOURCE = NAMESPACE_URI.appendFragment("NonRDFSource");
+	URI TYPE_NONRDFSOURCE = NAMESPACE_URI.appendFragment("NonRDFSource");
 
-	public static final URI TYPE_CONTAINER = NAMESPACE_URI.appendFragment("Container");
+	URI TYPE_CONTAINER = NAMESPACE_URI.appendFragment("Container");
 
-	public static final URI TYPE_BASICCONTAINER = NAMESPACE_URI.appendFragment("BasicContainer");
+	URI TYPE_BASICCONTAINER = NAMESPACE_URI.appendFragment("BasicContainer");
 
-	public static final URI TYPE_DIRECTCONTAINER = NAMESPACE_URI.appendFragment("DirectContainer");
+	URI TYPE_DIRECTCONTAINER = NAMESPACE_URI.appendFragment("DirectContainer");
 
-	public static final URI TYPE_INDIRECTCCONTAINER = NAMESPACE_URI.appendFragment("IndirectContainer");
+	URI TYPE_INDIRECTCCONTAINER = NAMESPACE_URI.appendFragment("IndirectContainer");
 
-	public static final URI TYPE_MEMBERSUBJECT = NAMESPACE_URI.appendFragment("MemberSubject");
+	URI TYPE_MEMBERSUBJECT = NAMESPACE_URI.appendFragment("MemberSubject");
 
-	public static final URI PROPERTY_CONSTRAINED_BY = NAMESPACE_URI.appendFragment("constrainedBy");
-	
-	public static final URI PROPERTY_CONTAINS = NAMESPACE_URI.appendFragment("contains");
-	
-	public static final URI PROPERTY_MEMBER = NAMESPACE_URI.appendFragment("member");
+	URI PROPERTY_CONSTRAINED_BY = NAMESPACE_URI.appendFragment("constrainedBy");
 
-	public static final URI PROPERTY_MEMBERSHIPRESOURCE = NAMESPACE_URI.appendFragment("membershipResource");
+	URI PROPERTY_CONTAINS = NAMESPACE_URI.appendFragment("contains");
 
-	public static final URI PROPERTY_HASMEMBERRELATION = NAMESPACE_URI.appendFragment("hasMemberRelation");
+	URI PROPERTY_MEMBER = NAMESPACE_URI.appendFragment("member");
 
-	public static final URI PROPERTY_ISMEMBEROFRELATION = NAMESPACE_URI.appendFragment("isMemberOfRelation");
+	URI PROPERTY_MEMBERSHIPRESOURCE = NAMESPACE_URI.appendFragment("membershipResource");
 
-	public static final URI PROPERTY_INSERTEDCONTENTRELATION = NAMESPACE_URI.appendFragment("insertedContentRelation");
+	URI PROPERTY_HASMEMBERRELATION = NAMESPACE_URI.appendFragment("hasMemberRelation");
 
-	public static final URI PREFERENCE_CONTAINMENT = NAMESPACE_URI.appendFragment("PreferContainment");
+	URI PROPERTY_ISMEMBEROFRELATION = NAMESPACE_URI.appendFragment("isMemberOfRelation");
 
-	public static final URI PREFERENCE_MEMBERSHIP = NAMESPACE_URI.appendFragment("PreferMembership");
+	URI PROPERTY_INSERTEDCONTENTRELATION = NAMESPACE_URI.appendFragment("insertedContentRelation");
 
-	public static final URI PREFERENCE_MINIMALCONTAINER = NAMESPACE_URI.appendFragment("PreferMinimalContainer");
+	URI PREFERENCE_CONTAINMENT = NAMESPACE_URI.appendFragment("PreferContainment");
 
-	public static final URI  DCTERMS = URIs.createURI("http://purl.org/dc/terms");
+	URI PREFERENCE_MEMBERSHIP = NAMESPACE_URI.appendFragment("PreferMembership");
 
-	public static final URI  DCTERMS_PROPERTY_CREATED = DCTERMS.appendSegment("created");
+	URI PREFERENCE_MINIMALCONTAINER = NAMESPACE_URI.appendFragment("PreferMinimalContainer");
 
-	public static final URI DCTERMS_PROPERTY_MODIFIED = DCTERMS.appendSegment("modified");
+	URI DCTERMS = URIs.createURI("http://purl.org/dc/terms");
+
+	URI DCTERMS_PROPERTY_CREATED = DCTERMS.appendSegment("created");
+
+	URI DCTERMS_PROPERTY_MODIFIED = DCTERMS.appendSegment("modified");
 
 }

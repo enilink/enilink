@@ -1,4 +1,4 @@
 package net.enilink.platform.ldp.ldPatch.parse;
 
-public interface PatchConstraint extends PathElement{
+public interface PatchConstraint extends PathElement {
 }

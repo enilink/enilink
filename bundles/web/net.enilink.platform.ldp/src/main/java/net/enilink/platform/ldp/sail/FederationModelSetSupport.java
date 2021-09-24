@@ -1,14 +1,5 @@
 package net.enilink.platform.ldp.sail;
 
-import java.util.Set;
-
-import org.aopalliance.intercept.MethodInvocation;
-import org.eclipse.rdf4j.repository.Repository;
-import org.eclipse.rdf4j.repository.sail.SailRepository;
-import org.eclipse.rdf4j.sail.federation.Federation;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 import net.enilink.composition.annotations.Iri;
 import net.enilink.composition.annotations.ParameterTypes;
 import net.enilink.composition.traits.Behaviour;
@@ -19,6 +10,14 @@ import net.enilink.komma.model.IModelSet;
 import net.enilink.komma.model.MODELS;
 import net.enilink.komma.model.rdf4j.IRepositoryModelSet;
 import net.enilink.platform.ldp.remote.LdpCache;
+import org.aopalliance.intercept.MethodInvocation;
+import org.eclipse.rdf4j.repository.Repository;
+import org.eclipse.rdf4j.repository.sail.SailRepository;
+import org.eclipse.rdf4j.sail.federation.Federation;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import java.util.Set;
 
 @Iri(MODELS.NAMESPACE + "FederationModelSet")
 public abstract class FederationModelSetSupport

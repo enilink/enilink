@@ -1,36 +1,20 @@
 package net.enilink.platform.ldp.sail;
 
-import java.io.File;
-import java.util.ArrayList;
-import java.util.List;
-
+import net.enilink.platform.ldp.remote.LdpCache;
+import net.enilink.platform.ldp.remote.LdpClient;
 import org.eclipse.rdf4j.common.iteration.EmptyIteration;
-import org.eclipse.rdf4j.model.IRI;
-import org.eclipse.rdf4j.model.Namespace;
-import org.eclipse.rdf4j.model.Resource;
-import org.eclipse.rdf4j.model.Statement;
-import org.eclipse.rdf4j.model.Value;
-import org.eclipse.rdf4j.model.ValueFactory;
+import org.eclipse.rdf4j.model.*;
 import org.eclipse.rdf4j.model.impl.SimpleValueFactory;
-import org.eclipse.rdf4j.query.BooleanQuery;
-import org.eclipse.rdf4j.query.GraphQuery;
-import org.eclipse.rdf4j.query.MalformedQueryException;
-import org.eclipse.rdf4j.query.Query;
-import org.eclipse.rdf4j.query.QueryLanguage;
-import org.eclipse.rdf4j.query.TupleQuery;
-import org.eclipse.rdf4j.query.Update;
-import org.eclipse.rdf4j.repository.Repository;
-import org.eclipse.rdf4j.repository.RepositoryConnection;
-import org.eclipse.rdf4j.repository.RepositoryException;
-import org.eclipse.rdf4j.repository.RepositoryResult;
-import org.eclipse.rdf4j.repository.UnknownTransactionStateException;
+import org.eclipse.rdf4j.query.*;
+import org.eclipse.rdf4j.repository.*;
 import org.eclipse.rdf4j.repository.base.AbstractRepository;
 import org.eclipse.rdf4j.repository.base.AbstractRepositoryConnection;
 import org.eclipse.rdf4j.rio.RDFHandler;
 import org.eclipse.rdf4j.rio.RDFHandlerException;
 
-import net.enilink.platform.ldp.remote.LdpCache;
-import net.enilink.platform.ldp.remote.LdpClient;
+import java.io.File;
+import java.util.ArrayList;
+import java.util.List;
 
 /**
  * Repository to be used as federation member for the LDP cache.
@@ -131,7 +115,7 @@ public class LdpCacheRepository extends AbstractRepository {
 		}
 
 		@Override
-		public boolean isActive() throws UnknownTransactionStateException, RepositoryException {
+		public boolean isActive() throws RepositoryException {
 			logger.trace("isActive() == {}", isActive);
 			return isActive;
 		}
@@ -148,7 +132,7 @@ public class LdpCacheRepository extends AbstractRepository {
 			isActive = false;
 		}
 
-//		@SuppressWarnings("resource")
+		//		@SuppressWarnings("resource")
 		@Override
 		public RepositoryResult<Resource> getContextIDs() throws RepositoryException {
 			logger.trace("getContextIDs()");
@@ -163,9 +147,9 @@ public class LdpCacheRepository extends AbstractRepository {
 		@Override
 		// FIXME: check the contexts, skip when cache context is missing
 		public RepositoryResult<Statement> getStatements(Resource subject, IRI predicate, Value object,
-				boolean includeInferred, Resource... contexts) throws RepositoryException {
+		                                                 boolean includeInferred, Resource... contexts) throws RepositoryException {
 			logger.trace("getStatements(s={}, p={}, o={}, i={}, c={})",
-					new Object[] { subject, predicate, object, includeInferred, contexts });
+					subject, predicate, object, includeInferred, contexts);
 			// FIXME: check avoids failure if called while being initialized
 			LdpCache cache = LdpCache.getInstance();
 			if (null == cache) {
@@ -190,7 +174,7 @@ public class LdpCacheRepository extends AbstractRepository {
 		@Override
 		// FIXME: check the contexts, skip when cache context is missing
 		public void exportStatements(Resource subject, IRI predicate, Value object, boolean includeInferred,
-				RDFHandler handler, Resource... contexts) throws RepositoryException, RDFHandlerException {
+		                             RDFHandler handler, Resource... contexts) throws RepositoryException, RDFHandlerException {
 			IRI endpoint = LdpCache.getInstance().getEndpoint(subject);
 			boolean updated = false;
 			if (null != endpoint) {
@@ -275,7 +259,7 @@ public class LdpCacheRepository extends AbstractRepository {
 		@Override
 		// FIXME: check the contexts, skip when cache context is missing
 		public long size(Resource... contexts) throws RepositoryException {
-			logger.trace("size(c={})", new Object[]{ contexts });
+			logger.trace("size(c={})", contexts);
 			return getInternalConnection().size(contexts);
 		}
 
@@ -284,7 +268,7 @@ public class LdpCacheRepository extends AbstractRepository {
 				throws RepositoryException {
 			// FIXME: this should check the contexts and/or subject, and remove if the cache is targeted
 			// calls from the federation also end up here, and adding to that should be ignored here
-			logger.trace("addWithoutCommit(s={}, p={}, o={}, c={})", new Object[]{ subject, predicate, object, contexts });
+			logger.trace("addWithoutCommit(s={}, p={}, o={}, c={})", subject, predicate, object, contexts);
 			//getInternalConnection().add(subject, predicate, object, contexts);
 		}
 
@@ -293,7 +277,7 @@ public class LdpCacheRepository extends AbstractRepository {
 				throws RepositoryException {
 			// FIXME: this should check the contexts and/or subject, and remove if the cache is targeted
 			// calls from the federation also end up here, and removals from that should be ignored here
-			logger.trace("removeWithoutCommit(s={}, p={}, o={}, c={})", new Object[]{ subject, predicate, object, contexts });
+			logger.trace("removeWithoutCommit(s={}, p={}, o={}, c={})", subject, predicate, object, contexts);
 			//getInternalConnection().remove(subject, predicate, object, contexts);
 		}
 	}

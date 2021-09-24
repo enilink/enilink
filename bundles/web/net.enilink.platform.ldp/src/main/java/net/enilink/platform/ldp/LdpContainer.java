@@ -14,7 +14,7 @@ import java.util.Set;
  * <p>
  * "An LDP-RS representing a collection of linked documents or information
  * resources [...]"
- * 
+ *
  * @see https://www.w3.org/TR/ldp/#h-terms
  * @see https://www.w3.org/TR/ldp/#ldpc
  */
@@ -26,11 +26,12 @@ public interface LdpContainer extends LdpRdfSource {
 	 * is aware of. The lifecycle of the contained LDPR is limited by the
 	 * lifecycle of the containing LDPC; that is, a contained LDPR cannot be
 	 * created (through LDP-defined means) before its containing LDPC exists.
-	 * 
+	 *
 	 * @see https://www.w3.org/TR/ldp/#dfn-containment
 	 */
 	@Iri("http://www.w3.org/ns/ldp#contains")
 	Set<LdpResource> contains();
+
 	void contains(Set<LdpResource> resources);
 
 	OperationResponse createResource(IModel model, URI resourceType, RdfResourceHandler resourceHandler, ContainerHandler containerHandler, ReqBodyHelper body);
