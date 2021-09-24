@@ -295,7 +295,7 @@ public class ConfigHashGraph extends LinkedHashGraph implements Config {
 		}
 
 		Class<?> type = instance.getClass();
-		if (literalConverter.isDatatype(type)) {
+		if (literalConverter.isLiteralType(type)) {
 			return literalConverter.createLiteral(instance, null);
 		}
 		return literalConverter.createLiteral(String.valueOf(instance), XMLSCHEMA.TYPE_STRING);

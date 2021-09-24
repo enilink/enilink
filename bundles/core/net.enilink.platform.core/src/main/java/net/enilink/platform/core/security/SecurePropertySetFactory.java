@@ -1,19 +1,17 @@
 package net.enilink.platform.core.security;
 
-import java.lang.annotation.Annotation;
-import java.util.List;
-
+import net.enilink.composition.mapping.PropertyAttribute;
 import net.enilink.composition.properties.PropertySet;
-import net.enilink.composition.properties.annotations.Type;
 import net.enilink.composition.properties.komma.KommaPropertySet;
 import net.enilink.composition.properties.komma.KommaPropertySetFactory;
-
-import net.enilink.komma.model.MODELS;
-import net.enilink.vocab.acl.WEBACL;
 import net.enilink.komma.core.IQuery;
 import net.enilink.komma.core.IReference;
 import net.enilink.komma.core.URI;
 import net.enilink.komma.core.URIs;
+import net.enilink.komma.model.MODELS;
+import net.enilink.vocab.acl.WEBACL;
+
+import java.util.List;
 
 /**
  * A Factory that can be used to create secure property sets. These property
@@ -22,15 +20,14 @@ import net.enilink.komma.core.URIs;
 public class SecurePropertySetFactory extends KommaPropertySetFactory {
 	@Override
 	public <E> PropertySet<E> createPropertySet(Object bean, String uri,
-			Class<E> elementType, Annotation... annotations) {
+			Class<E> elementType, PropertyAttribute... attributes) {
 		if (bean instanceof ISecureModelSet
 				&& uri.equals(MODELS.PROPERTY_MODEL.toString())) {
 			URI predicate = URIs.createURI(uri);
 			URI rdfValueType = null;
-			for (Annotation annotation : annotations) {
-				if (Type.class.equals(annotation.annotationType())) {
-					rdfValueType = URIs.createURI(((Type) annotation)
-							.value());
+			for (PropertyAttribute attribute : attributes) {
+				if (PropertyAttribute.TYPE.equals(attribute.getName())) {
+					rdfValueType = URIs.createURI(attribute.getValue());
 				}
 			}
 			PropertySet<E> propertySet = new KommaPropertySet<E>(
@@ -65,6 +62,6 @@ public class SecurePropertySetFactory extends KommaPropertySetFactory {
 			injector.injectMembers(propertySet);
 			return propertySet;
 		}
-		return super.createPropertySet(bean, uri, elementType, annotations);
+		return super.createPropertySet(bean, uri, elementType, attributes);
 	}
 }
