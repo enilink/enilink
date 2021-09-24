@@ -1,15 +1,15 @@
 sudo: required
 
-dist: trusty
+dist: focal
 
 services:
   - docker
 
 jdk:
-- oraclejdk8
+  - openjdk11
 
 before_install:
-- echo $GPG_PASSWORD | gpg --passphrase-fd 0 releng/enilink.asc.gpg
+- echo $GPG_PASSWORD | gpg --batch --passphrase-fd 0 -o releng/enilink.asc --decrypt releng/enilink.asc.gpg
 - gpg --import releng/enilink.asc
 
 script: if [ "$TRAVIS_BRANCH" = "$TRAVIS_TAG" ] || [ "$TRAVIS_BRANCH" = "snapshots" ]; then mvn deploy -B -P ossrh,release -s ./.travis.maven-settings.xml; else mvn verify -B; fi
@@ -37,13 +37,6 @@ deploy:
 
 env:
   global:
-  - BINTRAY_USER: kenwenzel
-  - BINTRAY_OWNER: enilink
-  - BINTRAY_REPO: updates
-  - BINTRAY_PCK_NAME: enilink
-# BINTRAY_API_KEY
-  - secure: "I2G+UaDhVtAGGL2O043ZqljcKRG832XyrvCbHZRf/j4TJWQli/BA7kZ+FTW9nG6AaTfGLwqDDYEov+tRTopb09ler4byrb+wqkM/ngvXOrTCrXJU3I969LrL1S4CVgcBnHUVW5hJGir8bYcxMpPtAVVIKF4t3h27cFL9t4J7rVptS4r6Da8+BnxKnuURNCn14x02qhuoZlqwznP6XB0IGIFoqXmCm3yBNtwHn02e8WJV+4Bo4tMTYmJF6pkZfcZKHnMBdo5LqEyhPFK+eDjqLiUXB+50RxQ2w3xmtpUEF6t7rfCTvUf+9CMba7PKiIbPUTb+dNTEvrNxCtCwGLKw1N9Kc0OANEsa38xciT8vZUzuAllghnK+QsjT1TcJe7WP3l6SO/kvurEg5kFb/D2I/0v/KSh5ItNb43YcY/VjX3tnl81CElyKinzegcPJo1jfsjNo84BHKeXIlXtmjiwaYbm+uMBveAHyiuYbXlH65Kne8W2mQNt4vHS+Pfl4/uJrt8einN4SPl79t0DW8UmDNCxqIiSvRQOzo1HRvlVdeIT39nYDEH/puE8THNKxnn2VPSIEh2eJzBYHMsLxIyHkf776fF1CyncEYRU/7idNSVCgVzM1L7JCg7GL0mnb+tao4+nqG5f/5p1kfdJhyYmckiwinnJ6DvM78nL6j6+/+Dw="
-  - DOCKER_USER: kenwenzel
 # DOCKER_PASS
   - secure: "XmfHD46JSHGp1fAFRvT9mKovLD5YYmkDJSdPb/DEO5Zp0C0JAyKFbS7KY36yB/pHK1GFSrDZ2nBUhys+g+O08ohsmOC2CmCHorVIyt+IAxFj+6HD+MljbU88d7vWmkuWIL2lUscrc9P+WuJOPL1GEiG0MB7QbMJr9vMwnN9uepaq76Gpqc4K86Io61t/AtqGvkyWQoSrY6LYgCmHVnYQpUUGe+BPbNn+I5QhVZ105YrQDywLsVy22bJ1M5BNymrTlEWh6Jc31Y6CyGXFSwQUFTbbM+aM9+yV4UxKJ0MVp/Lcxrz4+uiy/tXdFNO5GVCwYX/c8/hc1WhZsPKWxGjwbfsnLT6wSztG+5MV31U4r3rWqiSF57fsV/lQJ9X4GyRrb+d1249dRTCsECdKY26r99RB1eF7uHHHWmW34jnaifEAArDfEHLOAWYyoh2bD2aa4uzKU4HyZp8SgZSVEtDDtSuCOlLJaHmCcZOw5NJbnQ+LsuC6C9QAe4CN0cl4RwzajWtWIiO/6SHhtu8A13uYJ3Q0G8hC3/obi9304Ffs32FCiL/OMTRDrQXa6QqjZ91cdFK0r6Z1Vz9zp3BaaiV6UjpRid3ZDpK0TUqUy9XG3Ai8fzmsxS3IeTW0/84ZarWkOQkIsVHAKLGNJbL1iL5Kft2j0LmsuZB0a+CzYDbLw40="
 # GPG_PASSWORD
