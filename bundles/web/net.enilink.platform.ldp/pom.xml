@@ -30,8 +30,8 @@
 		</dependency>
 		<dependency>
 			<groupId>net.enilink.platform</groupId>
-			<artifactId>net.enilink.platform.lift</artifactId>
-			<version>${enilink.version}</version>
+			<artifactId>net.enilink.platform.web</artifactId>
+			<version>${project.version}</version>
 		</dependency>
 		<dependency>
 			<groupId>org.slf4j</groupId>
