@@ -1,9 +1,9 @@
 package net.enilink.platform.web
 
+import net.enilink.platform.lift.rest.{ModelsRest, SparqlRest}
 import net.enilink.platform.lift.sitemap.Application
 import net.enilink.platform.lift.sitemap.Menus
 import net.enilink.platform.lift.util.Globals
-import net.enilink.platform.web.rest.ModelsRest
 import net.liftweb.common.Full
 import net.liftweb.http.GetRequest
 import net.liftweb.http.LiftRules
@@ -27,7 +27,6 @@ import net.liftweb.sitemap.SiteMap
 import net.enilink.platform.lift.sitemap.HideIfInactive
 import net.enilink.platform.lift.sitemap.KeepQueryParameters
 import net.enilink.platform.lift.sitemap.AddAppMenusAfter
-import net.enilink.platform.web.rest.SparqlRest
 
 /**
  * A class that's instantiated early and run.  It allows the application

@@ -1,19 +1,18 @@
-package net.enilink.platform.web.rest
+package net.enilink.platform.lift.rest
 
 import net.enilink.komma.core.URI
 import net.enilink.komma.model.{IModel, ModelPlugin}
 import net.enilink.platform.lift.util.NotAllowedModel
-import net.liftweb.common.Box.{box2Option, option2Box}
 import net.liftweb.common.{Box, Failure, Full}
 import net.liftweb.http.rest.RestHelper
-import net.liftweb.http.{BadRequestResponse, BadResponse, ContentType, ForbiddenResponse, InMemoryResponse, LiftResponse, NotFoundResponse, OkResponse, Req, S, UnsupportedMediaTypeResponse}
+import net.liftweb.http.{BadRequestResponse, ContentType, ForbiddenResponse, InMemoryResponse, LiftResponse, NotFoundResponse, OkResponse, Req, S, UnsupportedMediaTypeResponse}
 import org.eclipse.core.runtime.content.{IContentDescription, IContentType}
 import org.eclipse.core.runtime.{Platform, QualifiedName}
 
 import java.io.{ByteArrayOutputStream, InputStream}
-import scala.jdk.CollectionConverters._
 
 object ModelsRest extends RestHelper {
+
   import Util._
 
   /**
@@ -116,7 +115,7 @@ object ModelsRest extends RestHelper {
     }
   }
 
-  def uploadRdf(r: Req, modelUri: URI, in: InputStream) : Box[LiftResponse] = {
+  def uploadRdf(r: Req, modelUri: URI, in: InputStream): Box[LiftResponse] = {
     getOrCreateModel(modelUri) map {
       case NotAllowedModel(_) => ForbiddenResponse("You don't have permissions to access " + modelUri + ".")
       case model => getRequestContentType(r) map (_.getDefaultDescription) match {

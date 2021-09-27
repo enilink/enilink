@@ -3,13 +3,12 @@ package net.enilink.platform.ldp
 import java.io.{ByteArrayOutputStream, OutputStream}
 import java.time.Instant
 import java.util.{Comparator, Properties}
-
 import javax.xml.datatype.XMLGregorianCalendar
 import net.enilink.komma.core._
 import net.enilink.komma.model.{IModel, ModelUtil}
 import net.enilink.platform.ldp.config._
+import net.enilink.platform.lift.rest.ModelsRest
 import net.enilink.platform.lift.util.Globals
-import net.enilink.platform.web.rest.ModelsRest
 import net.enilink.vocab.owl.OWL
 import net.enilink.vocab.rdf.RDF
 import net.enilink.vocab.rdfs.RDFS

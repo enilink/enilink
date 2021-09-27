@@ -1,4 +1,4 @@
-package net.enilink.platform.web.rest
+package net.enilink.platform.lift.rest
 
 import net.enilink.commons.iterator.IExtendedIterator
 import net.enilink.komma.core._
@@ -15,14 +15,14 @@ import org.eclipse.rdf4j.rio.WriterConfig
 import org.eclipse.rdf4j.rio.helpers.BasicWriterSettings
 
 import java.io.ByteArrayOutputStream
-import scala.jdk.CollectionConverters._
 
 object SparqlRest extends RestHelper {
+
   import Util._
 
   val converter = new RDF4JValueConverter(SimpleValueFactory.getInstance)
 
-  def configure(writer: QueryResultWriter) : Unit = {
+  def configure(writer: QueryResultWriter): Unit = {
     val config = new WriterConfig
     config.useDefaults
     // there is a incompatibility between the Jackson version included in eniLINK and the Jackson version that is required by RDF4J
@@ -83,8 +83,11 @@ object SparqlRest extends RestHelper {
                       // select with only one variable like "select ?s where { ?s ?p ?o }" for which KOMMA returns direct object instances
                       val bindings = new IBindings[IValue] {
                         val values = List(value).asJava
+
                         override def get(key: String) = value
+
                         override def getKeys = r.getBindingNames
+
                         override def iterator = values.iterator
                       }
                       writer.handleSolution(converter.toRdf4j(bindings))

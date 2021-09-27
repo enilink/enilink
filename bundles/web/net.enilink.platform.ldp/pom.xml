@@ -30,7 +30,7 @@
 		</dependency>
 		<dependency>
 			<groupId>net.enilink.platform</groupId>
-			<artifactId>net.enilink.platform.web</artifactId>
+			<artifactId>net.enilink.platform.lift</artifactId>
 			<version>${project.version}</version>
 		</dependency>
 		<dependency>

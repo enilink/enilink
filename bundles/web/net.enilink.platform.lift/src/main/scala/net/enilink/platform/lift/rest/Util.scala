@@ -1,15 +1,10 @@
-package net.enilink.platform.web.rest
+package net.enilink.platform.lift.rest
 
+import net.enilink.komma.core.{URI, URIs}
 import net.enilink.platform.lift.util.Globals
-import net.liftweb.http.Req
-import net.liftweb.common.Empty
-import net.enilink.komma.core.URIs
-import net.enilink.komma.core.URI
-import net.liftweb.common.Box
-import net.liftweb.common.Full
-import org.eclipse.rdf4j.query.resultio.QueryResultFormat
+import net.liftweb.common.{Box, Empty, Full}
+import net.liftweb.http.{ContentType, Req}
 import org.eclipse.rdf4j.query.resultio.QueryResultIO
-import net.liftweb.http.ContentType
 
 object Util {
   def getModelUri(r: Req) = Globals.contextModel.vend.dmap(URIs.createURI(r.hostAndPath + r.uri): URI)(_.getURI)
@@ -21,7 +16,9 @@ object Util {
   }
 
   def getOrCreateModel(modelUri: URI) = getModel(modelUri) or {
-    Globals.contextModelSet.vend map { _.createModel(modelUri.trimFileExtension) }
+    Globals.contextModelSet.vend map {
+      _.createModel(modelUri.trimFileExtension)
+    }
   }
 
   def getSparqlQueryResponseMimeType(r: Req): Box[String] = {
