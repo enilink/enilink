@@ -15,6 +15,7 @@ import org.eclipse.rdf4j.rio.WriterConfig
 import org.eclipse.rdf4j.rio.helpers.BasicWriterSettings
 
 import java.io.ByteArrayOutputStream
+import scala.jdk.CollectionConverters._
 
 object SparqlRest extends RestHelper {
 

@@ -10,6 +10,7 @@ import org.eclipse.core.runtime.content.{IContentDescription, IContentType}
 import org.eclipse.core.runtime.{Platform, QualifiedName}
 
 import java.io.{ByteArrayOutputStream, InputStream}
+import scala.jdk.CollectionConverters._
 
 object ModelsRest extends RestHelper {
 
