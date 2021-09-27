@@ -4,7 +4,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 public class Path {
-	private List<PathElement> elements = new ArrayList<>();
+	private List<PathElement> elements;
 	private int step = 0;
 
 	public Path(List<PathElement> elements) {

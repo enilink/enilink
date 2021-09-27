@@ -38,7 +38,7 @@ public interface LdpRdfSource extends LdpResource {
 	Set<IStatement> getTriples(int preferences);
 
 	/**
-	 * Return the the direct containers for which this RDFSource configured as Source, if any
+	 * Return the direct containers for which this RDFSource configured as Source, if any
 	 */
 	Set<LdpDirectContainer> membershipSourceFor();
 

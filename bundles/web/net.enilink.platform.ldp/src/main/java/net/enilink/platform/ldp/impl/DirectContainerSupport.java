@@ -34,7 +34,8 @@ public abstract class DirectContainerSupport implements LdpDirectContainer, Beha
 	@Override
 	public OperationResponse update(ReqBodyHelper body, Handler handler) {
 		Set<IStatement> configStmts = null;
-		if (body != null && handler != null & (body.isDirectContainer() || handler instanceof DirectContainerHandler) && !body.isBasicContainer() && body.isNoContains()) {
+		if (body != null && handler != null & (body.isDirectContainer() || handler instanceof DirectContainerHandler)
+				&& !body.isBasicContainer() && body.isNoContains()) {
 			URI resourceUri = body.getURI();
 			IEntityManager manager = getEntityManager();
 			Property memberRel = hasMemberRelation();

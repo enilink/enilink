@@ -8,7 +8,7 @@ We want to configure LDP-service in enilik for [Digital Object Memory](https://w
 
     def createHandler:BasicContainerHandler = {
         val toc = new DirectContainerHandler().
-                       withtName("toc").
+                       withName("toc").
                        withMembership(OMM.appendLocalPart("element")).
                        withDeleteable(false).asInstanceOf[DirectContainerHandler]              
         val memory = new RdfResourceHandler().

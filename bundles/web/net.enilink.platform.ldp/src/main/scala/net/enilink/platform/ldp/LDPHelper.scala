@@ -155,7 +155,7 @@ class LDPHelper extends RestHelper {
           typelinks = computeLinkHeader(LDP.TYPE_RDFSOURCE :: Nil)
           typ = LDP.TYPE_DIRECTCONTAINER
         } else if (manager.hasMatch(resourceUri, RDF.PROPERTY_TYPE, LDP.TYPE_NONRDFSOURCE)) {
-          // FIXME: is configuration model here also neesed ?
+          // FIXME: is configuration model here also needed ?
           typelinks = computeLinkHeader(LDP.TYPE_RESOURCE :: LDP.TYPE_NONRDFSOURCE :: Nil)
           typ = LDP.TYPE_NONRDFSOURCE
         } else Full(new FailedResponse(412, "not recognized Resource", Nil))
@@ -191,13 +191,14 @@ class LDPHelper extends RestHelper {
           findModel(resourceUri).flatMap { m =>
             println("trying model=" + m + " for resource=" + resourceUri)
             var content: ContainerContent = null
-            if (m.getManager.hasMatch(resourceUri, RDF.PROPERTY_TYPE, LDP.TYPE_DIRECTCONTAINER)) {
+            val em = m.getManager
+            if (em.hasMatch(resourceUri, RDF.PROPERTY_TYPE, LDP.TYPE_DIRECTCONTAINER)) {
               content = getContainerContent(resourceUri, classOf[LdpDirectContainer], m, preferences)
-            } else if (m.getManager.hasMatch(resourceUri, RDF.PROPERTY_TYPE, LDP.TYPE_BASICCONTAINER)) {
+            } else if (em.hasMatch(resourceUri, RDF.PROPERTY_TYPE, LDP.TYPE_BASICCONTAINER)) {
               content = getContainerContent(resourceUri, classOf[LdpBasicContainer], m, preferences)
-            } else if (m.getManager.hasMatch(resourceUri, RDF.PROPERTY_TYPE, LDP.TYPE_RDFSOURCE)) {
+            } else if (em.hasMatch(resourceUri, RDF.PROPERTY_TYPE, LDP.TYPE_RDFSOURCE)) {
               content = getContainerContent(resourceUri, classOf[LdpRdfSource], m, preferences)
-            } else if (m.getManager.hasMatch(resourceUri, RDF.PROPERTY_TYPE, LDP.TYPE_NONRDFSOURCE)) {
+            } else if (em.hasMatch(resourceUri, RDF.PROPERTY_TYPE, LDP.TYPE_NONRDFSOURCE)) {
               content = getNoneRdfContent(m, resourceUri)
             }
             // FIXME: add a sameAs relation between request uri and $path, if not equal
@@ -243,14 +244,14 @@ class LDPHelper extends RestHelper {
 
   // DELETE
   protected def deleteContent(refs: List[String], req: Req, uri: URI, config: BasicContainerHandler): Box[Convertible] = {
-
     val response: Box[Convertible] = refs match {
       case Nil => Empty
       case "index" :: Nil =>
         // deleting root container means deleting it's contents only
         findModel(uri).flatMap { m =>
-          if (m.getManager.hasMatch(uri, RDF.PROPERTY_TYPE, LDP.TYPE_BASICCONTAINER)) {
-            val c = m.getManager.find(uri, classOf[LdpBasicContainer])
+          val em = m.getManager
+          if (em.hasMatch(uri, RDF.PROPERTY_TYPE, LDP.TYPE_BASICCONTAINER)) {
+            val c = em.find(uri, classOf[LdpBasicContainer])
             if (config.isDeletable()) {
               c.contains(new java.util.HashSet)
               Full(new UpdateResponse("", LDP.TYPE_BASICCONTAINER))
@@ -303,7 +304,6 @@ class LDPHelper extends RestHelper {
 
   // POST
   protected def createContent(refs: List[String], req: Req, uri: URI, reqNr: Int, config: BasicContainerHandler): Box[Convertible] = {
-
     def requestedSlug = (req.header(SLUG).openOr(DEFAULT_NAME).replaceAll("[^A-Za-z0-9-_.]", "-"), reqNr)
 
     def requestedUri = URIs.createURI(req.request.url.replace(req.hostAndPath + "/", uri.trimSegments(2).toString))
@@ -746,8 +746,8 @@ class LDPHelper extends RestHelper {
               case o@_ => o
             }
         }
-        val (status: Int, size: Int, text: String, headers: List[(String, String)]) = output match {
 
+        val (status: Int, size: Int, text: String, headers: List[(String, String)]) = output match {
           case Full((length, stream, contentType, types)) => {
             r.requestType.post_? match {
               case true => (201, length, stream.toString, ("Accept-Post", "*/*") :: ("Accept-Patch" -> "text/ldpatch") :: types)
@@ -830,8 +830,6 @@ class LDPHelper extends RestHelper {
   final case object JsonLdSelect extends TurtleJsonLdSelect
 
   final case class DefaultSelect(preferred: ContentType) extends TurtleJsonLdSelect
-
-
 }
 
 

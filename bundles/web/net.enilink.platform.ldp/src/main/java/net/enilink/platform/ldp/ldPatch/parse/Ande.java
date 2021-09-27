@@ -9,7 +9,6 @@ public class Ande implements Operation {
 	private List<GraphNode> subjects;
 
 	public Ande graph(List<GraphNode> subjects) {
-
 		this.subjects = subjects;
 		return this;
 	}

@@ -146,9 +146,6 @@ class LiftModule extends Logger {
       case other => defaultHeaders(other)
     }
 
-    // register REST service for Linked Data Platform support
-    // LiftRules.dispatch.append(LDPService)
-
     // dispatch function for checking access to context model
     LiftRules.dispatch.append {
       case NotAllowedModel(m) => () => Full(ForbiddenResponse("You don't have permissions to access " + m.getURI + "."))
