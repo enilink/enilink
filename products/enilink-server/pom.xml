@@ -78,7 +78,7 @@
 						<feature>system</feature>
 
 						<feature>scr</feature>
-						<feature>http-whiteboard</feature>
+						<feature>felix-http</feature>
 						<feature>net.enilink.platform.karaf.feature</feature>
 					</bootFeatures>
 				</configuration>
