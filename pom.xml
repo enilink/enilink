@@ -116,6 +116,21 @@
 				<artifactId>org.eclipse.equinox.registry</artifactId>
 				<version>3.9.0</version>
 			</dependency>
+			<dependency>
+				<groupId>org.eclipse.platform</groupId>
+				<artifactId>org.eclipse.equinox.app</artifactId>
+				<version>1.5.100</version>
+			</dependency>
+			<dependency>
+				<groupId>org.eclipse.platform</groupId>
+				<artifactId>org.eclipse.core.jobs</artifactId>
+				<version>3.11.0</version>
+			</dependency>
+			<dependency>
+				<groupId>org.eclipse.platform</groupId>
+				<artifactId>org.eclipse.core.contenttype</artifactId>
+				<version>3.7.1000</version>
+			</dependency>
 		</dependencies>
 	</dependencyManagement>
 
