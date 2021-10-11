@@ -21,14 +21,10 @@ object LiftBootHelper extends Loggable {
 			val liftBundle = FrameworkUtil.getBundle(classOf[LiftRules])
 			val enilinkCore = FrameworkUtil.getBundle(classOf[IContextProvider])
 			val systemBundle = liftBundle.getBundleContext.getBundle(0)
-			// HTTP service needs to be refreshed because else some weird bugs occur
-			val httpService = FrameworkUtil.getBundle(classOf[HttpService])
-			// HTTP whiteboard service needs to be refreshed because else some weird bugs occur
-			val httpWhiteboard = FrameworkUtil.getBundle(classOf[ServletContextHelper])
 
 			// refresh dependency closure
 			val frameworkWiring = systemBundle.adapt(classOf[FrameworkWiring])
-			frameworkWiring.refreshBundles(List(liftBundle, enilinkCore, httpService, httpWhiteboard).asJava)
+			frameworkWiring.refreshBundles(liftBundle :: enilinkCore :: Nil)
 		}
 	}
 }
