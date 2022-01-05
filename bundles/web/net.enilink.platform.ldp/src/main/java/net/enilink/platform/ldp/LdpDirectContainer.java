@@ -7,7 +7,7 @@ import net.enilink.vocab.rdf.Property;
  * LDP Direct Container (LDP-DC)
  * <p>
  * "An LDPC that adds the concept of membership [...]"
- * 
+ *
  * @see https://www.w3.org/TR/ldp/#h-terms
  */
 @Iri("http://www.w3.org/ns/ldp#DirectContainer")
@@ -15,7 +15,7 @@ public interface LdpDirectContainer extends LdpContainer {
 
 	/**
 	 * Denote the LDPC's membership-constant-URI
-	 * 
+	 *
 	 * @see https://www.w3.org/TR/ldp/#ldpdc section 5.4.1.3
 	 */
 	@Iri("http://www.w3.org/ns/ldp#membershipResource")
@@ -31,7 +31,7 @@ public interface LdpDirectContainer extends LdpContainer {
 	 * <p>
 	 * <b>ATTENTION:</b> <em>EITHER</em> this <em>OR</em> isMemberOfRelation can be
 	 * used.
-	 * 
+	 *
 	 * @see https://www.w3.org/TR/ldp/#ldpdc section 5.4.1.4.1
 	 */
 	@Iri("http://www.w3.org/ns/ldp#hasMemberRelation")
@@ -54,5 +54,5 @@ public interface LdpDirectContainer extends LdpContainer {
 	Property isMemberOfRelation();
 
 	void isMemberOfRelation(Property isMemberOfRelation);
-	
+
 }

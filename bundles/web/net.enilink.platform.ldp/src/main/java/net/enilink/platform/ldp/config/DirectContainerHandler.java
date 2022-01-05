@@ -1,15 +1,15 @@
 package net.enilink.platform.ldp.config;
 
+import net.enilink.composition.annotations.Iri;
+import net.enilink.komma.core.URI;
+import net.enilink.komma.core.URIs;
+import net.enilink.platform.ldp.LDP;
+
 import java.lang.reflect.Method;
 import java.lang.reflect.ParameterizedType;
 import java.lang.reflect.Type;
 import java.util.Collection;
 import java.util.Set;
-
-import net.enilink.composition.annotations.Iri;
-import net.enilink.komma.core.URI;
-import net.enilink.komma.core.URIs;
-import net.enilink.platform.ldp.LDP;
 
 public class DirectContainerHandler extends ContainerHandler {
 
@@ -75,7 +75,9 @@ public class DirectContainerHandler extends ContainerHandler {
 		return this;
 	}
 
-	/** Configure the handler from the annotations on the given method. */
+	/**
+	 * Configure the handler from the annotations on the given method.
+	 */
 	public static DirectContainerHandler forRelation(Method method) {
 		if (null == method) {
 			return null;

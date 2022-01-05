@@ -9,7 +9,7 @@ import net.enilink.vocab.rdfs.Resource;
  * "A HTTP resource whose state is represented in any way that conforms to the
  * simple lifecycle patterns and conventions in section 4. Linked Data Platform
  * Resources."
- * 
+ *
  * @see https://www.w3.org/TR/ldp/#h-terms
  * @see https://www.w3.org/TR/ldp/#ldpr
  */

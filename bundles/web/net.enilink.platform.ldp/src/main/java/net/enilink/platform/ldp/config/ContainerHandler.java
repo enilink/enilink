@@ -1,9 +1,9 @@
 package net.enilink.platform.ldp.config;
 
-import java.util.Set;
-
 import net.enilink.komma.core.URI;
 import net.enilink.platform.ldp.LDP;
+
+import java.util.Set;
 
 public class ContainerHandler extends RdfResourceHandler {
 	private boolean creatable;

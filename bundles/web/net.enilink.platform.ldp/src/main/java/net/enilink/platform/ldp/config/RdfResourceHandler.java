@@ -1,13 +1,13 @@
 package net.enilink.platform.ldp.config;
 
+import net.enilink.composition.annotations.Iri;
+import net.enilink.komma.core.URI;
+import net.enilink.komma.core.URIs;
+
 import java.lang.reflect.Method;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.Set;
-
-import net.enilink.composition.annotations.Iri;
-import net.enilink.komma.core.URI;
-import net.enilink.komma.core.URIs;
 
 public class RdfResourceHandler implements Handler {
 
