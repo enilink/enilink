@@ -49,7 +49,7 @@
 					<vmProperties>
 						<property>
 							<name>org.osgi.service.http.port</name>
-							<value>10080</value>
+							<value>8080</value>
 						</property>
 						<property>
 							<name>net.enilink.logger.rootLevel</name>
