@@ -3,7 +3,6 @@ package net.enilink.platform.ldp
 import java.io.{ByteArrayOutputStream, OutputStream}
 import java.time.Instant
 import java.util.{Comparator, Properties}
-
 import javax.xml.datatype.XMLGregorianCalendar
 import net.enilink.komma.core._
 import net.enilink.komma.model.{IModel, ModelUtil}
@@ -15,10 +14,10 @@ import net.enilink.vocab.rdf.RDF
 import net.enilink.vocab.rdfs.RDFS
 import net.enilink.vocab.xmlschema.XMLSCHEMA
 import net.liftweb.common.Box.option2Box
-import net.liftweb.common._
+import net.liftweb.common.{Box, _}
 import net.liftweb.http.provider.HTTPCookie
 import net.liftweb.http.rest.RestHelper
-import net.liftweb.http.{ContentType, LiftResponse, NotFoundResponse, OutputStreamResponse, PlainTextResponse, Req}
+import net.liftweb.http.{ContentType, LiftResponse, OutputStreamResponse, PlainTextResponse, Req}
 import org.eclipse.rdf4j.model.Model
 import org.eclipse.rdf4j.rio.Rio
 
@@ -108,21 +107,21 @@ class LDPHelper extends RestHelper {
   }
 
   case class FailedResponse(code: Int, msg: String, headers: List[(String, String)]) extends Convertible {
-    override def toTurtle() = Failure(msg, Empty, Empty)
+    override def toTurtle() = Failure(msg, Empty, Empty) : Box[(Int, OutputStream, String, List[(String, String)])]
 
-    override def toJsonLd() = Failure(msg, Empty, Empty)
+    override def toJsonLd() = Failure(msg, Empty, Empty) : Box[(Int, OutputStream, String, List[(String, String)])]
   }
 
   def unrecognizedResource(resourceUri: String): Box[Convertible] = {
     val msg = s"not recognized as Resource: ${resourceUri}, try ${resourceUri}/ "
-    Full(new FailedResponse(404, msg, computeLinkHeader(LDP.TYPE_RDFSOURCE :: Nil)))
+    Full(FailedResponse(404, msg, computeLinkHeader(LDP.TYPE_RDFSOURCE :: Nil)))
   }
 
   def updateRoot(req: Req, uri: URI, config: BasicContainerHandler, partial: Boolean): Box[Convertible] = {
     println("update root ..")
     val typelinks = computeLinkHeader(LDP.TYPE_RESOURCE :: LDP.TYPE_BASICCONTAINER :: Nil)
     if (!config.isModifyable())
-      Full(new FailedResponse(427, "container configured not modifiable", typelinks))
+      Full(FailedResponse(427, "container configured not modifiable", typelinks))
     else findModel(uri).flatMap(m => {
       val manager = m.getManager
       if (manager.hasMatch(uri, RDF.PROPERTY_TYPE, LDP.TYPE_BASICCONTAINER)) {
@@ -131,14 +130,14 @@ class LDPHelper extends RestHelper {
           case true => patchUpdate(req, typelinks, uri, LDP.TYPE_BASICCONTAINER, m, config)
         }
       } else
-        Full(new FailedResponse(412, "root container schould be Basic Container but found another type", typelinks))
+        Full(FailedResponse(412, "root container schould be Basic Container but found another type", typelinks))
     })
   }
 
   def updateResource(req: Req, resourceUri: URI, handler: Handler, partial: Boolean): Box[Convertible] = {
     if (!handler.isModifyable) {
       val typelinks = computeLinkHeader(handler.getAssignedTo :: Nil)
-      Full(new FailedResponse(427, "resource configured not modifiable", typelinks))
+      Full(FailedResponse(427, "resource configured not modifiable", typelinks))
     }
     else
       findModel(resourceUri).flatMap(m => {
@@ -158,7 +157,7 @@ class LDPHelper extends RestHelper {
           // FIXME: is configuration model here also neesed ?
           typelinks = computeLinkHeader(LDP.TYPE_RESOURCE :: LDP.TYPE_NONRDFSOURCE :: Nil)
           typ = LDP.TYPE_NONRDFSOURCE
-        } else Full(new FailedResponse(412, "not recognized Resource", Nil))
+        } else Full(FailedResponse(412, "not recognized Resource", Nil))
         partial match {
           case false => update(req, typelinks, resourceUri, typ, m, handler)
           case true => patchUpdate(req, typelinks, resourceUri, typ, m, handler)
@@ -255,9 +254,9 @@ class LDPHelper extends RestHelper {
               c.contains(new java.util.HashSet)
               Full(new UpdateResponse("", LDP.TYPE_BASICCONTAINER))
             } else
-              Full(new FailedResponse(422, "container configured not deletable", ("Link", constrainedLink) :: Nil))
+              Full(FailedResponse(422, "container configured not deletable", ("Link", constrainedLink) :: Nil))
           } else {
-            Full(new FailedResponse(422, "root container should be of type Basic, but found another type", ("Link", constrainedLink) :: Nil))
+            Full(FailedResponse(422, "root container should be of type Basic, but found another type", ("Link", constrainedLink) :: Nil))
           }
 
         }
@@ -287,7 +286,7 @@ class LDPHelper extends RestHelper {
             findModel(container.getURI).map(m => m.getManager.removeRecursive(resourceUri, true));
             Full(new UpdateResponse("", LDP.TYPE_RESOURCE))
           } else
-            Full(new FailedResponse(422, "container configured not deletable", ("Link", constrainedLink) :: Nil))
+            Full(FailedResponse(422, "container configured not deletable", ("Link", constrainedLink) :: Nil))
         })
       } catch {
         case e: Exception => Failure(e.getMessage, Some(e), Empty)
@@ -361,11 +360,11 @@ class LDPHelper extends RestHelper {
           if (!result.hasError)
             Full(new UpdateResponse(resourceUri.toString(), resourceType))
           else
-            Full(new FailedResponse(result.code(), result.msg(), constraintHeader))
+            Full(FailedResponse(result.code(), result.msg(), constraintHeader))
         case Right(Full(noneRdfContent)) if (noneRdfContent.length > 0) =>
           if (createNoneRdfResource(noneRdfContent, resourceUri, m, resConf))
             Full(new UpdateResponse(resourceUri.toString(), LDP.TYPE_NONRDFSOURCE))
-          else Full(new FailedResponse(500, "failed to create resource", constraintHeader))
+          else Full(FailedResponse(500, "failed to create resource", constraintHeader))
       }
     }
 
@@ -379,7 +378,7 @@ class LDPHelper extends RestHelper {
             val handler = config.getContainsHandler
             val container = m.getManager.findRestricted(uri, classOf[LdpBasicContainer])
             createRdfResource(container, m, handler, config)
-          } else Full(new FailedResponse(412, "root container should be of type basic and configured to be creatable", constraintHeader)))
+          } else Full(FailedResponse(412, "root container should be of type basic and configured to be creatable", constraintHeader)))
       }
 
       case path@_ => {
@@ -405,7 +404,7 @@ class LDPHelper extends RestHelper {
           } // TODO add support for indirect containers
           //LDPR and LDPNR don't accept POST (only containers do )
           else
-            Full(new FailedResponse(412, "none container resource shouldn't accept POST request", ("Link", constrainedLink) :: Nil))
+            Full(FailedResponse(412, "none container resource shouldn't accept POST request", ("Link", constrainedLink) :: Nil))
         })
       }
     }
@@ -545,11 +544,11 @@ class LDPHelper extends RestHelper {
             if (!result.hasError) {
               println(result.msg())
               Full(new UpdateResponse(resourceUri.toString(), resourceType))
-            } else Full(new FailedResponse(result.code(), result.msg(), typelinks))
+            } else Full(FailedResponse(result.code(), result.msg(), typelinks))
           case Right(Full(bin)) =>
             val res = m.getManager.findRestricted(resourceUri, classOf[LdpNoneRdfSource])
             if (res.format() != req.contentType.openOr("application/octet-stream"))
-              Full(new FailedResponse(412, "RDF Resource can not be replaced with binary object", typelinks))
+              Full(FailedResponse(412, "RDF Resource can not be replaced with binary object", typelinks))
             else {
               val fileName = res.fileName()
               Globals.fileStore.make.map { fs => {
@@ -565,9 +564,9 @@ class LDPHelper extends RestHelper {
               }
             }
         }
-      case Full(false) => Full(new FailedResponse(412, "IF-MATCH Avoiding mid-air collisions ", typelinks))
-      case Empty => Full(new FailedResponse(428, "", typelinks))
-      case Failure(msg, _, _) => Full(new FailedResponse(428, msg, typelinks))
+      case Full(false) => Full(FailedResponse(412, "IF-MATCH Avoiding mid-air collisions ", typelinks))
+      case Empty => Full(FailedResponse(428, "", typelinks))
+      case Failure(msg, _, _) => Full(FailedResponse(428, msg, typelinks))
     }
   }
 
@@ -582,10 +581,10 @@ class LDPHelper extends RestHelper {
         if (!result.hasError) {
           println(result.msg())
           Full(new UpdateResponse(resourceUri.toString(), resourceType))
-        } else Full(new FailedResponse(result.code(), result.msg(), typelinks))
-      case Full(false) => Full(new FailedResponse(412, "IF-MATCH Avoiding mid-air collisions ", typelinks))
-      case Empty => Full(new FailedResponse(428, "", typelinks))
-      case Failure(msg, _, _) => Full(new FailedResponse(428, msg, typelinks))
+        } else Full(FailedResponse(result.code(), result.msg(), typelinks))
+      case Full(false) => Full(FailedResponse(412, "IF-MATCH Avoiding mid-air collisions ", typelinks))
+      case Empty => Full(FailedResponse(428, "", typelinks))
+      case Failure(msg, _, _) => Full(FailedResponse(428, msg, typelinks))
     }
   }
 

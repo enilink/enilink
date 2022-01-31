@@ -1,23 +1,24 @@
-package net.enilink.platform.lift.files
-
-import java.io.IOException
-import java.util.Properties
+package net.enilink.platform.lift.rest
 
 import net.enilink.platform.lift.util.Globals
 import net.liftweb.common.Loggable
 import net.liftweb.http._
 import net.liftweb.http.provider.HTTPCookie
 import net.liftweb.http.rest.RestHelper
-import net.liftweb.json._
-import net.liftweb.json.JsonAST._
 import net.liftweb.json.JsonDSL._
+import net.liftweb.json._
 
-object FileService extends RestHelper {
+import java.io.IOException
+import java.util.Properties
+
+object FileService extends RestHelper with CorsHelper {
   /**
    * Simple response without content.
    */
   class HeadResponse(size: Long, headers: List[(String, String)], cookies: List[HTTPCookie], code: Int)
-    extends OutputStreamResponse({ _.close }, size: Long, headers: List[(String, String)], cookies: List[HTTPCookie], code: Int) {
+    extends OutputStreamResponse({
+      _.close
+    }, size: Long, headers: List[(String, String)], cookies: List[HTTPCookie], code: Int) {
   }
 
   /**
@@ -29,7 +30,9 @@ object FileService extends RestHelper {
 
   object AllowedMimeTypes extends Loggable {
     def unapply(req: Req): Option[Req] = {
-      logger.info("req.uploadedFiles.map{_.mimeType) is %s".format(req.uploadedFiles.map { _.mimeType }))
+      logger.info("req.uploadedFiles.map{_.mimeType) is %s".format(req.uploadedFiles.map {
+        _.mimeType
+      }))
       req.uploadedFiles.flatMap {
         _.mimeType match {
           case _ => Some(req)
@@ -50,7 +53,7 @@ object FileService extends RestHelper {
     try {
       val size = fileStore.size(key)
       val props = fileStore.getProperties(key)
-      val headers = Option(props.getProperty("contentType")).map(("Content-type" -> _)).toList ++
+      val headers = responseHeaders ++ Option(props.getProperty("contentType")).map(("Content-type" -> _)).toList ++
         List(("Content-length" -> size.toString)) ++
         Option(props.getProperty("fileName")).map(name => ("Content-disposition", "attachment; filename=\"" + name + "\"")).toList
       if (head) new HeadResponse(size, headers, Nil, 200) else StreamingResponse(fileStore.openStream(key), () => {}, size, headers, Nil, 200)
@@ -61,7 +64,7 @@ object FileService extends RestHelper {
 
   def saveAndRespond(req: Req): LiftResponse = {
     val jvalue: List[JValue] = req.uploadedFiles.flatMap(fph => saveFile(fph))
-    JsonResponse(jvalue)
+    JsonResponse(jvalue, responseHeaders, S.responseCookies, 200)
   }
 
   def saveFile(fp: FileParamHolder): List[JValue] = {

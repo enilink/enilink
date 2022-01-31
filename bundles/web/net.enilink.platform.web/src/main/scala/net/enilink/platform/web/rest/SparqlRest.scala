@@ -1,13 +1,13 @@
 package net.enilink.platform.web.rest
 
-import net.enilink.commons.iterator.IExtendedIterator
 import net.enilink.komma.core._
 import net.enilink.komma.model.{IModelSet, ModelUtil}
 import net.enilink.komma.rdf4j.RDF4JValueConverter
+import net.enilink.platform.lift.rest.CorsHelper
 import net.enilink.platform.lift.util.{Globals, NotAllowedModel}
 import net.liftweb.common.{Box, Full}
 import net.liftweb.http.rest.RestHelper
-import net.liftweb.http.{BadRequestResponse, ForbiddenResponse, InMemoryResponse, LiftResponse, NotFoundResponse, OkResponse, S}
+import net.liftweb.http.{InMemoryResponse, LiftResponse, S}
 import net.liftweb.util.Helpers.tryo
 import org.eclipse.rdf4j.model.impl.SimpleValueFactory
 import org.eclipse.rdf4j.query.resultio.{QueryResultIO, QueryResultWriter}
@@ -17,7 +17,7 @@ import org.eclipse.rdf4j.rio.helpers.BasicWriterSettings
 import java.io.ByteArrayOutputStream
 import scala.jdk.CollectionConverters._
 
-object SparqlRest extends RestHelper {
+object SparqlRest extends RestHelper with CorsHelper {
   import Util._
 
   val converter = new RDF4JValueConverter(SimpleValueFactory.getInstance)
@@ -55,7 +55,7 @@ object SparqlRest extends RestHelper {
    * Handle SPARQL queries against a model.
    */
   def queryModel(queryStr: String, modelUri: URI, resultMimeType: String): Box[LiftResponse] = {
-    getModel(modelUri).dmap(Full(new NotFoundResponse("Model " + modelUri + " not found.")): Box[LiftResponse])(model =>
+    getModel(modelUri).dmap(Full(NotFoundResponse("Model " + modelUri + " not found.")): Box[LiftResponse])(model =>
       model match {
         case NotAllowedModel(_) => Full(ForbiddenResponse("You don't have permissions to access " + model.getURI + "."))
         case _ =>
@@ -66,7 +66,7 @@ object SparqlRest extends RestHelper {
             val query = em.createQuery(queryStr)
             query.restrictResultType(null.asInstanceOf[String], classOf[IValue])
 
-            query.evaluate.asInstanceOf[IExtendedIterator[_]] match {
+            query.evaluate match {
               case r: ITupleResult[_] =>
                 val baos = new ByteArrayOutputStream
                 val writer = QueryResultIO.createTupleWriter(format, baos)
@@ -96,7 +96,8 @@ object SparqlRest extends RestHelper {
                 writer.endQueryResult
 
                 val data = baos.toByteArray
-                Full(InMemoryResponse(data, ("Content-Length", data.length.toString) :: ("Content-Type", resultMimeType + "; charset=utf-8") :: Nil, Nil, 200))
+                Full(InMemoryResponse(data, ("Content-Length", data.length.toString) ::
+                  ("Content-Type", resultMimeType + "; charset=utf-8") :: responseHeaders, responseCookies, 200))
               case r: IGraphResult =>
                 val baos = new ByteArrayOutputStream
                 val writer = ModelUtil.writeData(baos, model.getURI.toString, resultMimeType, "UTF-8")
@@ -110,7 +111,8 @@ object SparqlRest extends RestHelper {
                 writer.visitEnd
 
                 val data = baos.toByteArray
-                Full(InMemoryResponse(data, ("Content-Length", data.length.toString) :: ("Content-Type", resultMimeType + "; charset=utf-8") :: Nil, Nil, 200))
+                Full(InMemoryResponse(data, ("Content-Length", data.length.toString) ::
+                  ("Content-Type", resultMimeType + "; charset=utf-8") :: responseHeaders, responseCookies, 200))
               case r: IBooleanResult =>
                 val baos = new ByteArrayOutputStream
                 val writer = QueryResultIO.createBooleanWriter(format, baos)
@@ -124,7 +126,8 @@ object SparqlRest extends RestHelper {
                 }
 
                 val data = baos.toByteArray
-                Full(InMemoryResponse(data, ("Content-Length", data.length.toString) :: ("Content-Type", resultMimeType + "; charset=utf-8") :: Nil, Nil, 200))
+                Full(InMemoryResponse(data, ("Content-Length", data.length.toString) ::
+                  ("Content-Type", resultMimeType + "; charset=utf-8") :: responseHeaders, responseCookies, 200))
               case _ => Full(BadRequestResponse()) // unexpected, should not happen
             }
           } else Full(BadRequestResponse())
@@ -135,7 +138,7 @@ object SparqlRest extends RestHelper {
    * Handle SPARQL updates against a model.
    */
   def updateModel(queryStr: String, modelUri: URI, resultMimeType: String): Box[LiftResponse] = {
-    getModel(modelUri).dmap(Full(new NotFoundResponse("Model " + modelUri + " not found.")): Box[LiftResponse])(model =>
+    getModel(modelUri).dmap(Full(NotFoundResponse("Model " + modelUri + " not found.")): Box[LiftResponse])(model =>
       model match {
         case NotAllowedModel(_) => Full(ForbiddenResponse("You don't have permissions to access " + model.getURI + "."))
         case _ =>

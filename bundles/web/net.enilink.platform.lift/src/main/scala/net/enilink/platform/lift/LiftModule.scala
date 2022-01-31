@@ -1,8 +1,8 @@
 package net.enilink.platform.lift
 
 import net.enilink.komma.core.{BlankNode, IUnitOfWork, URIs}
-import net.enilink.platform.lift.files.FileService
 import net.enilink.platform.lift.html.Html5ParserWithRDFaPrefixes
+import net.enilink.platform.lift.rest.FileService
 import net.enilink.platform.lift.util.{CurrentContext, Globals, NotAllowedModel, RdfContext}
 import net.enilink.platform.security.auth.EnilinkPrincipal
 import net.liftweb.common.Box.option2Box
