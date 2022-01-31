@@ -17,7 +17,7 @@ import net.liftweb.common.Box.option2Box
 import net.liftweb.common.{Box, _}
 import net.liftweb.http.provider.HTTPCookie
 import net.liftweb.http.rest.RestHelper
-import net.liftweb.http.{ContentType, LiftResponse, OutputStreamResponse, PlainTextResponse, Req}
+import net.liftweb.http.{ContentType, LiftResponse, NotFoundResponse, OutputStreamResponse, PlainTextResponse, Req}
 import org.eclipse.rdf4j.model.Model
 import org.eclipse.rdf4j.rio.Rio
 
@@ -769,7 +769,7 @@ class LDPHelper extends RestHelper {
       }
       // ATTN: these next two cases don't actually end up here, lift handles them on its own
       case f@Failure(msg, _, _) => PlainTextResponse("Unable to complete request: " + msg, ("Content-Type", "text/plain") :: Nil, 500)
-      case Empty => NotFoundResponse()
+      case Empty => NotFoundResponse("")
     }
   }
 
