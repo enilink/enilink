@@ -154,6 +154,7 @@ object SparqlRest extends RestHelper with CorsHelper {
   }
 
   serve("sparql" :: Nil prefix {
+    case Nil Options _ => OkResponse()
     case Nil Get req => {
       for {
         query <- S.param("query")

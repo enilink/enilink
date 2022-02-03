@@ -169,6 +169,7 @@ object ModelsRest extends RestHelper with CorsHelper {
   def validModel(modelName: List[String]): Boolean = !modelName.isEmpty && modelName != List("index") || S.param("model").isDefined
 
   serve {
+    case ("vocab" | "models") :: _ Options _ => OkResponse()
     case ("vocab" | "models") :: modelName Get req if validModel(modelName) => {
       S.param("query") match {
         case Full(sparql) => getSparqlQueryResponseMimeType(req) flatMap { resultMimeType =>

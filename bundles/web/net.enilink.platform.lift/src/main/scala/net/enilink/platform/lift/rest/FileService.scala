@@ -43,6 +43,7 @@ object FileService extends RestHelper with CorsHelper {
   }
 
   serve("files" :: Nil prefix {
+    case Nil Options _ => OkResponse()
     case Nil Post AllowedMimeTypes(req) => saveAndRespond(req)
     case key :: Nil Get _ => serveFile(key)
     case key :: Nil Head _ => serveFile(key, true)
