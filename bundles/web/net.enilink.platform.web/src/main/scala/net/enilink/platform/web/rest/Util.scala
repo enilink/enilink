@@ -7,9 +7,9 @@ import net.enilink.komma.core.URIs
 import net.enilink.komma.core.URI
 import net.liftweb.common.Box
 import net.liftweb.common.Full
-import org.eclipse.rdf4j.query.resultio.QueryResultFormat
 import org.eclipse.rdf4j.query.resultio.QueryResultIO
 import net.liftweb.http.ContentType
+import org.eclipse.rdf4j.rio.Rio
 
 object Util {
   def getModelUri(r: Req) = Globals.contextModel.vend.dmap(URIs.createURI(r.hostAndPath + r.uri): URI)(_.getURI)
@@ -31,7 +31,8 @@ object Util {
       Full("application/sparql-results+json")
     } else {
       r.weightedAccept.collectFirst {
-        case ct if QueryResultIO.getParserFormatForMIMEType(toMimeType(ct)).isPresent => toMimeType(ct)
+        case ct if QueryResultIO.getWriterFormatForMIMEType(toMimeType(ct)).isPresent => toMimeType(ct)
+        case ct if Rio.getWriterFormatForMIMEType(toMimeType(ct)).isPresent => toMimeType(ct)
       }
     }
   }

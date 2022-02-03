@@ -18,11 +18,12 @@ import java.io.ByteArrayOutputStream
 import scala.jdk.CollectionConverters._
 
 object SparqlRest extends RestHelper with CorsHelper {
+
   import Util._
 
   val converter = new RDF4JValueConverter(SimpleValueFactory.getInstance)
 
-  def configure(writer: QueryResultWriter) : Unit = {
+  def configure(writer: QueryResultWriter): Unit = {
     val config = new WriterConfig
     config.useDefaults
     // there is a incompatibility between the Jackson version included in eniLINK and the Jackson version that is required by RDF4J
@@ -59,78 +60,84 @@ object SparqlRest extends RestHelper with CorsHelper {
       model match {
         case NotAllowedModel(_) => Full(ForbiddenResponse("You don't have permissions to access " + model.getURI + "."))
         case _ =>
-          val formatOpt = QueryResultIO.getWriterFormatForMIMEType(resultMimeType)
-          if (formatOpt.isPresent) {
-            val format = formatOpt.get
-            val em = model.getManager
-            val query = em.createQuery(queryStr)
+          val em = model.getManager
+          val query = em.createQuery(queryStr)
+          // ensure that resources are not instantiated as KOMMA entities
+          if ("(?i)(construct\\s*[{]|describe\\s*[?$])".r.findFirstIn(queryStr).isDefined) {
+            query.restrictResultType(null.asInstanceOf[String], classOf[IStatement])
+          } else {
             query.restrictResultType(null.asInstanceOf[String], classOf[IValue])
+          }
 
-            query.evaluate match {
-              case r: ITupleResult[_] =>
-                val baos = new ByteArrayOutputStream
-                val writer = QueryResultIO.createTupleWriter(format, baos)
-                configure(writer)
+          query.evaluate match {
+            case r: ITupleResult[_] if QueryResultIO.getWriterFormatForMIMEType(resultMimeType).isPresent =>
+              val baos = new ByteArrayOutputStream
+              val format = QueryResultIO.getWriterFormatForMIMEType(resultMimeType).get()
+              val writer = QueryResultIO.createTupleWriter(format, baos)
+              configure(writer)
 
-                writer.startQueryResult(r.getBindingNames)
+              writer.startQueryResult(r.getBindingNames)
 
-                try {
-                  r.iterator.asScala.foreach {
-                    case bindings: IBindings[_] =>
-                      val bindingSet = converter.toRdf4j(bindings)
-                      writer.handleSolution(bindingSet)
-                    case value: IValue =>
-                      // select with only one variable like "select ?s where { ?s ?p ?o }" for which KOMMA returns direct object instances
-                      val bindings = new IBindings[IValue] {
-                        val values = List(value).asJava
-                        override def get(key: String) = value
-                        override def getKeys = r.getBindingNames
-                        override def iterator = values.iterator
-                      }
-                      writer.handleSolution(converter.toRdf4j(bindings))
-                  }
-                } finally {
-                  r.close
+              try {
+                r.iterator.asScala.foreach {
+                  case bindings: IBindings[_] =>
+                    val bindingSet = converter.toRdf4j(bindings)
+                    writer.handleSolution(bindingSet)
+                  case value: IValue =>
+                    // select with only one variable like "select ?s where { ?s ?p ?o }" for which KOMMA returns direct object instances
+                    val bindings = new IBindings[IValue] {
+                      val values = List(value).asJava
+
+                      override def get(key: String) = value
+
+                      override def getKeys = r.getBindingNames
+
+                      override def iterator = values.iterator
+                    }
+                    writer.handleSolution(converter.toRdf4j(bindings))
                 }
+              } finally {
+                r.close
+              }
 
-                writer.endQueryResult
+              writer.endQueryResult
 
-                val data = baos.toByteArray
-                Full(InMemoryResponse(data, ("Content-Length", data.length.toString) ::
-                  ("Content-Type", resultMimeType + "; charset=utf-8") :: responseHeaders, responseCookies, 200))
-              case r: IGraphResult =>
-                val baos = new ByteArrayOutputStream
-                val writer = ModelUtil.writeData(baos, model.getURI.toString, resultMimeType, "UTF-8")
+              val data = baos.toByteArray
+              Full(InMemoryResponse(data, ("Content-Length", data.length.toString) ::
+                ("Content-Type", resultMimeType + "; charset=utf-8") :: responseHeaders, responseCookies, 200))
+            case r: IGraphResult =>
+              val baos = new ByteArrayOutputStream
+              val writer = ModelUtil.writeData(baos, model.getURI.toString, resultMimeType, "UTF-8")
 
-                writer.visitBegin
-                try {
-                  r.iterator.asScala.foreach { stmt => writer.visitStatement(stmt) }
-                } finally {
-                  r.close
-                }
-                writer.visitEnd
+              writer.visitBegin
+              try {
+                r.iterator.asScala.foreach { stmt => writer.visitStatement(stmt) }
+              } finally {
+                r.close
+              }
+              writer.visitEnd
 
-                val data = baos.toByteArray
-                Full(InMemoryResponse(data, ("Content-Length", data.length.toString) ::
-                  ("Content-Type", resultMimeType + "; charset=utf-8") :: responseHeaders, responseCookies, 200))
-              case r: IBooleanResult =>
-                val baos = new ByteArrayOutputStream
-                val writer = QueryResultIO.createBooleanWriter(format, baos)
-                configure(writer)
+              val data = baos.toByteArray
+              Full(InMemoryResponse(data, ("Content-Length", data.length.toString) ::
+                ("Content-Type", resultMimeType + "; charset=utf-8") :: responseHeaders, responseCookies, 200))
+            case r: IBooleanResult if QueryResultIO.getBooleanWriterFormatForMIMEType(resultMimeType).isPresent =>
+              val baos = new ByteArrayOutputStream
+              val format = QueryResultIO.getBooleanWriterFormatForMIMEType(resultMimeType).get()
+              val writer = QueryResultIO.createBooleanWriter(format, baos)
+              configure(writer)
 
-                try {
-                  val result = r.asBoolean
-                  writer.handleBoolean(result)
-                } finally {
-                  r.close
-                }
+              try {
+                val result = r.asBoolean
+                writer.handleBoolean(result)
+              } finally {
+                r.close
+              }
 
-                val data = baos.toByteArray
-                Full(InMemoryResponse(data, ("Content-Length", data.length.toString) ::
-                  ("Content-Type", resultMimeType + "; charset=utf-8") :: responseHeaders, responseCookies, 200))
-              case _ => Full(BadRequestResponse()) // unexpected, should not happen
-            }
-          } else Full(BadRequestResponse())
+              val data = baos.toByteArray
+              Full(InMemoryResponse(data, ("Content-Length", data.length.toString) ::
+                ("Content-Type", resultMimeType + "; charset=utf-8") :: responseHeaders, responseCookies, 200))
+            case _ => Full(BadRequestResponse()) // unexpected, should not happen
+          }
       })
   }
 
