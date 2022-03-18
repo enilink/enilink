@@ -5,8 +5,6 @@ import net.liftweb.common.Loggable
 import net.liftweb.http.LiftRules
 import org.osgi.framework.FrameworkUtil
 import org.osgi.framework.wiring.FrameworkWiring
-import org.osgi.service.http.HttpService
-import org.osgi.service.http.context.ServletContextHelper
 
 import scala.jdk.CollectionConverters._
 
@@ -24,7 +22,7 @@ object LiftBootHelper extends Loggable {
 
 			// refresh dependency closure
 			val frameworkWiring = systemBundle.adapt(classOf[FrameworkWiring])
-			frameworkWiring.refreshBundles(liftBundle :: enilinkCore :: Nil)
+			frameworkWiring.refreshBundles(List(liftBundle, enilinkCore).asJava)
 		}
 	}
 }
