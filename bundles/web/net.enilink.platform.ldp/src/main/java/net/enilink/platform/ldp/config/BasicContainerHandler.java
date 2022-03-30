@@ -10,6 +10,7 @@ public class BasicContainerHandler extends ContainerHandler {
 	private final String path;
 
 	public BasicContainerHandler(String path) {
+		super();
 		this.path = path;
 	}
 
@@ -32,7 +33,6 @@ public class BasicContainerHandler extends ContainerHandler {
 		if (null == bc) return null;
 		RdfResourceHandler rh = RdfResourceHandler.fromConcept(concept).withSeparateModel(true);
 		if (null == rh) return null;
-		System.out.println("configuring LDP-BC=" + bc.value() + " for m=" + concept);
 		BasicContainerHandler result = new BasicContainerHandler(bc.value());
 		result.withDeletable(bc.deletable());
 		result.withContainsHandler(rh);

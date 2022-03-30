@@ -13,6 +13,8 @@ public class OperationResponse {
 	public static final int BAD_REQ = 400;
 	public static final int CONFLICT = 409;
 	public static final int UNSUPP_MEDIA = 415;
+	public static final  int  PRECONDITION_FAILED = 412;
+	public static final int IF_MATCH_MISSING = 428;
 
 	public enum ValueType {
 		IVALUE, IVALUES, MODEL, STATEMENTS

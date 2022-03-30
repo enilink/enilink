@@ -248,7 +248,6 @@ public abstract class RdfSourceSupport implements LdpRdfSource, Behaviour<LdpRdf
 			}
 		}
 		// update model
-		System.out.println("updated list: " + toBeUpdated);
 		toBeUpdated.forEach(st -> {
 			List<IStatement> l = getEntityManager().match(st.getSubject(), st.getPredicate(), null).toList();
 			for (IStatement s : l) getEntityManager().removeRecursive(s.getObject(), true);
@@ -330,7 +329,6 @@ public abstract class RdfSourceSupport implements LdpRdfSource, Behaviour<LdpRdf
 				int stp = ((Step) pe).step();
 				int s = forward ? stp : -1 * stp;
 				AbstractGraphNode iri = ((Step) pe).iri();
-				System.out.println("path element of type Step: step is " + s);
 				if (null != iri) {
 					OperationResponse node = ParseHelper.resolveNode(ldPatch.prologue(), iri, getURI(), resolvedVariables);
 					if (node.hasError()) return node;
@@ -338,7 +336,6 @@ public abstract class RdfSourceSupport implements LdpRdfSource, Behaviour<LdpRdf
 					if (!(iriVal instanceof IReference)) return new OperationResponse("wrong type of Predicate ");
 					predicate = (URI) iriVal;
 					if (start != null) {
-						System.out.println("resolve path from start, Step with iri");
 						vals = getNode(start, predicate, s);
 						for (IValue v : vals) {
 							if (!(v instanceof IReference)) break;
@@ -347,30 +344,19 @@ public abstract class RdfSourceSupport implements LdpRdfSource, Behaviour<LdpRdf
 								model.add(valueConverter.toRdf4j(st));
 						}
 						System.out.print("model: {");
-						for (org.eclipse.rdf4j.model.Statement st : model)
-							System.out.print("( " + st.getSubject() + ", " + st.getPredicate() + ", " + st.getObject() + "), ");
-						System.out.println("}");
-						if (model == null || model.isEmpty())
-							System.out.println("model empty, vals: " + vals);
-						System.out.println("resolve path from start, end Step with iri, vals: " + vals);
-					} else {
-						System.out.println("resolve path from constraint, Step with iri, vals: " + vals + ", vals has predicate: " + predicate);
+						} else {
 						model = model.filter(null, valueConverter.toRdf4j(predicate), null);
 					}
 
 				} else {
 					if (null != start) {
-						System.out.println("resolve path from start, Step without iri");
 						if (s > 0 && !(start instanceof IReference)) {
-							System.out.println("resolving path from start, Step without iri (index), start: " + start + " not instance of IRfefence");
 							return new OperationResponse("Error in Variable definition");
 						}
 						vals = getNode(start, null, s);
 						for (IValue v : vals)
 							model.add((Resource) valueConverter.toRdf4j(v), valueConverter.toRdf4j(predicate), valueConverter.toRdf4j(start));
-						System.out.println("resolving path from start with Index, step= " + s + ", vals: " + vals + ", model: " + model);
 					} else {
-						System.out.println("resolve path from constarint with Index, step = " + s + ", model: " + model + ", vals: " + iValues);
 						if (iValues.size() != 1)
 							return new OperationResponse("Error in Variable definition");
 						vals = getNode(iValues.get(0), null, s);
@@ -379,12 +365,9 @@ public abstract class RdfSourceSupport implements LdpRdfSource, Behaviour<LdpRdf
 							stmts = getEntityManager().match((IReference) iValues.get(0), null, null);
 						for (IStatement st : stmts)
 							model.add(valueConverter.toRdf4j(st));
-						System.out.println("resolve path from constarint with Index end, step = " + s + ", model: " + model + ", vals: " + vals);
-
 					}
 				}
 			} else if (pe instanceof UnicityConstraint) {
-				System.out.println("Unicity constraint: model: " + model + ", ivalues: " + iValues + ", vals: " + vals);
 				if (model == null || vals == null || vals.size() != 1)
 					return new OperationResponse("Unicity Constraint not fulfilled");
 
@@ -397,21 +380,17 @@ public abstract class RdfSourceSupport implements LdpRdfSource, Behaviour<LdpRdf
 					if (equalTo.hasError()) return equalTo;
 					equalToVal = (IValue) equalTo.valueOf(OperationResponse.ValueType.IVALUE);
 				}
-				System.out.println("cons has path, step: " + cons.path().step() + ", equal value = " + equalToVal);
 				OperationResponse consPath = resolvePath(cons.path(), vals, model, ldPatch, false, resolvedVariables);
 				if (consPath.hasError()) return consPath;
 				Model m = (Model) consPath.valueOf(OperationResponse.ValueType.MODEL);
 				URI pred = (URI) consPath.valueOf(OperationResponse.ValueType.IVALUE);
-				System.out.println("Filter Constraint, path resolved to vals: " + model);
 				if (cons.path().step() < 0) {
 					if (!(equalToVal instanceof IReference))
 						return new OperationResponse("Error in Variable definition");
 					model = m.filter(valueConverter.toRdf4j((IReference) equalToVal), valueConverter.toRdf4j(pred), null);
 				} else {
-					System.out.println("resolve path from constraint with start = " + start + ", subject: " + pred + ", equal value: " + equalToVal + ", model: " + model);
 					model = m.filter(null, valueConverter.toRdf4j(pred), valueConverter.toRdf4j(equalToVal));
 				}
-				System.out.println("resolve path, Equality Constraint on: " + model + ", value: " + equalToVal);
 			}
 		}
 		System.out.println("resolve path: start:" + start + ", model: " + model);
@@ -421,20 +400,17 @@ public abstract class RdfSourceSupport implements LdpRdfSource, Behaviour<LdpRdf
 			if (!values.contains(subj))
 				values.add(valueConverter.fromRdf4j(stmt.getSubject()));
 		}
-		System.out.println("vals: " + vals + ", values from model: " + values);
 		if (start == null) return new OperationResponse(model, predicate);
 		return new OperationResponse(values);
 	}
 
 	private List<IValue> getNode(IValue ref1, IReference pred, int step) {
-		System.out.println("subj: " + ref1 + ", pred: " + pred + ", step: " + step);
 		String queryStr = null;
 		if (step == 1)
 			queryStr = "SELECT DISTINCT ?o WHERE { ?s ?p ?o }";
 		if (step == -1)
 			queryStr = "SELECT DISTINCT ?s WHERE { ?s ?p ?o }";
 		IQuery<?> query = getEntityManager().createQuery(queryStr);
-		System.out.println("query: " + query);
 		if (step == 1) query.setParameter("s", ref1);
 		if (step == -1) query.setParameter("o", ref1);
 		query.setParameter("p", pred);
@@ -464,9 +440,7 @@ public abstract class RdfSourceSupport implements LdpRdfSource, Behaviour<LdpRdf
 		if (max < 0) max = oPre.size() + max;
 		if (min > max || min < 0)
 			return new OperationResponse(OperationResponse.BAD_REQ, "UpdateList Error:  slice expression are in the wrong order");
-		System.out.println("UpdateList: min = " + min + ", max = " + max + ", s: " + sPre + ", p: " + pPre + ", o: " + oPre);
-		System.out.print("O ( size: " + oPre.size());
-		System.out.print(", elems: ");
+
 		for (int i = 0; i < oPre.size(); i++) System.out.print(oPre.get(i) + ", ");
 		System.out.println(")");
 		int collSize = ul.collection() == null || ul.collection().getElements() == null || ul.collection().getElements().isEmpty() ? 0 : ul.collection().getElements().size();

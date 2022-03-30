@@ -25,7 +25,8 @@ public abstract class BasicContainerSupport implements LdpBasicContainer, Behavi
 
 	@Override
 	public Set<IReference> getTypes() {
-		return ImmutableSet.of(LDP.TYPE_CONTAINER, LDP.TYPE_BASICCONTAINER);
+
+		return ImmutableSet.of(LDP.TYPE_RDFSOURCE, LDP.TYPE_CONTAINER, LDP.TYPE_BASICCONTAINER);
 	}
 
 	@Override

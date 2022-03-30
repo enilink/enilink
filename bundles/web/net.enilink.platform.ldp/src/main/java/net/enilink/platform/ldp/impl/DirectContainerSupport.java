@@ -28,25 +28,27 @@ public abstract class DirectContainerSupport implements LdpDirectContainer, Beha
 
 	@Override
 	public Set<IReference> getTypes() {
-		return ImmutableSet.of(LDP.TYPE_CONTAINER, LDP.TYPE_DIRECTCONTAINER);
+		return ImmutableSet.of(LDP.TYPE_RDFSOURCE, LDP.TYPE_CONTAINER, LDP.TYPE_DIRECTCONTAINER);
 	}
 
 	@Override
 	public OperationResponse update(ReqBodyHelper body, Handler handler) {
 		Set<IStatement> configStmts = null;
-		if (body != null && handler != null & (body.isDirectContainer() || handler instanceof DirectContainerHandler) && !body.isBasicContainer() && body.isNoContains()) {
+		//if (body != null && handler != null & (body.isDirectContainer() || handler instanceof DirectContainerHandler) && !body.isBasicContainer() && body.isNoContains()) {
 			URI resourceUri = body.getURI();
 			IEntityManager manager = getEntityManager();
 			Property memberRel = hasMemberRelation();
 			LdpResource memberSrc = membershipResource();
+		if (handler instanceof DirectContainerHandler)
 			configStmts = matchDirectContainerConfig((DirectContainerHandler) handler, resourceUri);
-			manager.removeRecursive(resourceUri, true);
-			manager.add(new Statement(resourceUri, RDF.PROPERTY_TYPE, LDP.TYPE_DIRECTCONTAINER));
-			hasMemberRelation(memberRel);
-			membershipResource(memberSrc);
+		manager.removeRecursive(resourceUri, true);
+		manager.add(new Statement(resourceUri, RDF.PROPERTY_TYPE, LDP.TYPE_DIRECTCONTAINER));
+		hasMemberRelation(memberRel);
+		membershipResource(memberSrc);
+		if (configStmts != null)
 			configStmts.forEach(stmt -> manager.add(stmt));
-			RDF4JValueConverter valueConverter = ReqBodyHelper.valueConverter();
-			body.getRdfBody().forEach(stmt -> {
+		RDF4JValueConverter valueConverter = ReqBodyHelper.valueConverter();
+		body.getRdfBody().forEach(stmt -> {
 				IReference subj = valueConverter.fromRdf4j(stmt.getSubject());
 				IReference pred = valueConverter.fromRdf4j(stmt.getPredicate());
 				IValue obj = valueConverter.fromRdf4j(stmt.getObject());
@@ -59,24 +61,23 @@ public abstract class DirectContainerSupport implements LdpDirectContainer, Beha
 			manager.add(new Statement(resourceUri, LDP.DCTERMS_PROPERTY_MODIFIED,
 					new Literal(Instant.now().toString(), XMLSCHEMA.TYPE_DATETIME)));
 			return new OperationResponse(OperationResponse.OK, "");
-		}
-		return new OperationResponse(OperationResponse.CONFLICT, " the resource to be modified is direct container, couldn't be replaced with resource of another type . ");
+		//}
+		//return new OperationResponse(OperationResponse.CONFLICT, " the resource to be modified is direct container, couldn't be replaced with resource of another type . ");
 	}
 
 	private Set<IStatement> matchDirectContainerConfig(DirectContainerHandler handler, URI resourceUri) {
 		Set<IStatement> stmts = matchConfig(handler, resourceUri);
-		URI menbership = handler.getMembership();
-		LdpResource mebershipSrc = membershipResource();
-		if (null != menbership && null != mebershipSrc)
+		URI membership = handler.getMembership();
+		LdpResource membershipSrc = membershipResource();
+		if (null != membership && null != membershipSrc)
 			stmts.addAll(Arrays.asList(
-					new Statement(resourceUri, LDP.PROPERTY_HASMEMBERRELATION, menbership),
-					new Statement(resourceUri, LDP.PROPERTY_MEMBERSHIPRESOURCE, mebershipSrc.getURI())));
+					new Statement(resourceUri, LDP.PROPERTY_HASMEMBERRELATION, membership),
+					new Statement(resourceUri, LDP.PROPERTY_MEMBERSHIPRESOURCE, membershipSrc.getURI())));
 		return stmts;
 	}
 
 	@Override
 	public OperationResponse createResource(IModel model, URI resourceType, RdfResourceHandler resourceHandler, ContainerHandler containerHandler, ReqBodyHelper body) {
-		System.out.println("going to create resource in DC: " + getURI());
 		//getEntityManager().add(new Statement(getURI(), LDP.PROPERTY_CONTAINS, body,getURI()));
 		URI membershipSrc = membershipResource() != null ? membershipResource().getURI() : null;
 		URI membership = null;
@@ -91,7 +92,6 @@ public abstract class DirectContainerSupport implements LdpDirectContainer, Beha
 		if (null != membershipSrc && null != membership) {
 			//getEntityManager().find(membershipSrc).getEntityManager().add(new Statement(membershipSrc, membership, body.getURI()));
 			String msg = "membership src: " + membershipSrc + " membership: " + membership;
-			System.out.println(msg);
 			model.getModelSet().getModel(membershipSrc, true).getManager().add(new Statement(membershipSrc, membership, body.getURI()));
 			LdpRdfSource resource = model.getManager().findRestricted(body.getURI(), LdpRdfSource.class);
 			resource.setContainer(this);

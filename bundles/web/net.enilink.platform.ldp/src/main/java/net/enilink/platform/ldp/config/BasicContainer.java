@@ -10,5 +10,5 @@ import java.lang.annotation.Target;
 public @interface BasicContainer {
 	String value();
 
-	boolean deletable() default false;
+	boolean deletable() default true;
 }

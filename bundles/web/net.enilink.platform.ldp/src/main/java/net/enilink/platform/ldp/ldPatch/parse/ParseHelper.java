@@ -29,7 +29,6 @@ public class ParseHelper {
 			StringBuilder lStr = new StringBuilder();
 			literal.accept(new ToStringVisitor(), lStr);
 			String value = StringUtils.strip(lStr.toString(), "\"");
-			System.out.println("literal string value of " + value);
 			return bc.createLiteral(value, XMLSCHEMA.TYPE_STRING, null);
 		}
 	}
@@ -41,7 +40,6 @@ public class ParseHelper {
 					p.getPrefix().equals(qName.getPrefix())
 			).findFirst();
 			if (iri.isPresent()) {
-				System.out.println("resolving relative " + node + " to " + URIs.createURI(iri.get().getIri().getIri()).appendLocalPart(qName.getLocalPart()));
 				return new OperationResponse(URIs.createURI(iri.get().getIri().getIri()).appendLocalPart(qName.getLocalPart()));
 			}
 			return new OperationResponse(OperationResponse.BAD_REQ, "a prefix name \"" + qName.getPrefix() + "\" is used without being previously declared");
@@ -49,14 +47,12 @@ public class ParseHelper {
 		if (node instanceof IriRef) {
 			URI uriBase = base.toString().endsWith("/") ? base.trimSegments(1) : base;
 			URI uri = URIs.createURI(((IriRef) node).getIri());
-			System.out.println("resolving uri " + uri + " to base " + uriBase + " is : " + uri.resolve(uriBase));
 			return new OperationResponse(uri.resolve(uriBase));
 		}
 		if (node instanceof Variable) {
 			String varName = ((Variable) node).getName();
 			if (!resolvedVariables.containsKey(varName))
 				return new OperationResponse(OperationResponse.BAD_REQ, "a variable \"" + varName + "\" is used without being previously bound");
-			System.out.println("resolving variable " + varName + " to " + resolvedVariables.get(varName));
 			return new OperationResponse(resolvedVariables.get(varName));
 		}
 		if (node instanceof net.enilink.komma.parser.sparql.tree.Literal) {

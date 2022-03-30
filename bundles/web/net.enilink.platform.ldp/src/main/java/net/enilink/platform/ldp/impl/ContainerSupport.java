@@ -24,7 +24,6 @@ import java.util.Arrays;
 public abstract class ContainerSupport implements LdpContainer, Behaviour<LdpContainer> {
 	@Override
 	public OperationResponse createResource(IModel model, URI resourceType, RdfResourceHandler resourceHandler, ContainerHandler ch, ReqBodyHelper body) {
-		System.out.println("going to create resource in the container: " + getURI());
 		if (body == null || body.getRdfBody() == null)
 			return new OperationResponse(OperationResponse.UNSUPP_MEDIA, "no RDF-body content found");
 		RdfResourceHandler conf = resourceHandler != null ? resourceHandler : new RdfResourceHandler();

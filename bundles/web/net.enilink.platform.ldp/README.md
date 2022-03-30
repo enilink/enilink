@@ -1,6 +1,8 @@
 <h1>Algemeine "constraints"</h1>
 
-**Note**: to see examples click [here](examples.md)
+**Notes**: 
+- to see examples click [here](examples.md)
+- to see conformance tests report click [here](ldp-testsuite-execution-report.html)
 
 1. root container ist immer basic containers
 
