@@ -24,7 +24,7 @@
 		<scala.major.version>2.13</scala.major.version>
 		<scala.version>2.13.2</scala.version>
 		<scala.plugin.version>4.4.0</scala.plugin.version>
-		<rap.version>3.13.0</rap.version>
+		<rap.version>3.20.0</rap.version>
 
 		<bnd.version>4.3.1</bnd.version>
 		<karaf.version>4.3.6</karaf.version>

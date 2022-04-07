@@ -1,1 +1,2 @@
 Bundle-SymbolicName: ${project.artifactId};singleton:=true
+Import-Package: javax.servlet.*;version="[3,5)", *
