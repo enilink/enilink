@@ -2,3 +2,4 @@ Bundle-SymbolicName: ${project.artifactId};singleton:=true
 Lift-Module: net.enilink.platform.lift.LiftModule
 Lift-Packages: net.enilink.platform.lift
 DynamicImport-Package: org.eclipse.equinox.security.auth.*
+Import-Package: javax.servlet.*;version="[3,5)", *

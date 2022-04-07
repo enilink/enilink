@@ -70,6 +70,10 @@ class LiftFilterComponent extends LiftFilter with Loggable {
     // this actually destroys the liftweb servlet
     super.destroy
   }
+
+  override def destroy: Unit = {
+    // nothing to do here
+  }
 }
 
 /**
