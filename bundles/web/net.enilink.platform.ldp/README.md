@@ -2,7 +2,7 @@
 
 **Notes**: 
 - to see examples click [here](examples.md)
-- to see conformance tests report click [here](ldp-testsuite-execution-report.html)
+- to see conformance tests report click [here](ldp-testsuite-execution-report.md)
 
 1. root container ist immer basic containers
 
