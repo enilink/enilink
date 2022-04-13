@@ -24,9 +24,7 @@ public class ReqBodyHelper {
 	private final Model m;
 	private final URI resourceUri;
 	private static RDF4JValueConverter valueConverter;
-	// private static LdPatchParser ldPatchParser ;
 	private static final Set<URI> systemProperties;
-	//  private scala.Array<Byte> binData;
 
 	static {
 		systemProperties = new HashSet<URI>() {{
@@ -96,7 +94,7 @@ public class ReqBodyHelper {
 	}
 
 	public boolean isNoContains() {
-		return m.filter(valueConverter.toRdf4j(resourceUri), valueConverter.toRdf4j(LDP.PROPERTY_CONTAINS), null).isEmpty();
+		return m.filter(null, valueConverter.toRdf4j(LDP.PROPERTY_CONTAINS), null).isEmpty();
 	}
 
 	public boolean hasReletionship() {
@@ -128,7 +126,6 @@ public class ReqBodyHelper {
 	}
 
 	public static LdPatch parseLdPatch(String input) {
-		System.out.println("input: " + input);
 		if (null == input || input.isEmpty()) return null;
 		LdPatchParser ldPatchParser = Parboiled.createParser(LdPatchParser.class);
 		RecoveringParseRunner<LdPatch> runner = new RecoveringParseRunner<>(
@@ -145,17 +142,12 @@ public class ReqBodyHelper {
 	public static LdPatch parseLdPatch(InputStream input) {
 		try {
 			String body = IOUtils.toString(input, "UTF-8");
-			System.out.println("body to parse: " + body);
 			return parseLdPatch(body);
 		} catch (IOException e) {
 			e.printStackTrace();
 		}
 		return null;
 	}
-
-//     public scala.Array<Byte> binaryContent(){
-//        return isNoneRDF() ? binData : null;
-//     }
 
 	public static Map<Integer, String> preference(String preferenceHeader) {
 		if (null != preferenceHeader) {
