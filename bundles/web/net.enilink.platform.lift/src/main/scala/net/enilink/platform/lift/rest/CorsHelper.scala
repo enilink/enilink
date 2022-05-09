@@ -39,6 +39,16 @@ trait CorsHelper {
   }
 
   /**
+   * 500 Internal Server Error
+   *
+   * The server encountered an unexpected condition which prevented
+   * it from fulfilling the request.
+   */
+  case class InternalServerErrorResponse() extends LiftResponse with HeaderDefaults {
+    def toResponse = InMemoryResponse(Array(), headers, cookies, 500)
+  }
+
+  /**
    * 404 Not Found
    *
    * The server has not found anything matching the Request-URI.
@@ -55,9 +65,9 @@ trait CorsHelper {
   }
 
   /**
-   * 415 Resource Gone
+   * 415 Unsupported Media Type
    *
-   * The requested Resource used to exist but no longer does.
+   * The server refuses to accept the request because the payload format is in an unsupported format.
    */
   case class UnsupportedMediaTypeResponse() extends LiftResponse with HeaderDefaults {
     def toResponse = InMemoryResponse(Array(), headers, cookies, 415)

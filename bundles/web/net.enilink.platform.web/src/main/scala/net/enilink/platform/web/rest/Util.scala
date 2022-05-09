@@ -1,18 +1,30 @@
 package net.enilink.platform.web.rest
 
+import net.enilink.komma.core.{URI, URIs}
 import net.enilink.platform.lift.util.Globals
-import net.liftweb.http.Req
-import net.liftweb.common.Empty
-import net.enilink.komma.core.URIs
-import net.enilink.komma.core.URI
-import net.liftweb.common.Box
-import net.liftweb.common.Full
+import net.liftweb.common.{Box, Empty, Full}
+import net.liftweb.http.{ContentType, Req}
 import org.eclipse.rdf4j.query.resultio.QueryResultIO
-import net.liftweb.http.ContentType
 import org.eclipse.rdf4j.rio.Rio
 
 object Util {
-  def getModelUri(r: Req) = Globals.contextModel.vend.dmap(URIs.createURI(r.hostAndPath + r.uri): URI)(_.getURI)
+  def getModelUri(r: Req): URI = {
+    // Globals.contextModel is full if the model already exists
+    Globals.contextModel.vend.dmap{
+      // model does not exists
+      r.param("model") match {
+        // use model parameter if it is specified
+        case Full(name) if name.nonEmpty =>
+          val uri = URIs.createURI(name)
+          if (uri.isRelative) {
+            throw new IllegalArgumentException(s"Invalid relative model URI '$uri'.")
+          }
+          uri
+        // fall back to request URL as model name
+        case _ => URIs.createURI(r.hostAndPath + r.uri)
+      }
+    }(_.getURI)
+  }
 
   def getModel(modelUri: URI) = Globals.contextModelSet.vend flatMap { modelSet =>
     Box.legacyNullTest(modelSet.getModel(modelUri, false)) or {

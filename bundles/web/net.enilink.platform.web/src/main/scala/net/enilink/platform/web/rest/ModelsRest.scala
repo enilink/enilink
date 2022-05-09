@@ -1,20 +1,21 @@
 package net.enilink.platform.web.rest
 
-import net.enilink.komma.core.URI
+import net.enilink.komma.core.{URI, URIs}
 import net.enilink.komma.model.{IModel, ModelPlugin}
 import net.enilink.platform.lift.rest.CorsHelper
 import net.enilink.platform.lift.util.NotAllowedModel
 import net.liftweb.common.Box.{box2Option, option2Box}
-import net.liftweb.common.{Box, Failure, Full}
+import net.liftweb.common.{Box, Empty, Failure, Full}
 import net.liftweb.http.rest.RestHelper
 import net.liftweb.http.{ContentType, InMemoryResponse, LiftResponse, Req, S}
 import org.eclipse.core.runtime.content.{IContentDescription, IContentType}
 import org.eclipse.core.runtime.{Platform, QualifiedName}
 
-import java.io.{ByteArrayOutputStream, InputStream}
+import java.io.{ByteArrayOutputStream, IOException, InputStream}
 import scala.jdk.CollectionConverters._
 
 object ModelsRest extends RestHelper with CorsHelper {
+
   import Util._
 
   /**
@@ -104,7 +105,7 @@ object ModelsRest extends RestHelper with CorsHelper {
   /**
    * Serialize and return RDF data according to the requested content type.
    */
-  def serveRdf(r: Req, modelUri: URI) : Box[LiftResponse] = {
+  def serveRdf(r: Req, modelUri: URI): Box[LiftResponse] = {
     getModel(modelUri).dmap(Full(NotFoundResponse("Model " + modelUri + " not found.")): Box[LiftResponse]) {
       case model@NotAllowedModel(_) => Full(ForbiddenResponse("You don't have permissions to access " + model.getURI + "."))
       case model => getResponseContentType(r) map (_.getDefaultDescription) match {
@@ -117,17 +118,14 @@ object ModelsRest extends RestHelper with CorsHelper {
     }
   }
 
-  def uploadRdf(r: Req, modelUri: URI, in: InputStream) : Box[LiftResponse] = {
+  def uploadRdf(r: Req, modelUri: URI, contentDescription: IContentDescription, in: InputStream): Box[LiftResponse] = {
     getOrCreateModel(modelUri) map {
       case NotAllowedModel(_) => ForbiddenResponse("You don't have permissions to access " + modelUri + ".")
-      case model => getRequestContentType(r) map (_.getDefaultDescription) match {
-        case Full(cd) =>
-          model.load(in, Map(IModel.OPTION_CONTENT_DESCRIPTION -> cd).asJava)
-          // refresh the model
-          // model.unloadManager
-          OkResponse()
-        case _ => UnsupportedMediaTypeResponse()
-      }
+      case model =>
+        model.load(in, Map(IModel.OPTION_CONTENT_DESCRIPTION -> contentDescription).asJava)
+        // refresh the model
+        // model.unloadManager
+        OkResponse()
     }
   }
 
@@ -182,41 +180,78 @@ object ModelsRest extends RestHelper with CorsHelper {
       if (validModel(modelName)) {
         clearModel(req, getModelUri(req)) match {
           case Full(OkResponse()) =>
-            val inputStream = req.rawInputStream or {
-              req.uploadedFiles.headOption map (_.fileStream)
-            }
-            inputStream.flatMap { in =>
-              try {
-                uploadRdf(req, getModelUri(req), in)
-              } finally {
-                in.close
-              }
+            getRequestContentType(req) map (_.getDefaultDescription) match {
+              case Full(cd) =>
+                val inputStream = req.rawInputStream or {
+                  req.uploadedFiles.headOption map (_.fileStream)
+                }
+                inputStream.flatMap { in =>
+                  try {
+                    uploadRdf(req, getModelUri(req), cd, in)
+                  } finally {
+                    in.close
+                  }
+                }
+              case _ => UnsupportedMediaTypeResponse()
             }
           case other => other
         }
       } else Full(BadRequestResponse())
     }
-    case ("vocab" | "models") :: modelName Post req => {
-      val response = if (validModel(modelName)) {
+    case ("vocab" | "models") :: modelName Post req =>
+      val response: Box[LiftResponse] = if (validModel(modelName)) {
         S.param("query") match {
           case Full(sparql) => getSparqlQueryResponseMimeType(req) flatMap { resultMimeType =>
             SparqlRest.queryModel(sparql, getModelUri(req), resultMimeType)
           }
           case _ =>
-            val inputStream = req.rawInputStream or {
-              req.uploadedFiles.headOption map (_.fileStream)
-            }
-            inputStream.flatMap { in =>
-              try {
-                uploadRdf(req, getModelUri(req), in)
-              } finally {
-                in.close
-              }
+            req.rawInputStream match {
+              case Full(in) =>
+                // this is a standard request
+                try {
+                  getRequestContentType(req) match {
+                    case Full(contentType) => uploadRdf(req, getModelUri(req), contentType.getDefaultDescription, in)
+                    case _ => Full(UnsupportedMediaTypeResponse())
+                  }
+                } finally {
+                  in.close()
+                }
+              case _ =>
+                // this is a multipart/form-data request
+                val modelUri = getModelUri(req)
+                getOrCreateModel(modelUri) map {
+                  case NotAllowedModel(_) => ForbiddenResponse("You don't have permissions to access " + modelUri + ".")
+                  case model =>
+                    // individually upload each file but stop at first error
+                    req.uploadedFiles.foldLeft(Empty: Box[LiftResponse]) { case (prevErrorResponse, f) =>
+                      // upload stops with first error
+                      prevErrorResponse or {
+                        // use Content-Type header
+                        val contentTypeBox = mimeTypeToPair(f.mimeType).flatMap(rdfContentTypes.get(_)) or {
+                          // use file extension if available
+                          val uri = URIs.createURI(f.fileName)
+                          if (uri.fileExtension != null) matchTypeByExtension(uri.fileExtension).map(_._2) else Empty
+                        }
+                        contentTypeBox match {
+                          case Full(contentType) =>
+                            val in = f.fileStream
+                            try {
+                              model.load(in, Map(IModel.OPTION_CONTENT_DESCRIPTION -> contentType.getDefaultDescription).asJava)
+                            } catch {
+                              case e: IOException => Full(InternalServerErrorResponse())
+                            } finally {
+                              in.close()
+                            }
+                            prevErrorResponse
+                          case _ => Full(UnsupportedMediaTypeResponse())
+                        }
+                      }
+                    } openOr OkResponse()
+                }
             }
         }
       } else Full(NotFoundResponse("Unknown model: " + modelName.mkString("/")))
       response or Full(BadRequestResponse())
-    }
     case ("vocab" | "models") :: modelName Delete req => {
       if (validModel(modelName)) {
         deleteModel(req, getModelUri(req))
