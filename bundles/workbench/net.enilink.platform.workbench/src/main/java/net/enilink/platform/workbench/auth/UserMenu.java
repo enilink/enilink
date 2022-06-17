@@ -20,7 +20,6 @@ import org.eclipse.ui.PlatformUI;
 import javax.security.auth.Subject;
 import java.security.AccessController;
 import java.security.Principal;
-import java.security.acl.Group;
 import java.util.Set;
 
 public class UserMenu extends ContributionItem {
@@ -46,9 +45,7 @@ public class UserMenu extends ContributionItem {
 			}
 			if (username == null) {
 				for (Principal principal : subject.getPrincipals()) {
-					if (!(principal instanceof Group)) {
-						username = principal.getName();
-					}
+					username = principal.getName();
 					if (username != null) {
 						break;
 					}

@@ -64,12 +64,12 @@ public class SnippetRunner implements EntryPoint {
 
 	private Object createInstance(Class<?> classToRun) {
 		try {
-			return classToRun.newInstance();
-		} catch (InstantiationException e) {
-			String message = "The class could not be instantiated: " + classToRun.getName();
-			throw new RuntimeException(message, e);
+			return classToRun.getDeclaredConstructor().newInstance();
 		} catch (IllegalAccessException e) {
 			String message = "The class or constructor is not accessible: " + classToRun.getName();
+			throw new RuntimeException(message, e);
+		} catch (Exception e) {
+			String message = "The class could not be instantiated: " + classToRun.getName();
 			throw new RuntimeException(message, e);
 		}
 	}

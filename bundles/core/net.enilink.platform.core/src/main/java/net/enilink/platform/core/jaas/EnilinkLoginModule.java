@@ -20,10 +20,8 @@ import javax.security.auth.callback.*;
 import javax.security.auth.login.LoginException;
 import javax.security.auth.spi.LoginModule;
 import java.security.Principal;
-import java.security.PrivilegedAction;
 import java.security.PrivilegedActionException;
 import java.security.PrivilegedExceptionAction;
-import java.security.acl.Group;
 import java.util.*;
 import java.util.regex.Pattern;
 
@@ -196,13 +194,14 @@ public class EnilinkLoginModule implements LoginModule {
 						String username = null;
 						// get a suitable username from the subject's principals
 						for (Principal basePrincipal : subject.getPrincipals()) {
-							if (!(basePrincipal instanceof Group)) {
-								// match name against filter, if set
-								// or use as-is
-								if (principalFilterRegex == null || principalFilterRegex.isEmpty()
-										|| Pattern.matches(principalFilterRegex, basePrincipal.getName())) {
-									username = basePrincipal.getName();
-								}
+							// match name against filter, if set
+							// or use as-is
+							if (principalFilterRegex == null || principalFilterRegex.isEmpty()
+									|| Pattern.matches(principalFilterRegex, basePrincipal.getName())) {
+								username = basePrincipal.getName();
+							}
+							if (username != null) {
+								break;
 							}
 						}
 						if (username != null) {

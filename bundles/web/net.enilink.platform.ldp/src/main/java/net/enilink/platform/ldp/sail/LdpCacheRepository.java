@@ -155,7 +155,7 @@ public class LdpCacheRepository extends AbstractRepository {
 			if (null == cache) {
 				logger.error("LdpCache not initialized yet!");
 				// return empty result
-				return new RepositoryResult<Statement>(new EmptyIteration<Statement, RepositoryException>());
+				return new RepositoryResult<>(new EmptyIteration<>());
 			}
 			IRI endpoint = cache.getEndpoint(subject);
 			boolean updated = false;
@@ -259,7 +259,7 @@ public class LdpCacheRepository extends AbstractRepository {
 		@Override
 		// FIXME: check the contexts, skip when cache context is missing
 		public long size(Resource... contexts) throws RepositoryException {
-			logger.trace("size(c={})", contexts);
+			logger.trace("size(c={})", (Object) contexts);
 			return getInternalConnection().size(contexts);
 		}
 

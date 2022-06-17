@@ -2,7 +2,6 @@ package net.enilink.platform.security.auth;
 
 import java.security.MessageDigest;
 import java.security.Principal;
-import java.security.acl.Group;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
@@ -191,7 +190,7 @@ public class AccountHelper {
 	public static List<URI> getExternalIds(Subject subject) {
 		List<URI> externalIds = new ArrayList<URI>();
 		for (Principal principal : subject.getPrincipals()) {
-			if (!(principal instanceof Group || principal instanceof EnilinkPrincipal)) {
+			if (!(principal instanceof EnilinkPrincipal)) {
 				URI externalId = URIs.createURI("enilink:jaas:principal:"
 						+ principal.getClass().getName() + ":"
 						+ URIs.encodeOpaquePart(principal.toString(), false));

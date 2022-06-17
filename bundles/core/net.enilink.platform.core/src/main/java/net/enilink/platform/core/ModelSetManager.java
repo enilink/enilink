@@ -134,7 +134,7 @@ class ModelSetManager {
 			@Override
 			protected List<? extends Module> createFactoryModules(KommaModule kommaModule) {
 				List<Module> modules = new ArrayList<>(super.createFactoryModules(kommaModule));
-				modules.add(new CacheModule(BlankNode.generateId()));
+				modules.add(new CacheModule());
 				return modules;
 			}
 		}).with(new AbstractModule() {

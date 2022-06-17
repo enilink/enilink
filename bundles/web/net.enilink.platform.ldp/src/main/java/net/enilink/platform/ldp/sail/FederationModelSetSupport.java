@@ -11,12 +11,15 @@ import net.enilink.komma.model.MODELS;
 import net.enilink.komma.model.rdf4j.IRepositoryModelSet;
 import net.enilink.platform.ldp.remote.LdpCache;
 import org.aopalliance.intercept.MethodInvocation;
+import org.eclipse.rdf4j.federated.FedXFactory;
+import org.eclipse.rdf4j.federated.endpoint.Endpoint;
+import org.eclipse.rdf4j.federated.endpoint.EndpointFactory;
+import org.eclipse.rdf4j.federated.repository.FedXRepository;
 import org.eclipse.rdf4j.repository.Repository;
-import org.eclipse.rdf4j.repository.sail.SailRepository;
-import org.eclipse.rdf4j.sail.federation.Federation;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.util.List;
 import java.util.Set;
 
 @Iri(MODELS.NAMESPACE + "FederationModelSet")
@@ -36,16 +39,17 @@ public abstract class FederationModelSetSupport
 			throw t;
 		}
 
-		Federation federation = new Federation();
-		federation.addMember(baseRepository);
-		federation.addMember(new LdpCacheRepository());
-		federation.setDistinct(true);
+		List<Endpoint> endpoints = List.of(
+				EndpointFactory.loadEndpoint("base", baseRepository),
+				EndpointFactory.loadEndpoint("ldp-cache", new LdpCacheRepository())
+		);
+		FedXRepository fedxRepository = FedXFactory.newFederation().withMembers(endpoints).create();
 
 		for (IResource endpoint : getLdpEndpoints()) {
 			LdpCache.addEndpoint(endpoint);
 		}
 
-		return new SailRepository(federation);
+		return fedxRepository;
 	}
 
 	@Override
