@@ -88,3 +88,7 @@ div[lang]::before,span[lang]::before,div[lang]:before,span[lang]:before
 .search-form {
 	margin-bottom: 20px;
 }
+
+footer[role="contentinfo"] {
+	margin-top: 1em;
+}
