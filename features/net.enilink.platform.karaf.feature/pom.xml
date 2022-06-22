@@ -40,10 +40,6 @@
 
 				<!-- unused Guava dependencies -->
 				<exclusion>
-					<groupId>com.google.code.findbugs</groupId>
-					<artifactId>jsr305</artifactId>
-				</exclusion>
-				<exclusion>
 					<groupId>org.checkerframework</groupId>
 					<artifactId>checker-qual</artifactId>
 				</exclusion>
@@ -58,6 +54,10 @@
 				<exclusion>
 					<groupId>org.codehaus.mojo</groupId>
 					<artifactId>animal-sniffer-annotations</artifactId>
+				</exclusion>
+				<exclusion>
+					<groupId>com.google.guava</groupId>
+					<artifactId>listenablefuture</artifactId>
 				</exclusion>
 			</exclusions>
 		</dependency>

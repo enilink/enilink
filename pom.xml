@@ -19,17 +19,18 @@
 		<project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
 
 		<junit.version>4.13.2</junit.version>
+		<webjars.locator.version>0.38</webjars.locator.version>
 		<lift.version>3.5.0</lift.version>
-		<lift.bundle.version>${lift.version}-SNAPSHOT</lift.bundle.version>
-		<komma.version>1.6.0</komma.version>
+		<lift.bundle.version>${lift.version}</lift.bundle.version>
+		<komma.version>1.6.1</komma.version>
 		<scala.major.version>2.13</scala.major.version>
 		<scala.version>2.13.2</scala.version>
 		<scala.plugin.version>4.4.0</scala.plugin.version>
 		<rap.version>3.20.0</rap.version>
 
 		<bnd.version>6.3.1</bnd.version>
-		<karaf.version>4.3.6</karaf.version>
-		<karaf.tooling.version>4.3.6</karaf.tooling.version>
+		<karaf.version>4.4.0</karaf.version>
+		<karaf.tooling.version>4.4.0</karaf.tooling.version>
 
 		<bundles.liftweb.deploy.skip>false</bundles.liftweb.deploy.skip>
 
@@ -118,7 +119,7 @@
 			<dependency>
 				<groupId>org.eclipse.platform</groupId>
 				<artifactId>org.eclipse.osgi</artifactId>
-				<version>3.18.0</version>
+				<version>3.17.200</version>
 			</dependency>
 			<dependency>
 				<groupId>org.eclipse.platform</groupId>
