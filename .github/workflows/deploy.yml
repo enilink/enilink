@@ -42,4 +42,4 @@ jobs:
         env:
           SONATYPE_USER: ${{ secrets.SONATYPE_USER }}
           SONATYPE_PASSWORD: ${{ secrets.SONATYPE_PASSWORD }}
-        run: mvn deploy -B -P ossrh,release -s ./.travis.maven-settings.xml
+        run: mvn deploy -B -P ossrh,release -s ./.ossrh.maven-settings.xml
