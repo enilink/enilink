@@ -20,7 +20,7 @@
 	</scm>
 
 	<artifactId>net.enilink.bundles.liftweb</artifactId>
-	<version>3.4.3-SNAPSHOT</version>
+	<version>${lift.bundle.version}</version>
 
 	<dependencies>
 		<dependency>
