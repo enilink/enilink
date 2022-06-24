@@ -12,6 +12,8 @@
 		<relativePath>../../../pom.xml</relativePath>
 	</parent>
 
+	<name>eniLINK: LDP Support</name>
+
 	<scm>
 		<connection>${enilink.scm.connection}</connection>
 		<developerConnection>${enilink.scm.developerConnection}</developerConnection>
