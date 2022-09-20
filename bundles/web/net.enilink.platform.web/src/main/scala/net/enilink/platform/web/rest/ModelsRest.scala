@@ -14,7 +14,7 @@ import org.eclipse.core.runtime.{Platform, QualifiedName}
 import java.io.{ByteArrayOutputStream, IOException, InputStream}
 import scala.jdk.CollectionConverters._
 
-object ModelsRest extends RestHelper with CorsHelper {
+class ModelsRest extends RestHelper with CorsHelper {
 
   import Util._
 
@@ -40,7 +40,9 @@ object ModelsRest extends RestHelper with CorsHelper {
    */
   val mimeType = "^(.+)/(.+)$".r
   lazy val mimeTypeProp = new QualifiedName(ModelPlugin.PLUGIN_ID, "mimeType")
-  lazy val rdfContentTypes: Map[(String, String), IContentType] = Platform.getContentTypeManager.getAllContentTypes.flatMap {
+  // Platform.getContentTypeManager may be null if OSGi is not running
+  lazy val rdfContentTypes: Map[(String, String), IContentType] = Option(Platform.getContentTypeManager).toList
+    .flatMap(_.getAllContentTypes()).flatMap {
     contentType =>
       contentType.getDefaultDescription.getProperty(mimeTypeProp).asInstanceOf[String] match {
         case null => Nil
@@ -52,10 +54,10 @@ object ModelsRest extends RestHelper with CorsHelper {
   /**
    * Find best matching content type for the given requested types.
    */
-  def matchType(requestedTypes: List[ContentType]) = {
+  def matchType(requestedTypes: List[ContentType]): Option[((String, String), IContentType)] = {
     object FindContentType {
       // extractor for partial function below
-      def unapply(ct: ContentType) = rdfContentTypes.find(e => ct.matches(e._1))
+      def unapply(ct: ContentType): Option[((String, String), IContentType)] = rdfContentTypes.find(e => ct.matches(e._1))
     }
     requestedTypes.collectFirst { case FindContentType(key, value) => (key, value) }
   }

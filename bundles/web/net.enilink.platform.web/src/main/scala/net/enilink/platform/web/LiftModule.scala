@@ -61,7 +61,8 @@ class LiftModule {
       }
     }
 
-    LiftRules.dispatch.append(ModelsRest)
+    LiftRules.dispatch.append(new ModelsRest())
+
     // redirect to HTML presentation if requested by the client (e.g. for a browser)
     LiftRules.statelessRewrite.append({
       case RewriteRequest(
