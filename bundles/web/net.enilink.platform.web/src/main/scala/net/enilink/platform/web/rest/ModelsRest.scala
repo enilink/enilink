@@ -1,6 +1,6 @@
 package net.enilink.platform.web.rest
 
-import net.enilink.komma.core.{URI, URIs}
+import net.enilink.komma.core.{KommaException, URI, URIs}
 import net.enilink.komma.model.{IModel, ModelPlugin}
 import net.enilink.platform.lift.rest.CorsHelper
 import net.enilink.platform.lift.util.NotAllowedModel
@@ -124,10 +124,16 @@ class ModelsRest extends RestHelper with CorsHelper {
     getOrCreateModel(modelUri) map {
       case NotAllowedModel(_) => ForbiddenResponse("You don't have permissions to access " + modelUri + ".")
       case model =>
-        model.load(in, Map(IModel.OPTION_CONTENT_DESCRIPTION -> contentDescription).asJava)
-        // refresh the model
-        // model.unloadManager
-        OkResponse()
+        try {
+          model.load(in, Map(IModel.OPTION_CONTENT_DESCRIPTION -> contentDescription).asJava)
+          // refresh the model
+          // model.unloadManager
+          OkResponse()
+        } catch {
+          case ke : KommaException => BadRequestResponse(ke.getMessage)
+          // this is likely some problem that is not related to the data
+          case ioe : IOException => InternalServerErrorResponse()
+        }
     }
   }
 
@@ -176,6 +182,7 @@ class ModelsRest extends RestHelper with CorsHelper {
           SparqlRest.queryModel(sparql, getModelUri(req), resultMimeType)
         }
         case _ if getResponseContentType(req).isDefined => serveRdf(req, getModelUri(req))
+        case _ => BadRequestResponse()
       }
     }
     case ("vocab" | "models") :: modelName Put req => {
@@ -198,7 +205,7 @@ class ModelsRest extends RestHelper with CorsHelper {
             }
           case other => other
         }
-      } else Full(BadRequestResponse())
+      } else Full(BadRequestResponse("Invalid model"))
     }
     case ("vocab" | "models") :: modelName Post req =>
       val response: Box[LiftResponse] = if (validModel(modelName)) {
@@ -252,12 +259,12 @@ class ModelsRest extends RestHelper with CorsHelper {
                 }
             }
         }
-      } else Full(NotFoundResponse("Unknown model: " + modelName.mkString("/")))
+      } else Full(BadRequestResponse("Invalid model"))
       response or Full(BadRequestResponse())
     case ("vocab" | "models") :: modelName Delete req => {
       if (validModel(modelName)) {
         deleteModel(req, getModelUri(req))
-      } else Full(NotFoundResponse("Unknown model: " + modelName.mkString("/")))
+      } else Full(BadRequestResponse("Invalid model"))
     }
   }
 }
