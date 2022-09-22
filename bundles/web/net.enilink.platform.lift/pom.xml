@@ -114,6 +114,12 @@
 			<version>1.0.0-M2</version>
 			<scope>test</scope>
 		</dependency>
+		<dependency>
+			<groupId>net.liftweb</groupId>
+			<artifactId>lift-testkit_${scala.major.version}</artifactId>
+			<version>3.5.0</version>
+			<scope>test</scope>
+		</dependency>
 	</dependencies>
 
 	<profiles>

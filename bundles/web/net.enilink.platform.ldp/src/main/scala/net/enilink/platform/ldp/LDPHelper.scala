@@ -296,7 +296,7 @@ class LDPHelper extends RestHelper {
               Globals.fileStore.make.map { fs => fs.delete(key) }
             }
             manager.removeRecursive(requestedUri, true)
-            if (res.getURI == requestedUri) ModelsRest.deleteModel(null, requestedUri)
+            if (res.getURI == requestedUri) new ModelsRest().deleteModel(null, requestedUri)
             val parent = parentUri(requestedUri)
             if (!parent.isEmpty)
               findModel(parent.get).foreach(m => m.getManager.removeRecursive(res.getURI, true))

@@ -30,14 +30,16 @@ import net.liftweb.util.Helpers
  * A registry for global variables which are shared throughout the application.
  */
 object Globals extends Factory {
-  private val configTracker = new ServiceTracker[Config, Config](FrameworkUtil.getBundle(getClass).getBundleContext, classOf[Config], null)
-  configTracker.open
+  private val osgiBundle = Box.legacyNullTest(FrameworkUtil.getBundle(getClass))
 
-  private val modelSetTracker = new ServiceTracker[IModelSet, IModelSet](FrameworkUtil.getBundle(getClass).getBundleContext, classOf[IModelSet], null)
-  modelSetTracker.open
+  private val configTracker = osgiBundle.map(bundle => new ServiceTracker[Config, Config](bundle.getBundleContext, classOf[Config], null))
+  configTracker.foreach(_.open)
+
+  private val modelSetTracker = osgiBundle.map(bundle => new ServiceTracker[IModelSet, IModelSet](bundle.getBundleContext, classOf[IModelSet], null))
+  modelSetTracker.foreach(_.open)
 
   implicit val config = new FactoryMaker(() => Empty: Box[Config]) {}
-  config.default.set(() => Box.legacyNullTest(configTracker.getService))
+  configTracker.foreach { tracker => config.default.set(() => Box.legacyNullTest(tracker.getService)) }
 
   /**
    * Run a function with the plugin configuration of this function's OSGi bundle.
@@ -98,10 +100,13 @@ object Globals extends Factory {
     S.request.flatMap(req => contextModelSetRules.toList.find(_.isDefinedAt(req)) match {
       case Some(f) => f(req)
       case _ => Empty
-    }) or contextModel.vend.map(_.getModelSet) or Box.legacyNullTest(modelSetTracker.getService) or {
+    }) or contextModel.vend.map(_.getModelSet) or modelSetTracker.map(_.getService()).filter(_ != null) or {
       // refresh service tracker
-      modelSetTracker.close; modelSetTracker.open
-      Box.legacyNullTest(modelSetTracker.getService)
+      modelSetTracker.foreach { tracker =>
+        tracker.close()
+        tracker.open()
+      }
+      modelSetTracker.map(_.getService()).filter(_ != null)
     }
   })
 
@@ -125,8 +130,8 @@ object Globals extends Factory {
     contextModelSet.default.set(Empty)
 
     // close trackers
-    modelSetTracker.close
-    configTracker.close
+    modelSetTracker.foreach(_.close)
+    configTracker.foreach(_.close)
   }
 }
 
