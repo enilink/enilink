@@ -82,6 +82,7 @@
 				<module>../../bundles/core/net.enilink.platform.security</module>
 				<module>../../bundles/web/net.enilink.platform.lift</module>
 				<module>../../bundles/web/net.enilink.platform.web</module>
+				<module>../../bundles/web/net.enilink.platform.ldp</module>
 				<module>../../features/net.enilink.platform.feature</module>
 				<module>../../features/net.enilink.platform.equinox.feature</module>
 			</modules>

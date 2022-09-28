@@ -21,6 +21,8 @@ import org.eclipse.rdf4j.repository.RepositoryConnection;
 import org.eclipse.rdf4j.repository.RepositoryException;
 import org.eclipse.rdf4j.repository.sail.SailRepository;
 import org.eclipse.rdf4j.sail.memory.MemoryStore;
+import org.osgi.service.component.annotations.Component;
+import org.osgi.service.component.annotations.Reference;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -28,6 +30,7 @@ import javax.security.auth.Subject;
 import java.security.PrivilegedAction;
 import java.util.*;
 
+@Component(immediate = false, service = LdpCache.class)
 public class LdpCache {
 
 	public final static URI PLUGIN_CONFIG_URI = URIs.createURI("plugin://net.enilink.platform.ldp/");
@@ -164,19 +167,10 @@ public class LdpCache {
 	 *
 	 * @param modelSet
 	 */
+	@Reference
 	public void setModelSet(IModelSet modelSet) {
 		// FIXME: do handle the dynamic nature properly
 		this.modelSet = modelSet;
-	}
-
-	/**
-	 * Unbinds the ModelSet. Called by OSGi-DS.
-	 *
-	 * @param modelSet
-	 */
-	public void unsetModelSet(IModelSet modelSet) {
-		// FIXME: do handle the dynamic nature properly
-		this.modelSet = null;
 	}
 
 	/**
@@ -184,6 +178,7 @@ public class LdpCache {
 	 *
 	 * @param configModel
 	 */
+	@Reference
 	protected void setPluginConfigModel(PluginConfigModel configModel) {
 		configModel.begin();
 		try {
@@ -202,14 +197,6 @@ public class LdpCache {
 		} finally {
 			configModel.end();
 		}
-	}
-
-	/**
-	 * Unbinds the PluginConfigModel. Called by OSGi-DS.
-	 *
-	 * @param configModel
-	 */
-	public void unsetPluginConfigModel(PluginConfigModel configModel) {
 	}
 
 	// FIXME: invocation order, called from FederationModelSetSupport
