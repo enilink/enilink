@@ -42,7 +42,6 @@ import com.google.inject.Injector;
 import com.google.inject.Module;
 import com.google.inject.util.Modules;
 
-import net.enilink.komma.core.BlankNode;
 import net.enilink.komma.core.IGraph;
 import net.enilink.komma.core.IUnitOfWork;
 import net.enilink.komma.core.KommaModule;
