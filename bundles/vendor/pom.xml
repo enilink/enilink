@@ -38,6 +38,8 @@
 				<configuration>
 					<outputDirectory>${project.build.outputDirectory}</outputDirectory>
 					<excludeTransitive>true</excludeTransitive>
+					<!-- exclude logging and test dependencies -->
+					<excludeGroupIds>junit,org.mockito,org.slf4j</excludeGroupIds>
 				</configuration>
 			</plugin>
 
