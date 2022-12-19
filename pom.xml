@@ -24,7 +24,7 @@
 		<lift.bundle.version>${lift.version}-sp</lift.bundle.version>
 		<komma.version>1.7.1</komma.version>
 		<scala.major.version>2.13</scala.major.version>
-		<scala.version>2.13.2</scala.version>
+		<scala.version>2.13.10</scala.version>
 		<scala.plugin.version>4.4.0</scala.plugin.version>
 		<rap.version>3.20.0</rap.version>
 
