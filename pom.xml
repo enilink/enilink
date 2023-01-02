@@ -21,8 +21,8 @@
 		<junit.version>4.13.2</junit.version>
 		<webjars.locator.version>0.38</webjars.locator.version>
 		<lift.version>3.5.0</lift.version>
-		<lift.bundle.version>${lift.version}-sp</lift.bundle.version>
-		<komma.version>1.7.1</komma.version>
+		<lift.bundle.version>${lift.version}-sp2</lift.bundle.version>
+		<komma.version>1.7.3-SNAPSHOT</komma.version>
 		<scala.major.version>2.13</scala.major.version>
 		<scala.version>2.13.10</scala.version>
 		<scala.plugin.version>4.4.0</scala.plugin.version>
@@ -32,7 +32,7 @@
 		<karaf.version>4.4.0</karaf.version>
 		<karaf.tooling.version>4.4.0</karaf.tooling.version>
 
-		<bundles.liftweb.deploy.skip>false</bundles.liftweb.deploy.skip>
+		<bundles.liftweb.deploy.skip>true</bundles.liftweb.deploy.skip>
 
 		<enilink.scm.connection>scm:git:git://github.com:enilink/enilink.git</enilink.scm.connection>
 		<enilink.scm.developerConnection>scm:git:git@github.com:enilink/enilink.git</enilink.scm.developerConnection>
