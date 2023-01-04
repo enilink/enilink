@@ -154,11 +154,14 @@ enilink = $.extend(window.enilink || {}, {
 		// try to automagically find possible choices
 		var sparql = "PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#> PREFIX owl: <http://www.w3.org/2002/07/owl#> " + // 
 		"SELECT DISTINCT ?s { " + //
-		"?s a ?sType ." + //
-		"{ ?property rdfs:range ?sType FILTER (?sType != owl:Thing) }" + //
-		" UNION " + //
-		"{ ?subject a [rdfs:subClassOf ?r] . ?r owl:onProperty ?property { ?r owl:allValuesFrom ?sType } UNION { ?r owl:someValuesFrom ?sType }}" + //
-		" }";
+		"{ select ?sType {" + //
+		"  { ?property rdfs:range ?sType FILTER (?sType != owl:Thing) }" + //
+		"  UNION " + //
+		"  { ?subject a [rdfs:subClassOf+ ?r] . ?r owl:onProperty ?property { ?r owl:allValuesFrom ?sType } UNION { ?r owl:someValuesFrom ?sType } }" + //
+		"  }" + //
+		"}" + //
+		"?s a [rdfs:subClassOf* ?sType] ." + //
+		"}";
 
 		// insert subject and property as constants
 		sparql = sparql.replace(/\?subject/g, subject);
@@ -262,7 +265,7 @@ enilink = $.extend(window.enilink || {}, {
 		prepareEditable(target, rdfStmts, lang);
 
 		// try to automagically find possible choices
-		if (String(target.data('type')).match(/select/) && !options.soure && !target.data('source') && triples.length) {
+		if (String(target.data('type')).match(/select/) && !options.source && !target.data('source') && triples.length) {
 			computeSourceAndContinue(target, triples[0].subject.toString(), triples[0].property.toString(), model, function (items) {
 				if (String(target.data('type')).match(/select2/)) {
 					items = items.map(function (item) {
