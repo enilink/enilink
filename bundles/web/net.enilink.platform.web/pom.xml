@@ -9,7 +9,7 @@
 	<parent>
 		<groupId>net.enilink.platform</groupId>
 		<artifactId>platform-parent</artifactId>
-		<version>1.5.5-SNAPSHOT</version>
+		<version>1.6.0-SNAPSHOT</version>
 		<relativePath>../../../pom.xml</relativePath>
 	</parent>
 
@@ -91,6 +91,11 @@
 			<version>3.5.0</version>
 			<scope>test</scope>
 		</dependency>
+		<dependency>
+			<groupId>org.webjars.npm</groupId>
+			<artifactId>ontotext-yasgui-web-component</artifactId>
+			<version>1.1.20</version>
+		</dependency>
 	</dependencies>
 
 	<profiles>
@@ -133,6 +138,17 @@
 								<goals>
 									<goal>doc-jar</goal>
 								</goals>
+							</execution>
+						</executions>
+					</plugin>
+
+					<plugin>
+						<groupId>org.apache.maven.plugins</groupId>
+						<artifactId>maven-dependency-plugin</artifactId>
+						<executions>
+							<execution>
+								<id>embed-webjars</id>
+								<phase>compile</phase>
 							</execution>
 						</executions>
 					</plugin>
