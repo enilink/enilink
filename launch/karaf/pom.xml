@@ -40,7 +40,7 @@
 									<type>zip</type>
 								</artifactItem>
 							</artifactItems>
-							<overWrite>false</overWrite>
+							<overWriteIfNewer>false</overWriteIfNewer>
 							<outputDirectory>${project.build.directory}</outputDirectory>
 						</configuration>
 					</execution>
