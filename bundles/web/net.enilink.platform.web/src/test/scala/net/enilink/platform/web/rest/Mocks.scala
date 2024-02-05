@@ -3,7 +3,7 @@ package net.enilink.platform.web.rest
 import net.enilink.platform.lift.util.Globals
 import net.liftweb.common.Box
 import net.liftweb.http.{LiftResponse, Req}
-import org.eclipse.core.runtime.QualifiedName
+import org.eclipse.core.runtime.{QualifiedName, RegistryFactory}
 import org.eclipse.core.runtime.content.{IContentDescription, IContentType}
 import org.mockito.Mockito
 
@@ -31,9 +31,17 @@ object MockModelsRest extends ModelsRest {
     override def setProperty(qualifiedName: QualifiedName, o: Any): Unit = {}
   }
 
-  override lazy val rdfContentTypes: Map[(String, String), IContentType] = List(
-    createContentType("text", "turtle")
-  ).toMap
+  // directl load content type extensions as content type manager is not available without OSGi
+  override lazy val rdfContentTypes: Map[(String, String), IContentType] = RegistryFactory.getRegistry
+    .getConfigurationElementsFor("org.eclipse.core.contenttype", "contentTypes")
+    .filter(_.getName == "content-type")
+    .filter(_.getAttribute("base-type") == "net.enilink.komma.contenttype.rdf")
+    .flatMap(_.getChildren("property")
+      .filter(_.getAttribute("name") == "mimeType")
+      .map(_.getAttribute("default")))
+    .filter(_ != null)
+    .map(_.split("/")).map(elements => createContentType(elements(0), elements(1)))
+    .toMap
 
   override def apply(in: Req): () => Box[LiftResponse] = {
     try {

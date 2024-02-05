@@ -75,6 +75,22 @@ class ModelsRestTest {
   }
 
   @Test
+  def postAndGetJsonLD(): Unit = {
+    val postReq = new MockHttpServletRequest(baseUrl + "/test-model") {
+      method = "POST"
+      body_=("""{"@id": "t:s",  "t:p": {"@id": "t:o"}}""", "application/ld+json")
+    }
+    assertEquals(Full(200), modelsRest(toReq(postReq))().map(_.toResponse.code))
+
+    // support get request
+    val getReq = new MockHttpServletRequest(baseUrl + "/test-model") {
+      method = "GET"
+      headers = (("Accept", "application/ld+json" :: Nil) :: Nil).toMap
+    }
+    assertEquals(Full(200), modelsRest(toReq(getReq))().map(_.toResponse.code))
+  }
+
+  @Test
   def invalidPostRequestToBase(): Unit = {
     // reject invalid post request to /models
     val postReqToBase = new MockHttpServletRequest(baseUrl) {
