@@ -7,19 +7,19 @@ import net.enilink.platform.lift.rest.CorsHelper
 import net.enilink.platform.lift.util.{Globals, NotAllowedModel}
 import net.liftweb.common.{Box, Full}
 import net.liftweb.http.rest.RestHelper
-import net.liftweb.http.{InMemoryResponse, LiftResponse, S}
+import net.liftweb.http.{InMemoryResponse, LiftResponse, OutputStreamResponse, S}
 import net.liftweb.util.Helpers.tryo
 import org.eclipse.rdf4j.model.impl.SimpleValueFactory
 import org.eclipse.rdf4j.query.resultio.{QueryResultIO, QueryResultWriter}
 import org.eclipse.rdf4j.rio.WriterConfig
 import org.eclipse.rdf4j.rio.helpers.BasicWriterSettings
 
-import java.io.ByteArrayOutputStream
+import java.io.{ByteArrayOutputStream, OutputStream}
 import scala.jdk.CollectionConverters._
 
 object SparqlRest extends RestHelper with CorsHelper {
 
-  import Util._
+  import net.enilink.platform.web.rest.Util._
 
   val converter = new RDF4JValueConverter(SimpleValueFactory.getInstance)
 
@@ -71,40 +71,44 @@ object SparqlRest extends RestHelper with CorsHelper {
 
           query.evaluate match {
             case r: ITupleResult[_] if QueryResultIO.getWriterFormatForMIMEType(resultMimeType).isPresent =>
-              val baos = new ByteArrayOutputStream
-              val format = QueryResultIO.getWriterFormatForMIMEType(resultMimeType).get()
-              val writer = QueryResultIO.createTupleWriter(format, baos)
-              configure(writer)
+              // start unit of work here to avoid closing by loan wrapper
+              model.getModelSet.getUnitOfWork.begin()
+              val func = (out: OutputStream) => {
+                val format = QueryResultIO.getWriterFormatForMIMEType(resultMimeType).get()
+                val writer = QueryResultIO.createTupleWriter(format, out)
+                configure(writer)
 
-              writer.startQueryResult(r.getBindingNames)
+                writer.startQueryResult(r.getBindingNames())
 
-              try {
-                r.iterator.asScala.foreach {
-                  case bindings: IBindings[_] =>
-                    val bindingSet = converter.toRdf4j(bindings)
-                    writer.handleSolution(bindingSet)
-                  case value: IValue =>
-                    // select with only one variable like "select ?s where { ?s ?p ?o }" for which KOMMA returns direct object instances
-                    val bindings = new IBindings[IValue] {
-                      val values = List(value).asJava
+                try {
+                  r.iterator.asScala.foreach {
+                    case bindings: IBindings[_] =>
+                      val bindingSet = converter.toRdf4j(bindings)
+                      writer.handleSolution(bindingSet)
+                    case value: IValue =>
+                      // select with only one variable like "select ?s where { ?s ?p ?o }" for which KOMMA returns direct object instances
+                      val bindings = new IBindings[IValue] {
+                        val values = List(value).asJava
 
-                      override def get(key: String) = value
+                        override def get(key: String) = value
 
-                      override def getKeys = r.getBindingNames
+                        override def getKeys = r.getBindingNames
 
-                      override def iterator = values.iterator
-                    }
-                    writer.handleSolution(converter.toRdf4j(bindings))
+                        override def iterator = values.iterator
+                      }
+                      writer.handleSolution(converter.toRdf4j(bindings))
+                  }
+                } finally {
+                  r.close
+                  model.getModelSet.getUnitOfWork.end()
                 }
-              } finally {
-                r.close
+
+                writer.endQueryResult()
               }
 
-              writer.endQueryResult
-
-              val data = baos.toByteArray
-              Full(InMemoryResponse(data, ("Content-Length", data.length.toString) ::
-                ("Content-Type", resultMimeType + "; charset=utf-8") :: responseHeaders, responseCookies, 200))
+              Full(OutputStreamResponse(func, -1,
+                ("Content-Type", resultMimeType + "; charset=utf-8") :: responseHeaders,
+                responseCookies, 200))
             case r: IGraphResult =>
               val baos = new ByteArrayOutputStream
               val writer = ModelUtil.writeData(baos, model.getURI.toString, resultMimeType, "UTF-8")
