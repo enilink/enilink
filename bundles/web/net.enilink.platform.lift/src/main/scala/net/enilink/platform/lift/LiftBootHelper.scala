@@ -3,6 +3,7 @@ package net.enilink.platform.lift
 import net.enilink.platform.core.IContextProvider
 import net.liftweb.common.Loggable
 import net.liftweb.http.LiftRules
+import org.eclipse.core.runtime.IExtension
 import org.osgi.framework.FrameworkUtil
 import org.osgi.framework.wiring.FrameworkWiring
 
@@ -18,11 +19,12 @@ object LiftBootHelper extends Loggable {
 			logger.debug("Rebooting Lift")
 			val liftBundle = FrameworkUtil.getBundle(classOf[LiftRules])
 			val enilinkCore = FrameworkUtil.getBundle(classOf[IContextProvider])
+			val eclipseCore = FrameworkUtil.getBundle(classOf[IExtension])
 			val systemBundle = liftBundle.getBundleContext.getBundle(0)
 
 			// refresh dependency closure
 			val frameworkWiring = systemBundle.adapt(classOf[FrameworkWiring])
-			frameworkWiring.refreshBundles(List(liftBundle, enilinkCore).asJava)
+			frameworkWiring.refreshBundles(List(liftBundle, enilinkCore, eclipseCore).asJava)
 		}
 	}
 }

@@ -85,8 +85,9 @@ public abstract class SessionModelSetSupport implements IModelSet.Internal,
 		// use key to make adapter set session scoped
 		IContext context = contextProvider.get();
 		ISession session = context.getSession();
-		Key key = (Key) session.getAttribute(Key.class.getName());
-		if (key == null) {
+		Object key = session.getAttribute(Key.class.getName());
+		// fixes an error if parts of platform where reloaded via OSGi
+		if (!(key instanceof Key)) {
 			key = new Key();
 			session.setAttribute(Key.class.getName(), key);
 		}
@@ -96,8 +97,7 @@ public abstract class SessionModelSetSupport implements IModelSet.Internal,
 			synchronized (sessionScopedAdapterSets) {
 				adapterSets = sessionScopedAdapterSets.get();
 				if (adapterSets == null) {
-					adapterSets = Collections
-							.synchronizedMap(new WeakHashMap<Object, IAdapterSet>());
+					adapterSets = Collections.synchronizedMap(new WeakHashMap<>());
 					sessionScopedAdapterSets.set(adapterSets);
 				}
 			}
