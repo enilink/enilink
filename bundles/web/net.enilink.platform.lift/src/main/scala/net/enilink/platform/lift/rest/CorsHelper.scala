@@ -10,7 +10,7 @@ trait CorsHelper {
   val CORS_HEADERS = ("Access-Control-Allow-Origin", "*") :: //
     ("Access-Control-Allow-Credentials", "true") :: //
     ("Access-Control-Allow-Methods", "*") :: //
-    ("Access-Control-Allow-Headers", "WWW-Authenticate,Keep-Alive,User-Agent,X-Requested-With,Cache-Control,Content-Type") :: Nil
+    ("Access-Control-Allow-Headers", "*") :: Nil
 
   trait HeaderDefaults {
     val headers: List[(String, String)] = CORS_HEADERS ::: S.getResponseHeaders(Nil)
