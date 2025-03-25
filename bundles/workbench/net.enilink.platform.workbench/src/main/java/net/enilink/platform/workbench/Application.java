@@ -4,8 +4,11 @@ import net.enilink.komma.model.IModelSet;
 import net.enilink.platform.core.UseService;
 import net.enilink.platform.core.security.LoginUtil;
 import net.enilink.platform.workbench.auth.LoginDialog;
+import org.eclipse.core.runtime.IProgressMonitor;
 import org.eclipse.core.runtime.IStatus;
 import org.eclipse.core.runtime.Status;
+import org.eclipse.core.runtime.jobs.Job;
+import org.eclipse.core.runtime.jobs.ProgressProvider;
 import org.eclipse.equinox.app.IApplication;
 import org.eclipse.equinox.app.IApplicationContext;
 import org.eclipse.equinox.security.auth.ILoginContext;
@@ -16,6 +19,7 @@ import org.eclipse.jface.dialogs.MessageDialog;
 import org.eclipse.jface.resource.ImageDescriptor;
 import org.eclipse.rap.rwt.RWT;
 import org.eclipse.rap.rwt.internal.service.ContextProvider;
+import org.eclipse.rap.ui.internal.progress.JobManagerAdapter;
 import org.eclipse.swt.SWT;
 import org.eclipse.swt.widgets.Display;
 import org.eclipse.swt.widgets.Shell;
@@ -51,6 +55,28 @@ public class Application implements IApplication {
 	static {
 		LoginUtil.getLoginMethods().forEach(m -> {
 			jaasConfigurations.put(m.getFirst(), m.getSecond());
+		});
+
+		// The following is a workaround for the case when JobManagerAdapter of RAP
+		// returns a null progress monitor. This may currently happen if a worker for a
+		// job is directly started before the scheduled event has been sent.
+		// see https://github.com/eclipse-platform/eclipse.platform/blob/a791b17ec7febfe5631ea6e5a3df88e53ec0ca5b/runtime/bundles/org.eclipse.core.jobs/src/org/eclipse/core/internal/jobs/JobManager.java#L1408
+		ProgressProvider progressProvider = JobManagerAdapter.getInstance();
+		Job.getJobManager().setProgressProvider(new ProgressProvider() {
+			@Override
+			public IProgressMonitor createProgressGroup() {
+				return progressProvider.createProgressGroup();
+			}
+
+			@Override
+			public IProgressMonitor createMonitor(Job job) {
+				return monitorFor(progressProvider.createMonitor(job));
+			}
+
+			@Override
+			public IProgressMonitor createMonitor(Job job, IProgressMonitor group, int ticks) {
+				return monitorFor(progressProvider.createMonitor(job, group, ticks));
+			}
 		});
 	}
 
