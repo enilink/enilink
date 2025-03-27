@@ -107,7 +107,7 @@ public class BasicModelEditor extends KommaMultiPageEditor implements IViewerMen
 		final boolean[] internalChange = {false};
 		form = new EditorForm(getContainer()) {
 			@Override
-			public Object getAdapter(@SuppressWarnings("rawtypes") Class adapter) {
+			public Object getAdapter(Class adapter) {
 				if (IEditingDomainProvider.class.equals(adapter)) {
 					return BasicModelEditor.this;
 				} else if (IViewerMenuSupport.class.equals(adapter)) {
@@ -128,30 +128,27 @@ public class BasicModelEditor extends KommaMultiPageEditor implements IViewerMen
 			}
 		};
 		formSelectionProvider
-				.addSelectionChangedListener(new ISelectionChangedListener() {
-					@Override
-					public void selectionChanged(SelectionChangedEvent event) {
-						if (internalChange[0]) {
-							return;
+				.addSelectionChangedListener(event -> {
+					if (internalChange[0]) {
+						return;
+					}
+					Object selected = ((IStructuredSelection) event
+							.getSelection()).getFirstElement();
+					// allow arbitrary selections to be adapted to IValue
+					// objects
+					if (selected != null && !(selected instanceof IValue)) {
+						Object adapter = Platform.getAdapterManager()
+								.getAdapter(selected, IValue.class);
+						if (adapter != null) {
+							selected = adapter;
 						}
-						Object selected = ((IStructuredSelection) event
-								.getSelection()).getFirstElement();
-						// allow arbitrary selections to be adapted to IValue
-						// objects
-						if (selected != null && !(selected instanceof IValue)) {
-							Object adapter = Platform.getAdapterManager()
-									.getAdapter(selected, IValue.class);
-							if (adapter != null) {
-								selected = adapter;
-							}
-						}
-						if (selected != null) {
-							IEditorPart editPart = (IEditorPart) getControl(
-									getActivePage()).getData("editPart");
-							if (editPart != null
-									&& editPart.setEditorInput(selected)) {
-								form.refreshStale();
-							}
+					}
+					if (selected != null) {
+						IEditorPart editPart = (IEditorPart) getControl(
+								getActivePage()).getData("editPart");
+						if (editPart != null
+								&& editPart.setEditorInput(selected)) {
+							form.refreshStale();
 						}
 					}
 				});
@@ -167,11 +164,7 @@ public class BasicModelEditor extends KommaMultiPageEditor implements IViewerMen
 		addPage("other Properties", new OtherPropertiesPart());
 		setPageText(0, getEditorSupport().getString("_UI_SelectionPage_label"));
 
-		getSite().getShell().getDisplay().asyncExec(new Runnable() {
-			public void run() {
-				setActivePage(0);
-			}
-		});
+		getSite().getShell().getDisplay().asyncExec(() -> setActivePage(0));
 
 		// Ensures that this editor will only display the page's tab
 		// area if there are more than one page
@@ -188,11 +181,7 @@ public class BasicModelEditor extends KommaMultiPageEditor implements IViewerMen
 			}
 		});
 
-		getSite().getShell().getDisplay().asyncExec(new Runnable() {
-			public void run() {
-				getEditorSupport().updateProblemIndication();
-			}
-		});
+		getSite().getShell().getDisplay().asyncExec(() -> getEditorSupport().updateProblemIndication());
 	}
 
 	@Override

@@ -31,7 +31,7 @@ public class ModelsPart extends AbstractEditingDomainPart {
 	protected IModelSet modelSet;
 	private IAdapterFactory adapterFactory;
 
-	private final List<IModel> openModels = new ArrayList<IModel>();
+	private final List<IModel> openModels = new ArrayList<>();
 	private IModel currentModel;
 	private OpenModelListener listener;
 
@@ -77,17 +77,14 @@ public class ModelsPart extends AbstractEditingDomainPart {
 		}
 	}
 
-	private final IDoubleClickListener openEditorListener = new IDoubleClickListener() {
-		@Override
-		public void doubleClick(DoubleClickEvent event) {
-			Object selected = ((IStructuredSelection) event.getSelection()).getFirstElement();
-			if (selected instanceof IModel) {
-				try {
-					IWorkbenchPage page = PlatformUI.getWorkbench().getActiveWorkbenchWindow().getActivePage();
-					page.openEditor(new ModelEditorInput((IModel) selected), "net.enilink.platform.workbench.modelEditor", true, IWorkbenchPage.MATCH_INPUT);
-				} catch (PartInitException e) {
-					EnilinkWorkbenchPlugin.INSTANCE.log(e);
-				}
+	private final IDoubleClickListener openEditorListener = event -> {
+		Object selected = ((IStructuredSelection) event.getSelection()).getFirstElement();
+		if (selected instanceof IModel) {
+			try {
+				IWorkbenchPage page = PlatformUI.getWorkbench().getActiveWorkbenchWindow().getActivePage();
+				page.openEditor(new ModelEditorInput((IModel) selected), "net.enilink.platform.workbench.modelEditor", true, IWorkbenchPage.MATCH_INPUT);
+			} catch (PartInitException e) {
+				EnilinkWorkbenchPlugin.INSTANCE.log(e);
 			}
 		}
 	};
@@ -109,12 +106,7 @@ public class ModelsPart extends AbstractEditingDomainPart {
 		openModelsViewer.setContentProvider(new ArrayContentProvider());
 		openModelsViewer.setInput(openModels);
 		openModelsViewer.addDoubleClickListener(openEditorListener);
-		openModelsViewer.addSelectionChangedListener(new ISelectionChangedListener() {
-			@Override
-			public void selectionChanged(SelectionChangedEvent event) {
-				getForm().fireSelectionChanged(ModelsPart.this, event.getSelection());
-			}
-		});
+		openModelsViewer.addSelectionChangedListener(event -> getForm().fireSelectionChanged(ModelsPart.this, event.getSelection()));
 
 		MenuManager menuManager = new MenuManager();
 		menuManager.add(new Action("Close") {

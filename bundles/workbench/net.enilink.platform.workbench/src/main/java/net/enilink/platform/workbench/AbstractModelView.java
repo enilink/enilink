@@ -34,7 +34,6 @@ public abstract class AbstractModelView extends ViewPart {
 			}
 
 			@Override
-			@SuppressWarnings("rawtypes")
 			public Object getAdapter(Class adapter) {
 				if (IWorkbenchPartSite.class.equals(adapter) || IViewSite.class.equals(adapter)) {
 					return getViewSite();
@@ -62,14 +61,12 @@ public abstract class AbstractModelView extends ViewPart {
 		super.dispose();
 	}
 
-	@SuppressWarnings("rawtypes")
 	@Override
 	public Object getAdapter(Class adapter) {
-		Object result = null;
 		if (IEditingDomainProvider.class.equals(adapter)) {
 			return editingDomainProvider;
 		}
-		return result == null ? super.getAdapter(adapter) : result;
+		return super.getAdapter(adapter);
 	}
 
 	public AbstractEditingDomainPart getEditPart() {

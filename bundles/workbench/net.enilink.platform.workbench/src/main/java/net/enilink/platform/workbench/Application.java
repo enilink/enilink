@@ -53,9 +53,7 @@ public class Application implements IApplication {
 	private static final Map<String, String> jaasConfigurations = new LinkedHashMap<>();
 
 	static {
-		LoginUtil.getLoginMethods().forEach(m -> {
-			jaasConfigurations.put(m.getFirst(), m.getSecond());
-		});
+		LoginUtil.getLoginMethods().forEach(m -> jaasConfigurations.put(m.getFirst(), m.getSecond()));
 
 		// The following is a workaround for the case when JobManagerAdapter of RAP
 		// returns a null progress monitor. This may currently happen if a worker for a

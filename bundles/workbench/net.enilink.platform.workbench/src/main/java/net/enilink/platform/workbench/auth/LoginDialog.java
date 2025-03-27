@@ -83,8 +83,7 @@ public class LoginDialog extends TitleAreaDialog implements CallbackHandler {
 		showButtons = true;
 
 		Callback[] callbacks = getCallbacks();
-		for (int i = 0; i < callbacks.length; i++) {
-			Callback callback = callbacks[i];
+		for (Callback callback : callbacks) {
 			if (callback instanceof TextOutputCallback) {
 				createTextoutputHandler(composite, (TextOutputCallback) callback);
 			} else if (callback instanceof TextInputCallback) {
@@ -145,12 +144,7 @@ public class LoginDialog extends TitleAreaDialog implements CallbackHandler {
 		label.setText(callback.getPrompt());
 		final Text text = new Text(composite, SWT.SINGLE | SWT.LEAD | SWT.BORDER);
 		text.setLayoutData(new GridData(SWT.FILL, SWT.BEGINNING, true, false));
-		text.addModifyListener(new ModifyListener() {
-
-			public void modifyText(ModifyEvent event) {
-				callback.setName(text.getText());
-			}
-		});
+		text.addModifyListener((ModifyListener) event -> callback.setName(text.getText()));
 	}
 
 	private void createPasswordHandler(Composite composite, final PasswordCallback callback) {
@@ -158,12 +152,7 @@ public class LoginDialog extends TitleAreaDialog implements CallbackHandler {
 		label.setText(callback.getPrompt());
 		final Text passwordText = new Text(composite, SWT.SINGLE | SWT.LEAD | SWT.PASSWORD | SWT.BORDER);
 		passwordText.setLayoutData(new GridData(SWT.FILL, SWT.BEGINNING, true, false));
-		passwordText.addModifyListener(new ModifyListener() {
-
-			public void modifyText(ModifyEvent event) {
-				callback.setPassword(passwordText.getText().toCharArray());
-			}
-		});
+		passwordText.addModifyListener((ModifyListener) event -> callback.setPassword(passwordText.getText().toCharArray()));
 	}
 
 	private void createRedirectMessage(Composite composite) {
@@ -185,11 +174,9 @@ public class LoginDialog extends TitleAreaDialog implements CallbackHandler {
 		}
 
 		text.setLayoutData(new GridData(SWT.FILL, SWT.BEGINNING, true, false));
-		text.addModifyListener(new ModifyListener() {
-			public void modifyText(ModifyEvent event) {
-				callback.setText(text.getText());
-				setLoginData(attributeKey, remember[0] ? text.getText() : null);
-			}
+		text.addModifyListener((ModifyListener) event -> {
+			callback.setText(text.getText());
+			setLoginData(attributeKey, remember[0] ? text.getText() : null);
 		});
 
 		if (callback.getPrompt().toLowerCase().contains("openid")) {
@@ -247,17 +234,15 @@ public class LoginDialog extends TitleAreaDialog implements CallbackHandler {
 	}
 
 	private String getLoginDataFromCookie() {
-		String result = null;
 		Cookie[] cookies = RWT.getRequest().getCookies();
 		if (cookies != null) {
-			for (int i = 0; result == null && i < cookies.length; i++) {
-				Cookie cookie = cookies[i];
+			for (Cookie cookie : cookies) {
 				if (COOKIE_NAME.equals(cookie.getName())) {
 					return cookie.getValue();
 				}
 			}
 		}
-		return result;
+		return null;
 	}
 
 	@Override
@@ -293,8 +278,7 @@ public class LoginDialog extends TitleAreaDialog implements CallbackHandler {
 
 	private boolean handleNonUserCallbacks() throws IOException {
 		Callback[] callbacks = getCallbacks();
-		for (int i = 0; i < callbacks.length; i++) {
-			Callback callback = callbacks[i];
+		for (Callback callback : callbacks) {
 			if (callback instanceof RedirectCallback) {
 				redirectBrowser((RedirectCallback) callback);
 				return true;
@@ -340,12 +324,9 @@ public class LoginDialog extends TitleAreaDialog implements CallbackHandler {
 			final Image titleImage = ((ImageDescriptor) imageDescData).createImage(false, display);
 			if (titleImage != null) {
 				setTitleImage(titleImage);
-				getShell().addDisposeListener(new DisposeListener() {
-					@Override
-					public void widgetDisposed(DisposeEvent event) {
-						setTitleImage(null);
-						titleImage.dispose();
-					}
+				getShell().addDisposeListener((DisposeListener) event -> {
+					setTitleImage(null);
+					titleImage.dispose();
 				});
 			}
 		}
@@ -354,77 +335,75 @@ public class LoginDialog extends TitleAreaDialog implements CallbackHandler {
 	protected void openWithEventLoop() throws IOException {
 		final IOException[] exception = {null};
 		final Display display = Display.getDefault();
-		display.syncExec(new Runnable() {
-			public void run() {
-				isCancelled = false;
+		display.syncExec(() -> {
+			isCancelled = false;
 
-				// choose correct login method
-				loginMethods = new ArrayList<String>();
-				Object methodsData = display.getData(METHODS_KEY);
-				if (methodsData instanceof Object[]) {
-					for (Object method : (Object[]) methodsData) {
-						loginMethods.add(method.toString());
-					}
-				} else if (methodsData instanceof Iterable<?>) {
-					for (Object method : (Iterable<?>) methodsData) {
-						loginMethods.add(method.toString());
+			// choose correct login method
+			loginMethods = new ArrayList<>();
+			Object methodsData = display.getData(METHODS_KEY);
+			if (methodsData instanceof Object[]) {
+				for (Object method : (Object[]) methodsData) {
+					loginMethods.add(method.toString());
+				}
+			} else if (methodsData instanceof Iterable<?>) {
+				for (Object method : (Iterable<?>) methodsData) {
+					loginMethods.add(method.toString());
+				}
+			}
+
+			if (!loginMethods.isEmpty()) {
+				selectedMethod = (String) display.getData(CURRENT_METHOD_KEY);
+				String methodFromCookie = getLoginData(CURRENT_METHOD_KEY);
+				if (methodFromCookie != null && !methodFromCookie.equals(selectedMethod) && loginMethods.contains(methodFromCookie)) {
+					if (display.getData("login.canceled") == null) {
+						// use same login method as for the last login
+						selectedMethod = methodFromCookie;
+						setLoginData(CURRENT_METHOD_KEY, selectedMethod);
+						display.setData(CURRENT_METHOD_KEY, selectedMethod);
+						isCancelled = true;
+					} else {
+						// store correct login method in cookie if changed
+						// by user
+						setLoginData(CURRENT_METHOD_KEY, selectedMethod);
 					}
 				}
+			}
 
-				if (!loginMethods.isEmpty()) {
-					selectedMethod = (String) display.getData(CURRENT_METHOD_KEY);
-					String methodFromCookie = getLoginData(CURRENT_METHOD_KEY);
-					if (methodFromCookie != null && !methodFromCookie.equals(selectedMethod) && loginMethods.contains(methodFromCookie)) {
-						if (display.getData("login.canceled") == null) {
-							// use same login method as for the last login
-							selectedMethod = methodFromCookie;
-							setLoginData(CURRENT_METHOD_KEY, selectedMethod);
-							display.setData(CURRENT_METHOD_KEY, selectedMethod);
-							isCancelled = true;
-						} else {
-							// store correct login method in cookie if changed
-							// by user
-							setLoginData(CURRENT_METHOD_KEY, selectedMethod);
+			if (!isCancelled) {
+				setBlockOnOpen(false);
+				open();
+
+				String title = (String) display.getData("login.title");
+				if (title != null) {
+					setTitle(title);
+				}
+
+				Shell shell = getShell();
+
+				shell.setMinimumSize(400, 300);
+				shell.pack();
+
+				while (!shell.isDisposed()) {
+					try {
+						if (!display.readAndDispatch()) {
+							display.sleep();
 						}
-					}
-				}
-
-				if (!isCancelled) {
-					setBlockOnOpen(false);
-					open();
-
-					String title = (String) display.getData("login.title");
-					if (title != null) {
-						setTitle(title);
-					}
-
-					Shell shell = getShell();
-
-					shell.setMinimumSize(400, 300);
-					shell.pack();
-
-					while (shell != null && !shell.isDisposed()) {
-						try {
-							if (!display.readAndDispatch()) {
-								display.sleep();
-							}
-						} catch (Throwable e) {
-							if (e instanceof ThreadDeath) {
-								display.setData("login.exception.threaddeath", e);
-							}
-							exception[0] = new IOException(e);
-							return;
+					} catch (Throwable e) {
+						if (e instanceof ThreadDeath) {
+							display.setData("login.exception.threaddeath", e);
 						}
-					}
-					if (!display.isDisposed()) {
-						display.update();
+						exception[0] = new IOException(e);
+						return;
 					}
 				}
+				if (!display.isDisposed()) {
+					display.update();
+				}
+			}
 
-				display.setData("login.canceled", isCancelled);
-				if (isCancelled) {
-					exception[0] = new IOException("Login canceled.");
-				}
+			display.setData("login.canceled", isCancelled);
+			if (isCancelled) {
+				exception[0] = new IOException("Login canceled.");
 			}
 		});
 

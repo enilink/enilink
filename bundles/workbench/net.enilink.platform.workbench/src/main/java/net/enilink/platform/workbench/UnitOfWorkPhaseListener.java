@@ -2,11 +2,14 @@ package net.enilink.platform.workbench;
 
 import net.enilink.komma.model.IModelSet;
 import net.enilink.platform.core.UseService;
+import java.io.Serial;
+
 import org.eclipse.rap.rwt.internal.lifecycle.PhaseEvent;
 import org.eclipse.rap.rwt.internal.lifecycle.PhaseId;
 import org.eclipse.rap.rwt.internal.lifecycle.PhaseListener;
 
 public class UnitOfWorkPhaseListener implements PhaseListener {
+	@Serial
 	private static final long serialVersionUID = -4199229590183450740L;
 
 	@Override

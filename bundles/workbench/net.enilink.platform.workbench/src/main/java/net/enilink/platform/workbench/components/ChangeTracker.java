@@ -47,7 +47,7 @@ public class ChangeTracker {
 
 	protected Future<?> future;
 
-	protected Map<IReference, Map<URI, List<IDataChange>>> changesByModelAndUser = new HashMap<>();
+	protected final Map<IReference, Map<URI, List<IDataChange>>> changesByModelAndUser = new HashMap<>();
 
 	@Reference
 	protected void setModelSet(IModelSet modelSet) {
@@ -108,49 +108,45 @@ public class ChangeTracker {
 			changesByModelAndUser.clear();
 			future = null;
 		}
-		localChanges.entrySet().stream().forEach(changesByUser -> {
-			IReference modelRef = changesByUser.getKey();
-			changesByUser.getValue().entrySet().stream().forEach(entry -> {
-				URI user = entry.getKey();
-				XMLGregorianCalendar now = dtFactory.newXMLGregorianCalendar(new GregorianCalendar());
-				List<IDataChange> modelChanges = new ArrayList<>(entry.getValue());
-				Collections.sort(modelChanges, Comparator.comparing(v -> ((IStatementChange) v).isAdd() ? 1 : 0));
+		localChanges.forEach((modelRef, value1) -> value1.forEach((user, value) -> {
+			XMLGregorianCalendar now = dtFactory.newXMLGregorianCalendar(new GregorianCalendar());
+			List<IDataChange> modelChanges = new ArrayList<>(value);
+			modelChanges.sort(Comparator.comparing(v -> ((IStatementChange) v).isAdd() ? 1 : 0));
 
-				UUID uuid = UUID.randomUUID();
-				URI changeUri = URIs.createURI("enilink:change:" + uuid.toString());
-				List<IStatement> changeDescription = new ArrayList<>();
-				modelChanges.forEach(change -> {
-					IStatement stmt = ((IStatementChange) change).getStatement();
-					boolean isAdd = ((IStatementChange) change).isAdd();
-					IReference stmtRef = new BlankNode(BlankNode.generateId("stmt-"));
-					changeDescription.add(new Statement(changeUri, isAdd ? PROPERTY_ADDSTATEMENT : PROPERTY_REMOVESTATEMENT, stmtRef));
-					changeDescription.add(new Statement(stmtRef, RDF.PROPERTY_SUBJECT, stmt.getSubject()));
-					changeDescription.add(new Statement(stmtRef, RDF.PROPERTY_PREDICATE, stmt.getPredicate()));
-					changeDescription.add(new Statement(stmtRef, RDF.PROPERTY_OBJECT, stmt.getObject()));
-				});
-				changeDescription.add(new Statement(changeUri, RDF.PROPERTY_TYPE, TYPE_CHANGEDESCRIPTION));
-				changeDescription.add(new Statement(changeUri, PROPERTY_AGENT, user));
-				changeDescription.add(new Statement(changeUri, PROPERTY_DATE, now));
-
-				Subject.doAs(SecurityUtil.SYSTEM_USER_SUBJECT, (PrivilegedAction<Object>) () -> {
-					URI auditModelUri = URIs.createURI("enilink:audit:" + modelRef.toString());
-					try {
-						modelSet.getUnitOfWork().begin();
-
-						IModel auditModel = modelSet.getModel(auditModelUri, false);
-						if (auditModel == null) {
-							auditModel = modelSet.createModel(auditModelUri);
-							auditModel.setLoaded(true);
-						}
-
-						auditModel.getManager().add(changeDescription);
-					} finally {
-						modelSet.getUnitOfWork().end();
-					}
-					return null;
-				});
+			UUID uuid = UUID.randomUUID();
+			URI changeUri = URIs.createURI("enilink:change:" + uuid);
+			List<IStatement> changeDescription = new ArrayList<>();
+			modelChanges.forEach(change -> {
+				IStatement stmt = ((IStatementChange) change).getStatement();
+				boolean isAdd = ((IStatementChange) change).isAdd();
+				IReference stmtRef = new BlankNode(BlankNode.generateId("stmt-"));
+				changeDescription.add(new Statement(changeUri, isAdd ? PROPERTY_ADDSTATEMENT : PROPERTY_REMOVESTATEMENT, stmtRef));
+				changeDescription.add(new Statement(stmtRef, RDF.PROPERTY_SUBJECT, stmt.getSubject()));
+				changeDescription.add(new Statement(stmtRef, RDF.PROPERTY_PREDICATE, stmt.getPredicate()));
+				changeDescription.add(new Statement(stmtRef, RDF.PROPERTY_OBJECT, stmt.getObject()));
 			});
-		});
+			changeDescription.add(new Statement(changeUri, RDF.PROPERTY_TYPE, TYPE_CHANGEDESCRIPTION));
+			changeDescription.add(new Statement(changeUri, PROPERTY_AGENT, user));
+			changeDescription.add(new Statement(changeUri, PROPERTY_DATE, now));
+
+			Subject.doAs(SecurityUtil.SYSTEM_USER_SUBJECT, (PrivilegedAction<Object>) () -> {
+				URI auditModelUri = URIs.createURI("enilink:audit:" + modelRef.toString());
+				try {
+					modelSet.getUnitOfWork().begin();
+
+					IModel auditModel = modelSet.getModel(auditModelUri, false);
+					if (auditModel == null) {
+						auditModel = modelSet.createModel(auditModelUri);
+						auditModel.setLoaded(true);
+					}
+
+					auditModel.getManager().add(changeDescription);
+				} finally {
+					modelSet.getUnitOfWork().end();
+				}
+				return null;
+			});
+		}));
 	}
 
 	@Deactivate

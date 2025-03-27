@@ -15,24 +15,27 @@ import net.enilink.platform.core.security.SecurityUtil;
 import net.enilink.platform.workbench.model.ChangeDescription;
 import net.enilink.vocab.komma.KOMMA;
 import net.enilink.vocab.rdf.Statement;
+import java.security.PrivilegedAction;
+import java.text.DateFormat;
+import java.util.stream.Stream;
+
+import javax.security.auth.Subject;
+
 import org.eclipse.jface.action.Action;
 import org.eclipse.jface.action.IAction;
 import org.eclipse.jface.action.IToolBarManager;
 import org.eclipse.jface.action.ToolBarManager;
-import org.eclipse.jface.viewers.*;
+import org.eclipse.jface.viewers.ITreeContentProvider;
+import org.eclipse.jface.viewers.TreeViewer;
+import org.eclipse.jface.viewers.TreeViewerColumn;
+import org.eclipse.jface.viewers.Viewer;
 import org.eclipse.swt.SWT;
 import org.eclipse.swt.graphics.Image;
 import org.eclipse.swt.layout.FillLayout;
 import org.eclipse.swt.layout.GridData;
 import org.eclipse.swt.widgets.Composite;
-import org.eclipse.swt.widgets.Table;
 import org.eclipse.swt.widgets.ToolBar;
 import org.eclipse.swt.widgets.Tree;
-
-import javax.security.auth.Subject;
-import java.security.PrivilegedAction;
-import java.text.DateFormat;
-import java.util.stream.Stream;
 
 public class HistoryPart extends AbstractEditingDomainPart {
 	private IAdapterFactory adapterFactory;

@@ -32,10 +32,8 @@ public class UserMenu extends ContributionItem {
 
 	@Override
 	public void fill(final ToolBar toolBar, int index) {
-		boolean loggedIn = false;
-
 		Subject subject = Subject.getSubject(AccessController.getContext());
-		loggedIn = subject != null;
+		boolean loggedIn = subject != null;
 		String username = null;
 
 		if (loggedIn) {
@@ -85,12 +83,7 @@ public class UserMenu extends ContributionItem {
 					menu.setVisible(true);
 				}
 			});
-			item.addDisposeListener(new DisposeListener() {
-				@Override
-				public void widgetDisposed(DisposeEvent event) {
-					menu.dispose();
-				}
-			});
+			item.addDisposeListener((DisposeListener) event -> menu.dispose());
 		} else {
 			final ToolItem item = new ToolItem(toolBar, SWT.PUSH);
 			item.setData(RWT.CUSTOM_VARIANT, "userMenu");

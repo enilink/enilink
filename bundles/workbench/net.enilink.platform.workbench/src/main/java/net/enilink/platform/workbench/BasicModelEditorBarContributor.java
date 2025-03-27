@@ -107,11 +107,7 @@ public class BasicModelEditorBarContributor extends EditingDomainActionBarContri
 		// "additions");
 
 		// Force an update because Eclipse hides empty menus now.
-		editorMenuManager.addMenuListener(new IMenuListener() {
-			public void menuAboutToShow(IMenuManager menuManager) {
-				menuManager.updateAll(true);
-			}
-		});
+		editorMenuManager.addMenuListener((IMenuListener) menuManager1 -> menuManager1.updateAll(true));
 
 		addGlobalActions(editorMenuManager);
 	}

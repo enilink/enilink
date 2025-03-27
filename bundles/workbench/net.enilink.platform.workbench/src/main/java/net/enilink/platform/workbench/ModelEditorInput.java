@@ -17,7 +17,6 @@ public class ModelEditorInput implements IEditorInput {
 		return model;
 	}
 
-	@SuppressWarnings("rawtypes")
 	@Override
 	public Object getAdapter(Class adapter) {
 		return null;

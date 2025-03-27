@@ -5,7 +5,12 @@ import net.enilink.komma.common.command.CommandResult;
 import net.enilink.komma.common.command.ICommand;
 import net.enilink.komma.common.command.SimpleCommand;
 import net.enilink.komma.common.ui.assist.ContentProposals;
-import net.enilink.komma.core.*;
+import net.enilink.komma.core.IEntity;
+import net.enilink.komma.core.IQuery;
+import net.enilink.komma.core.IReference;
+import net.enilink.komma.core.IStatement;
+import net.enilink.komma.core.Statement;
+import net.enilink.komma.core.URI;
 import net.enilink.komma.edit.command.DeleteCommand;
 import net.enilink.komma.edit.domain.IEditingDomain;
 import net.enilink.komma.edit.properties.EditingHelper;
@@ -23,16 +28,15 @@ import net.enilink.komma.edit.ui.util.EditUIUtil;
 import net.enilink.komma.edit.ui.views.AbstractEditingDomainPart;
 import net.enilink.komma.em.concepts.IProperty;
 import net.enilink.komma.em.concepts.IResource;
-import net.enilink.komma.em.util.ISparqlConstants;
 import net.enilink.komma.model.IModel;
 import net.enilink.komma.model.IObject;
 import net.enilink.platform.core.security.ISecureEntity;
 import net.enilink.platform.core.security.SecurityUtil;
 import net.enilink.vocab.acl.Authorization;
 import net.enilink.vocab.acl.WEBACL;
-import net.enilink.vocab.foaf.Agent;
-import net.enilink.vocab.foaf.FOAF;
 import net.enilink.vocab.rdfs.Class;
+import java.util.Set;
+
 import org.eclipse.core.commands.ExecutionException;
 import org.eclipse.core.runtime.IAdaptable;
 import org.eclipse.core.runtime.IProgressMonitor;
@@ -40,9 +44,18 @@ import org.eclipse.core.runtime.IStatus;
 import org.eclipse.jface.action.Action;
 import org.eclipse.jface.action.IToolBarManager;
 import org.eclipse.jface.dialogs.MessageDialog;
-import org.eclipse.jface.fieldassist.*;
+import org.eclipse.jface.fieldassist.ContentProposalAdapter;
+import org.eclipse.jface.fieldassist.IContentProposal;
+import org.eclipse.jface.fieldassist.IContentProposalListener;
+import org.eclipse.jface.fieldassist.IContentProposalProvider;
 import org.eclipse.jface.layout.GridDataFactory;
-import org.eclipse.jface.viewers.*;
+import org.eclipse.jface.viewers.CellEditor;
+import org.eclipse.jface.viewers.CheckboxCellEditor;
+import org.eclipse.jface.viewers.EditingSupport;
+import org.eclipse.jface.viewers.ILabelProvider;
+import org.eclipse.jface.viewers.IStructuredSelection;
+import org.eclipse.jface.viewers.TableViewer;
+import org.eclipse.jface.viewers.TableViewerColumn;
 import org.eclipse.swt.SWT;
 import org.eclipse.swt.custom.CLabel;
 import org.eclipse.swt.graphics.Image;
@@ -52,9 +65,6 @@ import org.eclipse.swt.widgets.Composite;
 import org.eclipse.swt.widgets.Table;
 import org.eclipse.swt.widgets.Text;
 import org.eclipse.ui.forms.widgets.Section;
-
-import java.util.Arrays;
-import java.util.Set;
 
 public class AclPart extends AbstractEditingDomainPart {
 	private IAdapterFactory adapterFactory;
@@ -100,10 +110,7 @@ public class AclPart extends AbstractEditingDomainPart {
 			}
 			return new IContentProposal[0];
 		}, null);
-		proposalAdapter.addContentProposalListener(new IContentProposalListener() {
-			@Override
-			public void proposalAccepted(IContentProposal proposal) {
-			}
+		proposalAdapter.addContentProposalListener((IContentProposalListener) proposal -> {
 		});
 
 		section.setClient(ownerText);
@@ -215,11 +222,7 @@ public class AclPart extends AbstractEditingDomainPart {
 			modeColumn.getColumn().pack();
 		}
 		createActions();
-		viewer.addSelectionChangedListener(new ISelectionChangedListener() {
-			public void selectionChanged(SelectionChangedEvent event) {
-				deleteAction.setEnabled(!event.getSelection().isEmpty());
-			}
-		});
+		viewer.addSelectionChangedListener(event -> deleteAction.setEnabled(!event.getSelection().isEmpty()));
 	}
 
 	private void executeCommand(ICommand command) {
@@ -243,7 +246,7 @@ public class AclPart extends AbstractEditingDomainPart {
 			public void run() {
 				executeCommand(new SimpleCommand() {
 					@Override
-					protected CommandResult doExecuteWithResult(IProgressMonitor progressMonitor, IAdaptable info) throws ExecutionException {
+					protected CommandResult doExecuteWithResult(IProgressMonitor progressMonitor, IAdaptable info) {
 						Authorization auth = target.getEntityManager().create(Authorization.class);
 						auth.setAclAccessTo((IResource) target);
 						auth.getAclMode().add(target.getEntityManager().find(WEBACL.MODE_READ, Class.class));

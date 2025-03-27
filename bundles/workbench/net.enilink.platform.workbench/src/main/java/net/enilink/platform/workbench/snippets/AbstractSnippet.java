@@ -12,8 +12,8 @@ import net.enilink.komma.edit.ui.dnd.ViewerDragAdapter;
 import net.enilink.komma.edit.ui.views.IViewerMenuSupport;
 import net.enilink.komma.model.IModel;
 import net.enilink.komma.model.IModelSet;
+
 import org.eclipse.jface.action.IMenuListener;
-import org.eclipse.jface.action.IMenuManager;
 import org.eclipse.jface.action.MenuManager;
 import org.eclipse.jface.action.Separator;
 import org.eclipse.jface.viewers.ISelection;
@@ -28,7 +28,10 @@ import org.eclipse.swt.dnd.DragSource;
 import org.eclipse.swt.dnd.DropTarget;
 import org.eclipse.swt.dnd.Transfer;
 import org.eclipse.swt.layout.FillLayout;
-import org.eclipse.swt.widgets.*;
+import org.eclipse.swt.widgets.Composite;
+import org.eclipse.swt.widgets.Control;
+import org.eclipse.swt.widgets.Listener;
+import org.eclipse.swt.widgets.Menu;
 import org.eclipse.ui.IWorkbenchPartSite;
 import org.osgi.framework.BundleContext;
 import org.osgi.framework.FrameworkUtil;
@@ -79,7 +82,6 @@ public abstract class AbstractSnippet extends AbstractEntryPoint implements IVie
 			}
 
 			@Override
-			@SuppressWarnings("rawtypes")
 			public Object getAdapter(Class adapter) {
 				if (IEditingDomainProvider.class.equals(adapter)) {
 					return editingDomainProvider;
@@ -107,12 +109,7 @@ public abstract class AbstractSnippet extends AbstractEntryPoint implements IVie
 		}
 
 		// required for correct cleanup
-		parent.getDisplay().addListener(SWT.Dispose, new Listener() {
-			@Override
-			public void handleEvent(Event event) {
-				editorForm.dispose();
-			}
-		});
+		parent.getDisplay().addListener(SWT.Dispose, (Listener) event -> editorForm.dispose());
 	}
 
 	abstract IEditorPart createEditorPart();
@@ -126,12 +123,9 @@ public abstract class AbstractSnippet extends AbstractEntryPoint implements IVie
 
 		MenuManager contextMenu = new MenuManager("#PopUp");
 		contextMenu.setRemoveAllWhenShown(true);
-		contextMenu.addMenuListener(new IMenuListener() {
-			@Override
-			public void menuAboutToShow(IMenuManager manager) {
-				manager.add(new Separator("additions"));
-				createChildActionContributor.menuAboutToShow(manager, "additions");
-			}
+		contextMenu.addMenuListener((IMenuListener) manager -> {
+			manager.add(new Separator("additions"));
+			createChildActionContributor.menuAboutToShow(manager, "additions");
 		});
 		menu = contextMenu.createContextMenu(viewer.getControl());
 		viewer.getControl().setMenu(menu);

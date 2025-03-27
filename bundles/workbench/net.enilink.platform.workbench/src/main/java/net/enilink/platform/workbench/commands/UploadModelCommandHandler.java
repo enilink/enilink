@@ -57,9 +57,8 @@ public class UploadModelCommandHandler extends AbstractHandler {
 							}
 
 							// let the user choose a model uri
-							InputDialog dialog = new InputDialog(shell, "Name the new model.", "Please enter an URI for your model.", modelUri.toString(), new IInputValidator() {
-								@Override
-								public String isValid(String newText) {
+							InputDialog dialog = new InputDialog(shell, "Name the new model.", "Please enter an URI for your model.", modelUri.toString(),
+								(IInputValidator) newText -> {
 									URI newURI;
 									try {
 										newURI = URIs.createURI(newText);
@@ -74,8 +73,7 @@ public class UploadModelCommandHandler extends AbstractHandler {
 										return "There already exists a model with the given URI.";
 									}
 									return null;
-								}
-							});
+								});
 							if (dialog.open() == Window.OK) {
 								modelUri = URIs.createURI(dialog.getValue());
 							} else {
