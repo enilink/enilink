@@ -4,19 +4,20 @@ import net.enilink.komma.core.{BlankNode, IUnitOfWork, URIs}
 import net.enilink.platform.lift.html.Html5ParserWithRDFaPrefixes
 import net.enilink.platform.lift.rest.FileService
 import net.enilink.platform.lift.util.{CurrentContext, Globals, NotAllowedModel, RdfContext}
-import net.enilink.platform.security.auth.EnilinkPrincipal
+import net.enilink.platform.security.auth.{AccountHelper, EnilinkPrincipal}
 import net.liftweb.common.Box.option2Box
 import net.liftweb.common.{Box, Empty, Full, Logger}
 import net.liftweb.http.ContentSourceRestriction.{Self, UnsafeEval, UnsafeInline}
 import net.liftweb.http.LiftRulesMocker.toLiftRules
+import net.liftweb.http.auth.HttpBasicAuthentication
 import net.liftweb.http.js.jquery.JQueryArtifacts
 import net.liftweb.http.{ContentSecurityPolicy, ForbiddenResponse, Html5Properties, LiftRules, LiftSession, NoticeType, OnDiskFileParamHolder, Req, ResourceServer, S, SecurityRules}
 import net.liftweb.util.Helpers.intToTimeSpanBuilder
-import net.liftweb.util._
 import net.liftweb.util.Vendor.{funcToVendor, valToVendor}
+import net.liftweb.util._
 
 import java.security.{AccessController, PrivilegedAction}
-import java.util.Locale
+import java.util.{Collections, Locale}
 import javax.security.auth.Subject
 import scala.language.postfixOps
 import scala.xml.NodeSeq
@@ -43,12 +44,12 @@ class LiftModule extends Logger {
       node
     }
 
-    override def delete(key: T) : Unit = {
+    override def delete(key: T): Unit = {
       cache.synchronized(cache.remove(withApp(key)))
     }
   }
 
-  def boot : Unit = {
+  def boot: Unit = {
     // enable this to rewrite application paths (WIP)
     // ApplicationPaths.rewriteApplicationPaths
 
@@ -64,13 +65,13 @@ class LiftModule extends Logger {
         )
       )
     )
-    
+
     // remove X-Frame-Options for now to allow embedding via iframe
     val supplementalHeaders = LiftRules.supplementalHeaders.vend
     LiftRules.supplementalHeaders.default.set(() => {
       supplementalHeaders.filter { case (key, _) => key != "X-Frame-Options" }
     })
-    
+
     // set context user from EnilinkPrincipal contained in the HTTP session after successful login
     Globals.contextUser.default.set(() => {
       Subject.getSubject(AccessController.getContext()) match {
@@ -162,7 +163,7 @@ class LiftModule extends Logger {
       case (("enilink" | "typeaheadjs" | "require" | "orion" | "select2" | "fileupload" | "flight") :: _) => true
       case (("bootstrap" | "bootstrap-editable") :: _) | (_ :: "bootstrap" :: _) => true
       case "material-design-iconic-font" :: _ => true
-      case rdfa @ ("rdfa" :: _) if rdfa.last.endsWith(".js") => true
+      case rdfa@("rdfa" :: _) if rdfa.last.endsWith(".js") => true
     }
 
     Globals.contextModelRules.append {
@@ -187,6 +188,20 @@ class LiftModule extends Logger {
       }
     }
 
+    // a basic authentication method that can be used to login users using name and password
+    val authentication = HttpBasicAuthentication("enilink") {
+      case (username, password, _) =>
+        Globals.contextModelSet.vend.map(ms => {
+          val user = AccountHelper.findUser(ms.getMetaDataManager, username,
+            AccountHelper.encodePassword(password))
+          if (user != null) {
+            // initialize global context user
+            Globals.contextUser.request.set(user)
+            true
+          } else false
+        }) openOr false
+    }
+
     // Make a unit of work span the whole HTTP request
     S.addAround(new LoanWrapper {
       private object DepthCnt extends DynoVar[Boolean]
@@ -204,6 +219,19 @@ class LiftModule extends Logger {
           val uow = modelSet.getUnitOfWork
           unitsOfWork = unitsOfWork ++ List(uow)
           uow.begin
+
+          // run authentication with active unit of work
+          if (!Globals.contextUser.request.set_?) {
+            S.request.foreach(r => authentication.verified_?(r))
+          }
+
+          // create a subject that can be used for within system actions
+          val subject: Box[Subject] = if (Globals.contextUser.request.set_?) {
+            val user = Globals.contextUser.vend.getURI
+            Full(new Subject(true, Collections.singleton(new EnilinkPrincipal(user)),
+              Collections.emptySet(), Collections.emptySet()))
+          } else Empty
+
           try {
             val model = S.request.flatMap(req => Globals.contextModelRules.toList.find(_.isDefinedAt(req)) match {
               case Some(f) => f(req)
@@ -224,12 +252,15 @@ class LiftModule extends Logger {
               try {
                 // the attribute lookup may cause a NPE if called on session shutdown
                 // since Lift initializes even unused sessions before shutting them down
-                S.containerSession.flatMap(_.attribute("javax.security.auth.subject") match {
-                  case s: Subject => Full(Subject.doAs(s, new PrivilegedAction[T] {
-                    override def run = f
-                  }))
+                (S.containerSession.flatMap(_.attribute("javax.security.auth.subject") match {
+                  case s: Subject => Full(s)
                   case _ => None
-                }) openOr f
+                }) or subject).map {
+                  s =>
+                    Subject.doAs(s, new PrivilegedAction[T] {
+                      override def run = f
+                    })
+                } openOr f
               } catch {
                 case _: Throwable => f
               }
