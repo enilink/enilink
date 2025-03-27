@@ -3,10 +3,19 @@
 <plugin>
 	<extension
 			point="org.eclipse.ui.views">
+		<!-- the models fast view -->
 		<view
 				class="net.enilink.platform.workbench.ModelsView"
 				icon="img/enilink/models.png"
 				id="net.enilink.rap.workbench.modelsView"
+				name="Models"
+				restorable="true">
+		</view>
+		<!-- add second fixed view for models -->
+		<view
+				class="net.enilink.platform.workbench.ModelsView"
+				icon="img/enilink/models.png"
+				id="net.enilink.rap.workbench.modelsView.fixed"
 				name="Models"
 				restorable="true">
 		</view>

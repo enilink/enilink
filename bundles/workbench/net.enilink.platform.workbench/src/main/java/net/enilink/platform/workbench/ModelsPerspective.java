@@ -13,7 +13,7 @@ public class ModelsPerspective implements IPerspectiveFactory {
 		String editorArea = layout.getEditorArea();
 
 		IFolderLayout topLeft = layout.createFolder("topLeft", IPageLayout.LEFT, 0.4f, editorArea);
-		topLeft.addView(ModelsView.ID);
+		topLeft.addView(ModelsView.ID + ".fixed");
 
 		// Bottom left: Outline view and Property Sheet view
 		IFolderLayout bottomLeft = layout.createFolder("bottomLeft", IPageLayout.BOTTOM, 0.7f, "topLeft");
