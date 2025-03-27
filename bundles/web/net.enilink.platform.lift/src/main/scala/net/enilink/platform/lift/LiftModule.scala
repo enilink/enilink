@@ -49,7 +49,7 @@ class LiftModule extends Logger {
     }
   }
 
-  def boot: Unit = {
+  def boot(): Unit = {
     // enable this to rewrite application paths (WIP)
     // ApplicationPaths.rewriteApplicationPaths
 
@@ -74,7 +74,7 @@ class LiftModule extends Logger {
 
     // set context user from EnilinkPrincipal contained in the HTTP session after successful login
     Globals.contextUser.default.set(() => {
-      Subject.getSubject(AccessController.getContext()) match {
+      Subject.getSubject(AccessController.getContext) match {
         case s: Subject =>
           val userPrincipals = s.getPrincipals(classOf[EnilinkPrincipal])
           if (!userPrincipals.isEmpty) userPrincipals.iterator.next.getId else Globals.UNKNOWN_USER
@@ -88,14 +88,13 @@ class LiftModule extends Logger {
 
     // simple fix to overwrite zero or negative inactive intervals
     LiftRules.sessionCreator = {
-      case (httpSession, contextPath) => {
+      case (httpSession, contextPath) =>
         if (httpSession.maxInactiveInterval <= 0) {
           // use LiftRules.sessionInactivityTimeout or default value of 30 minutes
           // maxInactiveInterval is in seconds
           httpSession.setMaxInactiveInterval(LiftRules.sessionInactivityTimeout.vend.map(_ / 1000) openOr 30 * 60)
         }
         new LiftSession(contextPath, httpSession.sessionId, Full(httpSession))
-      }
     }
 
     // Use jQuery 1.8.2
@@ -129,7 +128,7 @@ class LiftModule extends Logger {
     object Html5ParserForRDFa extends Html5ParserWithRDFaPrefixes
     // Use HTML5 for parsing and rendering
     LiftRules.htmlProperties.default.set((r: Req) =>
-      new Html5Properties(r.userAgent).setHtmlParser(Html5ParserForRDFa.parse _))
+      Html5Properties(r.userAgent).setHtmlParser(Html5ParserForRDFa.parse))
 
     // Force the request to be UTF-8
     LiftRules.early.append(_.setCharacterEncoding("UTF-8"))
@@ -160,10 +159,10 @@ class LiftModule extends Logger {
     }
 
     ResourceServer.allow {
-      case (("enilink" | "typeaheadjs" | "require" | "orion" | "select2" | "fileupload" | "flight") :: _) => true
-      case (("bootstrap" | "bootstrap-editable") :: _) | (_ :: "bootstrap" :: _) => true
+      case ("enilink" | "typeaheadjs" | "require" | "orion" | "select2" | "fileupload" | "flight") :: _ => true
+      case ("bootstrap" | "bootstrap-editable") :: _ | _ :: "bootstrap" :: _ => true
       case "material-design-iconic-font" :: _ => true
-      case rdfa@("rdfa" :: _) if rdfa.last.endsWith(".js") => true
+      case rdfa@"rdfa" :: _ if rdfa.last.endsWith(".js") => true
     }
 
     Globals.contextModelRules.append {
@@ -218,7 +217,7 @@ class LiftModule extends Logger {
           // start a unit of work for the current model set
           val uow = modelSet.getUnitOfWork
           unitsOfWork = unitsOfWork ++ List(uow)
-          uow.begin
+          uow.begin()
 
           // run authentication with active unit of work
           if (!Globals.contextUser.request.set_?) {
@@ -258,7 +257,7 @@ class LiftModule extends Logger {
                 }) or subject).map {
                   s =>
                     Subject.doAs(s, new PrivilegedAction[T] {
-                      override def run = f
+                      override def run: T = f
                     })
                 } openOr f
               } catch {
@@ -272,7 +271,7 @@ class LiftModule extends Logger {
             else if (rdfContext.isDefined) CurrentContext.withValue(rdfContext)(innerFunc)
             else innerFunc
           } finally {
-            for (uow <- unitsOfWork) uow.end
+            for (uow <- unitsOfWork) uow.end()
           }
         } openOr f
       }

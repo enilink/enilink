@@ -46,7 +46,7 @@ object FileService extends RestHelper with CorsHelper {
     case Nil Options _ => OkResponse()
     case Nil Post AllowedMimeTypes(req) => saveAndRespond(req)
     case key :: Nil Get _ => serveFile(key)
-    case key :: Nil Head _ => serveFile(key, true)
+    case key :: Nil Head _ => serveFile(key, head = true)
   })
 
   def serveFile(key: String, head: Boolean = false): LiftResponse = {
@@ -54,8 +54,8 @@ object FileService extends RestHelper with CorsHelper {
     try {
       val size = fileStore.size(key)
       val props = fileStore.getProperties(key)
-      val headers = responseHeaders ++ Option(props.getProperty("contentType")).map(("Content-type" -> _)).toList ++
-        List(("Content-length" -> size.toString)) ++
+      val headers = responseHeaders ++ Option(props.getProperty("contentType")).map("Content-type" -> _).toList ++
+        List("Content-length" -> size.toString) ++
         Option(props.getProperty("fileName")).map(name => ("Content-disposition", "attachment; filename=\"" + name + "\"")).toList
       if (head) new HeadResponse(size, headers, Nil, 200) else StreamingResponse(fileStore.openStream(key), () => {}, size, headers, Nil, 200)
     } catch {

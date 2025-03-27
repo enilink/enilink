@@ -1,6 +1,8 @@
 package net.enilink.platform.lift.rdfa
 
 import java.text.ParseException
+import scala.annotation.tailrec
+import scala.util.matching.Regex
 
 /**
  * Path operations on URIs.
@@ -36,7 +38,7 @@ object Util {
   /**
    * Appendix B. Parsing a URI Reference with a Regular Expression
    */
-  val Parts = """(([^:/?#]+):)?(//([^/?#]*))?([^?#]*)(\?([^#]*))?(#(.*))?""".r
+  val Parts: Regex = """(([^:/?#]+):)?(//([^/?#]*))?([^?#]*)(\?([^#]*))?(#(.*))?""".r
 
   /**
    * Combine URI reference with base URI
@@ -81,12 +83,13 @@ object Util {
     assert(!pref.startsWith("/"))
 
     if (pbase == "") {
-      if (auth != null) ("/" + pref) else pref
+      if (auth != null) "/" + pref else pref
     } else {
       merge2(dirname(pbase), pref)
     }
   }
 
+  @tailrec
   protected def merge2(base: String, ref: String): String = {
     assert(base.endsWith("/"))
     if (ref.startsWith("./")) merge2(base, ref.substring(2)) else {

@@ -1,38 +1,31 @@
 package net.enilink.platform.lift.snippet
 
-import scala.xml.NodeSeq
-import scala.xml.NodeSeq.seqToNodeSeq
-import scala.xml.UnprefixedAttribute
-import net.enilink.platform.core.security.SecurityUtil
 import net.enilink.komma.core.URIs
+import net.enilink.platform.core.security.SecurityUtil
 import net.enilink.platform.lift.util.Globals
-import net.liftweb.common.Box
-import net.liftweb.common.Box.option2Box
-import net.liftweb.common.Full
+import net.liftweb.common.{Box, Empty, Full}
 import net.liftweb.http.S
-import net.liftweb.util.Helpers.tryo
-import net.liftweb.common.Empty
 import net.liftweb.util.Helpers._
-import scala.xml.Elem
-import scala.xml.MetaData
-import scala.xml.Node
+
+import scala.xml.NodeSeq.seqToNodeSeq
+import scala.xml.{Elem, MetaData, NodeSeq, UnprefixedAttribute}
 
 object Tests {
   def group(e: xml.Elem, param: String): Boolean = tryo(URIs.createURI(param)) exists { uri =>
     Globals.contextModelSet.vend exists { ms => SecurityUtil.isMemberOf(ms.getMetaDataManager, uri) }
   }
 
-  def split(name: String) = name.indexOf('.') match {
+  def split(name: String): (String, String) = name.indexOf('.') match {
     case -1 => (name, null)
     case n => (name.substring(0, n), name.substring(n + 1).trim)
   }
 
   def byName(name: String): Box[(xml.Elem, String) => Boolean] = split(name) match {
     case ("user", "loggedin") => Full((_, _) => Globals.contextUser.vend != Globals.UNKNOWN_USER)
-    case ("user", "group") => Full(group _)
-    case ("param", null) => Full((_, value) => value.roboSplit(",").exists(p => S.param(p.stripPrefix("?")).exists(!_.trim.isEmpty)))
+    case ("user", "group") => Full(group)
+    case ("param", null) => Full((_, value) => value.roboSplit(",").exists(p => S.param(p.stripPrefix("?")).exists(_.trim.nonEmpty)))
     case ("param", paramName) => Full((_, value) => value match {
-      case "" => S.param(paramName).exists(!_.trim.isEmpty)
+      case "" => S.param(paramName).exists(_.trim.nonEmpty)
       case _ => S.param(paramName).exists(_ == value)
     })
     case _ => Empty
@@ -44,7 +37,7 @@ trait ConditionalTransform {
 }
 
 class If extends ConditionalTransform {
-  def success(b: Boolean) = b
+  def success(b: Boolean): Boolean = b
 
   def render(ns: NodeSeq): NodeSeq = {
     val tests = S.currentAttrs.collect { case UnprefixedAttribute(name, value, _) => (name, value.text) } ++ ns.flatMap {
@@ -60,7 +53,7 @@ class If extends ConditionalTransform {
   }
 
   object Transform {
-    def unapply(value: String): Option[(NodeSeq) => NodeSeq] = value.split("\\s*#>\\s*") match {
+    def unapply(value: String): Option[NodeSeq => NodeSeq] = value.split("\\s*#>\\s*") match {
       case Array(left, right) => Some(left #> right)
       case _ => None
     }
@@ -89,7 +82,7 @@ class If extends ConditionalTransform {
 }
 
 class Unless extends If {
-  override def success(b: Boolean) = !b
+  override def success(b: Boolean): Boolean = !b
 
-  override def render(ns: NodeSeq) = super.render(ns)
+  override def render(ns: NodeSeq): NodeSeq = super.render(ns)
 }

@@ -1,24 +1,19 @@
 package net.enilink.platform.lift.snippet
 
-import scala.xml.NodeSeq
-import net.liftweb.http.DispatchSnippet
-import net.liftweb.http.LiftRules
-import net.liftweb.http.S
-import net.liftweb.util.Helpers._
-import scala.xml.Text
-import net.liftweb.sitemap.MenuItem
-import net.liftweb.common.Full
-import net.liftweb.sitemap.Loc
-import net.enilink.platform.lift.sitemap.Application
-import net.liftweb.builtin.snippet.Msg
+import net.enilink.platform.lift.sitemap.{Application, HideIfInactive}
 import net.enilink.platform.lift.util.Globals
-import net.enilink.platform.lift.sitemap.HideIfInactive
-import net.enilink.platform.lift.sitemap.Application
+import net.liftweb.builtin.snippet.Msg
+import net.liftweb.common.Full
+import net.liftweb.http.{DispatchSnippet, LiftRules, S}
+import net.liftweb.sitemap.{Loc, MenuItem}
+import net.liftweb.util.Helpers._
+
+import scala.xml.{MetaData, NodeSeq}
 
 object Bs extends DispatchSnippet {
-  val alertAttrs = S.mapToAttrs(List("errorClass" -> "alert alert-danger",
+  val alertAttrs: MetaData = S.mapToAttrs(List("errorClass" -> "alert alert-danger",
     "warningClass" -> "alert", "noticeClass" -> "alert-info").toMap)
-  val feedbackAttrs = S.mapToAttrs(List("errorClass",
+  val feedbackAttrs: MetaData = S.mapToAttrs(List("errorClass",
     "warningClass", "noticeClass").map(_ -> "form-control-feedback").toMap)
 
   def dispatch: DispatchIt = {
@@ -35,23 +30,22 @@ object Bs extends DispatchSnippet {
   private def menuEntries(submenu: Boolean) = {
     val result =
       (for {
-        sm <- LiftRules.siteMap;
-        req <- S.request;
+        sm <- LiftRules.siteMap
+        req <- S.request
         path = req.location match {
           case Full(loc) => loc.breadCrumbs
           case _ => Nil
-        };
-        app = Globals.application.vend getOrElse null
+        }
+        app = Globals.application.vend.orNull
       } yield {
         val entries = path.reverse match {
-          case current :: parent :: xs => {
+          case current :: parent :: xs =>
             if (submenu) {
               if (isApplication(parent)) current.menu.kids else parent.menu.kids
             } else xs match {
               case elem :: _ => elem.menu.kids
               case _ => sm.kids
             }
-          }
           case _ :: Nil | Nil => if (submenu) Nil else sm.kids
         }
 
@@ -112,8 +106,8 @@ object Bs extends DispatchSnippet {
     }
     val items = menuEntries(false)
     def pullRight(item: MenuItem) = item.cssClass.exists(_ == "pull-right")
-    <ul class="nav navbar-nav"> { for (item <- items.filterNot(pullRight(_))) yield renderItem(item) } </ul>
-    <ul class="nav navbar-nav pull-right"> { for (item <- items.filter(pullRight(_))) yield renderItem(item) } </ul>
+    <ul class="nav navbar-nav"> { for (item <- items.filterNot(pullRight)) yield renderItem(item) } </ul>
+    <ul class="nav navbar-nav pull-right"> { for (item <- items.filter(pullRight)) yield renderItem(item) } </ul>
   }
 
   def submenu(ns: NodeSeq): NodeSeq = {
@@ -125,7 +119,7 @@ object Bs extends DispatchSnippet {
           if (kid.current || kid.path) styles += " active"
           <li class={ styles }><a href={ kid.uri }>{ kid.text }</a></li>
         }
-      }) apply (ns)
+      }) apply ns
     }
   }
 }

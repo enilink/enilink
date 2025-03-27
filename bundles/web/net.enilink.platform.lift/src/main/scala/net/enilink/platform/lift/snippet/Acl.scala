@@ -11,8 +11,8 @@ import net.liftweb.util.Helpers
  */
 object Acl {
   def render(ns: NodeSeq): NodeSeq = {
-    var bindingVar = (ns \ "@data-for").text
-    if (!bindingVar.isEmpty) {
+    val bindingVar = (ns \ "@data-for").text
+    if (bindingVar.nonEmpty) {
       val agentVar = "?" + Helpers.nextFuncName
       <span prefix={ "acl: " + WEBACL.NAMESPACE + " rdf: " + RDF.NAMESPACE } class="clearable">
         <span class="exists union" data-filter="bound(?currentUser)">

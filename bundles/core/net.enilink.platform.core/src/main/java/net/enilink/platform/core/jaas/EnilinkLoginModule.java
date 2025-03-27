@@ -44,7 +44,7 @@ import java.util.regex.Pattern;
  *     mode="standalone";
  * };</pre></code></blockquote>
  * <p>
- * Example for stacked mode with {@link UserMapLoginModule}, auto-register and
+ * Example for stacked mode with {@link net.enilink.platform.security.modules.UserMapLoginModule}, auto-register and
  * empty principal filter <blockquote><code><pre>
  * eniLINK {
  *   org.eclipse.equinox.security.auth.module.ExtensionLoginModule required

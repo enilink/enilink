@@ -14,7 +14,7 @@ import net.liftweb.http.LiftRules
 import net.liftweb.util.ClassHelpers
 
 class LiftBundleTracker(context: BundleContext) extends BundleTracker[LiftBundleConfig](context, Bundle.INSTALLED | Bundle.RESOLVED | Bundle.STARTING | Bundle.ACTIVE, null) with Loggable {
-  override def addingBundle(bundle: Bundle, event: BundleEvent) = {
+  override def addingBundle(bundle: Bundle, event: BundleEvent): LiftBundleConfig = {
     val headers = bundle.getHeaders
     val siteMapStr = Box.legacyNullTest(headers.get("Lift-SiteMap"))
     val moduleStr = Box.legacyNullTest(headers.get("Lift-Module"))
@@ -27,7 +27,7 @@ class LiftBundleTracker(context: BundleContext) extends BundleTracker[LiftBundle
         val module = moduleStr.filter(_.trim.nonEmpty).flatMap { m =>
           try {
             val clazz = bundle loadClass m
-            Full(clazz.newInstance.asInstanceOf[AnyRef])
+            Full(clazz.getDeclaredConstructor().newInstance().asInstanceOf[AnyRef])
           } catch {
             case cnfe: ClassNotFoundException =>
               logger.error("Lift-Module class " + m + " of bundle " + bundle.getSymbolicName + " could not be loaded.")
@@ -47,8 +47,8 @@ class LiftBundleTracker(context: BundleContext) extends BundleTracker[LiftBundle
         if (context.getBundle(0).getState != Bundle.STOPPING) {
           // this is required if the module made changes to LiftRules or another global object
           // close the tracker immediately
-          this.close
-          LiftBootHelper.rebootLift
+          this.close()
+          LiftBootHelper.rebootLift()
         }
         null
       }
@@ -71,8 +71,8 @@ class LiftBundleTracker(context: BundleContext) extends BundleTracker[LiftBundle
     if (context.getBundle(0).getState != Bundle.STOPPING) {
       // this is required if the module made changes to LiftRules or another global object
       // close the tracker immediately
-      this.close
-      LiftBootHelper.rebootLift
+      this.close()
+      LiftBootHelper.rebootLift()
     }
   }
 

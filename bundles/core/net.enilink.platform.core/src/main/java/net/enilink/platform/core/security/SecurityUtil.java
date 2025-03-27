@@ -146,7 +146,7 @@ public class SecurityUtil {
 	 * @param em
 	 *            The entity manager that contains the data about the current
 	 *            user
-	 * @param role
+	 * @param type
 	 *            The type that should be looked up
 	 * 
 	 * @return <code>true</code> if the current user has the given
@@ -163,7 +163,7 @@ public class SecurityUtil {
 	 * @param em
 	 *            The entity manager that contains the data about the current
 	 *            user
-	 * @param role
+	 * @param group
 	 *            The group that should be looked up
 	 * 
 	 * @return <code>true</code> if the current user is member of the given

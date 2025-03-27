@@ -1,8 +1,7 @@
 package net.enilink.platform.lift
 
 import java.security.PrivilegedAction
-import java.util.Collections
-
+import java.util.{Collections, Locale}
 import javax.security.auth.Subject
 import net.enilink.komma.core.URIs
 import net.enilink.komma.model.ModelUtil
@@ -21,15 +20,16 @@ import org.osgi.framework.{Bundle, BundleContext, ServiceRegistration}
 import org.osgi.service.component.annotations.{Activate, Component, Deactivate}
 import org.slf4j.LoggerFactory
 
+import java.util
 import scala.jdk.CollectionConverters._
 
 @Component(service = Array(classOf[LiftLifecycleManager]))
 class LiftLifecycleManager extends Loggable {
-	private var context: BundleContext = null
+	private var context: BundleContext = _
 
 	private val log = LoggerFactory.getLogger(classOf[LiftLifecycleManager])
 
-	private var bundleTracker: LiftBundleTracker = null
+	private var bundleTracker: LiftBundleTracker = _
 
 	private var contextServiceReg: ServiceRegistration[_] = _
 
@@ -56,7 +56,7 @@ class LiftLifecycleManager extends Loggable {
 			} catch {
 				case e: java.lang.Exception => logger.warn("Lift-powered bundle " + bundle.getSymbolicName + " has invalid sitemap.", e)
 			} finally {
-				if (in != null) in.close
+				if (in != null) in.close()
 			}
 		}
 
@@ -64,13 +64,12 @@ class LiftLifecycleManager extends Loggable {
 		if (models.nonEmpty) {
 			Globals.contextModelSet.vend map { ms =>
 				try {
-					ms.getUnitOfWork.begin
+					ms.getUnitOfWork.begin()
 					models foreach { modelSpec =>
 						val location = modelSpec.location.flatMap {
-							case l if l.isRelative => {
+							case l if l.isRelative =>
 								// resolve relative URIs against bundle
 								Option(bundle.getResource(l.toString)).map(url => URIs.createURI(url.toString))
-							}
 							case other => Some(other)
 						}
 						val uri = modelSpec.uri orElse {
@@ -88,12 +87,12 @@ class LiftLifecycleManager extends Loggable {
 							for (l <- location if modelUri != l) {
 								ms.getURIConverter.getURIMapRules.addRule(new SimpleURIMapRule(modelUri.toString, l.toString))
 							}
-							log.info("Creating model <{}>", modelUri);
+							log.info("Creating model <{}>", modelUri)
 							ms.createModel(modelUri)
 						}
 					}
 				} finally {
-					ms.getUnitOfWork.end
+					ms.getUnitOfWork.end()
 				}
 			}
 		}
@@ -127,13 +126,13 @@ class LiftLifecycleManager extends Loggable {
 		}
 	}
 
-	def bundles = if (bundleTracker == null) {
+	def bundles: util.Map[Bundle, LiftBundleConfig] = if (bundleTracker == null) {
 		java.util.Collections.emptyMap[Bundle, LiftBundleConfig]
 	} else {
 		bundleTracker.getTracked
 	}
 
-	def initialize : Unit = {
+	def initialize() : Unit = {
 		val bundlesToStart = context.getBundles filter { bundle =>
 			val headers = bundle.getHeaders
 			val moduleStr = Box.legacyNullTest(headers.get("Lift-Module"))
@@ -150,7 +149,7 @@ class LiftLifecycleManager extends Loggable {
 		}
 
 		bundleTracker = new LiftBundleTracker(context)
-		bundleTracker.open
+		bundleTracker.open()
 
 		// allow duplicate link names
 		SiteMap.enforceUniqueLinks = false
@@ -193,20 +192,20 @@ class LiftLifecycleManager extends Loggable {
 		contextServiceReg = context.registerService(
 			classOf[IContextProvider],
 			new IContextProvider {
-				val session = new ISession {
-					def getAttribute(name: String) = S.session.flatMap(_.httpSession.map(_.attribute(name).asInstanceOf[AnyRef])) openOr null
+				val session: ISession = new ISession {
+					def getAttribute(name: String): AnyRef = S.session.flatMap(_.httpSession.map(_.attribute(name).asInstanceOf[AnyRef])) openOr null
 
-					def setAttribute(name: String, value: AnyRef) = S.session.foreach(_.httpSession.foreach(_.setAttribute(name, value)))
+					def setAttribute(name: String, value: AnyRef): Unit = S.session.foreach(_.httpSession.foreach(_.setAttribute(name, value)))
 
-					def removeAttribute(name: String) = S.session.foreach(_.httpSession.foreach(_.removeAttribute(name)))
+					def removeAttribute(name: String): Unit = S.session.foreach(_.httpSession.foreach(_.removeAttribute(name)))
 				}
-				val context = new IContext {
-					def getSession = session
+				val context: IContext = new IContext {
+					def getSession: ISession = session
 
-					def getLocale = S.locale
+					def getLocale: Locale = S.locale
 				}
 
-				def get = S.session.flatMap(_.httpSession.map(_ => context)) getOrElse null
+				def get: IContext = S.session.flatMap(_.httpSession.map(_ => context)).orNull
 			}, null)
 	}
 
@@ -218,14 +217,14 @@ class LiftLifecycleManager extends Loggable {
 	@Deactivate
 	def stop(context: BundleContext) : Unit = {
 		if (bundleTracker != null) {
-			bundleTracker.close
+			bundleTracker.close()
 			bundleTracker = null
 		}
 		// shutdown configuration
 		Globals.close
 
 		if (contextServiceReg != null) {
-			contextServiceReg.unregister
+			contextServiceReg.unregister()
 			contextServiceReg = null
 		}
 	}

@@ -34,13 +34,13 @@ import scala.xml.NodeSeq.seqToNodeSeq
  *
  */
 class Tree {
-  def nonempty(e: xml.Elem, name: String) = e.attribute(name) map (_.text.trim) filter (_.nonEmpty)
+  def nonempty(e: xml.Elem, name: String): Option[String] = e.attribute(name) map (_.text.trim) filter (_.nonEmpty)
 
-  def hasCssClass(e: xml.Elem, pattern: String) = nonempty(e, "class") exists { ("(?:^|\\s)" + pattern).r.findFirstIn(_).isDefined }
+  def hasCssClass(e: xml.Elem, pattern: String): Boolean = nonempty(e, "class") exists { ("(?:^|\\s)" + pattern).r.findFirstIn(_).isDefined }
 
-  def id(n: xml.Node) = {
-    val about = (n \ "@about")
-    (if (about.isEmpty) (n \ "@resource") else about).text
+  def id(n: xml.Node): String = {
+    val about = n \ "@about"
+    (if (about.isEmpty) n \ "@resource" else about).text
   }
 
   def children(parent: xml.Node): Seq[xml.Node] = parent.child.flatMap {
@@ -64,10 +64,9 @@ class Tree {
       var placed = mutable.Set.empty[String]
       def createTree(parent: xml.Node): xml.Node = parent match {
         case e: xml.Elem => e.copy(child = parent.child.map {
-          case childTemplate: xml.Elem if hasCssClass(childTemplate, "child") => {
+          case childTemplate: xml.Elem if hasCssClass(childTemplate, "child") =>
             val childIri = id(childTemplate)
-            resource2Node.get(childIri).filter(_ => placed.add(childIri)).map(createTree(_)) getOrElse childTemplate
-          }
+            resource2Node.get(childIri).filter(_ => placed.add(childIri)).map(createTree) getOrElse childTemplate
           case other => createTree(other)
         })
         case other => other

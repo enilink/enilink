@@ -1,11 +1,8 @@
 package net.enilink.platform.lift.util
 
 import net.liftweb.http.S
-import net.liftweb.http.js.JsCommands
-import net.liftweb.http.LiftRules
-import net.liftweb.http.js.JE.JsRaw
-import net.liftweb.http.js.JsCmd
 import net.liftweb.http.js.JsCmds._
+
 import scala.xml.NodeSeq
 
 object Fields {

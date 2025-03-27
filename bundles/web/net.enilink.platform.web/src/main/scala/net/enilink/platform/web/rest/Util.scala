@@ -1,6 +1,7 @@
 package net.enilink.platform.web.rest
 
 import net.enilink.komma.core.{URI, URIs}
+import net.enilink.komma.model.IModel
 import net.enilink.platform.lift.util.Globals
 import net.liftweb.common.{Box, Empty, Full}
 import net.liftweb.http.{ContentType, Req}
@@ -26,13 +27,13 @@ object Util {
     }(_.getURI)
   }
 
-  def getModel(modelUri: URI) = Globals.contextModelSet.vend flatMap { modelSet =>
+  def getModel(modelUri: URI): Box[IModel] = Globals.contextModelSet.vend flatMap { modelSet =>
     Box.legacyNullTest(modelSet.getModel(modelUri, false)) or {
       if (modelUri.fileExtension != null) Box.legacyNullTest(modelSet.getModel(modelUri.trimFileExtension, false)) else Empty
     }
   }
 
-  def getOrCreateModel(modelUri: URI) = getModel(modelUri) or {
+  def getOrCreateModel(modelUri: URI): Box[IModel] = getModel(modelUri) or {
     Globals.contextModelSet.vend map { _.createModel(modelUri.trimFileExtension) }
   }
 

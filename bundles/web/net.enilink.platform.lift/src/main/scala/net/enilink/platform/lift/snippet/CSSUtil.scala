@@ -1,11 +1,9 @@
 package net.enilink.platform.lift.snippet
 
-import scala.xml.NodeSeq
-import net.liftweb.http.DispatchSnippet
-import net.liftweb.http.LiftRules
-import scala.xml.Unparsed
-import net.liftweb.http.S
 import net.enilink.platform.lift.util.Globals
+import net.liftweb.http.LiftRules
+
+import scala.xml.NodeSeq
 
 /**
  * Display Bootstrap CSS headers

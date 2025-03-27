@@ -33,7 +33,7 @@ import net.liftweb.sitemap.SiteMap
  * Helper functions for application menus in enilink.
  */
 object Menus {
-  val ENILINK_APPLICATION = Application("enilink", "" :: Nil)
+  val ENILINK_APPLICATION: Application = Application("enilink", "" :: Nil)
 
   def application(name: String, path: List[String], submenus: List[ConvertableToMenu] = Nil): Menu = application(name, path, Nil, submenus)
 
@@ -52,9 +52,9 @@ object Menus {
     mPath.tail.foldLeft(m / mPath.head)(_ / _)
   }
 
-  def userMenus(implicit app: String) = {
+  def userMenus(implicit app: String): List[Menuable] = {
     def profileText = Globals.contextUser.vend.getURI.localPart
-    def logout : Unit = {
+    def logout() : Unit = {
       // call the registered logout functions
       Globals.logoutFuncs.vend.foreach(_())
       S.session.map(_.httpSession.map(_.removeAttribute("javax.security.auth.subject")))
@@ -64,10 +64,10 @@ object Menus {
     List(appMenu("Login", S ? "Login", "login" :: Nil) >> Right >> If(() => !S.loggedIn_?, RedirectResponse("/")),
       appMenu("SignUp", S ? "Sign up", "register" :: Nil) >> Right >> Hidden,
       appMenu("Profile", profileText, "profile" :: Nil) >> Right >> If(() => S.loggedIn_?, S.?("must.be.logged.in")) submenus
-        (appMenu("Logout", S ? "Logout", "logout" :: Nil) >> EarlyResponse(() => { logout; Full(RedirectResponse(calcHref("/"))) }))) //
+        (appMenu("Logout", S ? "Logout", "logout" :: Nil) >> EarlyResponse(() => { logout(); Full(RedirectResponse(calcHref("/"))) }))) //
   }
 
-  def calcHref(path: String) = Globals.applicationPath.vend ++ path.stripPrefix("/")
+  def calcHref(path: String): String = Globals.applicationPath.vend ++ path.stripPrefix("/")
 
   def globalMenus(name: String, linkText: Loc.LinkText[Application], path: List[String], params: LocParam[Application]*): List[Menu] = {
     List(
@@ -77,7 +77,7 @@ object Menus {
           case Full(app: Application) => Full(app)
           case _ => Empty
         })
-      }, app => app.path.mkString("/"), * :: path.map(LocPath.stringToLocPath(_)), false, params.toList, Nil).toMenu,
+      }, app => app.path.mkString("/"), * :: path.map(LocPath.stringToLocPath), false, params.toList, Nil).toMenu,
       // the menu for the enilink application
       Menu(DataLoc("enilink." + name, new Link(path), linkText, Full(ENILINK_APPLICATION), params: _*)))
   }

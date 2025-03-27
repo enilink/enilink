@@ -11,7 +11,7 @@ class RdfaUtils {
   /**
    * Supports data-orderby attribute for automatic link created to enable users to change the variables and direction for sorting.
    */
-  def orderby(ns: NodeSeq) = {
+  def orderby(ns: NodeSeq): NodeSeq = {
     val currentOrderBy = S.param("orderby") map { v =>
       v.split("\\s*!\\s*") match {
         case Array(key, direction @ ("asc" | "desc")) => (key, direction)

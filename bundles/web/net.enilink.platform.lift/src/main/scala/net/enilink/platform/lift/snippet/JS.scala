@@ -1,35 +1,16 @@
 package net.enilink.platform.lift.snippet
 
-import scala.xml.NodeSeq
-import net.liftweb.http.DispatchSnippet
-import net.liftweb.http.LiftRules
-
-import scala.xml.Unparsed
-import net.liftweb.http.S
-import net.liftweb.http.js._
-import net.liftweb.http.js.JsCmds._
-import net.liftweb.http.js.JE._
-import net.liftweb.http.SHtml
-import net.liftweb.http.AjaxContext
+import net.enilink.platform.lift.util.{AjaxHelpers, Globals}
 import net.liftweb.common.{Box, Empty, Full}
-
-import scala.xml.Group
-import net.liftweb.http.JsonResponse
-import net.liftweb.http.js.jquery.JqJE
-import net.liftweb.http.JavaScriptResponse
-import net.liftweb.json._
-
-import scala.xml.Elem
-import net.liftweb.http.NotFoundResponse
-import java.io.ByteArrayInputStream
-
-import net.liftweb.common.Full
-import net.enilink.platform.lift.util.AjaxHelpers
-import net.liftweb.json.DefaultFormats
+import net.liftweb.http.{AjaxContext, DispatchSnippet, LiftRules, Req, S}
+import net.liftweb.http.js.JE._
+import net.liftweb.http.js.JsCmds._
+import net.liftweb.http.js._
 import net.liftweb.json._
 import net.liftweb.util.JsonCommand
-import net.enilink.platform.lift.util.Globals
-import net.liftweb.http.Req
+
+import java.io.ByteArrayInputStream
+import scala.xml.{Elem, Group, NodeSeq}
 
 case class RenderInput(what: Option[String], template: Option[String], bind: Option[JObject], rdfa : Option[Boolean])
 
@@ -56,7 +37,7 @@ object JS extends DispatchSnippet with SparqlHelper {
 
   def rdfa: NodeSeq = script("/" + LiftRules.resourceServerPath + "/rdfa/jquery.rdfquery.rdfa.js")
 
-  implicit val formats = DefaultFormats
+  implicit val formats: DefaultFormats.type = DefaultFormats
   def ajax: PartialFunction[JValue, Any] = {
     case JsonCommand("render", _, params) =>
       val result = for (
@@ -70,38 +51,36 @@ object JS extends DispatchSnippet with SparqlHelper {
         }
 
         val isXml = what.exists("\\s*<".r.findPrefixMatchOf(_).isDefined)
-        lazy val parsePath = what.map(Req.parsePath(_)) orElse S.originalRequest.map(_.path)
+        lazy val parsePath = what.map(Req.parsePath) orElse S.originalRequest.map(_.path)
         (what match {
           case Some(xml) if isXml =>
-            S.htmlProperties.htmlParser(new ByteArrayInputStream(xml.getBytes("UTF-8"))) flatMap (renderWithParams(_))
+            S.htmlProperties.htmlParser(new ByteArrayInputStream(xml.getBytes("UTF-8"))) flatMap renderWithParams
           case other => parsePath map { path =>
             val pathList = path.partPath
             withAppFor(pathList) {
               // rdfa processing is enabled by default and can be explicitly disabled
-              val useRdfaProcessing = useRdfa.isEmpty || useRdfa.exists(_ == true)
+              val useRdfaProcessing = useRdfa.isEmpty || useRdfa.contains(true)
               var wrapped = false
               find(pathList, templateName) map { ns =>
                 // wrap with data-lift="rdfa" for RDFa processing
                 if (useRdfaProcessing && templateName.isDefined && Globals.contextModel.vend.isDefined) ns match {
-                  case e: Elem if !e.attribute("data-lift").exists(_.text.matches("^rdfa\\??")) => {
+                  case e: Elem if !e.attribute("data-lift").exists(_.text.matches("^rdfa\\??")) =>
                     wrapped = true
                     <div data-lift="rdfa">
                       {ns}
                     </div>
-                  }
                   case other => other
                 } else ns
-              } flatMap (renderWithParams(_)) map {
-                case (ns, js) if wrapped => {
+              } flatMap renderWithParams map {
+                case (ns, js) if wrapped =>
                   // remove rdfa wrapper
                   (ns \ "_", js)
-                }
                 case other => other
               }
             }
           } getOrElse Empty
         }) map {
-          case (ns, script) => {
+          case (ns, script) =>
             import net.liftweb.util.Helpers._
             // annotate result with template path for later invocations of render
             val nsWithPath = ns map {
@@ -110,15 +89,14 @@ object JS extends DispatchSnippet with SparqlHelper {
             }
             val w = new java.io.StringWriter
             S.htmlProperties.htmlWriter(Group(nsWithPath), w)
-            List(JObject(List(JField("html", JString(w.toString))))) ++ script.map(JsCmds.Run(_))
-          }
+            List(JObject(List(JField("html", JString(w.toString))))) ++ script.map(JsCmds.Run)
         } openOr JObject(Nil)
       }
       result getOrElse JObject(Nil)
   }
 
   def templates: NodeSeq = {
-    val (call, jsCmd) = S.functionLifespan(true) {
+    val (call, jsCmd) = S.functionLifespan(span = true) {
       AjaxHelpers.createJsonFunc(getClass.getName, AjaxContext.json(Full("""function(response) {
 var result = response.result;
 if (result === undefined || result.html === undefined) {

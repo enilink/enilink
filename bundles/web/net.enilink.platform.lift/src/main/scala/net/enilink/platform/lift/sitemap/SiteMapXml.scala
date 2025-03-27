@@ -1,18 +1,13 @@
 package net.enilink.platform.lift.sitemap
 
-import java.io.InputStream
-
-import scala.xml.{Elem, MetaData, Node, Text, XML}
-import scala.collection.mutable.ListBuffer
-import net.liftweb.sitemap.Loc
-import net.liftweb.sitemap.Loc.{EarlyResponse, Hidden, Link, LocParam, QueryParameters, UseParentParams}
-import net.liftweb.sitemap.Menu
-import net.liftweb.sitemap.Menu.Menuable
-import net.liftweb.sitemap.ConvertableToMenu
-import net.enilink.komma.core.URI
-import net.enilink.komma.core.URIs
+import net.enilink.komma.core.{URI, URIs}
 import net.liftweb.common.{Box, Empty, Full}
 import net.liftweb.http.{RedirectResponse, Req}
+import net.liftweb.sitemap.Loc.{EarlyResponse, Hidden, Link, LocParam, QueryParameters, UseParentParams}
+import net.liftweb.sitemap.{ConvertableToMenu, Loc, Menu}
+
+import java.io.InputStream
+import scala.xml.{MetaData, Node, Text, XML}
 
 case class ModelSpec(uri: Option[URI], location: Option[URI])
 
@@ -24,9 +19,9 @@ class SiteMapXml {
   protected var modelList: List[ModelSpec] = Nil
   protected var modelRules: Map[List[String], URI] = Map.empty
 
-  def menus = menuList
+  def menus: List[Menu] = menuList
 
-  def models = modelList
+  def models: List[ModelSpec] = modelList
 
   def contextModelRules : Box[PartialFunction[Req, Box[URI]]] = if (modelRules.isEmpty) Empty else {
     Full(new PartialFunction[Req, Box[URI]] {
@@ -47,7 +42,7 @@ class SiteMapXml {
   def parse(in: InputStream) : Unit = {
     val xml = XML.load(in)
     menuList = xml match {
-      case sm @ <sitemap>{ _* }</sitemap> => {
+      case sm @ <sitemap>{ _* }</sitemap> =>
         val app = sm \@ "app"
         parseModelRule(app :: Nil, sm)
 
@@ -64,7 +59,6 @@ class SiteMapXml {
           Full(RedirectResponse(s"/$app/"))
         })
         redirect :: Menus.application(app, app :: Nil, parseLocParams(sm.attributes), submenus) :: Nil
-      }
       case other => throw new IllegalArgumentException("Invalid sitemap element: " + other.label)
     }
   }
@@ -72,7 +66,7 @@ class SiteMapXml {
   protected def parseLocParams[T](attributes: MetaData): List[LocParam[T]] = {
     attributes.toList.map(attr => (attr.key, attr.value)).collect {
       case ("hideIfInactive", _) => HideIfInactive
-      case ("queryParameters", Seq(Text(v), _*)) => {
+      case ("queryParameters", Seq(Text(v), _*)) =>
         val params = v.split('&').map(keyValue => {
           keyValue.split('=') match {
               // keyValue may contain multiple equal signs
@@ -80,7 +74,6 @@ class SiteMapXml {
           }
         }).toList
         QueryParameters(() => params)
-      }
       case ("useParentParams", _) => UseParentParams()
       case ("hidden", _) => Loc.Hidden
     }
@@ -88,12 +81,12 @@ class SiteMapXml {
 
   protected def parseModelSpec(model: Node): ModelSpec = {
     ModelSpec(
-      Option(model \@ "uri").filter(_.nonEmpty).map(URIs.createURI(_)),
-      Option(model \@ "location").filter(_.nonEmpty).map(URIs.createURI(_)))
+      Option(model \@ "uri").filter(_.nonEmpty).map(URIs.createURI),
+      Option(model \@ "location").filter(_.nonEmpty).map(URIs.createURI))
   }
 
   protected def parseModelRule(path : List[String], loc: Node) : Unit = {
-    (loc \@ "model") match {
+    loc \@ "model" match {
       case m if m.nonEmpty => (try {
         Option(URIs.createURI(m)).filter(! _.isRelative)
       } catch {
@@ -106,15 +99,15 @@ class SiteMapXml {
   }
 
   protected def parseLocation(app: String, loc: Node): ConvertableToMenu = {
-    val text = (loc \@ "text")
-    val name = (loc \@ "name") match {
+    val text = loc \@ "text"
+    val name = loc \@ "name" match {
       case n if n.nonEmpty => n
       case _ => text
     }
     val path = (loc \@ "path").split("/").toList match {
       // strippedPath may not be empty
-      case "" :: (strippedPath @ (_ :: _)) => strippedPath
-      case p if (app.isEmpty) => p
+      case "" :: (strippedPath @ _ :: _) => strippedPath
+      case p if app.isEmpty => p
       case p => app :: p
     }
 
@@ -127,7 +120,7 @@ class SiteMapXml {
     Menu(
       Loc(
         if (app.nonEmpty) app + "." + name else name,
-        new Link(path, loc.attributes.find(_.key == "matchHead").isDefined),
+        new Link(path, loc.attributes.exists(_.key == "matchHead")),
         text, params),
       submenus: _*)
   }

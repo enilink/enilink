@@ -63,7 +63,7 @@ trait Html5ParserWithRDFaPrefixes extends RDFaUtils {
         override def captureText(): Unit = {
           if (capture) {
             val text = buffer.toString()
-            if (text.length() > 0) {
+            if (text.nonEmpty) {
               hStack.push(createText(text))
             }
           }
@@ -95,37 +95,34 @@ trait Html5ParserWithRDFaPrefixes extends RDFaUtils {
   private object AutoInsertedBody {
     def checkHead(n: Node): Boolean =
       n match {
-        case e: Elem => {
+        case e: Elem =>
           e.label == "head" && e.prefix == null &&
             e.attributes == Null &&
-            e.child.length == 0
-        }
+            e.child.isEmpty
         case _ => false
       }
 
     def checkBody(n: Node): Boolean =
       n match {
-        case e: Elem => {
+        case e: Elem =>
           e.label == "body" && e.prefix == null &&
             e.attributes == Null &&
-            e.child.length >= 1 &&
-            e.child(0).isInstanceOf[Elem]
-        }
+            e.child.nonEmpty &&
+            e.child.head.isInstanceOf[Elem]
         case _ => false
       }
 
     def unapply(n: Node): Option[Elem] = n match {
-      case e: Elem => {
+      case e: Elem =>
         if (e.label == "html" && e.prefix == null &&
           e.attributes == Null &&
           e.child.length == 2 &&
-          checkHead(e.child(0)) &&
+          checkHead(e.child.head) &&
           checkBody(e.child(1))) {
-          Some(e.child(1).asInstanceOf[Elem].child(0).asInstanceOf[Elem])
+          Some(e.child(1).asInstanceOf[Elem].child.head.asInstanceOf[Elem])
         } else {
           None
         }
-      }
 
       case _ => None
     }

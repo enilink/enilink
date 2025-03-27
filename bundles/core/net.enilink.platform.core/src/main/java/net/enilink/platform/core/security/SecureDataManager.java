@@ -180,10 +180,10 @@ public class SecureDataManager extends DelegatingDataManager {
 		}
 
 		/**
-		 * Enqueues a statement that is blocked on its subject.
+		 * Enqueues an operation that is blocked on its subject.
 		 * 
-		 * @param stmt
-		 *            The statement
+		 * @param op
+		 *            The operation
 		 */
 		void block(Op op) {
 			IReference s = op.stmt.getSubject();

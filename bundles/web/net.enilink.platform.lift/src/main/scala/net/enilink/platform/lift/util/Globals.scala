@@ -1,11 +1,9 @@
 package net.enilink.platform.lift.util
 
 import java.nio.file.Paths
-
 import org.eclipse.core.runtime.Platform
 import org.osgi.framework.FrameworkUtil
 import org.osgi.util.tracker.ServiceTracker
-
 import net.enilink.platform.core.Config
 import net.enilink.platform.core.PluginConfigModel
 import net.enilink.platform.core.blobs.FileStore
@@ -26,6 +24,8 @@ import net.liftweb.http.Req
 import net.liftweb.http.S
 import net.liftweb.util.Helpers
 
+import java.util.Date
+
 /**
  * A registry for global variables which are shared throughout the application.
  */
@@ -38,35 +38,35 @@ object Globals extends Factory {
   private val modelSetTracker = osgiBundle.map(bundle => new ServiceTracker[IModelSet, IModelSet](bundle.getBundleContext, classOf[IModelSet], null))
   modelSetTracker.foreach(_.open)
 
-  implicit val config = new FactoryMaker(() => Empty: Box[Config]) {}
+  implicit val config: Globals.FactoryMaker[Box[Config]] = new FactoryMaker(() => Empty: Box[Config]) {}
   configTracker.foreach { tracker => config.default.set(() => Box.legacyNullTest(tracker.getService)) }
 
   /**
    * Run a function with the plugin configuration of this function's OSGi bundle.
    */
-  def withPluginConfig[T](f: (PluginConfigModel) => T): Unit = {
+  def withPluginConfig[T](f: PluginConfigModel => T): Unit = {
     val ctx = FrameworkUtil.getBundle(f.getClass).getBundleContext
     val serviceRef = ctx.getServiceReference(classOf[PluginConfigModel])
     val cfgService = ctx.getService(serviceRef)
     try {
-      cfgService.begin
+      cfgService.begin()
       f(cfgService)
     } finally {
-      cfgService.end
+      cfgService.end()
       ctx.ungetService(serviceRef)
     }
   }
 
-  implicit val time = new FactoryMaker(() => Helpers.now) {}
+  implicit val time: Globals.FactoryMaker[Date] = new FactoryMaker(() => Helpers.now) {}
 
-  implicit val application = new FactoryMaker(() => Empty: Box[Application]) {}
+  implicit val application: Globals.FactoryMaker[Box[Application]] = new FactoryMaker(() => Empty: Box[Application]) {}
   application.default.set(() => {
     for (
       loc <- S.location or {
         S.request match {
           // support URLs like /classpath/[app]/bootstrap.css
-          case Full(r @ Req(mainPath :: app :: "bootstrap" :: _, _, _)) if (mainPath == LiftRules.resourceServerPath) =>
-            LiftRules.siteMap.flatMap(_.findLoc(r.withNewPath(ParsePath(List(app), "", true, true))))
+          case Full(r @ Req(mainPath :: app :: "bootstrap" :: _, _, _)) if mainPath == LiftRules.resourceServerPath =>
+            LiftRules.siteMap.flatMap(_.findLoc(r.withNewPath(ParsePath(List(app), "", absolute = true, endSlash = true))))
           case _ => Empty
         }
       };
@@ -81,7 +81,7 @@ object Globals extends Factory {
     }
   })
 
-  implicit val applicationPath = new FactoryMaker(() => {
+  implicit val applicationPath: Globals.FactoryMaker[String] = new FactoryMaker(() => {
     S.getRequestHeader("VND.eniLINK.dropAppPath") match {
       // this is flagged to drop the application path, which is then at "/"
       // example: application behind proxied virtual host for that app only
@@ -94,8 +94,8 @@ object Globals extends Factory {
     }
   }) {}
 
-  val contextModelSetRules = LiftRules.RulesSeq[PartialFunction[Req, Box[IModelSet]]]
-  implicit val contextModelSet = new FactoryMaker(() => Empty: Box[IModelSet]) {}
+  val contextModelSetRules: LiftRules#RulesSeq[PartialFunction[Req, Box[IModelSet]]] = LiftRules.RulesSeq[PartialFunction[Req, Box[IModelSet]]]
+  implicit val contextModelSet: Globals.FactoryMaker[Box[IModelSet]] = new FactoryMaker(() => Empty: Box[IModelSet]) {}
   contextModelSet.default.set(() => {
     S.request.flatMap(req => contextModelSetRules.toList.find(_.isDefinedAt(req)) match {
       case Some(f) => f(req)
@@ -110,23 +110,23 @@ object Globals extends Factory {
     }
   })
 
-  val contextModelRules = LiftRules.RulesSeq[PartialFunction[Req, Box[URI]]]
-  implicit val contextModel = new FactoryMaker(() => Empty: Box[IModel]) {}
+  val contextModelRules: LiftRules#RulesSeq[PartialFunction[Req, Box[URI]]] = LiftRules.RulesSeq[PartialFunction[Req, Box[URI]]]
+  implicit val contextModel: Globals.FactoryMaker[Box[IModel]] = new FactoryMaker(() => Empty: Box[IModel]) {}
 
-  val contextResourceRules = LiftRules.RulesSeq[PartialFunction[Req, Box[IReference]]]
+  val contextResourceRules: LiftRules#RulesSeq[PartialFunction[Req, Box[IReference]]] = LiftRules.RulesSeq[PartialFunction[Req, Box[IReference]]]
 
-  implicit val contextUser = new FactoryMaker(() => UNKNOWN_USER: IReference) {}
+  implicit val contextUser: Globals.FactoryMaker[IReference] = new FactoryMaker(() => UNKNOWN_USER: IReference) {}
 
-  implicit val logoutFuncs = new FactoryMaker(() => Nil: List[() => Unit]) {}
+  implicit val logoutFuncs: Globals.FactoryMaker[List[() => Unit]] = new FactoryMaker(() => Nil: List[() => Unit]) {}
 
   implicit val UNKNOWN_USER: URI = SecurityUtil.UNKNOWN_USER
 
-  implicit val fileStore = new FactoryMaker(() => {
+  implicit val fileStore: Globals.FactoryMaker[FileStore] = new FactoryMaker(() => {
     val path = Box.legacyNullTest(System.getProperty("net.enilink.filestore.path")) map (Paths.get(_)) openOr Platform.getLocation.toFile.toPath.resolve("files")
     new FileStore(path)
   }) {}
 
-  private[lift] def close : Unit = {
+  private[lift] def close() : Unit = {
     contextModelSet.default.set(Empty)
 
     // close trackers
@@ -138,7 +138,7 @@ object Globals extends Factory {
 // extractor to test if access to context model is allowed
 object NotAllowedModel {
   def unapply(m: IModel): Option[IModel] = m.getModelSet match {
-    case sms: ISecureModelSet if (!sms.isReadableBy(m.getURI, Globals.contextUser.vend)) => Full(m)
+    case sms: ISecureModelSet if !sms.isReadableBy(m.getURI, Globals.contextUser.vend) => Full(m)
     case _ => Empty // this is not a secure model set
   }
 

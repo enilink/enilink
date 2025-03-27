@@ -28,7 +28,7 @@ object BinderHelpers {
   final val Attribute = "^(?:data-(?:clear-)?)?(.+)".r
 
   object RDFaRelAttribute {
-    def unapply(name: String) = name match {
+    def unapply(name: String): Boolean = name match {
       case Attribute("rel" | "rev" | "property") => true
       case _ => false
     }

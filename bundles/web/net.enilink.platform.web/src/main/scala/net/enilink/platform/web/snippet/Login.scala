@@ -6,13 +6,12 @@ import net.enilink.platform.lift.util.Globals
 import net.enilink.platform.security.callbacks.{RealmCallback, RedirectCallback, RegisterCallback, ResponseCallback}
 import net.liftweb.common.Box.box2Option
 import net.liftweb.common.{Box, Empty, Full}
-import net.liftweb.http.{S, SessionVar, Templates, TransientRequestVar}
 import net.liftweb.http.js.JsCmds._
 import net.liftweb.http.provider.HTTPCookie
+import net.liftweb.http.{S, SessionVar, Templates, TransientRequestVar}
 import net.liftweb.json.DefaultFormats
-import net.liftweb.json.JsonAST.RenderSettings.compact
-import net.liftweb.util.{CssSel, Helpers}
 import net.liftweb.util.Helpers._
+import net.liftweb.util.{CssSel, Helpers}
 import org.eclipse.equinox.security.auth.{ILoginContext, LoginContextFactory}
 
 import java.io.IOException
@@ -22,8 +21,8 @@ import javax.security.auth.callback._
 import javax.security.auth.login.LoginException
 import scala.collection._
 import scala.jdk.CollectionConverters._
-import scala.xml.{Elem, Node, NodeSeq}
 import scala.xml.NodeSeq.seqToNodeSeq
+import scala.xml.{Elem, Node, NodeSeq}
 
 class Login {
   class DelegatingCallbackHandler extends CallbackHandler {
@@ -69,7 +68,7 @@ class Login {
     implicit val formats: DefaultFormats.type = net.liftweb.json.DefaultFormats
     import net.liftweb.json.Extraction._
     import net.liftweb.json.JsonAST
-    def save : Unit = {
+    def save() : Unit = {
       S.addCookie(HTTPCookie("loginData", Helpers.urlEncode(JsonAST.compactRender(decompose(props.toMap)))).setMaxAge(3600 * 24 * 90 /* 3 months */ ))
     }
   }
@@ -79,7 +78,7 @@ class Login {
     val methods = LoginDataHelpers.loginMethods
     val currentMethod = param("method").orElse(props.get("method")).flatMap {
       mParam => methods.collectFirst { case m @ (_, name) if name == mParam => m }
-    } getOrElse methods(0)
+    } getOrElse methods.head
     if (!props.get("method").contains(currentMethod._2)) {
       // clear data if login method has been changed
       props.clear
@@ -88,7 +87,8 @@ class Login {
     LoginData(props, currentMethod)
   })
 
-  val SUBJECT_KEY = "javax.security.auth.subject";
+  val SUBJECT_KEY = "javax.security.auth.subject"
+
   def getSubjectFromSession: Box[Subject] = S.containerSession.flatMap(_.attribute(SUBJECT_KEY) match {
     case s: Subject => Full(s)
     case _ => Empty
@@ -97,7 +97,7 @@ class Login {
 
   def isLinkIdentity: Boolean = S.attr("mode").exists(_ == "link") && Globals.contextUser.vend != SecurityUtil.UNKNOWN_USER
 
-  def getEntityManager: IEntityManager = Globals.contextModelSet.vend.map(_.getMetaDataManager) openOrThrowException ("Unable to retrieve the model set")
+  def getEntityManager: IEntityManager = Globals.contextModelSet.vend.map(_.getMetaDataManager) openOrThrowException "Unable to retrieve the model set"
 
   /**
    * Retrieve a HTTP param from the login state or from the request
@@ -110,10 +110,10 @@ class Login {
   def value(cb: Callback, name: String, values: Map[String, Any] = Map.empty): Box[String] = (cb match {
     // automatically login user after successful registration
     case _ if !loginWithEnilink => Empty
-    case _: NameCallback => param("username").filter(_.length > 0)
-    case _: PasswordCallback => param("password").filter(_.length > 0)
+    case _: NameCallback => param("username").filter(_.nonEmpty)
+    case _: PasswordCallback => param("password").filter(_.nonEmpty)
     case _ => Empty
-  }) or (param(name).filter(_.length > 0)) or values.get(name).map(_.toString)
+  }) or param(name).filter(_.nonEmpty) or values.get(name).map(_.toString)
 
   /**
    * Creates a menu for choosing the login method (OpenID, Kerberos, etc.).
@@ -124,7 +124,7 @@ class Login {
       <ul class="nav nav-pills pull-right">
         {
           LoginDataHelpers.loginMethods.size match {
-            case s if (s > 1) =>
+            case s if s > 1 =>
               <li class="dropdown">
                 <a class="dropdown-toggle" data-toggle="dropdown" href="#">
                   { currentMethod._1 }
@@ -172,7 +172,7 @@ class Login {
     // prevent transferring password back to client
     if (cb.isInstanceOf[PasswordCallback]) vbox = Empty
     if (hide) vbox.toList.flatMap(hidden(field, _)) else {
-      val form = <label>{ prompt }</label><input id={ field } name={ field } type={ inputType } value={ vbox openOr "" } placeholder={ placeholder } class="form-control"/>;
+      val form = <label>{ prompt }</label><input id={ field } name={ field } type={ inputType } value={ vbox openOr "" } placeholder={ placeholder } class="form-control"/>
       if (cb.isInstanceOf[TextInputCallback] && prompt.toLowerCase.contains("openid")) {
         form ++= <div><a href="javascript:void(0)" onclick={
           (SetValById(field, "https://www.google.com/accounts/o8/id") & Run("$('#login-form').submit()")).toJsCmd
@@ -199,21 +199,20 @@ class Login {
       case Full(s) if !(isRegister || isLinkIdentity) => s // already logged in
       // in the process of creating an enilink account with username and password
       case _ if isRegister && loginWithEnilink && !accountCreated => null
-      case _ => {
+      case _ =>
         var redirectTo: String = null
         var requiresInput = false
 
         // use login context from session or create a new one
         val state = loginState.get match {
           case Full(state) if state.method == currentMethod._2 => state
-          case _ => {
+          case _ =>
             val state = new State
             state.referer = S.referer flatMap { r => if (r.startsWith(S.hostAndPath)) Full(r) else Empty }
             state.method = currentMethod._2
             state.context = LoginContextFactory.createContext(state.method, LoginUtil.getJaasConfigUrl, state.handler)
             loginState.set(Full(state))
             state
-          }
         }
         val loginCtx = state.context
         // update handler, since the handle method is actually a closure over some variables of this snippet instance
@@ -224,11 +223,10 @@ class Login {
             requiresInput = callbacks.zipWithIndex.foldLeft(false) {
               case (reqInput, (cb, index)) => reqInput || (
                 cb match {
-                  case (_: TextInputCallback | _: NameCallback) => {
+                  case _: TextInputCallback | _: NameCallback =>
                     val field = fieldName(index)
                     value(cb, fieldName(index)).map(loginDataVar.props.update(field, _)).isEmpty
-                  }
-                  case (_: PasswordCallback) => value(cb, fieldName(index)).isEmpty
+                  case _: PasswordCallback => value(cb, fieldName(index)).isEmpty
                   case _ => false
                 })
             }
@@ -271,12 +269,12 @@ class Login {
         }
 
         try {
-          loginCtx.login
+          loginCtx.login()
           try {
             saveSubjectToSession(loginCtx.getSubject)
             // register a logout function that calls logout() on our LoginContext
             Globals.logoutFuncs.session.set {
-              Globals.logoutFuncs.vend :+ (() => loginCtx.logout)
+              Globals.logoutFuncs.vend :+ (() => loginCtx.logout())
             }
           } finally {
             loginState.remove
@@ -286,8 +284,8 @@ class Login {
           loginCtx.getSubject
         } catch {
           case e: LoginException if requiresInput =>
-            if (redirectTo != null) { loginDataVar.save; S.redirectTo(redirectTo) }; null // user interaction required
-          case e: LoginException => {
+            if (redirectTo != null) { loginDataVar.save(); S.redirectTo(redirectTo) }; null // user interaction required
+          case e: LoginException =>
             var cause = e
             // required for Equinox security to retrieve the
             // real cause for this exception
@@ -298,9 +296,7 @@ class Login {
             form = <div class="alert alert-danger"><div><strong>Login failed</strong></div>{ cause.getMessage }</div>
             buttons = <button class="btn btn-primary" type="submit">Retry</button>
             null
-          }
         }
-      }
     }
     if (subject != null && Globals.contextUser.vend != Globals.UNKNOWN_USER) {
       if (isRegister) S.redirectTo(S.hostAndPath + "/profile")
@@ -309,7 +305,7 @@ class Login {
     } else {
       form = createMethodButtons(currentMethod) ++ form
     }
-    loginDataVar.save
+    loginDataVar.save()
     var selectors = "form [action]" #> (S.contextPath + S.uri) &
       "#fields *" #> form &
       "#buttons *" #> buttons

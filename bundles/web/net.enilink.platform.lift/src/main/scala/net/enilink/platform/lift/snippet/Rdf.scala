@@ -22,15 +22,14 @@ import scala.xml.{Elem, NodeSeq, UnprefixedAttribute}
 class Rdf extends DispatchSnippet with RDFaTemplates {
   def dispatch: DispatchIt = {
     case method => CurrentContext.value match {
-      case Full(c) => {
+      case Full(c) =>
         val target = if (S.attr("for").exists(_ == "predicate")) c.predicate else c.subject
         // target may also be null
         execMethod(target, method)
-      }
       // no current RDF context
       case _ => method match {
         // simply return template content
-        case "label" | "manchester" => ((n: NodeSeq) => n)
+        case "label" | "manchester" => (n: NodeSeq) => n
         case "model" => execMethod(null, method)
         case _ => ClearNodes
       }
@@ -49,11 +48,10 @@ class Rdf extends DispatchSnippet with RDFaTemplates {
           case n: Number => NumberFormat.getInstance(Locale.ENGLISH).format(n) // TODO use S.locale if client-side (x-editable) supports localized editing
           case t: Time => (userFormat openOr DateFormat.getTimeInstance(DateFormat.SHORT, locale)).format(t)
           case d @ (_: Date | _: java.sql.Date) => (userFormat openOr DateFormat.getDateInstance(DateFormat.SHORT, locale)).format(d)
-          case xgc: XMLGregorianCalendar => {
+          case xgc: XMLGregorianCalendar =>
             val formatter = userFormat openOr DateFormat.getDateTimeInstance(DateFormat.SHORT, DateFormat.SHORT, S.locale)
             formatter.setTimeZone(xgc.getTimeZone(xgc.getTimezone))
             formatter.format(xgc.toGregorianCalendar.getTime)
-          }
           case other => other.toString
         }
       } openOr { ModelUtil.getLabel(target, useLabelForVocab) }
@@ -75,7 +73,7 @@ class Rdf extends DispatchSnippet with RDFaTemplates {
         case _ => String.valueOf(target)
       }
       case "ref" => String.valueOf(target)
-      case "!label" => toLabel(target, true)
+      case "!label" => toLabel(target, useLabelForVocab = true)
       case "label" => toLabel(target)
       case "manchester" => toManchester(target)
       case "get-url" => target match {
@@ -107,10 +105,9 @@ class Rdf extends DispatchSnippet with RDFaTemplates {
             val newAttrValue = "\\{([^}]*)\\}".r.replaceAllIn(origText, m => m.group(1) match {
               case "" => encode(value)
               case "this" => encode(CurrentContext.value.map(_.topContext.subject).filter(_ != null).map(_.toString) openOr "")
-              case "model" => {
+              case "model" =>
                 // insert current model into the attribute
                 encode(Globals.contextModel.vend.map(_.toString) openOr "")
-              }
               case "app" => Globals.applicationPath.vend.stripSuffix("/")
               case other => (S.attr(other) or S.param(other)).dmap("")(encode(_))
             })
@@ -125,8 +122,8 @@ class Rdf extends DispatchSnippet with RDFaTemplates {
               case m if runMethod.isDefinedAt(m) => selector #> runMethod(m)
               case _ => tryo(target.getClass.getMethod(method)) match {
                 case Full(meth) => meth.invoke(target) match {
-                  case i: java.lang.Iterable[_] if hasChildren => selector #> i.asScala.map(withChangedContext _)
-                  case i: Iterable[_] if hasChildren => selector #> i.map(withChangedContext _)
+                  case i: java.lang.Iterable[_] if hasChildren => selector #> i.asScala.map(withChangedContext)
+                  case i: Iterable[_] if hasChildren => selector #> i.map(withChangedContext)
                   case null => PassThru
                   case o @ _ if hasChildren => selector #> withChangedContext(o) _
                   case o @ _ => selector #> o.toString

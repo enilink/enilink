@@ -1,29 +1,20 @@
 package net.enilink.platform.lift.util
 
-import net.liftweb.http.S
-import net.liftweb.http.S._
-import net.liftweb.http.js.JsExp
-import net.liftweb.http.js.JsCmd
 import net.liftweb.common._
-import net.liftweb.http.LiftRules
+import net.liftweb.http.S._
+import net.liftweb.http.{AjaxContext, JsonContext, JsonResponse, LiftRules, S, SHtml, SessionVar}
 import net.liftweb.http.js.JE._
 import net.liftweb.http.js.JsCmds._
-import net.liftweb.http.js.JsExp
-import net.liftweb.http.SHtml
-import net.liftweb.http.AjaxContext
-import net.liftweb.json.JsonParser
+import net.liftweb.http.js.{JsCmd, JsExp}
 import net.liftweb.json.JsonAST._
-import net.liftweb.http.JsonResponse
-import net.liftweb.http.JsonContext
-import net.liftweb.http.SessionVar
+import net.liftweb.json.JsonParser
+
 import scala.collection.Map
 import scala.xml._
-import net.liftweb.http.SHtml
-import net.liftweb.http.SHtml.ElemAttr
 
 object AjaxHelpers {
   case class JsonFunc(funcId: String) {
-    def apply(command: JsExp, params: JsExp, callback: JsExp = null, httpParams: JsExp = null) = {
+    def apply(command: JsExp, params: JsExp, callback: JsExp = null, httpParams: JsExp = null): Call = {
       var args: Seq[JsExp] = Seq(JsRaw("{'command': " + command.toJsCmd + ", 'params':" + params.toJsCmd + "}"))
       if (callback != null) args ++= Seq(callback)
       if (httpParams != null) args ++= Seq(httpParams)
@@ -55,8 +46,8 @@ if (response) {
    * Build a handler for incoming JSON commands based on the new Json Parser. You
    * can use the helpful Extractor in net.liftweb.util.JsonCommand
    *
-   * @param ajaxContent -- the JavaScript to execute client-side if the request succeeds or fails
-   * @param f - partial function against a returning a JsCmds
+   * @param ajaxContext -- the JavaScript to execute client-side if the request succeeds or fails
+   * @param pfp - partial function against a returning a JsCmds
    *
    * @return ( JsonCall, JsCmd )
    */
@@ -68,10 +59,10 @@ if (response) {
         parsed =>
           if (f.isDefinedAt(parsed)) {
             // add individual result object for each function
-            val result = (f(parsed) match {
+            val result = f(parsed) match {
               case seq: Seq[_] => seq.toList
               case other => List(other)
-            })
+            }
             val jsCmds = result.collect { case cmd: JsCmd => cmd } ++ List(LiftRules.noticesToJsCmd())
             val jsonObjs = result.collect { case v: JValue => v }
             Some(("result", if (jsonObjs.isEmpty || jsonObjs.size > 1) JArray(jsonObjs) else jsonObjs.head) ~
@@ -98,8 +89,8 @@ if (response) {
    * can use the helpful Extractor in net.liftweb.util.JsonCommand
    *
    * @param name -- the name of the handler which is used as a cache key
-   * @param ajaxContent -- the JavaScript to execute client-side if the request succeeds or fails
-   * @param f - partial function against a returning a JsCmds
+   * @param ajaxContext -- the JavaScript to execute client-side if the request succeeds or fails
+   * @param pfp - partial function against a returning a JsCmds
    *
    * @return ( JsonCall, JsCmd )
    */
@@ -108,7 +99,7 @@ if (response) {
       case Some((func, cmd)) => (func, cmd)
       case _ =>
         val ret = createJsonFunc(ajaxContext, pfp)
-        cachedFuncs.set(cachedFuncs.get + (name -> ret))
+        cachedFuncs.set(cachedFuncs.get.concat(Map(name -> ret)))
         ret
     }
   }
@@ -127,7 +118,7 @@ if (response) {
       {
         def runNodes(in: NodeSeq): NodeSeq = in.flatMap {
           case Group(g) => runNodes(g)
-          case e: Elem => {
+          case e: Elem =>
             val oldAttr: Map[String, String] = Map(
               events.flatMap(a => e.attribute(a).map(v => a -> (v.text + "; "))): _*)
             val newAttr = e.attributes.filter {
@@ -137,7 +128,6 @@ if (response) {
             e.copy(attributes = events.foldLeft(newAttr) {
               case (meta, attr) => new UnprefixedAttribute(attr, oldAttr.getOrElse(attr, "") + cmd.toJsCmd, meta)
             })
-          }
           case other => other
         }
         runNodes(ns)
@@ -151,7 +141,7 @@ if (response) {
   }
 
   def deferCall(data: JsExp, jsFunc: Call, ajaxContext: AjaxContext): Call =
-    Call(jsFunc.function, (jsFunc.params ++ List(AnonFunc(SHtml.makeAjaxCall(data, ajaxContext)))): _*)
+    Call(jsFunc.function, jsFunc.params ++ List(AnonFunc(SHtml.makeAjaxCall(data, ajaxContext))): _*)
 
   def onEventsIndirect(events: List[String], jsFunc: Call, func: String => JsCmd,
     ajaxContext: AjaxContext = AjaxContext.js(Empty, Empty)): NodeSeq => NodeSeq = {

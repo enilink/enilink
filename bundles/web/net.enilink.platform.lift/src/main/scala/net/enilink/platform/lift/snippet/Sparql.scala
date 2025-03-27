@@ -58,12 +58,12 @@ trait SparqlHelper {
 
   def globalQueryParameters: Map[String, _] = {
     val map = (List(("currentUser", Globals.contextUser.vend)) ++
-      (CurrentContext.value.flatMap {
+      CurrentContext.value.flatMap {
         _.subject match {
           case entity: IEntity => Full(("this", entity))
           case _ => Empty
         }
-      }) ++ QueryParams).toMap
+      } ++ QueryParams).toMap
     map
   }
 
@@ -88,10 +88,10 @@ trait SparqlHelper {
     val (target, targetModel) = if (isMetaQuery) (Globals.contextModelSet.vend, Empty) else {
       val ctxResource = CurrentContext.value.flatMap { case RdfContext(s: IReference, _, _, _) => Full(s) case _ => Empty }
       val theModel = model or Globals.contextModel.vend
-      (theModel.map(m => ctxResource.map(m.resolve(_)) openOr m.getOntology), theModel)
+      (theModel.map(m => ctxResource.map(m.resolve) openOr m.getOntology), theModel)
     }
     target match {
-      case Full(t) => (f) => Globals.contextModel.doWith(targetModel) { CurrentContext.withSubject(t) { f } }
+      case Full(t) => f => Globals.contextModel.doWith(targetModel) { CurrentContext.withSubject(t) { f } }
       case _ => f => f
     }
   }
@@ -113,11 +113,10 @@ class Sparql extends SparqlHelper with RDFaTemplates {
     def renderResults = {
       def toBindings(firstBinding: String, row: Any) = row match {
         case b: IBindings[_] => b
-        case other => {
+        case other =>
           val b = new LinkedHashBindings[Any](1)
           b.put(firstBinding, other)
           b
-        }
       }
       CurrentContext.value match {
         case Full(rdfCtx) => rdfCtx.subject match {
@@ -132,13 +131,13 @@ class Sparql extends SparqlHelper with RDFaTemplates {
                   case r: ITupleResult[_] =>
                     val firstBinding = r.getBindingNames.get(0)
                     val allTuples = r.iterator.asScala.map { row => (toBindings(firstBinding, row), includeInferred) }
-                    var toRender = (if (queryAsserted) {
+                    var toRender = if (queryAsserted) {
                       // query explicit statements and prepend them to the results
                       withParameters(em.createQuery(sparql, false), params)
                         .bindResultType(null: String, classOf[IValue]).evaluate.asInstanceOf[ITupleResult[_]]
                         .iterator.asScala
                         .map { row => (toBindings(firstBinding, row), false) } ++ allTuples
-                    } else allTuples)
+                    } else allTuples
                     // ensure at least one template iteration with empty binding set if no results where found
                     if (!toRender.hasNext) toRender = List((new LinkedHashBindings[Object], false)).iterator
                     val transformers = (".query *" #> sparql) & ClearClearable
@@ -159,7 +158,7 @@ class Sparql extends SparqlHelper with RDFaTemplates {
   }
 
   def toSparql(n: NodeSeq, em: IEntityManager): Box[(NodeSeq, String, Map[String, _])] = n.collectFirst {
-    case e: Elem if (e.attribute("data-sparql").filter(_.nonEmpty).isDefined) =>
+    case e: Elem if e.attribute("data-sparql").exists(_.nonEmpty) =>
       (n, e.attribute("data-sparql").map(_.text).get, globalQueryParameters ++ bindParams(extractParams(n)))
   }
 
@@ -190,11 +189,11 @@ class Sparql extends SparqlHelper with RDFaTemplates {
         // process data-if*** and data-unless*** attributes
         case e: Elem =>
           var condTransform: Box[ConditionalTransform] = Empty
-          def throwException : Unit = { throw new IllegalArgumentException("data-if-* and data-unless-* may not be applied at the same time") }
+          def throwException() : Unit = { throw new IllegalArgumentException("data-if-* and data-unless-* may not be applied at the same time") }
           def setTransform(isIf: Boolean): Unit = condTransform match {
             case Empty => condTransform = Full(if (isIf) new If() else new Unless())
-            case Full(_: If) if !isIf => throwException
-            case Full(_: Unless) if isIf => throwException
+            case Full(_: If) if !isIf => throwException()
+            case Full(_: Unless) if isIf => throwException()
             case _ =>
           }
           val tests = e.attributes.collect {
@@ -202,7 +201,7 @@ class Sparql extends SparqlHelper with RDFaTemplates {
               setTransform(true); (name.substring(8), value.text)
             case UnprefixedAttribute(name, value, _) if name.startsWith("data-unless-") => setTransform(false); (name.substring(12), value.text)
           }
-          condTransform.map(_.evaluate(tests, e, e.attributes, Full(applyRules _))) openOr e.copy(child = applyRules(e.child))
+          condTransform.map(_.evaluate(tests, e, e.attributes, Full(applyRules))) openOr e.copy(child = applyRules(e.child))
         case other => other
       }
     }
@@ -215,7 +214,7 @@ class Sparql extends SparqlHelper with RDFaTemplates {
 
     val result = ClearClearable.apply(S.session.map(_.processSurroundAndInclude(PageName.get, template.render)) openOr Nil)
     result.map {
-      case e: Elem => {
+      case e: Elem =>
         // add data-model attribute
         val e1 = (e.attribute("data-model") match {
           case Some(_) => e
@@ -233,14 +232,13 @@ class Sparql extends SparqlHelper with RDFaTemplates {
           var attributes = e1.attributes.append(
             new UnprefixedAttribute("prefix", xmlns.foldLeft(new StringBuilder((e1 \ "@prefix").text)) {
               (sb, mapping) =>
-                if (sb.length > 0) sb.append(" ")
+                if (sb.nonEmpty) sb.append(" ")
                 sb.append(mapping._1).append(": ").append(mapping._2)
             }.toString, Null))
           // add legacy xmlns attributes
           attributes = xmlns.foldLeft(attributes) { (attrs, mapping) => attrs.append(new UnprefixedAttribute("xmlns:" + mapping._1, mapping._2, attrs)) }
           e1.copy(attributes = attributes)
         }
-      }
       case other => other
     }
   }

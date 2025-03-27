@@ -23,7 +23,7 @@ import org.eclipse.core.runtime.Status
 import java.io.ByteArrayInputStream
 import java.util.UUID
 import scala.collection.mutable
-import scala.collection.mutable.{LinkedHashSet, ListBuffer}
+import scala.collection.mutable.ListBuffer
 import scala.jdk.CollectionConverters._
 import scala.xml.{Group, NodeSeq}
 
@@ -58,14 +58,14 @@ class JsonCallHandler {
         c.getCommandResult
       } catch {
         case e: AbortExecutionException =>
-          command.dispose
+          command.dispose()
           CommandResult.newCancelledCommandResult
         case rte: RuntimeException =>
-          command.dispose
+          command.dispose()
           CommandResult.newErrorCommandResult(rte)
       }
       case c: ICommand =>
-        c.dispose
+        c.dispose()
         CommandResult.newCancelledCommandResult
       case _ => CommandResult.newCancelledCommandResult
     }
@@ -84,7 +84,7 @@ class JsonCallHandler {
 
   def removeResources(resources: List[String], gc: Boolean = false): json.JBool = {
     (for (model <- model; em = model.getManager; transaction = em.getTransaction) yield {
-      transaction.begin
+      transaction.begin()
       try {
         resources.foreach { resource =>
           val ref = if (resource.startsWith("_:")) em.createReference(resource)
@@ -94,10 +94,10 @@ class JsonCallHandler {
             em.removeRecursive(ref, true)
           }
         }
-        transaction.commit
+        transaction.commit()
         JBool(true)
       } catch {
-        case _: Exception => if (transaction.isActive) transaction.rollback; JBool(false)
+        case _: Exception => if (transaction.isActive) transaction.rollback(); JBool(false)
       }
     }) openOr JBool(false)
   }
@@ -106,12 +106,11 @@ class JsonCallHandler {
     case JsonCommand("removeResource", _, JArray(resources)) => removeResources(resources.map(_.values.toString))
     case JsonCommand("removeResource", _, JString(resource)) => removeResources(List(resource))
 
-    case JsonCommand("gcResource", _, JArray(resources)) => removeResources(resources.map(_.values.toString), true)
-    case JsonCommand("gcResource", _, JString(resource)) => removeResources(List(resource), true)
+    case JsonCommand("gcResource", _, JArray(resources)) => removeResources(resources.map(_.values.toString), gc = true)
+    case JsonCommand("gcResource", _, JString(resource)) => removeResources(List(resource), gc = true)
 
-    case JsonCommand("blankNode", _, _) => {
-      ((for (model <- model; em = model.getManager) yield JString(em.createReference.toString)) openOr JString(new BlankNode().toString))
-    }
+    case JsonCommand("blankNode", _, _) =>
+      (for (model <- model; em = model.getManager) yield JString(em.createReference.toString)) openOr JString(new BlankNode().toString)
     case JsonCommand("namespace", _, prefix) => (prefix match {
       case JString(prefix) => Full(prefix)
       case JNull => Full("")
@@ -120,7 +119,7 @@ class JsonCallHandler {
     case JsonCommand("namespaces", _, _) => JObject(for {
       m <- model.toList; ns <- m.getManager.getNamespaces.iterator.asScala
     } yield JField(ns.getPrefix, JString(ns.getURI.toString)))
-    case JsonCommand("updateTriples", _, params) => {
+    case JsonCommand("updateTriples", _, params) =>
       var success = false
       var replacements: mutable.Map[String, IReference] = null
       for (
@@ -128,37 +127,35 @@ class JsonCallHandler {
       ) {
         val em = model.getManager
         try {
-          em.getTransaction.begin
+          em.getTransaction.begin()
           // TODO recursive removal of BNodes
-          (params \ "remove") match {
+          params \ "remove" match {
             case JNothing =>
             case remove: JValue => em.remove(statements(remove).asJava)
           }
-          (params \ "add") match {
+          params \ "add" match {
             case JNothing =>
-            case add: JValue => {
+            case add: JValue =>
               replacements = new mutable.HashMap[String, IReference]
               val stmts = renameNewNodes(statements(add), em, model.getURI, replacements)
               em.add(stmts.asJava)
-            }
           }
-          em.getTransaction.commit
+          em.getTransaction.commit()
           S.notice("Update was sucessful.")
           success = true
         } catch {
-          case e: Exception => if (em.getTransaction.isActive) em.getTransaction.rollback
+          case e: Exception => if (em.getTransaction.isActive) em.getTransaction.rollback()
         }
       }
       if (success) {
         import net.liftweb.json.Extraction._
         if (replacements != null) decompose(replacements.map { case (k, v) => (k, v.toString) }.toMap) else JBool(true)
       } else JBool(false)
-    }
-    case JsonCommand("propose", _, params) => {
+    case JsonCommand("propose", _, params) =>
       import net.liftweb.json.JsonDSL._
       val proposals = for (
         ProposeInput(rdf, query, index) <- params.extractOpt[ProposeInput];
-        stmt <- statements(rdf).headOption.flatMap(resolve _);
+        stmt <- statements(rdf).headOption.flatMap(resolve);
         proposalSupport <- Option(createHelper(stmt.getPredicate == null).getProposalSupport(stmt));
         proposalProvider <- Option(proposalSupport.getProposalProvider)
       ) yield {
@@ -168,14 +165,13 @@ class JsonCallHandler {
           p match {
             case resProposal: IResourceProposal =>
               val o2 = if (resProposal.getUseAsValue) o ~ ("resource", resProposal.getResource.getReference.toString) else o
-              o2 ~ ("perfectMatch", resProposal.getScore() >= 1000)
+              o2 ~ ("perfectMatch", resProposal.getScore >= 1000)
             case other => o
           }
         }.toList
       }
       proposals map (JArray(_)) getOrElse JArray(Nil)
-    }
-    case JsonCommand("getValue", _, params) => {
+    case JsonCommand("getValue", _, params) =>
       params.extractOpt[GetValueInput] flatMap {
         case GetValueInput(rdf) => statements(rdf) match {
           case stmt :: _ => resolve(stmt).map(createHelper().getValue(_))
@@ -183,8 +179,7 @@ class JsonCallHandler {
         }
         case _ => None
       } map (v => JString(v.toString)) getOrElse JString("")
-    }
-    case JsonCommand("removeValue", _, rdf) => {
+    case JsonCommand("removeValue", _, rdf) =>
       var successful = false
       for (
         model <- model ?~ "No active model found"
@@ -193,16 +188,15 @@ class JsonCallHandler {
         val helper = createHelper()
         val editingDomain = helper.getEditingDomain
         try {
-          em.getTransaction.begin
+          em.getTransaction.begin()
           statements(rdf) match {
-            case stmt :: _ => {
+            case stmt :: _ =>
               val removeCommand = PropertyUtil.getRemoveCommand(
                 editingDomain,
                 em.find(stmt.getSubject, classOf[IResource]),
                 em.find(stmt.getPredicate, classOf[IProperty]),
-                stmt.getObject);
+                stmt.getObject)
               successful &= helper.execute(removeCommand).getStatus.isOK
-            }
           }
           em.getTransaction.commit()
           successful = true
@@ -211,13 +205,12 @@ class JsonCallHandler {
         }
       }
       JBool(successful)
-    }
-    case JsonCommand("setValue", _, params) => {
+    case JsonCommand("setValue", _, params) =>
       lazy val okResult = JObject(Nil)
       params.extractOpt[SetValueInput] map {
         case SetValueInput(rdf, value, template, templatePath) =>
           statements(rdf) match {
-            case stmt :: _ => {
+            case stmt :: _ =>
               val cmdResult = resolve(stmt).map { s =>
                 createHelper().setValue(s, s.getSubject.asInstanceOf[IEntity].getEntityManager, value match {
                   case JString(s) => s.trim
@@ -238,7 +231,7 @@ class JsonCallHandler {
                       // TODO check if template already got an rdfa root snippet
                       val wrappedTemplate = <div about="?this" data-lift="rdfa">{ template }</div>
                       val resultValue = cmdResult.flatMap(_.getReturnValues.asScala.headOption)
-                      val vars = new LinkedHashSet[Variable]()
+                      val vars = new mutable.LinkedHashSet[Variable]()
                       var params = new RDFaParser {
                         override def createVariable(name: String): Option[Reference] = {
                           val v = Variable(name.substring(1), None)
@@ -276,7 +269,7 @@ class JsonCallHandler {
                         case Full((html, script)) =>
                           val w = new java.io.StringWriter
                           S.htmlProperties.htmlWriter(Group(html \ "_"), w)
-                          List(JObject(List(JField("html", JString(w.toString))))) ++ script.map(Run(_))
+                          List(JObject(List(JField("html", JString(w.toString))))) ++ script.map(Run)
                         case _ => okResult
                       }
                     }
@@ -284,11 +277,9 @@ class JsonCallHandler {
                   case _ => okResult
                 }
               } else JObject(List(JField("msg", JString(status.getMessage))))
-            }
             case _ => okResult
           }
       } getOrElse okResult
-    }
   }
 
   /**
@@ -314,12 +305,12 @@ class JsonCallHandler {
   def valueFromJSON(o: JValue): IValue = {
     import net.enilink.komma.core.Literal
     val oValue = (o \ "value").values.toString
-    (o \ "type") match {
+    o \ "type" match {
       case JString("uri") => URIs.createURI(oValue)
       case JString("bnode") => new BlankNode(oValue)
-      case _ /* JString("literal") */ => (o \ "datatype") match {
+      case _ /* JString("literal") */ => o \ "datatype" match {
         case JString(datatype) if (o \ "lang") == JNothing => new Literal(oValue, URIs.createURI(datatype))
-        case _ => (o \ "lang") match {
+        case _ => o \ "lang" match {
           case JString(lang) => new Literal(oValue, lang)
           case _ => new Literal(oValue)
         }
@@ -367,7 +358,7 @@ class JsonCallHandler {
 }
 
 class Edit extends DispatchSnippet {
-  val dispatch = Map("render" -> buildFuncs _)
+  val dispatch = Map("render" -> buildFuncs)
 
   def modelParam: JsRaw = JsRaw("model !== undefined ? { model : model } : undefined")
 

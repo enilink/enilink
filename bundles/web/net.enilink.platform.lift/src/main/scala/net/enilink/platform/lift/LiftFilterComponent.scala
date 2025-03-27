@@ -1,21 +1,16 @@
 package net.enilink.platform.lift
 
-import java.util.concurrent.ExecutorService
-
-import javax.servlet.{Filter, FilterChain, FilterConfig, Servlet, ServletRequest, ServletResponse}
-import javax.servlet.http.HttpServlet
-import javax.servlet.http.HttpServletRequest
-import javax.servlet.http.HttpServletRequestWrapper
-import javax.servlet.http.HttpServletResponse
-import net.liftweb.common.Box
-import net.liftweb.common.Full
-import net.liftweb.common.Loggable
-import net.liftweb.http.{LiftFilter, LiftRules}
+import net.liftweb.common.{Box, Full, Loggable}
+import net.liftweb.http.LiftFilter
 import net.liftweb.osgi.OsgiBootable
 import net.liftweb.util.Schedule
 import org.osgi.service.component.ComponentContext
-import org.osgi.service.component.annotations.{Activate, Component, Deactivate, Reference, ServiceScope}
+import org.osgi.service.component.annotations._
 import org.osgi.service.http.HttpService
+
+import java.util.concurrent.ExecutorService
+import javax.servlet.http.{HttpServlet, HttpServletRequest, HttpServletRequestWrapper, HttpServletResponse}
+import javax.servlet._
 
 @Component(
   service = Array(classOf[LiftFilter])
@@ -24,11 +19,11 @@ class LiftFilterComponent extends LiftFilter with Loggable {
   @Reference
   var lcm : LiftLifecycleManager = _
 
-  var config : FilterConfig = null
+  var config : FilterConfig = _
   @volatile var booted = false
 
   override def init(config: FilterConfig) : Unit = {
-    this.config = config;
+    this.config = config
   }
 
   override def bootLift(loader: Box[String]) : Unit = {
@@ -43,7 +38,7 @@ class LiftFilterComponent extends LiftFilter with Loggable {
         if (!booted) {
           logger.debug("LiftFilterComponent::doFilter() - booting Lift")
           // boot lift bundles first
-          lcm.initialize
+          lcm.initialize()
           // start lift
           super.init(config)
           booted = true
@@ -54,11 +49,11 @@ class LiftFilterComponent extends LiftFilter with Loggable {
   }
 
   @Deactivate
-  def deactivate : Unit = {
+  def deactivate() : Unit = {
     logger.debug("LiftFilterComponent::deactivate()")
 
     // access private schedule service field by reflection
-    val serviceField = Schedule.getClass.getDeclaredFields.filter { f => f.getName == "service" || f.getName.endsWith("$$service") }.headOption
+    val serviceField = Schedule.getClass.getDeclaredFields.find { f => f.getName == "service" || f.getName.endsWith("$$service") }
     val service = serviceField.map { f =>
       f.setAccessible(true)
       f.get(Schedule).asInstanceOf[ExecutorService]
@@ -99,7 +94,7 @@ class LiftFilterWrapper extends Filter with Loggable {
     liftFilter.doFilter(req, res, chain)
   }
 
-  override def destroy: Unit = {
+  override def destroy(): Unit = {
     // nothing to do here
   }
 }
@@ -124,7 +119,7 @@ class LiftServletComponent extends HttpServlet with Loggable {
     val pathInfo = req.getRequestURI
     val wrapped = new HttpServletRequestWrapper(req) {
       // re-use path info since it is otherwise lost due to the forwarding
-      override def getPathInfo = pathInfo
+      override def getPathInfo: String = pathInfo
     }
     // forward this to the internal whiteboard resources servlet as defined by LiftResources
     req.getRequestDispatcher("/lift-resources" + pathInfo).forward(wrapped, resp)

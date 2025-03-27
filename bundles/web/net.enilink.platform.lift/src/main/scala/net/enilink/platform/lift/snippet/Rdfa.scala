@@ -26,7 +26,7 @@ object ParamsHelper {
   /**
    * Returns a map of current query parameters excluding the parameters contained in `filter`.
    */
-  def params(filter: Set[String] = Set.empty) = {
+  def params(filter: Set[String] = Set.empty): Map[String, String] = {
     def include = S.session.map(session => {
       name: String => !(filter.contains(name) || name.matches("^F[0-9].*")) //|| session.findFunc(name).isDefined) // requires Lift 2.5
     }) openOr ((name: String) => !filter.contains(name))

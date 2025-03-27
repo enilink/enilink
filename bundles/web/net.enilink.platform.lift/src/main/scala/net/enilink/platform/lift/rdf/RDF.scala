@@ -1,8 +1,6 @@
 package net.enilink.platform.lift.rdf
-import scala.xml.MetaData
-import scala.xml.TopScope
-import scala.xml.NamespaceBinding
 import scala.collection.mutable
+import scala.xml.NamespaceBinding
 
 /**
  * RDF abstract syntax per <cite><a
@@ -19,19 +17,19 @@ case class XmlLiteral(content: scala.xml.NodeSeq) extends Literal
 
 trait Reference extends Node
 case class Label(n: String) extends Reference {
-  override def toString() = n
+  override def toString: String = n
 }
 case class BlankNode() extends Reference
 
-case class Variable(val n: String, val qual: Option[Int]) extends Reference {
-  def quote() = sym
+case class Variable(n: String, qual: Option[Int]) extends Reference {
+  def quote(): Symbol = sym
 
-  lazy val sym = qual match {
+  lazy val sym: Symbol = qual match {
     case None => Symbol(n)
     case Some(x) => Symbol(n + "_" + x)
   }
 
-  override def toString() = "?" + sym.name
+  override def toString: String = "?" + sym.name
 }
 
 trait RDFGraphParts {
@@ -68,13 +66,13 @@ object Vocabulary {
  * Implement RDF Nodes
  */
 trait RDFNodeBuilder extends RDFGraphParts {
-  val rdf_type = uri(Vocabulary.`type`)
-  val rdf_nil = uri(Vocabulary.nil)
-  val rdf_first = uri(Vocabulary.first)
-  val rdf_rest = uri(Vocabulary.rest)
+  val rdf_type: Label = uri(Vocabulary.`type`)
+  val rdf_nil: Label = uri(Vocabulary.nil)
+  val rdf_first: Label = uri(Vocabulary.first)
+  val rdf_rest: Label = uri(Vocabulary.rest)
 
-  def uri(i: String) = Label(i)
-  def plain(s: String, lang: Option[LanguageTag]) = PlainLiteral(s, lang)
+  def uri(i: String): Label = Label(i)
+  def plain(s: String, lang: Option[LanguageTag]): PlainLiteral = PlainLiteral(s, lang)
   def typed(s: String, dt: String): Literal = TypedLiteral(s, Label(dt))
   def xmllit(e: scala.xml.NodeSeq): Literal = XmlLiteral(e)
 
@@ -96,7 +94,7 @@ class Scope(val vars: Iterable[Variable]) {
   }
 
   /* baseName is a name that does *not* follow the xyx.123 pattern */
-  protected def safeName(name: String) = {
+  protected def safeName(name: String): String = {
     val lastChar = name.substring(name.length - 1)
     if ("0123456789".contains(lastChar) &&
       name.contains('.')) name + "_"
@@ -105,7 +103,7 @@ class Scope(val vars: Iterable[Variable]) {
 
   /**
    * Return a variable for this name, creating one if necessary.
-   * @return: the same variable given the same name.
+   * @return the same variable given the same name.
    */
   def byName(name: String): Variable = {
     var safe = safeName(name)
@@ -120,7 +118,7 @@ class Scope(val vars: Iterable[Variable]) {
    * @return an variable name unique to this scope
    */
   def fresh(suggestedName: String): Variable = {
-    assert(suggestedName.length > 0)
+    assert(suggestedName.nonEmpty)
     val baseName = safeName(suggestedName)
     val b = {
       val seen = varstack.exists { v => v.quote().name == baseName }

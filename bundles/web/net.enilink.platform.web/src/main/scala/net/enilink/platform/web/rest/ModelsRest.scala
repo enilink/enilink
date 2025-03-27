@@ -13,6 +13,7 @@ import org.eclipse.core.runtime.{Platform, QualifiedName}
 
 import java.io.{ByteArrayOutputStream, IOException, InputStream}
 import scala.jdk.CollectionConverters._
+import scala.util.matching.Regex
 
 class ModelsRest extends RestHelper with CorsHelper {
 
@@ -22,7 +23,7 @@ class ModelsRest extends RestHelper with CorsHelper {
    * Simple in-memory response for RDF data.
    */
   case class RdfResponse(data: Array[Byte], contentDescription: IContentDescription, headers: List[(String, String)], code: Int) extends LiftResponse {
-    def toResponse = {
+    def toResponse: InMemoryResponse = {
       val typeName = contentDescription.getProperty(mimeTypeProp)
       InMemoryResponse(data, ("Content-Length", data.length.toString) :: ("Content-Type", typeName.toString + "; charset=utf-8") :: headers, Nil, code)
     }
@@ -38,7 +39,7 @@ class ModelsRest extends RestHelper with CorsHelper {
   /**
    * Retrieve all registered RDF content types (those with a special mimeType property) and store them in a map.
    */
-  val mimeType = "^(.+)/(.+)$".r
+  val mimeType: Regex = "^(.+)/(.+)$".r
   lazy val mimeTypeProp = new QualifiedName(ModelPlugin.PLUGIN_ID, "mimeType")
   // Platform.getContentTypeManager may be null if OSGi is not running
   lazy val rdfContentTypes: Map[(String, String), IContentType] = Option(Platform.getContentTypeManager).toList
@@ -65,20 +66,20 @@ class ModelsRest extends RestHelper with CorsHelper {
   /**
    * Find best matching content type for the suffix of the request URI.
    */
-  def matchTypeByExtension(extension: String) = {
+  def matchTypeByExtension(extension: String): Option[((String, String), IContentType)] = {
     rdfContentTypes.find(_._2.getFileSpecs(IContentType.FILE_EXTENSION_SPEC).contains(extension))
   }
 
   def getResponseContentType(r: Req): Option[IContentType] = {
     // use list given by "type" parameter
-    S.param("type").map(ContentType.parse(_)).flatMap(matchType(_).map(_._2)) or {
+    S.param("type").map(ContentType.parse).flatMap(matchType(_).map(_._2)) or {
       // use file extension or Accept header content negotiation
       val uri = getModelUri(r)
       if ((r.weightedAccept.isEmpty || r.acceptsStarStar) && uri.fileExtension == null && defaultGetAsTurtle) {
         Some(Platform.getContentTypeManager.getContentType("net.enilink.komma.contenttype.turtle"))
       } else {
         (if (uri.fileExtension != null) matchTypeByExtension(uri.fileExtension) else None) match {
-          case Some((mimeType, cType)) if r.acceptsStarStar || r.weightedAccept.find(_.matches(mimeType)).isDefined => Some(cType)
+          case Some((mimeType, cType)) if r.acceptsStarStar || r.weightedAccept.exists(_.matches(mimeType)) => Some(cType)
           case _ => matchType(r.weightedAccept).map(_._2)
         }
       }
@@ -87,14 +88,14 @@ class ModelsRest extends RestHelper with CorsHelper {
 
   def mimeTypeToPair(mimeType: String): Box[(String, String)] = mimeType.split("/") match {
     case Array(superType, subType) => Full((superType, subType))
-    case o => Failure("Invalid mime type: " + mimeType)
+    case _ => Failure("Invalid mime type: " + mimeType)
   }
 
   def getRequestContentType(r: Req): Box[IContentType] = {
     // use content-type given by "type" parameter
-    S.param("type").flatMap(mimeTypeToPair(_)).flatMap(typePair => rdfContentTypes.get(typePair)) or {
+    S.param("type").flatMap(mimeTypeToPair).flatMap(typePair => rdfContentTypes.get(typePair)) or {
       // use Content-Type header
-      r.contentType.flatMap(mimeTypeToPair(_)).flatMap(typePair => rdfContentTypes.get(typePair)) or {
+      r.contentType.flatMap(mimeTypeToPair).flatMap(typePair => rdfContentTypes.get(typePair)) or {
         // use file extension if available
         val uri = getModelUri(r)
         if (uri.fileExtension != null) matchTypeByExtension(uri.fileExtension).map(_._2) else None
@@ -132,7 +133,7 @@ class ModelsRest extends RestHelper with CorsHelper {
         } catch {
           case ke : KommaException => BadRequestResponse(ke.getMessage)
           // this is likely some problem that is not related to the data
-          case ioe : IOException => InternalServerErrorResponse()
+          case _ : IOException => InternalServerErrorResponse()
         }
     }
   }
@@ -145,7 +146,7 @@ class ModelsRest extends RestHelper with CorsHelper {
         val changeSupport = modelSet.getDataChangeSupport
         try {
           changeSupport.setEnabled(null, false)
-          model.getManager.clear
+          model.getManager.clear()
         } finally {
           changeSupport.setEnabled(null, true)
         }
@@ -161,22 +162,22 @@ class ModelsRest extends RestHelper with CorsHelper {
         val changeSupport = modelSet.getDataChangeSupport
         try {
           changeSupport.setEnabled(null, false)
-          model.getManager.clear
+          model.getManager.clear()
         } finally {
           changeSupport.setEnabled(null, true)
         }
-        model.unload
+        model.unload()
         modelSet.getModels.remove(model)
         modelSet.getMetaDataManager.remove(model)
         Full(OkResponse())
     }
   }
 
-  def validModel(modelName: List[String]): Boolean = !modelName.isEmpty && modelName != List("index") || S.param("model").isDefined
+  def validModel(modelName: List[String]): Boolean = modelName.nonEmpty && modelName != List("index") || S.param("model").isDefined
 
   serve {
     case ("vocab" | "models") :: _ Options _ => OkResponse()
-    case ("vocab" | "models") :: modelName Get req if validModel(modelName) => {
+    case ("vocab" | "models") :: modelName Get req if validModel(modelName) =>
       S.param("query") match {
         case Full(sparql) => getSparqlQueryResponseMimeType(req) flatMap { resultMimeType =>
           SparqlRest.queryModel(sparql, getModelUri(req), resultMimeType)
@@ -184,8 +185,7 @@ class ModelsRest extends RestHelper with CorsHelper {
         case _ if getResponseContentType(req).isDefined => serveRdf(req, getModelUri(req))
         case _ => BadRequestResponse()
       }
-    }
-    case ("vocab" | "models") :: modelName Put req => {
+    case ("vocab" | "models") :: modelName Put req =>
       if (validModel(modelName)) {
         clearModel(req, getModelUri(req)) match {
           case Full(OkResponse()) =>
@@ -198,7 +198,7 @@ class ModelsRest extends RestHelper with CorsHelper {
                   try {
                     uploadRdf(req, getModelUri(req), cd, in)
                   } finally {
-                    in.close
+                    in.close()
                   }
                 }
               case _ => UnsupportedMediaTypeResponse()
@@ -206,7 +206,6 @@ class ModelsRest extends RestHelper with CorsHelper {
           case other => other
         }
       } else Full(BadRequestResponse("Invalid model"))
-    }
     case ("vocab" | "models") :: modelName Post req =>
       val response: Box[LiftResponse] = if (validModel(modelName)) {
         S.param("query") match {
@@ -236,7 +235,7 @@ class ModelsRest extends RestHelper with CorsHelper {
                       // upload stops with first error
                       prevErrorResponse or {
                         // use Content-Type header
-                        val contentTypeBox = mimeTypeToPair(f.mimeType).flatMap(rdfContentTypes.get(_)) or {
+                        val contentTypeBox = mimeTypeToPair(f.mimeType).flatMap(rdfContentTypes.get) or {
                           // use file extension if available
                           val uri = URIs.createURI(f.fileName)
                           if (uri.fileExtension != null) matchTypeByExtension(uri.fileExtension).map(_._2) else Empty
@@ -247,7 +246,7 @@ class ModelsRest extends RestHelper with CorsHelper {
                             try {
                               model.load(in, Map(IModel.OPTION_CONTENT_DESCRIPTION -> contentType.getDefaultDescription).asJava)
                             } catch {
-                              case e: IOException => Full(InternalServerErrorResponse())
+                              case _: IOException => Full(InternalServerErrorResponse())
                             } finally {
                               in.close()
                             }
@@ -261,10 +260,9 @@ class ModelsRest extends RestHelper with CorsHelper {
         }
       } else Full(BadRequestResponse("Invalid model"))
       response or Full(BadRequestResponse())
-    case ("vocab" | "models") :: modelName Delete req => {
+    case ("vocab" | "models") :: modelName Delete req =>
       if (validModel(modelName)) {
         deleteModel(req, getModelUri(req))
       } else Full(BadRequestResponse("Invalid model"))
-    }
   }
 }

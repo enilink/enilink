@@ -10,10 +10,11 @@ import net.liftweb.common.{Box, Empty, Full}
 import net.liftweb.http.js.JsCmds
 import net.liftweb.http.{S, SHtml}
 import net.liftweb.util.AnyVar.whatVarIs
+import net.liftweb.util.CssSel
 import net.liftweb.util.Helpers._
 
 import javax.security.auth.Subject
-import scala.xml.Node
+import scala.xml.{Node, NodeSeq}
 import scala.xml.NodeSeq.seqToNodeSeq
 
 class Register extends Login {
@@ -38,7 +39,7 @@ class Register extends Login {
     }
   }
 
-  def validateEmail(email: String) = {
+  def validateEmail(email: String): Box[String] = {
     var result: Box[String] = Empty
     if (EnilinkRules.emailRegexPattern.vend.matcher(email).matches) {
       if (AccountHelper.hasUserWithEmail(getEntityManager, email)) {
@@ -53,7 +54,7 @@ class Register extends Login {
     result
   }
 
-  def validateUsername(name: String) = {
+  def validateUsername(name: String): Box[String] = {
     var result: Box[String] = Empty
     if (name.length < 2) {
       Fields.error("input-username", "The user name must have at least 2 characters.")
@@ -68,7 +69,7 @@ class Register extends Login {
     result
   }
 
-  def validatePasswords(pwd: String, confirmedPwd: String) = {
+  def validatePasswords(pwd: String, confirmedPwd: String): Box[String] = {
     var result: Box[String] = Empty
     if (pwd == null || pwd.length < 4) {
       Fields.error("input-password", "Please choose a password with at least 4 characters.")
@@ -81,16 +82,16 @@ class Register extends Login {
     result
   }
 
-  override def initializeForm = {
+  override def initializeForm: NodeSeq = {
     var form: Seq[Node] = <div id="input-username" class="form-group">
       <label>Your new user name</label> <input name="username" type="text" value={S.param("username") openOr ""} placeholder="&lt;Username&gt;" class="form-control" onblur={SHtml.onEvent(name => {
-      validateUsername(name);
+      validateUsername(name)
       JsCmds._Noop
     })._2.toJsCmd}/>{Fields.msgBox("input-username")}
     </div> ++
       <div id="input-email" class="form-group">
         <label>Your email address</label> <input name="email" type="text" value={S.param("email") openOr ""} placeholder="&lt;EMail&gt;" class="form-control" onblur={SHtml.onEvent(email => {
-        validateEmail(email);
+        validateEmail(email)
         JsCmds._Noop
       })._2.toJsCmd}/>{Fields.msgBox("input-email")}
       </div>
@@ -115,22 +116,22 @@ class Register extends Login {
           AccountHelper.linkExternalIds(getEntityManager, currentUser, AccountHelper.getExternalIds(s))
           S.notice("The idendity was successfully associated with your account.")
           S.redirectTo("/static/profile")
-        } else if (userPrincipals.iterator().next().getId() != currentUser) {
+        } else if (userPrincipals.iterator().next().getId != currentUser) {
           S.error("The identity is already associated with another account.")
         }
       }
     } else {
       for {
-        username <- param("username") flatMap (validateUsername _)
-        email <- param("email") flatMap (validateEmail _)
+        username <- param("username") flatMap validateUsername
+        email <- param("email") flatMap validateEmail
       } createUser(username, email, s)
       super.saveSubjectToSession(s)
     }
   }
 
-  override def render = {
-    lazy val username = S.param("username") flatMap (validateUsername _)
-    lazy val email = S.param("email") flatMap (validateEmail _)
+  override def render: CssSel = {
+    lazy val username = S.param("username") flatMap validateUsername
+    lazy val email = S.param("email") flatMap validateEmail
 
     var accountCreated = false
     // create an enilink account with username and password
@@ -158,13 +159,12 @@ class Register extends Login {
     // store user id in session for linking of other external ids
     val currentUser = Globals.contextUser.vend
     getSubjectFromSession match {
-      case _ if currentUser != Globals.UNKNOWN_USER => {
+      case _ if currentUser != Globals.UNKNOWN_USER =>
         S.withAttrs("mode" -> "link") {
           // access properties in "link" mode
           loginDataVar.props.clear
           super.doRender(false)
         }
-      }
       case _ => super.doRender(accountCreated)
     }
   }

@@ -4,17 +4,17 @@ import net.enilink.komma.core.{IBindings, LinkedHashBindings}
 import net.enilink.platform.lift.rdf._
 
 import scala.collection.mutable.{LinkedHashSet, StringBuilder}
-import scala.xml.{NamespaceBinding, NodeSeq, Null, UnprefixedAttribute}
+import scala.xml.{Elem, NamespaceBinding, NodeSeq, Null, UnprefixedAttribute}
 
 /**
  * Can be used to replace relative CURIEs with absolute URIs
  */
 trait CURIEExpander extends CURIE {
-  override def setExpandedReference(e: xml.Elem, attr: String, ref: Reference) = {
+  override def setExpandedReference(e: xml.Elem, attr: String, ref: Reference): Elem = {
     e.copy(attributes = e.attributes.append(new UnprefixedAttribute(attr.substring(1), ref.toString, Null)))
   }
 
-  override def setExpandedReferences(e: xml.Elem, attr: String, refs: Iterable[Reference]) = {
+  override def setExpandedReferences(e: xml.Elem, attr: String, refs: Iterable[Reference]): Elem = {
     e.copy(attributes = e.attributes.append(new UnprefixedAttribute(attr.substring(1), refs.mkString(" "), Null)))
   }
 }
@@ -54,7 +54,7 @@ class SubSelectRDFaToSparqlParser(
     walk(e, base, subj1, obj1, pending1f, pending1r, lang1)
   }
 
-  override def projection = {
+  override def projection: String = {
     explicitProjection.map(_.toString) getOrElse super.projection
   }
 
@@ -68,7 +68,7 @@ class RDFaToSparqlParser(e: xml.Elem, base: String, varResolver: Option[Variable
 
   import scala.collection.mutable
   class ThisScope(val thisNode: Reference = Variable("this", None), val elem: xml.Elem = null)
-  val thisStack = new mutable.Stack[ThisScope].push(new ThisScope)
+  val thisStack: mutable.Stack[ThisScope] = new mutable.Stack[ThisScope].push(new ThisScope)
 
   val sparql: StringBuilder = new StringBuilder
   val selectVars = new LinkedHashSet[Variable]
@@ -79,11 +79,11 @@ class RDFaToSparqlParser(e: xml.Elem, base: String, varResolver: Option[Variable
   val initialIndentation = 0
   val initialStrictness = false
 
-  var indentation = initialIndentation
+  var indentation: Int = initialIndentation
   def indent : Unit = { indentation = indentation + 1 }
   def dedent : Unit = { indentation = indentation - 1 }
 
-  var strict = initialStrictness
+  var strict: Boolean = initialStrictness
   var withinFilter = 0
 
   var resultElem: xml.Elem = _
@@ -118,16 +118,16 @@ class RDFaToSparqlParser(e: xml.Elem, base: String, varResolver: Option[Variable
     }
   }
 
-  def addLine(s: String, pos: Int = sparql.length) = {
+  def addLine(s: String, pos: Int = sparql.length): sparql.type = {
     val line = new StringBuilder(indentation + s.length() + 1)
     for (i <- 0 to indentation) line.append("\t")
     line.append(s).append('\n')
     sparql.insertAll(pos, line)
   }
 
-  def getQuery = resultQuery
-  def getQueryVariables = selectVars.toSet
-  def getElement = resultElem
+  def getQuery: String = resultQuery
+  def getQueryVariables: Set[Variable] = selectVars.toSet
+  def getElement: Elem = resultElem
 
   private def patterns = if (sparql.length == 0) {
     // replace empty graph pattern {} with bind statements
@@ -138,7 +138,7 @@ class RDFaToSparqlParser(e: xml.Elem, base: String, varResolver: Option[Variable
     sparql
   }
 
-  def getQuery(bindingName: String, offset: Any, limit: Any, isSubQuery : Boolean = false) = {
+  def getQuery(bindingName: String, offset: Any, limit: Any, isSubQuery : Boolean = false): String = {
     val result = new StringBuilder
     if (!isSubQuery) addPrefixDecls(result, resultElem.scope)
     result.append("select distinct ?").append(bindingName).append(" where {\n")
@@ -150,7 +150,7 @@ class RDFaToSparqlParser(e: xml.Elem, base: String, varResolver: Option[Variable
     result.toString
   }
 
-  def getPaginatedQuery(bindingName: String, offset: Any, limit: Any) = {
+  def getPaginatedQuery(bindingName: String, offset: Any, limit: Any): String = {
     val result = new StringBuilder
     addPrefixDecls(result, resultElem.scope)
     selectVars.map(toString).addString(result, "select distinct ", " ", " where {\n")
@@ -167,7 +167,7 @@ class RDFaToSparqlParser(e: xml.Elem, base: String, varResolver: Option[Variable
     result.toString
   }
 
-  def getCountQuery(bindingName: String) = {
+  def getCountQuery(bindingName: String): String = {
     val result = new StringBuilder
     addPrefixDecls(result, resultElem.scope)
     result.append("select (count(distinct ?").append(bindingName).append(") as ?count) where {\n")
@@ -186,7 +186,7 @@ class RDFaToSparqlParser(e: xml.Elem, base: String, varResolver: Option[Variable
     }
   }
 
-  def doMaybeStrict(e: xml.Elem, block: => (xml.Elem, LazyList[Arc])) = {
+  def doMaybeStrict(e: xml.Elem, block: => (xml.Elem, LazyList[Arc])): (Elem, LazyList[(Reference, Reference, Node)]) = {
     val current = e.attribute("data-strict").map(_.toString)
       .collect {
         case m if "false" == m.toLowerCase => false;
@@ -263,7 +263,7 @@ class RDFaToSparqlParser(e: xml.Elem, base: String, varResolver: Option[Variable
     }
   }
 
-  override def handleArcs(e: xml.Elem, arcs: LazyList[Arc], isLiteral: Boolean) = {
+  override def handleArcs(e: xml.Elem, arcs: LazyList[Arc], isLiteral: Boolean): LazyList[(Reference, Reference, Node)] = {
     for ((s, p, o) <- arcs.filter(seen.add(_))) {
       addLine(toString(s) + " " + toString(p) + " " + toString(o) + " . ")
       if (strict) {

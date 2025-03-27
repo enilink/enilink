@@ -10,5 +10,5 @@ case class LiftBundleConfig(module: Box[AnyRef], packages: List[String], sitemap
   var booted: Boolean = false
   var sitemapMutator: Box[SiteMap => SiteMap] = None
 
-  def mapResource(s: String) = s.replaceAll("//", "/")
+  def mapResource(s: String): String = s.replaceAll("//", "/")
 }

@@ -6,7 +6,7 @@ import net.enilink.platform.lift.rdfa.Util.combine
 
 import scala.collection.mutable.ListBuffer
 import scala.language.postfixOps
-import scala.xml.{NamespaceBinding, NodeSeq}
+import scala.xml.{Elem, NamespaceBinding, NodeSeq}
 import scala.xml.NodeSeq.seqToNodeSeq
 
 object RDFaParser extends RDFaParser()(new Scope())
@@ -14,10 +14,9 @@ object RDFaParser extends RDFaParser()(new Scope())
 trait RDFaUtils {
   private val PREFIX_PATTERN = "([^\\s:]+):\\s+([\\S]+)".r
 
-  def findPrefixMappings(prefixValue: String, bindings: NamespaceBinding) = {
+  def findPrefixMappings(prefixValue: String, bindings: NamespaceBinding): NamespaceBinding = {
     val prefixes = PREFIX_PATTERN.findAllIn(prefixValue).matchData.foldLeft(bindings) {
-      (
-        (previous, mapping) => new NamespaceBinding(mapping.group(1), mapping.group(2), previous))
+      (previous, mapping) => NamespaceBinding(mapping.group(1), mapping.group(2), previous)
     }
     prefixes
   }
@@ -27,15 +26,15 @@ trait RDFaUtils {
  * This parser is host-language neutral, so caller must
  * fish base out of HTML head.
  *
- * @See: <a href="http://www.w3.org/TR/rdfa-syntax/">RDFa in XHTML: Syntax and Processing</a>
+ * @see <a href="http://www.w3.org/TR/rdfa-syntax/">RDFa in XHTML: Syntax and Processing</a>
  * W3C Recommendation 14 October 2008
  *
  */
 class RDFaParser()(implicit val s: Scope = new Scope()) extends CURIE with RDFaUtils {
-  val undef = fresh("undef") // null seems to cause type mismatch errors
+  val undef: Variable = fresh("undef") // null seems to cause type mismatch errors
 
   def getArcs(e: xml.Elem, base: String): LazyList[Arc] = {
-    walk(e, base, uri(base), undef, Nil, Nil, null) _2
+    walk(e, base, uri(base), undef, Nil, Nil, null)._2
   }
 
   /**
@@ -75,10 +74,10 @@ class RDFaParser()(implicit val s: Scope = new Scope()) extends CURIE with RDFaU
     }
 
     // steps 4 and 5, refactored
-    val (e01, relterms) = refN(eWithPrefixes, "@rel", true)
-    val (e02, revterms) = refN(e01, "@rev", true)
-    val (e03, types) = refN(e02, "@typeof", false)
-    val (e04, props) = refN(e03, "@property", false)
+    val (e01, relterms) = refN(eWithPrefixes, "@rel", bare = true)
+    val (e02, revterms) = refN(e01, "@rev", bare = true)
+    val (e03, types) = refN(e02, "@typeof", bare = false)
+    val (e04, props) = refN(e03, "@property", bare = false)
     val norel = relterms.isEmpty && revterms.isEmpty
     val (e1, subj45, objref5, skip) = subjectObject(obj1, e04, base, norel, types, props)
 
@@ -107,7 +106,7 @@ class RDFaParser()(implicit val s: Scope = new Scope()) extends CURIE with RDFaU
 
     // step 9 literal object
     val ((e2, arcs9, xmlobj), isLiteral) = {
-      if (!props.isEmpty) (literalObject(subj45, props, lang, e1), true)
+      if (props.nonEmpty) (literalObject(subj45, props, lang, e1), true)
       else ((e1, LazyList.empty, false), false)
     }
 
@@ -120,48 +119,46 @@ class RDFaParser()(implicit val s: Scope = new Scope()) extends CURIE with RDFaU
     // step 11. recur
     var newE = e2
     val arcs = handleArcs(newE, arcs6 ++ arcs7 ++ arcs9 ++ arcs10, isLiteral)
-    val childArcs = (if (!xmlobj) {
+    val childArcs = if (!xmlobj) {
       val newChild = new ListBuffer[xml.Node]
       var changedChild = false
       // TODO find out why newE.child.toLazyList.flatMap misses some child elements
       val childArcs = walkChildren(newE, {
-        case c: xml.Elem => {
+        case c: xml.Elem =>
           val (newC, arcs) = if (skip) {
             walk(c, base, subj1, obj1, pending1f, pending1r, lang)
           } else {
             walk(c, base,
               if (subj45 != undef) subj45 else subj1,
-              (if (objref8 != undef) objref8
+              if (objref8 != undef) objref8
               else if (subj45 != undef) subj45
-              else subj1),
+              else subj1,
               pending8f, pending8r, lang)
           }
           changedChild |= !(newC eq c)
           newChild.append(newC)
           arcs
-        }
         /* never mind stuff other than elements */
-        case c: xml.Node => {
+        case c: xml.Node =>
           newChild.append(c)
           LazyList.empty
-        }
         case _ => LazyList.empty
       })
       if (changedChild) newE = newE.copy(child = newChild)
       childArcs
-    } else LazyList.empty)
+    } else LazyList.empty
 
     if (hasPrefixMappings) s.namespaces.pop
     (newE, arcs ++ childArcs)
   }
 
-  def walkChildren(parent: xml.Elem, f: (xml.Node) => Seq[Arc]): Seq[Arc] = {
+  def walkChildren(parent: xml.Elem, f: xml.Node => Seq[Arc]): Seq[Arc] = {
     parent.child.flatMap(f)
   }
 
   /**
    * steps 4 and 5, refactored
-   * @return: new subject, new object ref, skip flag
+   * @return new subject, new object ref, skip flag
    */
   def subjectObject(obj1: Reference, e: xml.Elem, base: String,
     norel: Boolean,
@@ -172,18 +169,18 @@ class RDFaParser()(implicit val s: Scope = new Scope()) extends CURIE with RDFaU
     lazy val href = e \ "@href"
 
     val (subjProp, subj45x) = {
-      if (!about.isEmpty) ("@about", about.get)
-      else if (!src.isEmpty) ("@src", uri(combine(base, src.text)))
-      else if (norel && !resource.isEmpty) ("@resource", resource.get)
-      else if (norel && !href.isEmpty) ("@href", uri(combine(base, href.text)))
+      if (about.isDefined) ("@about", about.get)
+      else if (src.nonEmpty) ("@src", uri(combine(base, src.text)))
+      else if (norel && resource.isDefined) ("@resource", resource.get)
+      else if (norel && href.nonEmpty) ("@href", uri(combine(base, href.text)))
       // hmm... host language creeping in here...
       else if (e.label == "head" || e.label == "body") (null, uri(combine(base, "")))
-      else if (!types.isEmpty && resource.isEmpty && href.isEmpty) ("@about", fresh("x4"))
+      else if (types.nonEmpty && resource.isEmpty && href.isEmpty) ("@about", fresh("x4"))
       else (null, undef)
     }
 
-    val (objProp, objref5) = if (!resource.isEmpty) ("@resource", resource.get)
-    else if (!href.isEmpty) ("@href", uri(combine(base, href.text)))
+    val (objProp, objref5) = if (resource.isDefined) ("@resource", resource.get)
+    else if (href.nonEmpty) ("@href", uri(combine(base, href.text)))
     else (null, undef)
 
     val subj45 = if (subj45x != undef) subj45x else obj1
@@ -192,7 +189,7 @@ class RDFaParser()(implicit val s: Scope = new Scope()) extends CURIE with RDFaU
     (e2, subj45, objref5, skip)
   }
 
-  def handleArcs(e: xml.Elem, arcs: LazyList[Arc], isLiteral : Boolean) = {
+  def handleArcs(e: xml.Elem, arcs: LazyList[Arc], isLiteral : Boolean): LazyList[(Reference, Reference, Node)] = {
     arcs
   }
 
@@ -203,7 +200,7 @@ class RDFaParser()(implicit val s: Scope = new Scope()) extends CURIE with RDFaU
   /**
    * step 9 literal object
    * side effect: pushes statements
-   * @return: (arcs, xmllit) where xmllit is true iff object is XMLLiteral
+   * @return (arcs, xmllit) where xmllit is true iff object is XMLLiteral
    */
   def literalObject(subj: Reference, props: Iterable[Reference], lang: Symbol,
     e: xml.Elem): (xml.Elem, LazyList[Arc], Boolean) = {
@@ -216,20 +213,19 @@ class RDFaParser()(implicit val s: Scope = new Scope()) extends CURIE with RDFaU
   }
 
   def createLiteral(e: xml.Elem, lang: Symbol, datatype: NodeSeq, content: NodeSeq): (xml.Elem, Literal, Boolean) = {
-    lazy val lex = if (!content.isEmpty) content.text else e.text
+    lazy val lex = if (content.nonEmpty) content.text else e.text
     def txt(s: String) = if (lang == null) plain(s, None) else plain(s, Some(lang))
     if (datatype.isEmpty || datatype.text.isEmpty) {
       // literals without @datatype are always handled as plain literals
       (e, txt(lex), false)
     } else datatype.text match {
-      case parts(p, l) if p != null => {
+      case parts(p, l) if p != null =>
         try {
           val dt = expand(p, l, e)
           if (dt == Vocabulary.XMLLiteral) (e, xmllit(e.child), true) else (e, typed(lex, dt), false)
         } catch {
           case nde: NotDefinedError => (e, null, false)
         }
-      }
       /* TODO: update handling of goofy datatype values based on WG
            * response to 3 Feb comment. */
       case _ => (e, null, false)
@@ -271,10 +267,10 @@ trait CURIE extends RDFNodeBuilder {
     (if (expanded && ref.isDefined) setExpandedReference(e, attr, ref.get) else e, ref)
   }
 
-  def setExpandedReference(e: xml.Elem, attr: String, ref: Reference) = e
+  def setExpandedReference(e: xml.Elem, attr: String, ref: Reference): Elem = e
 
   // 9.3. @rel/@rev attribute values
-  def reserved = Array("alternate",
+  def reserved: Array[String] = Array("alternate",
     "appendix",
     "bookmark",
     "cite",
@@ -311,8 +307,8 @@ trait CURIE extends RDFNodeBuilder {
           expanded = true; newVar
         case other => other
       } // ?foo
-      case parts(p, l) if (p == null) => None
-      case parts(p, l) if (p == "xml") => None // xml:foo
+      case parts(p, l) if p == null => None
+      case parts(p, l) if p == "xml" => None // xml:foo
 
       // support for blank node variables
       case parts("_", "") => Some(byName("_"))
@@ -332,7 +328,7 @@ trait CURIE extends RDFNodeBuilder {
         } else None
         result match {
           // this is the case if token is an absolute IRI  
-          case None if !token.isEmpty => try {
+          case None if token.nonEmpty => try {
             // test if token is a valid IRI
             URIs.createURI(token)
             Some(uri(token))
@@ -360,7 +356,7 @@ trait CURIE extends RDFNodeBuilder {
     (if (expanded) setExpandedReferences(e, attr, refs) else e, refs)
   }
 
-  def setExpandedReferences(e: xml.Elem, attr: String, refs: Iterable[Reference]) = e
+  def setExpandedReferences(e: xml.Elem, attr: String, refs: Iterable[Reference]): Elem = e
 
   def createVariable(name: String): Option[Reference] = None
 
@@ -368,7 +364,7 @@ trait CURIE extends RDFNodeBuilder {
     val ns = if (p == "") xhv else {
       var ns: String = null
       // use local namespace bindings (extracted from @prefix) to lookup prefix 
-      if (!s.namespaces.isEmpty) ns = s.namespaces.top.getURI(p)
+      if (s.namespaces.nonEmpty) ns = s.namespaces.top.getURI(p)
       // use default XML namespaces
       if (ns == null) ns = e.getNamespace(p)
       ns

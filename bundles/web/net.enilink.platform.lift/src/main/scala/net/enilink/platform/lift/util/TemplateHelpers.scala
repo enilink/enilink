@@ -1,24 +1,13 @@
 package net.enilink.platform.lift.util
 
-import scala.xml.NodeSeq
-import net.liftweb.common.Box
-import net.liftweb.http.Templates
-import net.liftweb.http.js.JsCmd
-import net.liftweb.common.Empty
-import net.liftweb.common.Full
-import net.liftweb.http.S
-import scala.xml.Group
-import scala.xml.Elem
-import net.liftweb.http.js.JE
-import net.liftweb.util.Helpers._
-import net.liftweb.util.LiftFlowOfControlException
-import net.liftweb.http.ParsePath
-import net.liftweb.http.LiftRules
 import net.enilink.platform.lift.sitemap.Application
-import net.liftweb.sitemap.Loc
-import scala.xml.Node
-import net.liftweb.common.Failure
-import net.liftweb.util.Props
+import net.liftweb.common.{Box, Empty, Failure, Full}
+import net.liftweb.http.{LiftRules, ParsePath, S, Templates}
+import net.liftweb.http.js.{JE, JsCmd}
+import net.liftweb.util.Helpers._
+import net.liftweb.util.{LiftFlowOfControlException, Props}
+
+import scala.xml.{Elem, Node, NodeSeq}
 
 object TemplateHelpers {
   type RenderResult = (NodeSeq, Box[String])
@@ -28,7 +17,7 @@ object TemplateHelpers {
     if (S.location.isEmpty && path.length > 1) {
       for (
         req <- S.request;
-        newReq = req.withNewPath(ParsePath(path(0) :: Nil, "", true, false));
+        newReq = req.withNewPath(ParsePath(path.head :: Nil, "", absolute = true, endSlash = false));
         loc <- LiftRules.siteMap.flatMap(_.findLoc(newReq));
         app <- loc.breadCrumbs.find(_.currentValue.exists(_.isInstanceOf[Application])).flatMap(_.currentValue.map(_.asInstanceOf[Application]))
       ) yield app
@@ -63,7 +52,7 @@ object TemplateHelpers {
     template or extractTemplate(withTemplateNames(ns), name)
   }
 
-  def template(path: List[String]) = Templates("templates-hidden" :: path) match {
+  def template(path: List[String]): Box[NodeSeq] = Templates("templates-hidden" :: path) match {
     case Full(x) => Full(x)
     case f: Failure if Props.devMode => f
     case _ => Templates(path)
@@ -86,14 +75,14 @@ object TemplateHelpers {
   def render(template: NodeSeq, snips: (String, NodeSeq => NodeSeq)*): Box[RenderResult] = {
     S.eval(template, snips: _*) map { ns => S.session.map(_.normalizeHtml(ns)) openOr ns } map { ns =>
       import net.liftweb.util.Helpers._
+
       import scala.collection.mutable.ListBuffer
       val cmds = new ListBuffer[JsCmd]
       val revised = ("script" #> ((ns: NodeSeq) => {
         ns match {
-          case FindScript(e) => {
+          case FindScript(e) =>
             cmds += JE.JsRaw(ns.text).cmd
             NodeSeq.Empty
-          }
           case other => other
         }
       })).apply(ns)
@@ -103,7 +92,7 @@ object TemplateHelpers {
 
   def withTemplateNames(ns: NodeSeq): NodeSeq = {
     val prefix = (ns \ "@data-t").text match {
-      case name if !name.isEmpty => name + "/"
+      case name if name.nonEmpty => name + "/"
       case _ => ""
     }
     var currentNr = 0

@@ -1,10 +1,9 @@
 package net.enilink.platform.lift.snippet
 
-import scala.xml._
-
 import net.enilink.komma.core.URI
 import net.enilink.platform.lift.util.Globals
-import net.liftweb.util.Helpers._
+
+import scala.xml._
 
 object User {
   private def replace(n: Node) = n.attributes.isEmpty || n.attributes.size == 1 && n.attribute("data-t").isDefined
