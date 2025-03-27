@@ -10,6 +10,9 @@ import net.enilink.komma.model.base.IURIMapRule;
 import net.enilink.komma.model.base.IURIMapRuleSet;
 import net.enilink.komma.model.base.SimpleURIMapRule;
 import net.enilink.platform.core.UseService;
+import net.enilink.platform.core.security.ISecureEntity;
+import net.enilink.platform.core.security.SecurityUtil;
+
 import org.eclipse.core.commands.AbstractHandler;
 import org.eclipse.core.commands.ExecutionEvent;
 import org.eclipse.core.commands.ExecutionException;
@@ -41,6 +44,7 @@ public class UploadModelCommandHandler extends AbstractHandler {
 				return new UseService<IModelSet, String>(IModelSet.class) {
 					@Override
 					protected String withService(final IModelSet modelSet) {
+						URI user = SecurityUtil.getUser();
 						URI resourceUri = URIs.createFileURI(file);
 						URI modelUri = resourceUri;
 
@@ -96,13 +100,14 @@ public class UploadModelCommandHandler extends AbstractHandler {
 							mapRule = new SimpleURIMapRule(modelUri.toString(), resourceUri.toString());
 						}
 						try {
-							// add a map rule if required, this should be the
-							// common
-							// case
+							// add a map rule if required, this should be the common case
 							if (mapRule != null) {
 								mapRules.addRule(mapRule);
 							}
-							modelSet.createModel(modelUri).load(Collections.emptyMap());
+							IModel model = modelSet.createModel(modelUri);
+							model.load(Collections.emptyMap());
+							// set current user as owner
+							((ISecureEntity)model).setAclOwner(user);
 						} catch (IOException ioe) {
 							MessageDialog.openError(shell, "Error loading model", "An error occurred while uploading the model: " + ioe.getMessage());
 						} finally {

@@ -145,12 +145,7 @@ public class ModelsPart extends AbstractEditingDomainPart {
 		allModelsViewer = new TableViewer(allModelsTable);
 		allModelsViewer.setUseHashlookup(true);
 		allModelsViewer.setSorter(new ViewerSorter());
-		allModelsViewer.addSelectionChangedListener(new ISelectionChangedListener() {
-			@Override
-			public void selectionChanged(SelectionChangedEvent event) {
-				getForm().fireSelectionChanged(ModelsPart.this, event.getSelection());
-			}
-		});
+		allModelsViewer.addSelectionChangedListener(event -> getForm().fireSelectionChanged(ModelsPart.this, event.getSelection()));
 		allModelsViewer.addDoubleClickListener(openEditorListener);
 		menuManager = new MenuManager();
 		menu = menuManager.createContextMenu(openModelsViewer.getControl());
@@ -193,8 +188,8 @@ public class ModelsPart extends AbstractEditingDomainPart {
 			if (adapterFactory == null || !adapterFactory.equals(newAdapterFactory)) {
 				adapterFactory = newAdapterFactory;
 
-				allModelsViewer.setContentProvider(new AdapterFactoryContentProvider(getAdapterFactory()));
-				allModelsViewer.setLabelProvider(new AdapterFactoryLabelProvider(getAdapterFactory()) {
+				allModelsViewer.setContentProvider(new AdapterFactoryContentProvider(adapterFactory));
+				allModelsViewer.setLabelProvider(new AdapterFactoryLabelProvider(adapterFactory) {
 					@Override
 					public String getColumnText(Object object, int columnIndex) {
 						String text;
@@ -210,7 +205,7 @@ public class ModelsPart extends AbstractEditingDomainPart {
 						return text;
 					}
 				});
-				openModelsViewer.setLabelProvider(new AdapterFactoryLabelProvider(getAdapterFactory()) {
+				openModelsViewer.setLabelProvider(new AdapterFactoryLabelProvider(adapterFactory) {
 					@Override
 					public String getColumnText(Object object, int columnIndex) {
 						String text;
