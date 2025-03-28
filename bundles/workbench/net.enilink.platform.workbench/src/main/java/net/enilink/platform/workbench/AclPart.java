@@ -369,7 +369,7 @@ public class AclPart extends AbstractEditingDomainPart {
 			IReference owner = secureTarget.getAclOwner();
 			IItemLabelProvider ownerLabelProvider = (IItemLabelProvider) adapterFactory
 					.adapt(owner, IItemLabelProvider.class);
-			ownerText.setText(ownerLabelProvider != null ? ownerLabelProvider.getText(owner) : null);
+			ownerText.setText(ownerLabelProvider != null ? ownerLabelProvider.getText(owner) : "");
 			ownerText.setEnabled(canControl);
 			viewer.getTable().setEnabled(canControl);
 		}
