@@ -130,9 +130,14 @@
 							checkEnabled="true">
 						<with
 								variable="activeWorkbenchWindow.activePerspective">
-							<equals
-									value="net.enilink.platform.workbench.basicPerspective">
-							</equals>
+							<or>
+								<equals
+										value="net.enilink.platform.workbench.basicPerspective">
+								</equals>
+								<equals
+									value="net.enilink.komma.owl.editor.OWLPerspective">
+								</equals>
+							</or>
 						</with>
 					</visibleWhen>
 				</command>
@@ -146,9 +151,14 @@
 							checkEnabled="true">
 						<with
 								variable="activeWorkbenchWindow.activePerspective">
-							<equals
+							<or>
+								<equals
 									value="net.enilink.platform.workbench.basicPerspective">
-							</equals>
+								</equals>
+								<equals
+									value="net.enilink.komma.owl.editor.OWLPerspective">
+								</equals>
+							</or>
 						</with>
 					</visibleWhen>
 				</command>
@@ -163,9 +173,14 @@
 							checkEnabled="true">
 						<with
 								variable="activeWorkbenchWindow.activePerspective">
-							<equals
+							<or>
+								<equals
 									value="net.enilink.platform.workbench.basicPerspective">
-							</equals>
+								</equals>
+								<equals
+									value="net.enilink.komma.owl.editor.OWLPerspective">
+								</equals>
+							</or>
 						</with>
 					</visibleWhen>
 				</command>
@@ -204,7 +219,7 @@
 			</control>
 		</menuContribution>
 		<menuContribution
-				locationURI="popup:net.enilink.rap.workbench.modelsView">
+				locationURI="popup:net.enilink.rap.workbench.modelsView.fixed">
 			<command
 					commandId="net.enilink.platform.workbench.command.deleteModel"
 					icon="img/delete-icon-16px.png"
