@@ -20,13 +20,8 @@ public interface ChangeDescription {
 
 	void setAgent(Agent agent);
 
-	@Iri("http://enilink.net/vocab/komma#added")
-	Set<Statement> getAdded();
+	@Iri("http://enilink.net/vocab/komma#statement")
+	Set<ChangeStatement> getStatement();
 
-	void setAdded(Set<Statement> added);
-
-	@Iri("http://enilink.net/vocab/komma#removed")
-	Set<Statement> getRemoved();
-
-	void setRemoved(Set<Statement> removed);
+	void setStatement(Set<ChangeStatement> added);
 }

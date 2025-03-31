@@ -13,10 +13,12 @@ import net.enilink.komma.em.util.ISparqlConstants;
 import net.enilink.komma.model.IModel;
 import net.enilink.platform.core.security.SecurityUtil;
 import net.enilink.platform.workbench.model.ChangeDescription;
+import net.enilink.platform.workbench.model.ChangeStatement;
 import net.enilink.vocab.komma.KOMMA;
 import net.enilink.vocab.rdf.Statement;
 import java.security.PrivilegedAction;
 import java.text.DateFormat;
+import java.util.Comparator;
 import java.util.stream.Stream;
 
 import javax.security.auth.Subject;
@@ -89,11 +91,10 @@ public class HistoryPart extends AbstractEditingDomainPart {
 			@Override
 			public Object[] getChildren(Object parentElement) {
 				if (parentElement instanceof ChangeDescription) {
-					Stream<ChangeElement> removed = ((ChangeDescription) parentElement).getRemoved().stream()
-							.map(stmt -> new ChangeElement(stmt, false));
-					Stream<ChangeElement> added = ((ChangeDescription) parentElement).getAdded().stream()
-							.map(stmt -> new ChangeElement(stmt, true));
-					return Stream.concat(removed, added).toArray(ChangeElement[]::new);
+					return ((ChangeDescription) parentElement).getStatement().stream()
+						.sorted(Comparator.comparingInt(ChangeStatement::getIndex))
+						.map(stmt -> new ChangeElement(stmt, stmt.isAdded()))
+						.toArray(ChangeElement[]::new);
 				}
 				return new Object[0];
 			}
