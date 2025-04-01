@@ -55,31 +55,6 @@ public class UploadModelCommandHandler extends AbstractHandler {
 							if (ontology != null) {
 								modelUri = URIs.createURI(ontology);
 							}
-
-							// let the user choose a model uri
-							InputDialog dialog = new InputDialog(shell, "Name the new model.", "Please enter an URI for your model.", modelUri.toString(),
-								(IInputValidator) newText -> {
-									URI newURI;
-									try {
-										newURI = URIs.createURI(newText);
-									} catch (Exception e) {
-										return "The given URI is invalid: " + e.getMessage();
-									}
-									if (newURI.isRelative()) {
-										return "The URI must be absolute.";
-									}
-									IModel existing = modelSet.getModel(newURI, false);
-									if (existing != null) {
-										return "There already exists a model with the given URI.";
-									}
-									return null;
-								});
-							if (dialog.open() == Window.OK) {
-								modelUri = URIs.createURI(dialog.getValue());
-							} else {
-								// user canceled the import
-								return null;
-							}
 						} catch (Exception e) {
 							// ontology could not be found for some reason
 						} finally {
@@ -90,6 +65,31 @@ public class UploadModelCommandHandler extends AbstractHandler {
 									CommonPlugin.getPlugin().log(e);
 								}
 							}
+						}
+
+						// let the user choose a model uri
+						InputDialog dialog = new InputDialog(shell, "Name the new model.", "Please enter an URI for your model.", modelUri.toString(),
+							(IInputValidator) newText -> {
+								URI newURI;
+								try {
+									newURI = URIs.createURI(newText);
+								} catch (Exception e) {
+									return "The given URI is invalid: " + e.getMessage();
+								}
+								if (newURI.isRelative()) {
+									return "The URI must be absolute.";
+								}
+								IModel existing = modelSet.getModel(newURI, false);
+								if (existing != null) {
+									return "There already exists a model with the given URI.";
+								}
+								return null;
+							});
+						if (dialog.open() == Window.OK) {
+							modelUri = URIs.createURI(dialog.getValue());
+						} else {
+							// user canceled the import
+							return null;
 						}
 
 						IURIMapRuleSet mapRules = modelSet.getURIConverter().getURIMapRules();

@@ -40,7 +40,7 @@ public class UploadDataCommandHandler extends AbstractHandler {
 					in = modelSet.getURIConverter().createInputStream(resourceUri);
 					IContentDescription contentDescription = ModelUtil.determineContentDescription(resourceUri, modelSet.getURIConverter(), null);
 					Map<Object, Object> options = new HashMap<>();
-					options.put(IContentDescription.class, contentDescription);
+					options.put(IModel.OPTION_CONTENT_DESCRIPTION, contentDescription);
 					model.load(in, options);
 					// refresh the model
 					model.unloadManager();
