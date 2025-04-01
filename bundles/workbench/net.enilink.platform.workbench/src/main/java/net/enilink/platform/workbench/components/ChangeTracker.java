@@ -41,6 +41,8 @@ public class ChangeTracker {
 	static final URI PROPERTY_AGENT = KOMMA.NAMESPACE_URI.appendLocalPart("agent");
 	static final URI PROPERTY_DATE = URIs.createURI("http://purl.org/dc/terms/").appendLocalPart("date");
 
+	static final URI PROPERTY_TRACKCHANGES = KOMMA.NAMESPACE_URI.appendLocalPart("trackChanges");
+
 	protected IModelSet modelSet;
 	protected IDataChangeListener changeListener;
 	protected DatatypeFactory dtFactory;
@@ -63,6 +65,7 @@ public class ChangeTracker {
 			modelSet.getUnitOfWork().begin();
 
 			URI metaDataContext = ((ModelSet) modelSet).getMetaDataContext();
+			Map<IReference, Boolean> trackChanges = new HashMap<>();
 			changeListener = list -> {
 				URI user = SecurityUtil.getUser();
 				synchronized (changesByModel) {
@@ -70,8 +73,14 @@ public class ChangeTracker {
 							.filter(change -> change instanceof IStatementChange)
 							.filter(change -> {
 								IReference ctx = ((IStatementChange) change).getStatement().getContext();
-								return !(ctx == null || ctx.equals(metaDataContext)
+								boolean doTrack = !(ctx == null || ctx.equals(metaDataContext)
 										|| ctx.toString().startsWith("enilink:audit:"));
+								if (doTrack) {
+									// tracking must be enabled via trackChanges property
+									doTrack = trackChanges.computeIfAbsent(ctx, uri -> modelSet.getMetaDataManager()
+										.hasMatch(uri, PROPERTY_TRACKCHANGES, true));
+								}
+								return doTrack;
 							}).forEach(change -> {
 						IReference ctx = ((IStatementChange) change).getStatement().getContext();
 						changesByModel.computeIfAbsent(ctx, ctxKey -> new ArrayList<>()).add(new Pair<>(change, user));
