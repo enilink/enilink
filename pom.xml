@@ -30,8 +30,8 @@
 		<osgi.version>7.0.0</osgi.version>
 
 		<bnd.version>6.3.1</bnd.version>
-		<karaf.version>4.4.4</karaf.version>
-		<karaf.tooling.version>4.4.4</karaf.tooling.version>
+		<karaf.version>4.4.7</karaf.version>
+		<karaf.tooling.version>4.4.7</karaf.tooling.version>
 
 		<bundles.liftweb.deploy.skip>true</bundles.liftweb.deploy.skip>
 
