@@ -3,10 +3,11 @@
     <feature name="net.enilink.platform.workbench.karaf.feature" description="eniLINK: Karaf Feature for the Workbench" version="${project.version}">
         <details>eniLINK is a web platform for linked data applications based on the KOMMA framework and Lift.</details>
         <feature prerequisite="true" dependency="false">wrap</feature>
-        <feature prerequisite="true" dependency="true" version="${project.version}">net.enilink.platform.karaf.feature</feature>
+        <!-- defining feature as a prerequisite leads to an error when resolving bundles -->
+        <!-- feature prerequisite="true" dependency="true" version="${project.version}">net.enilink.platform.karaf.feature</feature -->
 
         <!--bundle>mvn:com.ibm.icu/icu4j/64.2</bundle-->
-        <bundle>mvn:commons-fileupload/commons-fileupload/1.3.1</bundle>
+        <bundle>mvn:commons-fileupload/commons-fileupload/1.5</bundle>
         <bundle>mvn:net.enilink.komma/net.enilink.commons.ui/${komma.version}</bundle>
         <bundle>mvn:net.enilink.komma/net.enilink.komma.common.ui/${komma.version}</bundle>
         <bundle>mvn:net.enilink.komma/net.enilink.komma.edit.ui.properties/${komma.version}</bundle>
@@ -25,14 +26,14 @@
         <bundle>mvn:org.eclipse.birt.runtime/com.ibm.icu/4.4.2.v20110823</bundle>
         <bundle>mvn:org.eclipse.birt.runtime/javax.xml/1.3.4.v201005080400</bundle>
         <!--bundle>mvn:org.eclipse.platform/org.eclipse.core.contenttype/3.7.800</bundle-->
-        <bundle>mvn:org.eclipse.platform/org.eclipse.core.databinding.observable/1.7.0</bundle>
-        <bundle>mvn:org.eclipse.platform/org.eclipse.core.databinding.property/1.7.0</bundle>
-        <bundle>mvn:org.eclipse.platform/org.eclipse.core.databinding/1.10.0</bundle>
-        <bundle>mvn:org.eclipse.platform/org.eclipse.core.expressions/3.7.0</bundle>
-        <bundle>mvn:org.eclipse.platform/org.eclipse.core.filesystem/1.7.700</bundle>
-        <bundle>mvn:org.eclipse.platform/org.eclipse.core.resources/3.13.800</bundle>
-        <bundle>mvn:org.eclipse.platform/org.eclipse.equinox.http.registry/1.1.700</bundle>
-        <bundle>mvn:org.eclipse.platform/org.eclipse.help/3.8.400</bundle>
+        <bundle>mvn:org.eclipse.platform/org.eclipse.core.databinding.observable/1.13.300</bundle>
+        <bundle>mvn:org.eclipse.platform/org.eclipse.core.databinding.property/1.10.300</bundle>
+        <bundle>mvn:org.eclipse.platform/org.eclipse.core.databinding/1.13.100</bundle>
+        <bundle>mvn:org.eclipse.platform/org.eclipse.core.expressions/3.9.200</bundle>
+        <bundle>mvn:org.eclipse.platform/org.eclipse.core.filesystem/1.10.200</bundle>
+        <bundle>mvn:org.eclipse.platform/org.eclipse.core.resources/3.20.0</bundle>
+        <bundle>mvn:org.eclipse.platform/org.eclipse.equinox.http.registry/1.4.100</bundle>
+        <bundle>mvn:org.eclipse.platform/org.eclipse.help/3.10.400</bundle>
         <bundle>mvn:org.eclipse.rap/org.eclipse.rap.filedialog/${rap.version}</bundle>
         <bundle>mvn:org.eclipse.rap/org.eclipse.rap.fileupload/${rap.version}</bundle>
         <bundle>mvn:org.eclipse.rap/org.eclipse.rap.jface.databinding/${rap.version}</bundle>
