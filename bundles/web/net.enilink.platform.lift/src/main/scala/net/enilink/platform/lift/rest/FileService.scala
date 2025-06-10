@@ -8,10 +8,15 @@ import net.liftweb.http.rest.RestHelper
 import net.liftweb.json.JsonDSL._
 import net.liftweb.json._
 
+import java.io.File
 import java.io.IOException
+import java.io.InputStream
+import java.nio.file.Files
 import java.util.Properties
 
-object FileService extends RestHelper with CorsHelper {
+import scala.util.Using
+
+object FileService extends RestHelper with CorsHelper with Loggable {
   /**
    * Simple response without content.
    */
@@ -42,6 +47,7 @@ object FileService extends RestHelper with CorsHelper {
 
   serve("files" :: Nil prefix {
     case Nil Options _ => OkResponse()
+    case Nil Post req => saveAndRespond(req)
     case Nil Post AllowedMimeTypes(req) => saveAndRespond(req)
     case key :: Nil Get _ => serveFile(key)
     case key :: Nil Head _ => serveFile(key, true)
@@ -62,8 +68,46 @@ object FileService extends RestHelper with CorsHelper {
   }
 
   def saveAndRespond(req: Req): LiftResponse = {
-    val jvalue: List[JValue] = req.uploadedFiles.flatMap(fph => saveFile(fph))
-    JsonResponse(jvalue, responseHeaders, S.responseCookies, 200)
+    try {
+      // accept first entry from multipart/form-data content (if any)
+      val fpo: Option[FileParamHolder] = req.uploadedFiles.headOption.map { fph =>
+        logger.debug("saveAndRespond - multipart/form")
+        // return param holder, contentType and fileName taken from attachment info
+        fph
+      }.orElse {
+        // accept posted data from body, prefer HTTP inputstream
+        // if already accessed, fall back to in-memory array
+        req.rawInputStream.orElse(req.body).map { soa =>
+          logger.debug("saveAndRespond - body/as-is")
+          // use Content-Type and Slug headers for description
+          val contentType = req.contentType.openOr("application/octet-stream")
+          val fileName = req.header("Slug").openOr("unknown")
+          soa match { // stream-or-array
+            case is : InputStream =>
+              // transfer data from stream to temporary file
+              val tmpFile = File.createTempFile("upload-", ".tmp")
+              Using(Files.newOutputStream(tmpFile.toPath)) { os =>
+                logger.debug(s"""writing to $tmpFile""")
+                is.transferTo(os)
+                is.close
+              }
+              // create param holder for temporary file (like lift does for attachments)
+              new OnDiskFileParamHolder("upload", contentType, fileName, tmpFile)
+            case data : Array[Byte] =>
+              // create param holder for data already loaded into memory
+              FileParamHolder("memory", contentType, fileName, data)
+            case _ => throw new Exception("illegal argument")
+          }
+        }
+      }
+      val jvalue: List[JValue] = fpo.map(saveFile(_)).getOrElse(List("size" -> 0L))
+      JsonResponse(jvalue, responseHeaders, S.responseCookies, 200)
+    } catch {
+      case t: Throwable =>
+        logger.error("saveAndRespond failed", t)
+        val jerror = List(("status" -> "error") ~ ("message" -> s"""could not store file content: ${ t.getClass.getSimpleName } - ${ t.getMessage }"""))
+        JsonResponse(jerror, responseHeaders, S.responseCookies, 500)
+    }
   }
 
   def saveFile(fp: FileParamHolder): List[JValue] = {
