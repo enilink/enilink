@@ -30,9 +30,7 @@ object FileService extends RestHelper with CorsHelper {
 
   object AllowedMimeTypes extends Loggable {
     def unapply(req: Req): Option[Req] = {
-      logger.info("req.uploadedFiles.map{_.mimeType) is %s".format(req.uploadedFiles.map {
-        _.mimeType
-      }))
+      logger.debug("req.uploadedFiles.map{_.mimeType) is %s".format(req.uploadedFiles.map{_.mimeType}))
       req.uploadedFiles.flatMap {
         _.mimeType match {
           case _ => Some(req)
@@ -70,18 +68,19 @@ object FileService extends RestHelper with CorsHelper {
 
   def saveFile(fp: FileParamHolder): List[JValue] = {
     val fileStore = Globals.fileStore.vend
-    if (fp.length == 0) {
+    val len = fp.length // evaluate length now, while file (if any) exists
+    if (len == 0) {
       List("size" -> 0L)
     } else {
       val key = fp match {
-        case fp: OnDiskFileParamHolder => fileStore.store(fp.localFile.toPath, true)
+        case fp: OnDiskFileParamHolder => fileStore.store(fp.localPath, true)
         case fp => fileStore.store(fp.file)
       }
       val props = new Properties
       props.setProperty("contentType", fp.mimeType)
       props.setProperty("fileName", fp.fileName)
       fileStore.setProperties(key, props)
-      List(("id" -> key) ~ ("type" -> fp.mimeType) ~ ("size" -> fp.length))
+      List(("id" -> key) ~ ("type" -> fp.mimeType) ~ ("size" -> len))
     }
   }
 }
