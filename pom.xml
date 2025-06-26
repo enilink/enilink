@@ -408,14 +408,14 @@
 			<id>central-snapshots</id>
 			<url>https://central.sonatype.com/repository/maven-snapshots/</url>
 		</repository>
-		<repository>
+		<!-- repository>
 			<id>oss-sonatype-snapshots</id>
 			<name>OSS Sonatype Snapshots</name>
 			<url>https://oss.sonatype.org/content/repositories/snapshots/</url>
 			<releases>
 				<enabled>false</enabled>
 			</releases>
-		</repository>
+		</repository -->
 	</repositories>
 
 	<modules>
