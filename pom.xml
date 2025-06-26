@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <project
-		xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd"
-		xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+	xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd"
+	xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
 	<modelVersion>4.0.0</modelVersion>
 	<groupId>net.enilink.platform</groupId>
 	<artifactId>platform-parent</artifactId>
@@ -10,7 +10,8 @@
 
 	<name>eniLINK: Parent</name>
 	<url>https://platform.enilink.net/</url>
-	<description>eniLINK is a web platform for linked data applications based on the KOMMA framework and Lift.
+	<description>eniLINK is a web platform for linked data applications based on the KOMMA framework
+		and Lift.
 	</description>
 
 	<properties>
@@ -36,7 +37,8 @@
 		<bundles.liftweb.deploy.skip>true</bundles.liftweb.deploy.skip>
 
 		<enilink.scm.connection>scm:git:git://github.com:enilink/enilink.git</enilink.scm.connection>
-		<enilink.scm.developerConnection>scm:git:git@github.com:enilink/enilink.git</enilink.scm.developerConnection>
+		<enilink.scm.developerConnection>scm:git:git@github.com:enilink/enilink.git
+		</enilink.scm.developerConnection>
 		<enilink.scm.url>https://github.com/enilink/enilink</enilink.scm.url>
 	</properties>
 
@@ -149,7 +151,7 @@
 	<build>
 		<plugins>
 			<plugin>
-				<!-- resolve variables and remove development configuration from POM 
+				<!-- resolve variables and remove development configuration from POM
 					files -->
 				<groupId>org.codehaus.mojo</groupId>
 				<artifactId>flatten-maven-plugin</artifactId>
@@ -188,11 +190,11 @@
 						<configuration>
 							<target>
 								<symlink link="OSGI-INF"
-										 resource="${project.build.outputDirectory}/OSGI-INF"
-										 failonerror="false" overwrite="true"/>
+									resource="${project.build.outputDirectory}/OSGI-INF"
+									failonerror="false" overwrite="true"/>
 								<symlink link="META-INF"
-										 resource="${project.build.outputDirectory}/META-INF"
-										 failonerror="false" overwrite="true"/>
+									resource="${project.build.outputDirectory}/META-INF"
+									failonerror="false" overwrite="true"/>
 							</target>
 						</configuration>
 						<goals>
@@ -397,20 +399,22 @@
 
 	<repositories>
 		<repository>
+			<releases>
+				<enabled>false</enabled>
+			</releases>
+			<snapshots>
+				<enabled>true</enabled>
+			</snapshots>
+			<id>central-snapshots</id>
+			<url>https://central.sonatype.com/repository/maven-snapshots/</url>
+		</repository>
+		<repository>
 			<id>oss-sonatype-snapshots</id>
 			<name>OSS Sonatype Snapshots</name>
 			<url>https://oss.sonatype.org/content/repositories/snapshots/</url>
 			<releases>
 				<enabled>false</enabled>
 			</releases>
-		</repository>
-		<repository>
-			<id>oss-sonatype-releases</id>
-			<name>OSS Sonatype Releases</name>
-			<url>https://oss.sonatype.org/content/repositories/releases/</url>
-			<snapshots>
-				<enabled>false</enabled>
-			</snapshots>
 		</repository>
 	</repositories>
 
@@ -457,30 +461,18 @@
 		</profile>
 
 		<profile>
-			<id>ossrh</id>
-
-			<distributionManagement>
-				<snapshotRepository>
-					<id>ossrh</id>
-					<url>https://oss.sonatype.org/content/repositories/snapshots</url>
-				</snapshotRepository>
-				<repository>
-					<id>ossrh</id>
-					<url>https://oss.sonatype.org/service/local/staging/deploy/maven2/</url>
-				</repository>
-			</distributionManagement>
+			<id>central</id>
 
 			<build>
 				<plugins>
 					<plugin>
-						<groupId>org.sonatype.plugins</groupId>
-						<artifactId>nexus-staging-maven-plugin</artifactId>
-						<version>1.6.8</version>
+						<groupId>org.sonatype.central</groupId>
+						<artifactId>central-publishing-maven-plugin</artifactId>
+						<version>0.8.0</version>
 						<extensions>true</extensions>
 						<configuration>
-							<serverId>ossrh</serverId>
-							<nexusUrl>https://oss.sonatype.org/</nexusUrl>
-							<autoReleaseAfterClose>true</autoReleaseAfterClose>
+							<publishingServerId>central</publishingServerId>
+							<ignorePublishedComponents>true</ignorePublishedComponents>
 						</configuration>
 					</plugin>
 					<plugin>
