@@ -114,12 +114,10 @@ class LiftModule extends Logger {
       Full(() => LiftRules.jsArtifacts.hide("ajax-loader").cmd)
 
     // fade out information notices
-    LiftRules.noticesAutoFadeOut.default.set((notices: NoticeType.Value) => {
-      notices match {
-        case NoticeType.Notice => Full((3 seconds, 2 seconds))
-        case _ => Empty
-      }
-    })
+    LiftRules.noticesAutoFadeOut.default.set {
+      case NoticeType.Notice => Full((3 seconds, 2 seconds))
+      case _ => Empty
+    }
 
     // What is the function to test if a user is logged in?
     LiftRules.loggedInTest = Full(() => Globals.contextUser.vend != Globals.UNKNOWN_USER)

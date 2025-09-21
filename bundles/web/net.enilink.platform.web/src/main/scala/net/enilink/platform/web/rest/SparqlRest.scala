@@ -9,13 +9,14 @@ import net.liftweb.common.{Box, Full}
 import net.liftweb.http.rest.RestHelper
 import net.liftweb.http.{InMemoryResponse, LiftResponse, OutputStreamResponse, S}
 import net.liftweb.util.Helpers.tryo
+import org.eclipse.rdf4j.common.exception.RDF4JException
 import org.eclipse.rdf4j.model.impl.SimpleValueFactory
+import org.eclipse.rdf4j.query.MalformedQueryException
 import org.eclipse.rdf4j.query.resultio.{QueryResultIO, QueryResultWriter}
 import org.eclipse.rdf4j.rio.WriterConfig
 import org.eclipse.rdf4j.rio.helpers.BasicWriterSettings
 
 import java.io.{ByteArrayOutputStream, OutputStream}
-import java.util
 import scala.jdk.CollectionConverters._
 
 object SparqlRest extends RestHelper with CorsHelper {
@@ -60,87 +61,90 @@ object SparqlRest extends RestHelper with CorsHelper {
     getModel(modelUri).dmap(Full(NotFoundResponse("Model " + modelUri + " not found.")): Box[LiftResponse]) {
       case model@NotAllowedModel(_) => Full(ForbiddenResponse("You don't have permissions to access " + model.getURI + "."))
       case model =>
-        val em = model.getManager
-        val query = em.createQuery(queryStr)
-        // ensure that resources are not instantiated as KOMMA entities
-        if ("(?i)(construct\\s*[{]|describe\\s*[?$])".r.findFirstIn(queryStr).isDefined) {
-          query.restrictResultType(null.asInstanceOf[String], classOf[IStatement])
-        } else {
-          query.restrictResultType(null.asInstanceOf[String], classOf[IValue])
-        }
+        try {
+          val em = model.getManager
+          val query = em.createQuery(queryStr)
+          // ensure that resources are not instantiated as KOMMA entities
+          if ("(?i)(construct\\s*[{]|describe\\s*[?$])".r.findFirstIn(queryStr).isDefined) {
+            query.restrictResultType(null.asInstanceOf[String], classOf[IStatement])
+          } else {
+            query.restrictResultType(null.asInstanceOf[String], classOf[IValue])
+          }
 
-        query.evaluate match {
-          case r: ITupleResult[_] if QueryResultIO.getWriterFormatForMIMEType(resultMimeType).isPresent =>
-            // start unit of work here to avoid closing by loan wrapper
-            model.getModelSet.getUnitOfWork.begin()
-            val func = (out: OutputStream) => {
-              val format = QueryResultIO.getWriterFormatForMIMEType(resultMimeType).get()
-              val writer = QueryResultIO.createTupleWriter(format, out)
-              configure(writer)
+          query.evaluate match {
+            case r: ITupleResult[_] if QueryResultIO.getWriterFormatForMIMEType(resultMimeType).isPresent =>
+              // start unit of work here to avoid closing by loan wrapper
+              model.getModelSet.getUnitOfWork.begin()
+              val func = (out: OutputStream) => {
+                val format = QueryResultIO.getWriterFormatForMIMEType(resultMimeType).get()
+                val writer = QueryResultIO.createTupleWriter(format, out)
+                configure(writer)
 
-              writer.startQueryResult(r.getBindingNames)
+                writer.startQueryResult(r.getBindingNames)
 
-              try {
-                r.iterator.asScala.foreach {
-                  case bindings: IBindings[_] =>
-                    val bindingSet = converter.toRdf4j(bindings)
-                    writer.handleSolution(bindingSet)
-                  case value: IValue =>
-                    // select with only one variable like "select ?s where { ?s ?p ?o }" for which KOMMA returns direct object instances
-                    val bindings: IBindings[IValue] = new IBindings[IValue] {
-                      val values: util.List[IValue] = List(value).asJava
+                try {
+                  r.iterator.asScala.foreach {
+                    case bindings: IBindings[_] =>
+                      val bindingSet = converter.toRdf4j(bindings)
+                      writer.handleSolution(bindingSet)
+                    case value: IValue =>
+                      // select with only one variable like "select ?s where { ?s ?p ?o }" for which KOMMA returns direct object instances
+                      val values = java.util.List.of(value)
+                      val bindings: IBindings[IValue] = new IBindings[IValue] {
+                        override def get(key: String): IValue = value
 
-                      override def get(key: String): IValue = value
+                        override def getKeys: java.util.List[String] = r.getBindingNames
 
-                      override def getKeys: util.Collection[String] = r.getBindingNames
-
-                      override def iterator: util.Iterator[IValue] = values.iterator
-                    }
-                    writer.handleSolution(converter.toRdf4j(bindings))
+                        override def iterator: java.util.Iterator[IValue] = values.iterator.asInstanceOf[java.util.Iterator[IValue]]
+                      }
+                      writer.handleSolution(converter.toRdf4j(bindings))
+                  }
+                } finally {
+                  r.close()
+                  model.getModelSet.getUnitOfWork.end()
                 }
-              } finally {
-                r.close()
-                model.getModelSet.getUnitOfWork.end()
+
+                writer.endQueryResult()
               }
 
-              writer.endQueryResult()
-            }
+              Full(OutputStreamResponse(func, -1,
+                ("Content-Type", resultMimeType + "; charset=utf-8") :: responseHeaders,
+                responseCookies, 200))
+            case r: IGraphResult =>
+              val baos = new ByteArrayOutputStream
+              val writer = ModelUtil.writeData(baos, model.getURI.toString, resultMimeType, "UTF-8")
 
-            Full(OutputStreamResponse(func, -1,
-              ("Content-Type", resultMimeType + "; charset=utf-8") :: responseHeaders,
-              responseCookies, 200))
-          case r: IGraphResult =>
-            val baos = new ByteArrayOutputStream
-            val writer = ModelUtil.writeData(baos, model.getURI.toString, resultMimeType, "UTF-8")
+              writer.visitBegin
+              try {
+                r.iterator.asScala.foreach { stmt => writer.visitStatement(stmt) }
+              } finally {
+                r.close()
+              }
+              writer.visitEnd
 
-            writer.visitBegin
-            try {
-              r.iterator.asScala.foreach { stmt => writer.visitStatement(stmt) }
-            } finally {
-              r.close()
-            }
-            writer.visitEnd
+              val data = baos.toByteArray
+              Full(InMemoryResponse(data, ("Content-Length", data.length.toString) ::
+                ("Content-Type", resultMimeType + "; charset=utf-8") :: responseHeaders, responseCookies, 200))
+            case r: IBooleanResult if QueryResultIO.getBooleanWriterFormatForMIMEType(resultMimeType).isPresent =>
+              val baos = new ByteArrayOutputStream
+              val format = QueryResultIO.getBooleanWriterFormatForMIMEType(resultMimeType).get()
+              val writer = QueryResultIO.createBooleanWriter(format, baos)
+              configure(writer)
 
-            val data = baos.toByteArray
-            Full(InMemoryResponse(data, ("Content-Length", data.length.toString) ::
-              ("Content-Type", resultMimeType + "; charset=utf-8") :: responseHeaders, responseCookies, 200))
-          case r: IBooleanResult if QueryResultIO.getBooleanWriterFormatForMIMEType(resultMimeType).isPresent =>
-            val baos = new ByteArrayOutputStream
-            val format = QueryResultIO.getBooleanWriterFormatForMIMEType(resultMimeType).get()
-            val writer = QueryResultIO.createBooleanWriter(format, baos)
-            configure(writer)
+              try {
+                val result = r.asBoolean
+                writer.handleBoolean(result)
+              } finally {
+                r.close
+              }
 
-            try {
-              val result = r.asBoolean
-              writer.handleBoolean(result)
-            } finally {
-              r.close()
-            }
-
-            val data = baos.toByteArray
-            Full(InMemoryResponse(data, ("Content-Length", data.length.toString) ::
-              ("Content-Type", resultMimeType + "; charset=utf-8") :: responseHeaders, responseCookies, 200))
-          case _ => Full(BadRequestResponse()) // unexpected, should not happen
+              val data = baos.toByteArray
+              Full(InMemoryResponse(data, ("Content-Length", data.length.toString) ::
+                ("Content-Type", resultMimeType + "; charset=utf-8") :: responseHeaders, responseCookies, 200))
+            case _ => Full(BadRequestResponse()) // unexpected, should not happen
+          }
+        } catch {
+          case e: Exception => Full(toResponse(e))
         }
     }
   }
@@ -153,19 +157,45 @@ object SparqlRest extends RestHelper with CorsHelper {
       case model@NotAllowedModel(_) => Full(ForbiddenResponse("You don't have permissions to access " + model.getURI + "."))
       case model =>
         val em = model.getManager
+        val changeSupport = model.getModelSet.getDataChangeSupport
+        // disable change support for updates via SPARQL endpoint
+        val enabled = changeSupport.isEnabled(null)
+        if (enabled) {
+          changeSupport.setEnabled(null, false)
+        }
         try {
           val update = em.createUpdate(queryStr, model.getURI.toString, true)
           update.execute()
           Full(OkResponse())
         } catch {
-          case _: Exception => Full(BadRequestResponse())
+          case e: Exception => Full(toResponse(e))
+        } finally {
+          if (enabled) {
+            changeSupport.setEnabled(null, true)
+          }
         }
+    }
+  }
+
+  /**
+   * Convert exception to appropriate HTTP response.
+   */
+  def toResponse(e: Exception): LiftResponse = {
+    // find first cause that is instanceof of RDF4JException
+    var cause: Throwable = e
+    while (cause.getCause != null && !cause.isInstanceOf[RDF4JException]) {
+      cause = cause.getCause
+    }
+
+    cause match {
+      case mqe: MalformedQueryException => BadRequestResponse("Invalid query:\n" + mqe.getMessage)
+      case null => InternalServerErrorResponse()
     }
   }
 
   serve("sparql" :: Nil prefix {
     case Nil Options _ => OkResponse()
-    case Nil Get req =>
+    case Nil Get req => {
       for {
         query <- S.param("query")
         model <- Globals.contextModel.vend
@@ -173,7 +203,8 @@ object SparqlRest extends RestHelper with CorsHelper {
 
         result <- queryModel(query, model.getURI, mimeType)
       } yield result
-    case Nil Post req if S.param("query").isDefined =>
+    }
+    case Nil Post req if S.param("query").isDefined => {
       val query = S.param("query")
       query flatMap { q =>
         for {
@@ -183,7 +214,8 @@ object SparqlRest extends RestHelper with CorsHelper {
           result <- queryModel(q, model.getURI, mimeType)
         } yield result
       }
-    case Nil Post req if req.contentType.exists(_ == "application/sparql-query") =>
+    }
+    case Nil Post req if req.contentType.exists(_ == "application/sparql-query") => {
       for {
         mimeType <- getSparqlQueryResponseMimeType(req)
         queryData <- req.body
@@ -192,7 +224,8 @@ object SparqlRest extends RestHelper with CorsHelper {
 
         result <- queryModel(query, model.getURI, mimeType)
       } yield result
-    case Nil Post req if S.param("update").isDefined =>
+    }
+    case Nil Post req if S.param("update").isDefined => {
       val query = S.param("update")
       query flatMap { q =>
         for {
@@ -202,7 +235,8 @@ object SparqlRest extends RestHelper with CorsHelper {
           result <- updateModel(q, model.getURI, mimeType)
         } yield result
       }
-    case Nil Post req if req.contentType.exists(_ == "application/sparql-update") =>
+    }
+    case Nil Post req if req.contentType.exists(_ == "application/sparql-update") => {
       for {
         mimeType <- getSparqlQueryResponseMimeType(req)
         queryData <- req.body
@@ -211,5 +245,6 @@ object SparqlRest extends RestHelper with CorsHelper {
 
         result <- updateModel(query, model.getURI, mimeType)
       } yield result
+    }
   })
 }
