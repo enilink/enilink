@@ -19,7 +19,7 @@ import org.eclipse.rdf4j.rio.helpers.BasicWriterSettings
 import java.io.{ByteArrayOutputStream, OutputStream}
 import scala.jdk.CollectionConverters._
 
-object SparqlRest extends RestHelper with CorsHelper {
+class SparqlRest extends RestHelper with CorsHelper {
 
   import net.enilink.platform.web.rest.Util._
 
@@ -111,20 +111,20 @@ object SparqlRest extends RestHelper with CorsHelper {
                 ("Content-Type", resultMimeType + "; charset=utf-8") :: responseHeaders,
                 responseCookies, 200))
             case r: IGraphResult =>
-              val baos = new ByteArrayOutputStream
-              val writer = ModelUtil.writeData(baos, model.getURI.toString, resultMimeType, "UTF-8")
+              val func = (out: OutputStream) => {
+                val writer = ModelUtil.writeData(out, model.getURI.toString, resultMimeType, "UTF-8")
+                writer.visitBegin
+                try {
+                  r.iterator.asScala.foreach { stmt => writer.visitStatement(stmt) }
+                } finally {
+                  r.close()
+                }
+                writer.visitEnd
+              } : Unit
 
-              writer.visitBegin
-              try {
-                r.iterator.asScala.foreach { stmt => writer.visitStatement(stmt) }
-              } finally {
-                r.close()
-              }
-              writer.visitEnd
-
-              val data = baos.toByteArray
-              Full(InMemoryResponse(data, ("Content-Length", data.length.toString) ::
-                ("Content-Type", resultMimeType + "; charset=utf-8") :: responseHeaders, responseCookies, 200))
+              Full(OutputStreamResponse(func, -1,
+                ("Content-Type", resultMimeType + "; charset=utf-8") :: responseHeaders,
+                responseCookies, 200))
             case r: IBooleanResult if QueryResultIO.getBooleanWriterFormatForMIMEType(resultMimeType).isPresent =>
               val baos = new ByteArrayOutputStream
               val format = QueryResultIO.getBooleanWriterFormatForMIMEType(resultMimeType).get()
@@ -135,7 +135,7 @@ object SparqlRest extends RestHelper with CorsHelper {
                 val result = r.asBoolean
                 writer.handleBoolean(result)
               } finally {
-                r.close
+                r.close()
               }
 
               val data = baos.toByteArray
@@ -195,7 +195,7 @@ object SparqlRest extends RestHelper with CorsHelper {
 
   serve("sparql" :: Nil prefix {
     case Nil Options _ => OkResponse()
-    case Nil Get req => {
+    case Nil Get req =>
       for {
         query <- S.param("query")
         model <- Globals.contextModel.vend
@@ -203,7 +203,6 @@ object SparqlRest extends RestHelper with CorsHelper {
 
         result <- queryModel(query, model.getURI, mimeType)
       } yield result
-    }
     case Nil Post req if S.param("query").isDefined => {
       val query = S.param("query")
       query flatMap { q =>

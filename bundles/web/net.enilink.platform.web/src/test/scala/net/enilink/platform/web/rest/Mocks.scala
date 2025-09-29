@@ -1,8 +1,10 @@
 package net.enilink.platform.web.rest
 
+import net.enilink.komma.core.URIs
 import net.enilink.platform.lift.util.Globals
-import net.liftweb.common.Box
-import net.liftweb.http.{LiftResponse, Req}
+import net.liftweb.common.{Box, Empty, Full}
+import net.liftweb.http.rest.RestHelper
+import net.liftweb.http.{CurrentReq, LiftResponse, Req, S}
 import org.eclipse.core.runtime.{QualifiedName, RegistryFactory}
 import org.eclipse.core.runtime.content.{IContentDescription, IContentType}
 import org.mockito.Mockito
@@ -10,7 +12,25 @@ import org.mockito.Mockito
 import java.io.{ByteArrayInputStream, InputStream}
 import javax.servlet.ServletInputStream
 
-object MockModelsRest extends ModelsRest {
+trait MockModelsInApply extends RestHelper {
+  override def apply(in: Req): () => Box[LiftResponse] = {
+    try {
+      Globals.contextModelSet.vend.map(_.getUnitOfWork.begin)
+      CurrentReq.doWith(in) {
+        val m = S.param("model").flatMap(name => Full(URIs.createURI(name)).filterNot(_.isRelative))
+        Globals.contextModel.doWith(() => m.flatMap(uri => {
+          Globals.contextModelSet.vend.map(_.getModel(uri, false)).filter(_ != null)
+        })) {
+          super.apply(in)
+        }
+      }
+    } finally {
+      Globals.contextModelSet.vend.map(_.getUnitOfWork.end)
+    }
+  }
+}
+
+object MockModelsRest extends ModelsRest with MockModelsInApply{
   // this class is required to mock the content types which are not working without OSGi
 
   class MockContentDescription(mimeType: (String, String), contentType: IContentType) extends IContentDescription {
@@ -43,20 +63,14 @@ object MockModelsRest extends ModelsRest {
     .map(_.split("/")).map(elements => createContentType(elements(0), elements(1)))
     .toMap
 
-  override def apply(in: Req): () => Box[LiftResponse] = {
-    try {
-      Globals.contextModelSet.vend.map(_.getUnitOfWork.begin)
-      super.apply(in)
-    } finally {
-      Globals.contextModelSet.vend.map(_.getUnitOfWork.end)
-    }
-  }
-
   def createContentType(mimeType: (String, String)): ((String, String), IContentType) = {
     val contentType = Mockito.mock(classOf[IContentType])
     Mockito.when(contentType.getDefaultDescription()).thenReturn(new MockContentDescription(mimeType, contentType))
     (mimeType, contentType)
   }
+}
+
+object MockSparqlRest extends SparqlRest with MockModelsInApply {
 }
 
 class MockHttpServletRequest(url: String) extends net.liftweb.mocks.MockHttpServletRequest(url) {

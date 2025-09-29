@@ -7,27 +7,17 @@ import net.enilink.platform.lift.util.NotAllowedModel
 import net.liftweb.common.Box.{box2Option, option2Box}
 import net.liftweb.common.{Box, Empty, Failure, Full}
 import net.liftweb.http.rest.RestHelper
-import net.liftweb.http.{ContentType, InMemoryResponse, LiftResponse, Req, S}
+import net.liftweb.http.{ContentType, LiftResponse, OutputStreamResponse, Req, S}
 import org.eclipse.core.runtime.content.{IContentDescription, IContentType}
 import org.eclipse.core.runtime.{Platform, QualifiedName}
 
-import java.io.{ByteArrayOutputStream, IOException, InputStream}
+import java.io.{IOException, InputStream, OutputStream}
 import scala.jdk.CollectionConverters._
 import scala.util.matching.Regex
 
-class ModelsRest extends RestHelper with CorsHelper {
+class ModelsRest(val sparqlRest : Option[SparqlRest] = None) extends RestHelper with CorsHelper {
 
   import Util._
-
-  /**
-   * Simple in-memory response for RDF data.
-   */
-  case class RdfResponse(data: Array[Byte], contentDescription: IContentDescription, headers: List[(String, String)], code: Int) extends LiftResponse {
-    def toResponse: InMemoryResponse = {
-      val typeName = contentDescription.getProperty(mimeTypeProp)
-      InMemoryResponse(data, ("Content-Length", data.length.toString) :: ("Content-Type", typeName.toString + "; charset=utf-8") :: headers, Nil, code)
-    }
-  }
 
   /**
    * If the headers and the suffix say nothing about the
@@ -113,9 +103,18 @@ class ModelsRest extends RestHelper with CorsHelper {
       case model@NotAllowedModel(_) => Full(ForbiddenResponse("You don't have permissions to access " + model.getURI + "."))
       case model => getResponseContentType(r) map (_.getDefaultDescription) match {
         case Some(cd) if "true".equals(String.valueOf(cd.getProperty(hasWriter))) =>
-          val baos = new ByteArrayOutputStream
-          model.save(baos, Map(IModel.OPTION_CONTENT_DESCRIPTION -> cd).asJava)
-          Full(RdfResponse(baos.toByteArray, cd, responseHeaders, 200))
+          val func = (out: OutputStream) => {
+            try {
+              model.save(out, Map(IModel.OPTION_CONTENT_DESCRIPTION -> cd).asJava)
+            } catch {
+              case _: IOException => // nothing we can do here
+            }
+          }
+
+          val typeName = cd.getProperty(mimeTypeProp)
+          Full(OutputStreamResponse(func, -1,
+            ("Content-Type", typeName.toString  + "; charset=utf-8") :: responseHeaders,
+            responseCookies, 200))
         case _ => Full(UnsupportedMediaTypeResponse())
       }
     }
@@ -140,8 +139,11 @@ class ModelsRest extends RestHelper with CorsHelper {
 
   def clearModel(r: Req, modelUri: URI): Box[LiftResponse] = {
     getModel(modelUri) map {
-      case NotAllowedModel(_) => ForbiddenResponse("You don't have permissions to access " + modelUri + ".")
+      case NotAllowedModel(_) =>
+        // access to model is not allowed
+        ForbiddenResponse("You don't have permissions to access " + modelUri + ".")
       case model =>
+        // model exists, clear it
         val modelSet = model.getModelSet
         val changeSupport = modelSet.getDataChangeSupport
         try {
@@ -151,7 +153,7 @@ class ModelsRest extends RestHelper with CorsHelper {
           changeSupport.setEnabled(null, true)
         }
         OkResponse()
-    }
+    } orElse Full(OkResponse()) // also return OK if model does not exist
   }
 
   def deleteModel(r: Req, modelUri: URI): Box[LiftResponse] = {
@@ -180,7 +182,7 @@ class ModelsRest extends RestHelper with CorsHelper {
     case ("vocab" | "models") :: modelName Get req if validModel(modelName) =>
       S.param("query") match {
         case Full(sparql) => getSparqlQueryResponseMimeType(req) flatMap { resultMimeType =>
-          SparqlRest.queryModel(sparql, getModelUri(req), resultMimeType)
+          sparqlRest.flatMap(_.queryModel(sparql, getModelUri(req), resultMimeType))
         }
         case _ if getResponseContentType(req).isDefined => serveRdf(req, getModelUri(req))
         case _ => BadRequestResponse()
@@ -210,7 +212,7 @@ class ModelsRest extends RestHelper with CorsHelper {
       val response: Box[LiftResponse] = if (validModel(modelName)) {
         S.param("query") match {
           case Full(sparql) => getSparqlQueryResponseMimeType(req) flatMap { resultMimeType =>
-            SparqlRest.queryModel(sparql, getModelUri(req), resultMimeType)
+            sparqlRest.flatMap(_.queryModel(sparql, getModelUri(req), resultMimeType))
           }
           case _ =>
             req.rawInputStream match {

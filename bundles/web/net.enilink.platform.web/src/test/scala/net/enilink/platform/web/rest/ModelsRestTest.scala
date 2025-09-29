@@ -2,14 +2,16 @@ package net.enilink.platform.web.rest
 
 import com.google.inject.Guice
 import net.enilink.komma.core.KommaModule
-import net.enilink.komma.model.{IModelSet, IModelSetFactory, MODELS, ModelPlugin, ModelSetModule}
+import net.enilink.komma.model._
 import net.enilink.platform.lift.util.Globals
 import net.liftweb.common.{Box, Full}
-import net.liftweb.http.{LiftResponse, Req}
 import net.liftweb.http.provider.servlet.HTTPRequestServlet
+import net.liftweb.http.{BasicResponse, InMemoryResponse, LiftResponse, OutputStreamResponse, Req}
 import org.junit.Assert._
 import org.junit.{AfterClass, BeforeClass, Test}
 
+import java.io.ByteArrayOutputStream
+import java.nio.charset.StandardCharsets
 import javax.servlet.http.HttpServletRequest
 
 /**
@@ -35,6 +37,7 @@ object ModelsRestTest {
     modelSet = null
   }
 }
+
 /**
  * Unit tests for the /models endpoint
  */
@@ -108,5 +111,65 @@ class ModelsRestTest {
       body_=("<t:s> _invalid_ <t:p> <t:o> .", "text/turtle")
     }
     assertEquals(Full(400), modelsRest(toReq(invalidPostReq))().map(_.toResponse.code))
+  }
+
+  @Test
+  def putCreateNonExistingModel(): Unit = {
+    val modelName = "put-model-create"
+    val putReq = new MockHttpServletRequest(baseUrl + s"/$modelName") {
+      method = "PUT"
+      body_=("<t:s> <t:p> <t:o> .", "text/turtle")
+    }
+    // Should create the model and return 200
+    assertEquals(Full(200), modelsRest(toReq(putReq))().map(_.toResponse.code))
+
+    // Verify model exists by GET
+    val getReq = new MockHttpServletRequest(baseUrl + s"/$modelName") {
+      method = "GET"
+      headers = (("Accept", "text/turtle" :: Nil) :: Nil).toMap
+    }
+    assertEquals(Full(200), modelsRest(toReq(getReq))().map(_.toResponse.code))
+  }
+
+  @Test
+  def putOverwriteExistingModel(): Unit = {
+    val modelName = "put-model-overwrite"
+    // First, create the model with initial data
+    val putReq1 = new MockHttpServletRequest(baseUrl + s"/$modelName") {
+      method = "PUT"
+      body_=("<t:s> <t:p> <t:o1> .", "text/turtle")
+    }
+    assertEquals(Full(200), modelsRest(toReq(putReq1))().map(_.toResponse.code))
+
+    // Overwrite the model with new data
+    val putReq2 = new MockHttpServletRequest(baseUrl + s"/$modelName") {
+      method = "PUT"
+      body_=("<t:s> <t:p> <t:o2> .", "text/turtle")
+    }
+    assertEquals(Full(200), modelsRest(toReq(putReq2))().map(_.toResponse.code))
+
+    // Verify model exists by GET
+    val getReq = new MockHttpServletRequest(baseUrl + s"/$modelName") {
+      method = "GET"
+      headers = (("Accept", "text/turtle" :: Nil) :: Nil).toMap
+    }
+    val response =  modelsRest(toReq(getReq))().map(_.toResponse)
+
+    assertEquals(Full(200), response.map(_.code))
+    val body = response.map(responseToString).getOrElse("")
+    assertTrue(body.contains("<t:s> <t:p> <t:o2>"))
+    assertFalse(body.contains("<t:s> <t:p> <t:o1>"))
+  }
+
+  def responseToString(resp: BasicResponse): String = {
+    resp match {
+      case InMemoryResponse(data, _, _, _) =>
+        new String(data, StandardCharsets.UTF_8)
+      case r: OutputStreamResponse =>
+        val rStream = new ByteArrayOutputStream()
+        r.out(rStream)
+        rStream.toString()
+      case _ => fail("Unexpected response type"); ""
+    }
   }
 }

@@ -42,7 +42,11 @@ class LiftModule {
         true
     }
 
-    LiftRules.dispatch.append(new ModelsRest())
+    val sparqlRest = new SparqlRest
+    // add models REST service
+    LiftRules.dispatch.append(new ModelsRest(Some(sparqlRest)))
+    // add SPARQL REST service
+    LiftRules.dispatch.append(sparqlRest)
 
     // redirect to HTML presentation if requested by the client (e.g. for a browser)
     LiftRules.statelessRewrite.append({
@@ -63,6 +67,5 @@ class LiftModule {
         ParsePath("sparql" :: Nil, _, _, _), _, req) if req.headers("accept").exists(_.toLowerCase.contains("text/html")) =>
         RewriteResponse("static" :: "sparql" :: Nil)
     })
-    LiftRules.dispatch.append(SparqlRest)
   }
 }
