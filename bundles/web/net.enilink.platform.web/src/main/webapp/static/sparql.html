@@ -5,7 +5,41 @@
 			 models: http://enilink.net/vocab/komma/models#
 			 ">
 
+    <script src="/classpath/webjars/zazuko__yasgui/4.5.0/static/yasgui.polyfill.min.js"></script>
+    <script defer="defer" src="/classpath/webjars/zazuko__yasgui/4.5.0/build/yasgui.min.js"></script>
+    <script defer="defer" src="/classpath/webjars/zazuko__yasqe/4.5.0/build/yasqe.min.js"></script>
+    <script defer="defer" src="/classpath/webjars/zazuko__yasr/4.5.0/build/yasr.min.js"></script>
+
+    <style>
+        .yasgui .label, .yasgui input {
+            all: initial;
+            /* font-family: "Helvetica Neue", Helvetica, Arial, sans-serif; */
+        }
+    </style>
+
+    <link href="/classpath/webjars/zazuko__yasgui/4.5.0/build/yasgui.min.css" rel="stylesheet">
+    <link href="/classpath/webjars/zazuko__yasqe/4.5.0/build/yasqe.min.css" rel="stylesheet">
+    <link href="/classpath/webjars/zazuko__yasr/4.5.0/build/yasr.min.css" rel="stylesheet">
+
+    <script>
+        $(function() {
+            require(['Yasgui'], function(Yasgui) {
+                window.yasgui = new Yasgui(document.getElementById("yasgui"), {
+                    corsProxy: "",
+                    requestConfig: {
+                        endpoint: "/sparql",
+                    }
+                });
+			});
+		});
+    </script>
+
+    <div id="yasgui"></div>
+
 	<div class="row">
+        <div class="col-lg-12">
+
+        </div>
 		<div class="col-lg-12">
 			<div class="well">
 				<form class="form-horizontal" id="form">
@@ -22,7 +56,7 @@
 								</select>
 							</div>
 						</div>
-						
+
 						<div class="form-group">
 							<label for="query" class="col-lg-1 control-label">Query</label>
 							<div class="col-lg-11">
@@ -30,7 +64,7 @@
 								<span class="help-block">The SPARQL query.</span>
 							</div>
 						</div>
-						
+
 						<div class="form-group">
 							<div class="col-lg-11 col-lg-offset-1">
 								<button type="submit" class="btn btn-primary" id="#submitBtn">Submit</button>
@@ -103,7 +137,7 @@
 						if (binding.type == "bnode") {
 							value = "_:" + value;
 						}
-						
+
 						var cell = td;
 						if (binding.type != "literal") {
 							cell = $("<a>").attr("href", "describe?" + enilink.encodeParams({
@@ -111,7 +145,7 @@
 								resource : value
 							})).appendTo(cell);
 						}
-						
+
 						cell.text(simplifyURI(value));
 					} else {
 						$("<td>").text("").appendTo(row);
