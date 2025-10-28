@@ -34,7 +34,11 @@ object Util {
   }
 
   def getOrCreateModel(modelUri: URI): Box[IModel] = getModel(modelUri) or {
-    Globals.contextModelSet.vend map { _.createModel(modelUri.trimFileExtension) }
+    Globals.contextModelSet.vend map { ms =>
+      val model = ms.createModel(modelUri.trimFileExtension)
+      model.setLoaded(true)
+      model
+    }
   }
 
   def getSparqlQueryResponseMimeType(r: Req): Box[String] = {

@@ -103,11 +103,16 @@ class ModelsRest(val sparqlRest : Option[SparqlRest] = None) extends RestHelper 
       case model@NotAllowedModel(_) => Full(ForbiddenResponse("You don't have permissions to access " + model.getURI + "."))
       case model => getResponseContentType(r) map (_.getDefaultDescription) match {
         case Some(cd) if "true".equals(String.valueOf(cd.getProperty(hasWriter))) =>
+          // start unit of work here to avoid closing by loan wrapper
+          val uow = model.getModelSet.getUnitOfWork
+          uow.begin()
           val func = (out: OutputStream) => {
             try {
               model.save(out, Map(IModel.OPTION_CONTENT_DESCRIPTION -> cd).asJava)
             } catch {
               case _: IOException => // nothing we can do here
+            } finally {
+              uow.end()
             }
           }
 
