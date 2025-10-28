@@ -7,7 +7,7 @@ import net.enilink.platform.lift.util.{CurrentContext, Globals, NotAllowedModel,
 import net.enilink.platform.security.auth.{AccountHelper, EnilinkPrincipal}
 import net.liftweb.common.Box.option2Box
 import net.liftweb.common.{Box, Empty, Full, Logger}
-import net.liftweb.http.ContentSourceRestriction.{Self, UnsafeEval, UnsafeInline}
+import net.liftweb.http.ContentSourceRestriction.{All, Scheme, Self, UnsafeEval, UnsafeInline}
 import net.liftweb.http.LiftRulesMocker.toLiftRules
 import net.liftweb.http.auth.HttpBasicAuthentication
 import net.liftweb.http.js.jquery.JQueryArtifacts
@@ -61,6 +61,7 @@ class LiftModule extends Logger {
       content = Some(
         ContentSecurityPolicy(
           defaultSources = List(Self, UnsafeInline),
+          imageSources = List(All, Scheme("data")),
           scriptSources = List(Self, UnsafeInline, UnsafeEval)
         )
       )
