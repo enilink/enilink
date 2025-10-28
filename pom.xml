@@ -20,7 +20,6 @@
 		<project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
 
 		<junit.version>4.13.2</junit.version>
-		<webjars.locator.version>0.38</webjars.locator.version>
 		<lift.version>3.5.0</lift.version>
 		<lift.bundle.version>${lift.version}-sp2</lift.bundle.version>
 		<komma.version>1.8.0-SNAPSHOT</komma.version>
@@ -37,8 +36,7 @@
 		<bundles.liftweb.deploy.skip>true</bundles.liftweb.deploy.skip>
 
 		<enilink.scm.connection>scm:git:git://github.com:enilink/enilink.git</enilink.scm.connection>
-		<enilink.scm.developerConnection>scm:git:git@github.com:enilink/enilink.git
-		</enilink.scm.developerConnection>
+		<enilink.scm.developerConnection>scm:git:git@github.com:enilink/enilink.git</enilink.scm.developerConnection>
 		<enilink.scm.url>https://github.com/enilink/enilink</enilink.scm.url>
 	</properties>
 
