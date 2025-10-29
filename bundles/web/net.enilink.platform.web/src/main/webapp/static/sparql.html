@@ -32,8 +32,45 @@
     <link href="/classpath/webjars/zazuko__yasr/*/build/yasr.min.css" rel="stylesheet">
 
     <script>
+        function getDescribeHref(resource) {
+            return `../describe?model=${ encodeURIComponent($('#model').val()) }&resource=${ encodeURIComponent(resource) }`;
+        }
+
         $(function() {
-            require(['Yasgui'], function(Yasgui) {
+            require(['Yasgui', '/classpath/webjars/dompurify/*/dist/purify.min.js'], function(Yasgui, dompurify) {
+                // Override getCellContent to add links to URIs and BNodes
+                const originalGetCellContent = window.Yasr.plugins.table.prototype.getCellContent;
+                window.Yasr.plugins.table.prototype.getCellContent = function (binding, prefixes) {
+                    let content;
+                    if (binding.type === 'uri') {
+                        let label =  binding.value;
+                        let prefixed = false;
+                        if (prefixes) {
+                          for (const prefix in prefixes) {
+                            if (label.startsWith(prefixes[prefix])) {
+                              label = prefix + ":" + label.substring(prefixes[prefix].length);
+                              prefixed = true;
+                              break;
+                            }
+                          }
+                        }
+                        // Hide brackets when prefixed or compact
+                        const hideBrackets = prefixed || this.persistentConfig.compact;
+                        content = `<span>${hideBrackets ? "" : "&lt;"}<a class='iri' target='${
+                          this.config.openIriInNewWindow ? "_blank" : "_self"
+                        }'${this.config.openIriInNewWindow ? " ref='noopener noreferrer'" : ""}
+                        href='${ getDescribeHref( binding.value) }'>${ dompurify.sanitize(label) }</a>${hideBrackets ? "" : "&gt;"}</span>`;
+                    } else if (binding.type === 'bnode') {
+                        content = `<a class="bnode" target='${
+                          this.config.openIriInNewWindow ? "_blank" : "_self"
+                        }'${this.config.openIriInNewWindow ? " ref='noopener noreferrer'" : ""}
+                        href='${ getDescribeHref( binding.value) }'>${ dompurify.sanitize(binding.value) }</a>`;
+                    } else {
+                        content = `<span class='nonIri'>${ this.formatLiteral(binding, prefixes) }</span>`;
+                    }
+                    return `<div>${content}</div>`;
+                };
+
                 window.yasgui = new Yasgui(document.getElementById("yasgui"), {
                     corsProxy: "",
                     requestConfig: {
@@ -57,16 +94,8 @@
                 yasgui.on("tabChange", (instance, tab) => {
                    delete tab.persistentJson.requestConfig.args;
                 });
-
-                $("#yasgui").on('click', 'a', (e) => {
-                    if (e.target.classList.contains('iri')) {
-                        e.preventDefault();
-                        var resource = $(e.target).attr('href') || $(e.target).text();
-                        window.open(`../describe?model=${ encodeURIComponent($('#model').val()) }&resource=${ encodeURIComponent(resource) }`, '_blank');
-                    }
-                });
-			});
-		});
+            });
+        });
     </script>
 
     <wa-card appearance="outlined">
