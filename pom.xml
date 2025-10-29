@@ -22,7 +22,7 @@
 		<junit.version>4.13.2</junit.version>
 		<lift.version>3.5.0</lift.version>
 		<lift.bundle.version>${lift.version}-sp2</lift.bundle.version>
-		<komma.version>1.8.0-SNAPSHOT</komma.version>
+		<komma.version>1.8.0</komma.version>
 		<scala.major.version>2.13</scala.major.version>
 		<scala.version>2.13.12</scala.version>
 		<scala.plugin.version>4.8.1</scala.plugin.version>
