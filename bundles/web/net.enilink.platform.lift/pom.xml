@@ -50,6 +50,9 @@
 					<execution>
 						<id>embed-webjars</id>
 						<phase>compile</phase>
+						<configuration>
+							<excludes>**/src/**,**/awesome.me__webawesome/**/dist/**</excludes>
+						</configuration>
 					</execution>
 				</executions>
 			</plugin>
