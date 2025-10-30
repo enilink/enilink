@@ -1,4 +1,4 @@
-package net.enilink.platform.ldp.ldPatch.parse;
+package net.enilink.platform.ldp.ldpatch.parse;
 
 import net.enilink.komma.parser.sparql.tree.GraphNode;
 import net.enilink.komma.parser.sparql.tree.PrefixDecl;

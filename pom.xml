@@ -19,7 +19,6 @@
 
 		<project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
 
-		<junit.version>4.13.2</junit.version>
 		<lift.version>3.5.0</lift.version>
 		<lift.bundle.version>${lift.version}-sp2</lift.bundle.version>
 		<komma.version>1.8.0</komma.version>
@@ -32,8 +31,6 @@
 		<bnd.version>6.3.1</bnd.version>
 		<karaf.version>4.4.7</karaf.version>
 		<karaf.tooling.version>4.4.7</karaf.tooling.version>
-
-		<bundles.liftweb.deploy.skip>true</bundles.liftweb.deploy.skip>
 
 		<enilink.scm.connection>scm:git:git://github.com:enilink/enilink.git</enilink.scm.connection>
 		<enilink.scm.developerConnection>scm:git:git@github.com:enilink/enilink.git</enilink.scm.developerConnection>
@@ -87,21 +84,33 @@
 
 	<dependencies>
 		<dependency>
-			<groupId>junit</groupId>
-			<artifactId>junit</artifactId>
-			<version>${junit.version}</version>
+			<groupId>org.junit.platform</groupId>
+			<artifactId>junit-platform-launcher</artifactId>
+			<version>1.13.4</version>
+			<scope>test</scope>
+		</dependency>
+		<dependency>
+			<groupId>org.junit.jupiter</groupId>
+			<artifactId>junit-jupiter-engine</artifactId>
+			<version>5.13.4</version>
+			<scope>test</scope>
+		</dependency>
+		<dependency>
+			<groupId>org.junit.vintage</groupId>
+			<artifactId>junit-vintage-engine</artifactId>
+			<version>5.13.4</version>
 			<scope>test</scope>
 		</dependency>
 		<dependency>
 			<groupId>org.slf4j</groupId>
 			<artifactId>slf4j-simple</artifactId>
-			<version>1.7.30</version>
+			<version>1.7.36</version>
 			<scope>test</scope>
 		</dependency>
 		<dependency>
 			<groupId>org.mockito</groupId>
 			<artifactId>mockito-core</artifactId>
-			<version>4.8.0</version>
+			<version>4.11.0</version>
 			<scope>test</scope>
 		</dependency>
 	</dependencies>
@@ -406,14 +415,6 @@
 			<id>central-snapshots</id>
 			<url>https://central.sonatype.com/repository/maven-snapshots/</url>
 		</repository>
-		<!-- repository>
-			<id>oss-sonatype-snapshots</id>
-			<name>OSS Sonatype Snapshots</name>
-			<url>https://oss.sonatype.org/content/repositories/snapshots/</url>
-			<releases>
-				<enabled>false</enabled>
-			</releases>
-		</repository -->
 	</repositories>
 
 	<modules>

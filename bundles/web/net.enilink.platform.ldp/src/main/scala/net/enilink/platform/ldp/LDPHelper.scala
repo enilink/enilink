@@ -49,7 +49,7 @@ class LDPHelper extends RestHelper {
 
   val requestCounts = scala.collection.mutable.Map[String, Int]()
   var reqNr: Int = 0; //LDP servers that allow member creation via POST SHOULD NOT re-use URIs (also if resource deleted).
-  var createNewFromPut = false // to know if the new created resource frpm POST or PUT
+  var createNewFromPut = false // to know if the new created resource from POST or PUT
 
   // turtle/json-ld distinction is made by tjSel and using the Convertible in cvt below
   // FIXME: support LDP without extra prefix, on requests for plain resource URIs with no other match
@@ -89,7 +89,7 @@ class LDPHelper extends RestHelper {
   class UpdateResponse(location: String, typ: URI) extends Convertible {
     def noContent: Box[(Int, OutputStream, String, List[(String, String)])] = {
       val relTypes = ListBuffer[IReference]() ++= List(typ)
-      val header = if (!location.isEmpty)
+      val header = if (location.nonEmpty)
         ("Location" -> location) :: linkHeader(relTypes.sortBy(_.toString))
       else linkHeader(relTypes.sortBy(_.toString))
       Full(0, new ByteArrayOutputStream, "", header)

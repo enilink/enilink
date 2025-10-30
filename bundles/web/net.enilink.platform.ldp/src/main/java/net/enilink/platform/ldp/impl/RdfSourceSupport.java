@@ -13,7 +13,7 @@ import net.enilink.platform.ldp.*;
 import net.enilink.platform.ldp.config.DirectContainerHandler;
 import net.enilink.platform.ldp.config.Handler;
 import net.enilink.platform.ldp.config.RdfResourceHandler;
-import net.enilink.platform.ldp.ldPatch.parse.*;
+import net.enilink.platform.ldp.ldpatch.parse.*;
 import net.enilink.vocab.rdf.RDF;
 import net.enilink.vocab.xmlschema.XMLSCHEMA;
 import org.eclipse.rdf4j.model.Model;

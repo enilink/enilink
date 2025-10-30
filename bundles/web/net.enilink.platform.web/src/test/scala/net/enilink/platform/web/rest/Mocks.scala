@@ -51,7 +51,7 @@ object MockModelsRest extends ModelsRest with MockModelsInApply{
     override def setProperty(qualifiedName: QualifiedName, o: Any): Unit = {}
   }
 
-  // directl load content type extensions as content type manager is not available without OSGi
+  // directly load content type extensions as content type manager is not available without OSGi
   override lazy val rdfContentTypes: Map[(String, String), IContentType] = RegistryFactory.getRegistry
     .getConfigurationElementsFor("org.eclipse.core.contenttype", "contentTypes")
     .filter(_.getName == "content-type")
@@ -65,7 +65,7 @@ object MockModelsRest extends ModelsRest with MockModelsInApply{
 
   def createContentType(mimeType: (String, String)): ((String, String), IContentType) = {
     val contentType = Mockito.mock(classOf[IContentType])
-    Mockito.when(contentType.getDefaultDescription()).thenReturn(new MockContentDescription(mimeType, contentType))
+    Mockito.when(contentType.getDefaultDescription).thenReturn(new MockContentDescription(mimeType, contentType))
     (mimeType, contentType)
   }
 }
@@ -79,9 +79,9 @@ class MockHttpServletRequest(url: String) extends net.liftweb.mocks.MockHttpServ
 
     override def available(): Int = is.available()
 
-    def isFinished(): Boolean = is.available() == 0
+    def isFinished: Boolean = is.available() == 0
 
-    def isReady(): Boolean = !isFinished()
+    def isReady: Boolean = !isFinished()
 
     def setReadListener(l: javax.servlet.ReadListener): Unit = ()
   }

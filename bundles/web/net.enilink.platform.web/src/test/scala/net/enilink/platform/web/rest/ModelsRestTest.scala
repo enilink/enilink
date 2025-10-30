@@ -7,8 +7,8 @@ import net.enilink.platform.lift.util.Globals
 import net.liftweb.common.{Box, Full}
 import net.liftweb.http.provider.servlet.HTTPRequestServlet
 import net.liftweb.http.{BasicResponse, InMemoryResponse, LiftResponse, OutputStreamResponse, Req}
-import org.junit.Assert._
-import org.junit.{AfterClass, BeforeClass, Test}
+import org.junit.jupiter.api.{AfterAll, BeforeAll, Test}
+import org.junit.jupiter.api.Assertions._
 
 import java.io.ByteArrayOutputStream
 import java.nio.charset.StandardCharsets
@@ -18,9 +18,9 @@ import javax.servlet.http.HttpServletRequest
  * Companion object of unit tests for the /models endpoint
  */
 object ModelsRestTest {
-  var modelSet : IModelSet = null
+  var modelSet : IModelSet = _
 
-  @BeforeClass
+  @BeforeAll
   def setup() : Unit = {
     // create configuration and a model set factory
     val module: KommaModule = ModelPlugin.createModelSetModule(classOf[ModelPlugin].getClassLoader)
@@ -31,7 +31,7 @@ object ModelsRestTest {
     Globals.contextModelSet.default.set(Full(modelSet))
   }
 
-  @AfterClass
+  @AfterAll
   def tearDown() : Unit = {
     modelSet.dispose()
     modelSet = null
@@ -57,7 +57,7 @@ class ModelsRestTest {
     val req = new MockHttpServletRequest(baseUrl) {
       method = "OPTIONS"
     }
-    assertEquals(Full(200), modelsRest(toReq(req))().map(_.toResponse.code))
+    assertEquals(200, modelsRest(toReq(req))().map(_.toResponse.code).getOrElse(-1))
   }
 
   @Test
@@ -67,14 +67,14 @@ class ModelsRestTest {
       method = "POST"
       body_=("<t:s> <t:p> <t:o> .", "text/turtle")
     }
-    assertEquals(Full(200), modelsRest(toReq(postReq))().map(_.toResponse.code))
+    assertEquals(200, modelsRest(toReq(postReq))().map(_.toResponse.code).getOrElse(-1))
 
     // support get request
     val getReq = new MockHttpServletRequest(baseUrl + "/test-model") {
       method = "GET"
       headers = (("Accept", "text/turtle" :: Nil) :: Nil).toMap
     }
-    assertEquals(Full(200), modelsRest(toReq(getReq))().map(_.toResponse.code))
+    assertEquals(200, modelsRest(toReq(getReq))().map(_.toResponse.code).getOrElse(-1))
   }
 
   @Test
@@ -83,14 +83,14 @@ class ModelsRestTest {
       method = "POST"
       body_=("""{"@id": "t:s",  "t:p": {"@id": "t:o"}}""", "application/ld+json")
     }
-    assertEquals(Full(200), modelsRest(toReq(postReq))().map(_.toResponse.code))
+    assertEquals(200, modelsRest(toReq(postReq))().map(_.toResponse.code).getOrElse(-1))
 
     // support get request
     val getReq = new MockHttpServletRequest(baseUrl + "/test-model") {
       method = "GET"
       headers = (("Accept", "application/ld+json" :: Nil) :: Nil).toMap
     }
-    assertEquals(Full(200), modelsRest(toReq(getReq))().map(_.toResponse.code))
+    assertEquals(200, modelsRest(toReq(getReq))().map(_.toResponse.code).getOrElse(-1))
   }
 
   @Test
@@ -100,7 +100,7 @@ class ModelsRestTest {
       method = "POST"
       body_=("<t:s> <t:p> <t:o> .", "text/turtle")
     }
-    assertEquals(Full(400), modelsRest(toReq(postReqToBase))().map(_.toResponse.code))
+    assertEquals(400, modelsRest(toReq(postReqToBase))().map(_.toResponse.code).getOrElse(-1))
   }
 
   @Test
@@ -110,7 +110,7 @@ class ModelsRestTest {
       method = "POST"
       body_=("<t:s> _invalid_ <t:p> <t:o> .", "text/turtle")
     }
-    assertEquals(Full(400), modelsRest(toReq(invalidPostReq))().map(_.toResponse.code))
+    assertEquals(400, modelsRest(toReq(invalidPostReq))().map(_.toResponse.code).getOrElse(-1))
   }
 
   @Test
@@ -121,14 +121,14 @@ class ModelsRestTest {
       body_=("<t:s> <t:p> <t:o> .", "text/turtle")
     }
     // Should create the model and return 200
-    assertEquals(Full(200), modelsRest(toReq(putReq))().map(_.toResponse.code))
+    assertEquals(200, modelsRest(toReq(putReq))().map(_.toResponse.code).getOrElse(-1))
 
     // Verify model exists by GET
     val getReq = new MockHttpServletRequest(baseUrl + s"/$modelName") {
       method = "GET"
       headers = (("Accept", "text/turtle" :: Nil) :: Nil).toMap
     }
-    assertEquals(Full(200), modelsRest(toReq(getReq))().map(_.toResponse.code))
+    assertEquals(200, modelsRest(toReq(getReq))().map(_.toResponse.code).getOrElse(-1))
   }
 
   @Test
@@ -139,14 +139,14 @@ class ModelsRestTest {
       method = "PUT"
       body_=("<t:s> <t:p> <t:o1> .", "text/turtle")
     }
-    assertEquals(Full(200), modelsRest(toReq(putReq1))().map(_.toResponse.code))
+    assertEquals(200, modelsRest(toReq(putReq1))().map(_.toResponse.code).getOrElse(-1))
 
     // Overwrite the model with new data
     val putReq2 = new MockHttpServletRequest(baseUrl + s"/$modelName") {
       method = "PUT"
       body_=("<t:s> <t:p> <t:o2> .", "text/turtle")
     }
-    assertEquals(Full(200), modelsRest(toReq(putReq2))().map(_.toResponse.code))
+    assertEquals(200, modelsRest(toReq(putReq2))().map(_.toResponse.code).getOrElse(-1))
 
     // Verify model exists by GET
     val getReq = new MockHttpServletRequest(baseUrl + s"/$modelName") {
@@ -155,7 +155,7 @@ class ModelsRestTest {
     }
     val response =  modelsRest(toReq(getReq))().map(_.toResponse)
 
-    assertEquals(Full(200), response.map(_.code))
+    assertEquals(200, response.map(_.code).getOrElse(-1))
     val body = response.map(responseToString).getOrElse("")
     assertTrue(body.contains("<t:s> <t:p> <t:o2>"))
     assertFalse(body.contains("<t:s> <t:p> <t:o1>"))
@@ -173,3 +173,4 @@ class ModelsRestTest {
     }
   }
 }
+

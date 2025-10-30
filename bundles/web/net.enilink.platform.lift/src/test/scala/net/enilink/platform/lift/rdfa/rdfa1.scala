@@ -21,9 +21,9 @@ class RDFaMiscTestSpecs extends AnyFlatSpec {
                created this page.
              </div>
 
-    var addr = "data:"
+    val addr = "data:"
     val undef = RDFaParser.undef
-    var (e, arcs) = RDFaParser.walk(e1, addr, Label(addr), undef, Nil, Nil, null)
+    val (_, arcs) = RDFaParser.walk(e1, addr, Label(addr), undef, Nil, Nil, null)
     assert(arcs.force.head match {
       case (Label(_), Label(_), Variable(_, _)) => true
       case _ => true // quick fix, test should probably fail here with false

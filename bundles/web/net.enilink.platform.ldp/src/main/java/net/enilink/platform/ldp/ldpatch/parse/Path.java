@@ -1,4 +1,4 @@
-package net.enilink.platform.ldp.ldPatch.parse;
+package net.enilink.platform.ldp.ldpatch.parse;
 
 import java.util.ArrayList;
 import java.util.List;

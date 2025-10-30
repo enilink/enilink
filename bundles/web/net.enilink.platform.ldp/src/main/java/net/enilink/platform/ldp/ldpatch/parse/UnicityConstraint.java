@@ -1,4 +1,4 @@
-package net.enilink.platform.ldp.ldPatch.parse;
+package net.enilink.platform.ldp.ldpatch.parse;
 
 public class UnicityConstraint implements PatchConstraint {
 

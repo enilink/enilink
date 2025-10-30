@@ -207,7 +207,7 @@ class ModelSetManager {
 		IModelSetFactory factory = injector.getInstance(IModelSetFactory.class);
 		IModelSet metaModelSet = factory.createModelSet(msUri, graph);
 
-		// include model behaviors into meta model set
+		// include model behaviors into metamodel set
 		metaModelSet.getModule().includeModule(createDataModelSetModule());
 		return metaModelSet;
 	}

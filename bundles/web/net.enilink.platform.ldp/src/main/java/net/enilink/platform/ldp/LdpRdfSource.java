@@ -7,7 +7,7 @@ import net.enilink.komma.core.URI;
 import net.enilink.platform.ldp.config.Handler;
 import net.enilink.platform.ldp.config.RdfResourceHandler;
 import net.enilink.platform.ldp.impl.OperationResponse;
-import net.enilink.platform.ldp.ldPatch.parse.LdPatch;
+import net.enilink.platform.ldp.ldpatch.parse.LdPatch;
 
 import java.util.Set;
 
