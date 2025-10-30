@@ -496,6 +496,7 @@ public class SecureModelSetTest {
 							em.getTransaction().commit();
 							exceptionExpected();
 						} catch (Exception e) {
+							// ignore
 						} finally {
 							if (em.getTransaction().isActive()) {
 								em.getTransaction().rollback();

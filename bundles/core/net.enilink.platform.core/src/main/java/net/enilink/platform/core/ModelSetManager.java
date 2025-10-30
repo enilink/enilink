@@ -35,7 +35,6 @@ import com.google.inject.util.Modules;
 
 import net.enilink.commons.iterator.WrappedIterator;
 import net.enilink.composition.properties.PropertySetFactory;
-import net.enilink.komma.core.BlankNode;
 import net.enilink.komma.core.IEntityManager;
 import net.enilink.komma.core.IGraph;
 import net.enilink.komma.core.ILiteral;
@@ -156,7 +155,7 @@ class ModelSetManager {
 
 	protected KommaModule createDataModelSetModule() {
 		KommaModule module = ModelPlugin.createModelSetModule(getClass().getClassLoader());
-		module.addBehaviour(OwlimSeModelSetSupport.class);
+		module.addBehaviour(GraphDbModelSetSupport.class);
 		module.addBehaviour(SessionModelSetSupport.class);
 		module.addBehaviour(LazyModelSupport.class);
 
@@ -216,16 +215,11 @@ class ModelSetManager {
 		URI msUri = DATA_MODELSET;
 
 		IGraph graph = createModelSetConfig(config, msUri);
-		// remove old config
-		metaDataModel.getManager().remove(WrappedIterator.create(graph.filter(msUri, null, null).iterator())
-				.mapWith(stmt -> new Statement(stmt.getSubject(), stmt.getPredicate(), null)));
 		graph.add(msUri, RDF.PROPERTY_TYPE, MODELS.NAMESPACE_URI.appendLocalPart("ProjectModelSet"));
-		metaDataModel.getManager().add(graph);
 
-		// maybe use toInstance here so that config data has not to be inserted
-		// into the database
-		IModelSet.Internal modelSet = (IModelSet.Internal) metaDataModel.getManager().find(msUri);
-		modelSet = modelSet.create();
+		IModelSet.Internal modelSet = (IModelSet.Internal)  metaDataModel.getManager()
+				.toInstance(msUri, IModelSet.class, graph);
+		modelSet = modelSet.create(graph);
 		return modelSet;
 	}
 
@@ -247,8 +241,7 @@ class ModelSetManager {
 		Injector injector = Guice.createInjector(createModelSetGuiceModule(module), new ContextProviderModule());
 		IModelSetFactory factory = injector.getInstance(IModelSetFactory.class);
 
-		IModelSet modelSet = factory.createModelSet(msUri, graph);
-		return modelSet;
+		return factory.createModelSet(msUri, graph);
 	}
 
 	protected void createModels(final IModelSet modelSet, Config config) {

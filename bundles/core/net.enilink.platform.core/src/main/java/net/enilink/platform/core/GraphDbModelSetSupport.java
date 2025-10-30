@@ -8,46 +8,41 @@ import net.enilink.composition.traits.Behaviour;
 import com.google.inject.AbstractModule;
 import com.google.inject.Module;
 
+import net.enilink.komma.core.*;
 import net.enilink.komma.model.IModelSet;
 import net.enilink.komma.model.MODELS;
-import net.enilink.komma.core.IDialect;
-import net.enilink.komma.core.QueryFragment;
-import net.enilink.komma.core.SparqlStandardDialect;
-import net.enilink.komma.core.URIs;
 
 /**
- * Implements OWLIM specific SPARQL extensions.
+ * Implements GraphDB specific SPARQL extensions.
  */
-@Iri(MODELS.NAMESPACE + "OwlimSEModelSet")
-public abstract class OwlimSeModelSetSupport implements IModelSet,
+@Iri(MODELS.NAMESPACE + "GraphDBModelSet")
+public abstract class GraphDbModelSetSupport implements IModelSet,
 		IModelSet.Internal, Behaviour<IModelSet> {
 	static class OwlimDialect extends SparqlStandardDialect {
 		@Override
 		public QueryFragment fullTextSearch(
 				Collection<? extends String> bindingNames, int flags,
 				String... patterns) {
-			String matchFunc = (flags & CASE_SENSITIVE) != 0 ? "prefixMatch"
-					: "prefixMatchIgnoreCase";
-			StringBuilder patternsAsURI = new StringBuilder();
+			StringBuilder combinedPatterns = new StringBuilder();
 			for (String pattern : patterns) {
 				if (pattern.isEmpty()) {
 					continue;
 				}
-				patternsAsURI.append(
-						URIs.encodeOpaquePart(pattern.replaceAll("[*?<>]", "")
-								.trim().replaceAll("\\s+", ":"), true)).append(
-						":");
+				if (! combinedPatterns.isEmpty()) {
+					combinedPatterns.append(" OR ");
+				}
+				combinedPatterns.append(URIs.encodeSegment(pattern, true))
+						// use wildcard for prefix matching with GraphDB full-text search
+						.append("*");
 			}
 			StringBuilder sb = new StringBuilder();
-			if (patternsAsURI.length() > 0) {
+			if (!combinedPatterns.isEmpty()) {
 				for (String bindingName : bindingNames) {
-					if (sb.length() > 0) {
+					if (!sb.isEmpty()) {
 						sb.append(" union ");
 					}
-					sb.append("{ <").append(patternsAsURI).append(">")
-							.append(" <http://www.ontotext.com/owlim/fts#")
-							.append(matchFunc).append("> ?")
-							.append(bindingName).append(" }");
+					sb.append("{ ?").append(bindingName).append(" <http://www.ontotext.com/fts>")
+							.append(" \"").append(combinedPatterns).append("\" }");
 				}
 			}
 			return new QueryFragment(sb.toString());
@@ -55,7 +50,7 @@ public abstract class OwlimSeModelSetSupport implements IModelSet,
 	}
 
 	@Override
-	public void collectInjectionModules(Collection<Module> modules) {
+	public void collectInjectionModules(Collection<Module> modules, IGraph graph) {
 		modules.add(new AbstractModule() {
 			@Override
 			protected void configure() {

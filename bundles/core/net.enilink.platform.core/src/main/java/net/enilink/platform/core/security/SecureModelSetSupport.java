@@ -10,10 +10,7 @@ import net.enilink.composition.traits.Behaviour;
 import net.enilink.komma.common.notify.INotification;
 import net.enilink.komma.common.notify.INotificationListener;
 import net.enilink.komma.common.notify.NotificationFilter;
-import net.enilink.komma.core.EntityVar;
-import net.enilink.komma.core.IReference;
-import net.enilink.komma.core.URI;
-import net.enilink.komma.core.URIs;
+import net.enilink.komma.core.*;
 import net.enilink.komma.dm.IDataManager;
 import net.enilink.komma.em.ThreadLocalDataManager;
 import net.enilink.komma.model.IModel;
@@ -43,7 +40,7 @@ public abstract class SecureModelSetSupport implements IModelSet.Internal, ISecu
 	/**
 	 * Ensures that an ACL aware data manager is used to access the models.
 	 */
-	@ParameterTypes({Collection.class})
+	@ParameterTypes({Collection.class, IGraph.class})
 	public void collectInjectionModules(MethodInvocation invocation)
 			throws Throwable {
 		invocation.proceed();
