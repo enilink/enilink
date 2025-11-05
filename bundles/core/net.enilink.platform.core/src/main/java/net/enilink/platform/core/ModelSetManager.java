@@ -216,8 +216,11 @@ class ModelSetManager {
 
 		IGraph graph = createModelSetConfig(config, msUri);
 		graph.add(msUri, RDF.PROPERTY_TYPE, MODELS.NAMESPACE_URI.appendLocalPart("ProjectModelSet"));
+		// add persistent and queryable types to meta data model
+		metaDataModel.getManager().add(new Statement(msUri, RDF.PROPERTY_TYPE, MODELS.TYPE_MODELSET));
+		metaDataModel.getManager().add(new Statement(msUri, RDF.PROPERTY_TYPE, RDFS.TYPE_RESOURCE));
 
-		IModelSet.Internal modelSet = (IModelSet.Internal)  metaDataModel.getManager()
+		IModelSet.Internal modelSet = (IModelSet.Internal) metaDataModel.getManager()
 				.toInstance(msUri, IModelSet.class, graph);
 		modelSet = modelSet.create(graph);
 		return modelSet;
@@ -267,7 +270,7 @@ class ModelSetManager {
 			try {
 				PathMatcher matcher = FileSystems.getDefault().getPathMatcher("glob:**/*.{ttl,owl}");
 				List<Path> modelFiles = Files.walk(Paths.get(modelsLookupDir)).filter(matcher::matches)
-						.collect(Collectors.toList());
+						.toList();
 				IURIMapRuleSet mapRules = modelSet.getURIConverter().getURIMapRules();
 				for (Path modelFile : modelFiles) {
 					URI fileUri = URIs.createFileURI(modelFile.toString());
@@ -379,12 +382,13 @@ class ModelSetManager {
 	}
 
 	protected void copyFromGraph(IEntityManager em, IReference subject, IGraph graph, Set<IReference> seen) {
+		Set<IStatement> toAdd = new HashSet<>();
 		Queue<IReference> queue = new LinkedList<>();
 		queue.add(subject);
 		while (!queue.isEmpty()) {
 			IReference s = queue.remove();
 			if (seen.add(s)) {
-				Set<IStatement> toAdd = new HashSet<>();
+
 				IGraph about = graph.filter(s, null, null);
 				for (IStatement stmt : about) {
 					// ensure that passwords are always encoded
@@ -397,7 +401,7 @@ class ModelSetManager {
 						toAdd.add(stmt);
 					}
 				}
-				em.add(toAdd);
+
 				for (Object o : about.objects()) {
 					if (o instanceof IReference && !seen.contains(o)) {
 						queue.add((IReference) o);
@@ -405,6 +409,8 @@ class ModelSetManager {
 				}
 			}
 		}
+		// add all statements at once in one transaction
+		em.add(toAdd);
 	}
 
 	public synchronized void shutdown() {
