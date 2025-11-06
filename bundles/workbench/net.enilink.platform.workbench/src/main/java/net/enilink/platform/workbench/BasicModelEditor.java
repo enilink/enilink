@@ -20,6 +20,7 @@ import org.eclipse.core.runtime.Platform;
 import org.eclipse.jface.viewers.*;
 import org.eclipse.swt.events.ControlAdapter;
 import org.eclipse.swt.events.ControlEvent;
+import org.eclipse.swt.events.DisposeEvent;
 import org.eclipse.swt.layout.FillLayout;
 import org.eclipse.swt.widgets.Composite;
 import org.eclipse.swt.widgets.Control;
@@ -95,7 +96,7 @@ public class BasicModelEditor extends KommaMultiPageEditor implements IViewerMen
 		control.setLayout(new FillLayout());
 		control.setData("editPart", editPart);
 
-		editPart.initialize(form);
+		form.addPart(editPart);
 		editPart.createContents(control);
 		editPart.setInput(getEditorSupport().getModel());
 		editPart.refresh();
@@ -105,7 +106,8 @@ public class BasicModelEditor extends KommaMultiPageEditor implements IViewerMen
 	@Override
 	public void createPages() {
 		final boolean[] internalChange = {false};
-		form = new EditorForm(getContainer()) {
+		var container = getContainer();
+		form = new EditorForm(container) {
 			@Override
 			public Object getAdapter(Class adapter) {
 				if (IEditingDomainProvider.class.equals(adapter)) {
@@ -127,6 +129,10 @@ public class BasicModelEditor extends KommaMultiPageEditor implements IViewerMen
 				}
 			}
 		};
+		// ensure that form and its parts are disposed properly
+		container.addDisposeListener((DisposeEvent e) -> {
+			form.dispose();
+		});
 		formSelectionProvider
 				.addSelectionChangedListener(event -> {
 					if (internalChange[0]) {
@@ -162,7 +168,6 @@ public class BasicModelEditor extends KommaMultiPageEditor implements IViewerMen
 		addPage("ObjectProperties", new ObjectPropertiesPart());
 		addPage("DatatypeProperties", new DatatypePropertiesPart());
 		addPage("other Properties", new OtherPropertiesPart());
-		setPageText(0, getEditorSupport().getString("_UI_SelectionPage_label"));
 
 		getSite().getShell().getDisplay().asyncExec(() -> setActivePage(0));
 

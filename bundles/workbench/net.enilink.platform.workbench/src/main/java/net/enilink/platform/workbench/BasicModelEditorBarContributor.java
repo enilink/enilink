@@ -95,8 +95,8 @@ public class BasicModelEditorBarContributor extends EditingDomainActionBarContri
 	public void contributeToMenu(IMenuManager menuManager) {
 		super.contributeToMenu(menuManager);
 
-		IMenuManager editorMenuManager = new MenuManager(EnilinkWorkbenchPlugin.INSTANCE.getString("_UI_BasicEditor_menu"), "BasicEditor");
-		menuManager.insertAfter("additions", editorMenuManager);
+		IMenuManager editorMenuManager = new MenuManager(EnilinkWorkbenchPlugin.INSTANCE.getString("_UI_BasicEditor_menu"), "BasicModelEditor");
+		menuManager.add(editorMenuManager);
 		editorMenuManager.add(new Separator("settings"));
 		editorMenuManager.add(new Separator("actions"));
 		editorMenuManager.add(new Separator("additions"));
