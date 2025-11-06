@@ -1,34 +1,9 @@
 package net.enilink.platform.core;
 
-import java.io.BufferedInputStream;
-import java.io.InputStream;
-import java.net.URISyntaxException;
-import java.nio.file.Files;
-import java.nio.file.InvalidPathException;
-import java.nio.file.Path;
-import java.nio.file.Paths;
-import java.util.Collections;
-import java.util.HashSet;
-import java.util.Iterator;
-import java.util.LinkedList;
-import java.util.Queue;
-import java.util.Set;
-
-import net.enilink.komma.core.*;
-import net.enilink.platform.security.auth.AccountHelper;
-import net.enilink.vocab.auth.AUTH;
-import net.enilink.vocab.foaf.FOAF;
-import org.eclipse.core.runtime.Platform;
-import org.eclipse.osgi.service.datalocation.Location;
-import org.osgi.service.component.annotations.Activate;
-import org.osgi.service.component.annotations.Component;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 import com.google.common.collect.ForwardingSet;
 import com.google.inject.AbstractModule;
 import com.google.inject.Guice;
-
+import net.enilink.komma.core.*;
 import net.enilink.komma.core.visitor.IDataVisitor;
 import net.enilink.komma.literals.LiteralConverter;
 import net.enilink.komma.model.IURIConverter;
@@ -36,6 +11,22 @@ import net.enilink.komma.model.ModelUtil;
 import net.enilink.komma.model.base.ExtensibleURIConverter;
 import net.enilink.vocab.owl.OWL;
 import net.enilink.vocab.xmlschema.XMLSCHEMA;
+import org.eclipse.core.runtime.Platform;
+import org.eclipse.osgi.service.datalocation.Location;
+import org.osgi.service.component.annotations.Activate;
+import org.osgi.service.component.annotations.Component;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import java.io.BufferedInputStream;
+import java.io.InputStream;
+import java.io.Serial;
+import java.net.URISyntaxException;
+import java.nio.file.Files;
+import java.nio.file.InvalidPathException;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.util.*;
 
 /**
  * A {@link LinkedHashGraph} based implementation of the {@link Config}
@@ -44,6 +35,7 @@ import net.enilink.vocab.xmlschema.XMLSCHEMA;
 @Component(service = Config.class)
 public class ConfigHashGraph extends LinkedHashGraph implements Config {
 	class EmptyConfig extends EmptyGraph implements Config {
+		@Serial
 		private static final long serialVersionUID = 1L;
 
 		@Override
@@ -63,6 +55,7 @@ public class ConfigHashGraph extends LinkedHashGraph implements Config {
 	}
 
 	class FilteredConfig extends FilteredGraph implements Config {
+		@Serial
 		private static final long serialVersionUID = 1L;
 
 		public FilteredConfig(IReference subj, IReference pred, Object obj, IReference[] contexts) {
@@ -124,7 +117,9 @@ public class ConfigHashGraph extends LinkedHashGraph implements Config {
 	@Override
 	public Config filter(IReference subj, IReference pred, Object obj, IReference... contexts) {
 		return new FilteredConfig(subj, pred, obj, contexts);
-	};
+	}
+
+	;
 
 	private static URI getConfigFromLocation(Location location) {
 		if (Platform.isRunning()) {
@@ -165,9 +160,10 @@ public class ConfigHashGraph extends LinkedHashGraph implements Config {
 			if (configUri == null) {
 				try {
 					configUri = URIs.createURI(configLocation);
-				} catch (IllegalArgumentException iae) {
+				} catch (IllegalArgumentException ignored) {
+					log.error("Illegal config location. Expected a valid URI: {}", configLocation);
 				}
-				if (configUri.isRelative()) {
+				if (configUri != null && configUri.isRelative()) {
 					// config URI must be absolute
 					configUri = null;
 					log.error("URI of configuration file must be absolute: {}", configLocation);
@@ -190,44 +186,42 @@ public class ConfigHashGraph extends LinkedHashGraph implements Config {
 		if (toLoad.isEmpty() || "all".equals(System.getProperty("net.enilink.acl.anonymous"))) {
 			toLoad.add(URIs.createURI("platform:/plugin/net.enilink.platform.core/config/acl-anonymous-all.ttl"));
 		}
-		if (!toLoad.isEmpty()) {
-			Set<URI> seen = new HashSet<>();
+		Set<URI> seen = new HashSet<>();
 
-			IURIConverter uriConverter = new ExtensibleURIConverter();
-			while (!toLoad.isEmpty()) {
-				URI uri = toLoad.remove();
-				if (seen.add(uri)) {
-					try {
-						try (InputStream in = new BufferedInputStream(uriConverter.createInputStream(uri))) {
-							ModelUtil.readData(in, uri.toString(), (String) uriConverter.contentDescription(uri, null)
-									.get(IURIConverter.ATTRIBUTE_MIME_TYPE), new IDataVisitor<Void>() {
-										@Override
-										public Void visitBegin() {
-											return null;
-										}
+		IURIConverter uriConverter = new ExtensibleURIConverter();
+		while (!toLoad.isEmpty()) {
+			URI uri = toLoad.remove();
+			if (seen.add(uri)) {
+				try {
+					try (InputStream in = new BufferedInputStream(uriConverter.createInputStream(uri))) {
+						ModelUtil.readData(in, uri.toString(), (String) uriConverter.contentDescription(uri, null)
+								.get(IURIConverter.ATTRIBUTE_MIME_TYPE), new IDataVisitor<Void>() {
+							@Override
+							public Void visitBegin() {
+								return null;
+							}
 
-										@Override
-										public Void visitEnd() {
-											return null;
-										}
+							@Override
+							public Void visitEnd() {
+								return null;
+							}
 
-										@Override
-										public Void visitStatement(IStatement stmt) {
-											add(stmt);
-											if (OWL.PROPERTY_IMPORTS.equals(stmt.getPredicate())
-													&& stmt.getObject() instanceof IReference) {
-												URI imported = ((IReference) stmt.getObject()).getURI();
-												if (imported != null) {
-													toLoad.add(imported);
-												}
-											}
-											return null;
-										}
-									});
-						}
-					} catch (Exception e) {
-						log.error("Unable to read config file", e);
+							@Override
+							public Void visitStatement(IStatement stmt) {
+								add(stmt);
+								if (OWL.PROPERTY_IMPORTS.equals(stmt.getPredicate())
+										&& stmt.getObject() instanceof IReference) {
+									URI imported = ((IReference) stmt.getObject()).getURI();
+									if (imported != null) {
+										toLoad.add(imported);
+									}
+								}
+								return null;
+							}
+						});
 					}
+				} catch (Exception e) {
+					log.error("Unable to read config file", e);
 				}
 			}
 		}

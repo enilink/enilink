@@ -287,9 +287,6 @@ class ModelSetManager {
 					}
 					log.info("Creating model <{}>", modelUri);
 					modelSet.createModel(URIs.createURI(modelUri));
-					// if (loadModels) {
-					// modelSet.getModel(URIs.createURI(modelUri), true);
-					// }
 				}
 			} catch (Exception e) {
 				log.error("Error while loading models", e);
@@ -388,9 +385,8 @@ class ModelSetManager {
 		while (!queue.isEmpty()) {
 			IReference s = queue.remove();
 			if (seen.add(s)) {
-
-				IGraph about = graph.filter(s, null, null);
-				for (IStatement stmt : about) {
+				IGraph stmts = graph.filter(s, null, null);
+				for (IStatement stmt : stmts) {
 					// ensure that passwords are always encoded
 					if (AUTH.PROPERTY_PASSWORD.equals(stmt.getPredicate())) {
 						if (stmt.getObject() instanceof ILiteral) {
@@ -400,11 +396,8 @@ class ModelSetManager {
 					} else {
 						toAdd.add(stmt);
 					}
-				}
-
-				for (Object o : about.objects()) {
-					if (o instanceof IReference && !seen.contains(o)) {
-						queue.add((IReference) o);
+					if (stmt.getObject() instanceof IReference ref && !seen.contains(ref)) {
+						queue.add(ref);
 					}
 				}
 			}

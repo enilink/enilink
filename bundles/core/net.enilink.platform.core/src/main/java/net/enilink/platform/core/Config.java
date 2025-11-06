@@ -11,7 +11,7 @@ import net.enilink.komma.core.KommaException;
  * Configuration of the eniLINK platform.
  * 
  * This is essentially an RDF graph with the ability to convert literal values
- * to Java types and vice-versa.
+ * to Java types and vice versa.
  */
 public interface Config extends IGraph {
 	@Override
