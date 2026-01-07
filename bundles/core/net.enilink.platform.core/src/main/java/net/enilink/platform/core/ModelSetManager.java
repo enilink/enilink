@@ -17,10 +17,10 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Queue;
 import java.util.Set;
-import java.util.stream.Collectors;
 
 import javax.security.auth.Subject;
 
+import org.checkerframework.checker.units.qual.C;
 import org.osgi.framework.FrameworkUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -33,7 +33,6 @@ import com.google.inject.Provides;
 import com.google.inject.name.Named;
 import com.google.inject.util.Modules;
 
-import net.enilink.commons.iterator.WrappedIterator;
 import net.enilink.composition.properties.PropertySetFactory;
 import net.enilink.komma.core.IEntityManager;
 import net.enilink.komma.core.IGraph;
@@ -105,7 +104,18 @@ class ModelSetManager {
 				System.getProperty("net.enilink." + target + ".password"));
 	}
 
-	protected Module createModelSetGuiceModule(KommaModule module) {
+	protected Module createModelSetGuiceModule(Config config, KommaModule module) {
+		// get default timeout from config
+		Object timeoutValue = config.filter(ConfigVocabulary.NAMESPACE_URI, ConfigVocabulary.QUERY_TIMEOUT, null)
+				.objectInstance();
+		// default timeout is 20 seconds
+		long timeout;
+		if (timeoutValue instanceof Number) {
+			timeout = ((Number) timeoutValue).longValue();
+		} else {
+			timeout = 20000;
+		}
+		log.info("Query timeout is set to {} ms", timeout);
 		return Modules.override(new ModelSetModule(module) {
 			@Override
 			protected IProvider<Locale> getLocaleProvider() {
@@ -147,7 +157,7 @@ class ModelSetManager {
 			@Named("net.enilink.komma.properties")
 			Map<String, Object> provideProperties() {
 				Map<String, Object> properties = new HashMap<>();
-				properties.put(Properties.TIMEOUT, 20000);
+				properties.put(Properties.TIMEOUT, timeout);
 				return properties;
 			}
 		});
@@ -196,7 +206,7 @@ class ModelSetManager {
 		module.addConcept(ISecureEntity.class);
 		module.addBehaviour(SecureEntitySupport.class);
 
-		Injector injector = Guice.createInjector(createModelSetGuiceModule(module), new ContextProviderModule());
+		Injector injector = Guice.createInjector(createModelSetGuiceModule(config, module), new ContextProviderModule());
 		URI msUri = META_MODELSET;
 		IGraph graph = createModelSetConfig(config, msUri);
 		if (!graph.contains(msUri, MODELS.NAMESPACE_URI.appendLocalPart("repository"), null)) {
@@ -241,7 +251,7 @@ class ModelSetManager {
 		KommaModule module = createDataModelSetModule();
 		module.includeModule(new AuthModule());
 
-		Injector injector = Guice.createInjector(createModelSetGuiceModule(module), new ContextProviderModule());
+		Injector injector = Guice.createInjector(createModelSetGuiceModule(config, module), new ContextProviderModule());
 		IModelSetFactory factory = injector.getInstance(IModelSetFactory.class);
 
 		return factory.createModelSet(msUri, graph);
