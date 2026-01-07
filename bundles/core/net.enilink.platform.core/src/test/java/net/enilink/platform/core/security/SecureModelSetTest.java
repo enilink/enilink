@@ -8,7 +8,7 @@
  * Contributors:
  *     Fraunhofer IWU - initial API and implementation
  *******************************************************************************/
-package net.enilink.platform.core.test.security;
+package net.enilink.platform.core.security;
 
 import java.math.BigInteger;
 import java.security.PrivilegedAction;

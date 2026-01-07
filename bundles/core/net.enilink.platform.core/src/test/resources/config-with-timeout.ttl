@@ -1,0 +1,3 @@
+@prefix config: <enilink:config/> .
+
+config: config:queryTimeout 1234 .

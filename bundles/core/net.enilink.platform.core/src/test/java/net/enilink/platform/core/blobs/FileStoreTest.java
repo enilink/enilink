@@ -1,4 +1,4 @@
-package net.enilink.platform.core.test.blobs;
+package net.enilink.platform.core.blobs;
 
 import java.io.DataInputStream;
 import java.io.IOException;

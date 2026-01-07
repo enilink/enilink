@@ -28,5 +28,5 @@ public interface ConfigVocabulary {
 	 * The property represents the default query timeout value in milliseconds.
 	 * </p>
 	 */
-	URI QUERY_TIMEOUT = NAMESPACE_URI.appendLocalPart("queryTimeout");
+	URI QUERY_TIMEOUT = URIs.createURI(NAMESPACE + "queryTimeout");
 }
