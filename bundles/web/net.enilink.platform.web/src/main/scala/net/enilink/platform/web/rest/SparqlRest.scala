@@ -1,17 +1,17 @@
 package net.enilink.platform.web.rest
 
 import net.enilink.komma.core._
-import net.enilink.komma.model.{IModelSet, ModelUtil}
+import net.enilink.komma.model.{IModel, IModelSet, ModelUtil}
 import net.enilink.komma.rdf4j.RDF4JValueConverter
 import net.enilink.platform.lift.rest.CorsHelper
 import net.enilink.platform.lift.util.{Globals, NotAllowedModel}
 import net.liftweb.common.{Box, Full}
 import net.liftweb.http.rest.RestHelper
-import net.liftweb.http.{InMemoryResponse, LiftResponse, OutputStreamResponse, S}
+import net.liftweb.http.{InMemoryResponse, LiftResponse, OutputStreamResponse, Req, S}
 import net.liftweb.util.Helpers.tryo
 import org.eclipse.rdf4j.common.exception.RDF4JException
 import org.eclipse.rdf4j.model.impl.SimpleValueFactory
-import org.eclipse.rdf4j.query.MalformedQueryException
+import org.eclipse.rdf4j.query.{MalformedQueryException, QueryEvaluationException, QueryInterruptedException}
 import org.eclipse.rdf4j.query.resultio.{QueryResultIO, QueryResultWriter}
 import org.eclipse.rdf4j.rio.WriterConfig
 import org.eclipse.rdf4j.rio.helpers.BasicWriterSettings
@@ -188,62 +188,138 @@ class SparqlRest extends RestHelper with CorsHelper {
     }
 
     cause match {
-      case mqe: MalformedQueryException => BadRequestResponse("Invalid query:\n" + mqe.getMessage)
-      case null => InternalServerErrorResponse()
+      case mqe: MalformedQueryException => plainTextBadRequest("MALFORMED_QUERY: " + mqe.getMessage)
+      case _: QueryInterruptedException =>
+        plainTextServiceUnavailable("QUERY_TIMEOUT: Query execution exceeded the time limit.")
+      case _: QueryEvaluationException =>
+        plainTextInternalServerError("QUERY_EVALUATION_ERROR: Query evaluation failed.")
+      case _: RDF4JException =>
+        plainTextInternalServerError("INTERNAL_ERROR: Internal server error.")
+      case _ =>
+        plainTextInternalServerError("INTERNAL_ERROR: Internal server error.")
+    }
+  }
+
+  private def plainTextBadRequest(message: String): LiftResponse = {
+    plainTextResponse(400, message)
+  }
+
+  private def plainTextNotAcceptable(message: String): LiftResponse = {
+    plainTextResponse(406, message)
+  }
+
+  private def plainTextServiceUnavailable(message: String): LiftResponse = {
+    plainTextResponse(503, message)
+  }
+
+  private def plainTextInternalServerError(message: String): LiftResponse = {
+    plainTextResponse(500, message)
+  }
+
+  private def plainTextResponse(status: Int, message: String): LiftResponse = {
+    InMemoryResponse(message.getBytes("UTF-8"), "Content-Type" -> "text/plain; charset=utf-8" :: responseHeaders, responseCookies, status)
+  }
+
+  private def missingModelResponse: LiftResponse =
+    plainTextBadRequest("MISSING_MODEL: The required parameter 'model' is missing.")
+
+  private def missingQueryResponse: LiftResponse =
+    plainTextBadRequest("MISSING_QUERY: The required parameter 'query' is missing.")
+
+  private def invalidQueryRequestResponse: LiftResponse =
+    plainTextBadRequest("INVALID_QUERY_REQUEST: The query request structure is invalid.")
+
+  private def modelNotFoundResponse: LiftResponse =
+    NotFoundResponse("MODEL_NOT_FOUND: No model found for the given identifier.")
+
+  private def unsupportedAcceptResponse: LiftResponse =
+    plainTextNotAcceptable("UNSUPPORTED_ACCEPT: The requested result format is not supported.")
+
+  private def withResponseMimeType(req: Req)(f: String => Box[LiftResponse]): Box[LiftResponse] = {
+    getSparqlQueryResponseMimeType(req) match {
+      case Full(mimeType) => f(mimeType)
+      case _ => Full(unsupportedAcceptResponse)
+    }
+  }
+
+  private def withRequestedModel(req: Req)(f: IModel => Box[LiftResponse]): Box[LiftResponse] = {
+    S.param("model").filter(_.nonEmpty) match {
+      case Full(modelName) =>
+        try {
+          val modelUri = URIs.createURI(modelName)
+          if (modelUri.isRelative) {
+            Full(modelNotFoundResponse)
+          } else {
+            getModel(modelUri).dmap(Full(modelNotFoundResponse): Box[LiftResponse]) {
+              case model@NotAllowedModel(_) => Full(ForbiddenResponse("You don't have permissions to access " + model.getURI + "."))
+              case model => f(model)
+            }
+          }
+        } catch {
+          case _: Exception => Full(modelNotFoundResponse)
+        }
+      case _ => Full(missingModelResponse)
     }
   }
 
   serve("sparql" :: Nil prefix {
     case Nil Options _ => OkResponse()
     case Nil Get req =>
-      for {
-        query <- S.param("query")
-        model <- Globals.contextModel.vend
-        mimeType <- getSparqlQueryResponseMimeType(req)
-
-        result <- queryModel(query, model.getURI, mimeType)
-      } yield result
+      S.param("query").filter(_.nonEmpty) match {
+        case Full(query) =>
+          withRequestedModel(req) { model =>
+            withResponseMimeType(req) { mimeType =>
+              queryModel(query, model.getURI, mimeType)
+            }
+          }
+        case _ => Full(missingQueryResponse)
+      }
+    case Nil Post req if S.param("query").isDefined && S.param("update").isDefined =>
+      Full(invalidQueryRequestResponse)
     case Nil Post req if S.param("query").isDefined => {
       val query = S.param("query")
       query flatMap { q =>
-        for {
-          model <- Globals.contextModel.vend
-          mimeType <- getSparqlQueryResponseMimeType(req)
-
-          result <- queryModel(q, model.getURI, mimeType)
-        } yield result
+        withRequestedModel(req) { model =>
+          withResponseMimeType(req) { mimeType =>
+            queryModel(q, model.getURI, mimeType)
+          }
+        }
       }
     }
     case Nil Post req if req.contentType.exists(_ == "application/sparql-query") => {
-      for {
-        mimeType <- getSparqlQueryResponseMimeType(req)
-        queryData <- req.body
-        query = new String(queryData, "UTF-8")
-        model <- Globals.contextModel.vend
-
-        result <- queryModel(query, model.getURI, mimeType)
-      } yield result
+      req.body.filter(_.nonEmpty) match {
+        case Full(queryData) =>
+          withRequestedModel(req) { model =>
+            withResponseMimeType(req) { mimeType =>
+              val query = new String(queryData, "UTF-8")
+              queryModel(query, model.getURI, mimeType)
+            }
+          }
+        case _ => Full(invalidQueryRequestResponse)
+      }
     }
     case Nil Post req if S.param("update").isDefined => {
       val query = S.param("update")
       query flatMap { q =>
-        for {
-          model <- Globals.contextModel.vend
-          mimeType <- getSparqlQueryResponseMimeType(req)
-
-          result <- updateModel(q, model.getURI, mimeType)
-        } yield result
+        withRequestedModel(req) { model =>
+          withResponseMimeType(req) { mimeType =>
+            updateModel(q, model.getURI, mimeType)
+          }
+        }
       }
     }
     case Nil Post req if req.contentType.exists(_ == "application/sparql-update") => {
-      for {
-        mimeType <- getSparqlQueryResponseMimeType(req)
-        queryData <- req.body
-        query = new String(queryData, "UTF-8")
-        model <- Globals.contextModel.vend
-
-        result <- updateModel(query, model.getURI, mimeType)
-      } yield result
+      req.body.filter(_.nonEmpty) match {
+        case Full(queryData) =>
+          withRequestedModel(req) { model =>
+            withResponseMimeType(req) { mimeType =>
+              val query = new String(queryData, "UTF-8")
+              updateModel(query, model.getURI, mimeType)
+            }
+          }
+        case _ => Full(invalidQueryRequestResponse)
+      }
     }
+    case Nil Post _ => Full(invalidQueryRequestResponse)
   })
 }
