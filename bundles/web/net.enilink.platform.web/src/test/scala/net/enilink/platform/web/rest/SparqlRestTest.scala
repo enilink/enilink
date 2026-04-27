@@ -212,9 +212,7 @@ class SparqlRestTest {
       headers = Map("Accept" -> List("application/sparql-results+json"))
     }
     val response = sparqlRest(toReq(req))().map(_.toResponse)
-    assertEquals(404, response.map(_.code).getOrElse(-1))
-    val body = response.map(responseToString).getOrElse("")
-    assertTrue(body.startsWith("MODEL_NOT_FOUND: No model found for the given identifier."), s"Unexpected body: $body")
+    assertPlainTextError(response, 404, "MODEL_NOT_FOUND: No model found for the given identifier.")
   }
 
   @Test
@@ -271,7 +269,7 @@ class SparqlRestTest {
     try {
       val response = new SparqlRest().queryModel("SELECT ?s WHERE { ?s ?p ?o }", forbiddenModelUri, "application/sparql-results+json")
         .map(_.toResponse)
-      assertPlainTextError(response, 403, "You don't have permissions to access")
+      assertPlainTextError(response, 403, "FORBIDDEN: You don't have permissions to access")
     } finally {
       Globals.contextModelSet.default.set(Full(SparqlRestTest.modelSet))
     }
