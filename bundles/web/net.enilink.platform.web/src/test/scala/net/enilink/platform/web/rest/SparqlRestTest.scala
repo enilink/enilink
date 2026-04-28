@@ -121,7 +121,7 @@ class SparqlRestTest {
   }
 
   @Test
-  def postSparqlQueryWithEmptyBodyIsRejected(): Unit = {
+  def postSparqlQueryWithEmptyBodyReturnsMissingQuery(): Unit = {
     val req = new MockHttpServletRequest(baseUrl) {
       method = "POST"
       parameters = List("model" -> SparqlRestTest.testModel.toString)
@@ -130,11 +130,11 @@ class SparqlRestTest {
       headers = Map("Accept" -> List("application/sparql-results+json"))
     }
     val response = sparqlRest(toReq(req))().map(_.toResponse)
-    assertPlainTextError(response, 400, "INVALID_QUERY_REQUEST: The query request structure is invalid.")
+    assertPlainTextError(response, 400, "MISSING_QUERY: The required parameter 'query' is missing.")
   }
 
   @Test
-  def postSparqlUpdateWithEmptyBodyIsRejected(): Unit = {
+  def postSparqlUpdateWithEmptyBodyReturnsMissingUpdate(): Unit = {
     val req = new MockHttpServletRequest(baseUrl) {
       method = "POST"
       parameters = List("model" -> SparqlRestTest.testModel.toString)
@@ -143,7 +143,7 @@ class SparqlRestTest {
       headers = Map("Accept" -> List("application/sparql-results+json"))
     }
     val response = sparqlRest(toReq(req))().map(_.toResponse)
-    assertPlainTextError(response, 400, "INVALID_QUERY_REQUEST: The query request structure is invalid.")
+    assertPlainTextError(response, 400, "MISSING_UPDATE: The required parameter 'update' is missing.")
   }
 
   @Test
@@ -184,7 +184,7 @@ class SparqlRestTest {
       headers = Map("Accept" -> List("application/sparql-results+json"))
     }
     val response = sparqlRest(toReq(req))().map(_.toResponse)
-    assertPlainTextError(response, 400, "INVALID_QUERY_REQUEST: The query request structure is invalid.")
+    assertPlainTextError(response, 400, "CONFLICTING_PARAMETERS:")
   }
 
   @Test
@@ -233,18 +233,27 @@ class SparqlRestTest {
   def interruptedQueryMapsToQueryTimeoutEnvelope(): Unit = {
     val response = new SparqlRest().toResponse(new Exception(new QueryInterruptedException("timed out")))
     assertPlainTextError(Some(response.toResponse), 503, "QUERY_TIMEOUT: Query execution exceeded the time limit.")
+    // underlying message should be appended
+    val body = responseToString(response.toResponse.asInstanceOf[BasicResponse])
+    assertTrue(body.contains("timed out"), s"Expected underlying message in body, got: $body")
   }
 
   @Test
   def evaluationFailureMapsToQueryEvaluationEnvelope(): Unit = {
     val response = new SparqlRest().toResponse(new Exception(new QueryEvaluationException("evaluation failed")))
+    // assert the stable prefix, then the detail separately (robust to RDF4J wording changes)
     assertPlainTextError(Some(response.toResponse), 500, "QUERY_EVALUATION_ERROR: Query evaluation failed.")
+    val body = responseToString(response.toResponse.asInstanceOf[BasicResponse])
+    assertTrue(body.contains("evaluation failed"), s"Expected underlying message in body, got: $body")
   }
 
   @Test
   def nonRdf4jFailureMapsToInternalErrorEnvelope(): Unit = {
     val response = new SparqlRest().toResponse(new RuntimeException("boom"))
     assertPlainTextError(Some(response.toResponse), 500, "INTERNAL_ERROR: Internal server error.")
+    // unknown exception details must NOT be leaked
+    val body = responseToString(response.toResponse.asInstanceOf[BasicResponse])
+    assertFalse(body.contains("boom"), s"Unknown exception message should not be leaked, got: $body")
   }
 
   @Test

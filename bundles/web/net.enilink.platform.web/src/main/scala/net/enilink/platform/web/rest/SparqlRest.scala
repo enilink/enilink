@@ -180,7 +180,13 @@ class SparqlRest extends RestHelper with CorsHelper {
   }
 
   /**
-   * Convert exception to appropriate HTTP response.
+   * Append the exception's message to a base text, null-safe.
+   */
+  private def withDetail(base: String, t: Throwable): String =
+    Option(t.getMessage).filter(_.nonEmpty).map(m => s"$base $m").getOrElse(base)
+
+  /**
+   * Convert known exception to appropriate HTTP response.
    */
   def toResponse(e: Exception): LiftResponse = {
     // find first cause that is instanceof of RDF4JException
@@ -192,12 +198,12 @@ class SparqlRest extends RestHelper with CorsHelper {
     cause match {
       case mqe: MalformedQueryException =>
         plainTextResponse(400, "MALFORMED_QUERY: " + mqe.getMessage)
-      case _: QueryInterruptedException =>
-        plainTextResponse(503, "QUERY_TIMEOUT: Query execution exceeded the time limit.")
-      case _: QueryEvaluationException =>
-        plainTextResponse(500, "QUERY_EVALUATION_ERROR: Query evaluation failed.")
-      case _: RDF4JException =>
-        plainTextResponse(500, "INTERNAL_ERROR: Internal server error.")
+      case qie: QueryInterruptedException =>
+        plainTextResponse(503, withDetail("QUERY_TIMEOUT: Query execution exceeded the time limit.", qie))
+      case qee: QueryEvaluationException =>
+        plainTextResponse(500, withDetail("QUERY_EVALUATION_ERROR: Query evaluation failed.", qee))
+      case rdf: RDF4JException =>
+        plainTextResponse(500, withDetail("INTERNAL_ERROR: Internal server error.", rdf))
       case _ =>
         plainTextResponse(500, "INTERNAL_ERROR: Internal server error.")
     }
@@ -244,8 +250,11 @@ class SparqlRest extends RestHelper with CorsHelper {
           }
         case _ => Full(plainTextResponse(400, "MISSING_QUERY: The required parameter 'query' is missing."))
       }
+
+    // Both 'query' and 'update' present: ambiguous request shape / Conflicting Parameters
     case Nil Post req if S.param("query").isDefined && S.param("update").isDefined =>
-      Full(plainTextResponse(400, "INVALID_QUERY_REQUEST: The query request structure is invalid."))
+      Full(plainTextResponse(400, "CONFLICTING_PARAMETERS: 'query' and 'update' cannot be combined in the same request."))
+
     case Nil Post req if S.param("query").isDefined =>
       S.param("query").filter(_.nonEmpty) match {
         case Full(q) =>
@@ -256,6 +265,7 @@ class SparqlRest extends RestHelper with CorsHelper {
           }
         case _ => Full(plainTextResponse(400, "MISSING_QUERY: The required parameter 'query' is missing."))
       }
+
     case Nil Post req if req.contentType.exists(_ == "application/sparql-query") =>
       req.body.filter(_.nonEmpty) match {
         case Full(queryData) =>
@@ -264,28 +274,32 @@ class SparqlRest extends RestHelper with CorsHelper {
               queryModel(new String(queryData, "UTF-8"), modelUri, mimeType)
             }
           }
-        case _ => Full(plainTextResponse(400, "INVALID_QUERY_REQUEST: The query request structure is invalid."))
+        case _ => Full(plainTextResponse(400, "MISSING_QUERY: The required parameter 'query' is missing."))
       }
+
     case Nil Post req if S.param("update").isDefined =>
       S.param("update").filter(_.nonEmpty) match {
-        case Full(q) =>
+        case Full(u) =>
           withModelUri { modelUri =>
             withResponseMimeType(req) { mimeType =>
-              updateModel(q, modelUri, mimeType)
+              updateModel(u, modelUri, mimeType)
             }
           }
-        case _ => Full(plainTextResponse(400, "INVALID_QUERY_REQUEST: The query request structure is invalid."))
+        case _ => Full(plainTextResponse(400, "MISSING_UPDATE: The required parameter 'update' is missing."))
       }
+
     case Nil Post req if req.contentType.exists(_ == "application/sparql-update") =>
       req.body.filter(_.nonEmpty) match {
-        case Full(queryData) =>
+        case Full(updateData) =>
           withModelUri { modelUri =>
             withResponseMimeType(req) { mimeType =>
-              updateModel(new String(queryData, "UTF-8"), modelUri, mimeType)
+              updateModel(new String(updateData, "UTF-8"), modelUri, mimeType)
             }
           }
-        case _ => Full(plainTextResponse(400, "INVALID_QUERY_REQUEST: The query request structure is invalid."))
+        case _ => Full(plainTextResponse(400, "MISSING_UPDATE: The required parameter 'update' is missing."))
       }
+
+    // Fallback: no recognized parameter or content type.
     case Nil Post _ => Full(plainTextResponse(400, "INVALID_QUERY_REQUEST: The query request structure is invalid."))
   })
 }
