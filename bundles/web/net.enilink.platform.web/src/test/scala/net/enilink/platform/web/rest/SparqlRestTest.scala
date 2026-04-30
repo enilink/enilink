@@ -3,12 +3,16 @@ package net.enilink.platform.web.rest
 import com.google.inject.Guice
 import net.enilink.komma.core.{KommaModule, Statement, URI, URIs}
 import net.enilink.komma.model._
+import net.enilink.platform.core.security.ISecureModelSet
 import net.enilink.platform.lift.util.Globals
 import net.liftweb.common.{Box, Full}
 import net.liftweb.http.provider.servlet.HTTPRequestServlet
 import net.liftweb.http.{BasicResponse, InMemoryResponse, LiftResponse, OutputStreamResponse, Req}
 import org.junit.jupiter.api.{AfterAll, BeforeAll, Test}
 import org.junit.jupiter.api.Assertions._
+import org.eclipse.rdf4j.query.{MalformedQueryException, QueryEvaluationException, QueryInterruptedException}
+import org.mockito.ArgumentMatchers.{any => mAny, eq => mEq}
+import org.mockito.Mockito
 
 import java.io.ByteArrayOutputStream
 import java.nio.charset.StandardCharsets
@@ -69,6 +73,218 @@ class SparqlRestTest {
   }
 
   @Test
+  def queryWithoutModel(): Unit = {
+    val req = new MockHttpServletRequest(baseUrl) {
+      method = "GET"
+      parameters = List("query" -> "SELECT ?s ?p ?o WHERE { ?s ?p ?o }")
+      headers = Map("Accept" -> List("application/sparql-results+json"))
+    }
+    val response = sparqlRest(toReq(req))().map(_.toResponse)
+    assertPlainTextError(response, 400, "MISSING_MODEL: The required parameter 'model' is missing.")
+  }
+
+  @Test
+  def postQueryWithoutModel(): Unit = {
+    val req = new MockHttpServletRequest(baseUrl) {
+      method = "POST"
+      parameters = List("query" -> "SELECT ?s ?p ?o WHERE { ?s ?p ?o }")
+      contentType = "application/x-www-form-urlencoded"
+      headers = Map("Accept" -> List("application/sparql-results+json"))
+    }
+    val response = sparqlRest(toReq(req))().map(_.toResponse)
+    assertPlainTextError(response, 400, "MISSING_MODEL: The required parameter 'model' is missing.")
+  }
+
+  @Test
+  def queryWithoutQueryParameter(): Unit = {
+    val req = new MockHttpServletRequest(baseUrl) {
+      method = "GET"
+      parameters = List("model" -> SparqlRestTest.testModel.toString)
+      headers = Map("Accept" -> List("application/sparql-results+json"))
+    }
+    val response = sparqlRest(toReq(req))().map(_.toResponse)
+    assertPlainTextError(response, 400, "MISSING_QUERY: The required parameter 'query' is missing.")
+  }
+
+  @Test
+  def malformedQueryUsesPlainTextEnvelope(): Unit = {
+    val req = new MockHttpServletRequest(baseUrl) {
+      method = "GET"
+      parameters = List(
+        "query" -> "SELECT WHERE { ?s ?p ?o }",
+        "model" -> SparqlRestTest.testModel.toString
+      )
+      headers = Map("Accept" -> List("application/sparql-results+json"))
+    }
+    val response = sparqlRest(toReq(req))().map(_.toResponse)
+    assertPlainTextError(response, 400, "MALFORMED_QUERY:")
+  }
+
+  @Test
+  def postSparqlQueryWithEmptyBodyReturnsMissingQuery(): Unit = {
+    val req = new MockHttpServletRequest(baseUrl) {
+      method = "POST"
+      parameters = List("model" -> SparqlRestTest.testModel.toString)
+      contentType = "application/sparql-query"
+      body = Array.emptyByteArray
+      headers = Map("Accept" -> List("application/sparql-results+json"))
+    }
+    val response = sparqlRest(toReq(req))().map(_.toResponse)
+    assertPlainTextError(response, 400, "MISSING_QUERY: The request body is empty. Expected a SPARQL query.")
+  }
+
+  @Test
+  def postSparqlUpdateWithEmptyBodyReturnsMissingUpdate(): Unit = {
+    val req = new MockHttpServletRequest(baseUrl) {
+      method = "POST"
+      parameters = List("model" -> SparqlRestTest.testModel.toString)
+      contentType = "application/sparql-update"
+      body = Array.emptyByteArray
+      headers = Map("Accept" -> List("application/sparql-results+json"))
+    }
+    val response = sparqlRest(toReq(req))().map(_.toResponse)
+    assertPlainTextError(response, 400, "MISSING_UPDATE: The request body is empty. Expected a SPARQL update.")
+  }
+
+  @Test
+  def postWithoutQueryOrUpdateIsRejected(): Unit = {
+    val req = new MockHttpServletRequest(baseUrl) {
+      method = "POST"
+      parameters = List("model" -> SparqlRestTest.testModel.toString)
+      contentType = "application/x-www-form-urlencoded"
+      headers = Map("Accept" -> List("application/sparql-results+json"))
+    }
+    val response = sparqlRest(toReq(req))().map(_.toResponse)
+    assertPlainTextError(response, 400, "INVALID_QUERY_REQUEST: The query request structure is invalid.")
+  }
+
+  @Test
+  def unsupportedPostContentTypeIsRejected(): Unit = {
+    val req = new MockHttpServletRequest(baseUrl) {
+      method = "POST"
+      parameters = List("model" -> SparqlRestTest.testModel.toString)
+      contentType = "text/plain"
+      body = "SELECT ?s WHERE { ?s ?p ?o }".getBytes(StandardCharsets.UTF_8)
+      headers = Map("Accept" -> List("application/sparql-results+json"))
+    }
+    val response = sparqlRest(toReq(req))().map(_.toResponse)
+    assertPlainTextError(response, 400, "INVALID_QUERY_REQUEST: The query request structure is invalid.")
+  }
+
+  @Test
+  def conflictingQueryAndUpdateShapeIsRejected(): Unit = {
+    val req = new MockHttpServletRequest(baseUrl) {
+      method = "POST"
+      parameters = List(
+        "query" -> "SELECT ?s WHERE { ?s ?p ?o }",
+        "update" -> "INSERT DATA { <t:s3> <t:p3> <t:o3> }",
+        "model" -> SparqlRestTest.testModel.toString
+      )
+      contentType = "application/x-www-form-urlencoded"
+      headers = Map("Accept" -> List("application/sparql-results+json"))
+    }
+    val response = sparqlRest(toReq(req))().map(_.toResponse)
+    assertPlainTextError(response, 400, "CONFLICTING_PARAMETERS:")
+  }
+
+  @Test
+  def invalidModelUriReturnsModelNotFound(): Unit = {
+    val req = new MockHttpServletRequest(baseUrl) {
+      method = "GET"
+      parameters = List(
+        "query" -> "SELECT ?s ?p ?o WHERE { ?s ?p ?o }",
+        "model" -> "not a valid uri"
+      )
+      headers = Map("Accept" -> List("application/sparql-results+json"))
+    }
+    val response = sparqlRest(toReq(req))().map(_.toResponse)
+    assertPlainTextError(response, 404, "MODEL_NOT_FOUND: No model found for the given identifier.")
+  }
+
+  @Test
+  def unknownModelReturnsNotFound(): Unit = {
+    val req = new MockHttpServletRequest(baseUrl) {
+      method = "GET"
+      parameters = List(
+        "query" -> "SELECT ?s ?p ?o WHERE { ?s ?p ?o }",
+        "model" -> MODELS.NAMESPACE_URI.appendFragment("missing-model").toString
+      )
+      headers = Map("Accept" -> List("application/sparql-results+json"))
+    }
+    val response = sparqlRest(toReq(req))().map(_.toResponse)
+    assertPlainTextError(response, 404, "MODEL_NOT_FOUND: No model found for the given identifier.")
+  }
+
+  @Test
+  def unsupportedAcceptHeaderReturnsExplicitError(): Unit = {
+    val req = new MockHttpServletRequest(baseUrl) {
+      method = "GET"
+      parameters = List(
+        "query" -> "SELECT ?s ?p ?o WHERE { ?s ?p ?o }",
+        "model" -> SparqlRestTest.testModel.toString
+      )
+      headers = Map("Accept" -> List("application/x-unsupported-result"))
+    }
+    val response = sparqlRest(toReq(req))().map(_.toResponse)
+    assertPlainTextError(response, 406, "UNSUPPORTED_ACCEPT: The requested result format is not supported.")
+  }
+
+  @Test
+  def interruptedQueryMapsToQueryTimeoutEnvelope(): Unit = {
+    val response = new SparqlRest().toResponse(new Exception(new QueryInterruptedException("timed out")))
+    assertPlainTextError(Some(response.toResponse), 503, "QUERY_TIMEOUT: Query execution exceeded the time limit.")
+    // underlying message should be appended
+    val body = responseToString(response.toResponse.asInstanceOf[BasicResponse])
+    assertTrue(body.contains("timed out"), s"Expected underlying message in body, got: $body")
+  }
+
+  @Test
+  def evaluationFailureMapsToQueryEvaluationEnvelope(): Unit = {
+    val response = new SparqlRest().toResponse(new Exception(new QueryEvaluationException("evaluation failed")))
+    // assert the stable prefix, then the detail separately (robust to RDF4J wording changes)
+    assertPlainTextError(Some(response.toResponse), 500, "QUERY_EVALUATION_ERROR: Query evaluation failed.")
+    val body = responseToString(response.toResponse.asInstanceOf[BasicResponse])
+    assertTrue(body.contains("evaluation failed"), s"Expected underlying message in body, got: $body")
+  }
+
+  @Test
+  def nonRdf4jFailureMapsToInternalErrorEnvelope(): Unit = {
+    val response = new SparqlRest().toResponse(new RuntimeException("boom"))
+    assertPlainTextError(Some(response.toResponse), 500, "INTERNAL_ERROR: Internal server error.")
+    // unknown exception details must NOT be leaked
+    val body = responseToString(response.toResponse.asInstanceOf[BasicResponse])
+    assertFalse(body.contains("boom"), s"Unknown exception message should not be leaked, got: $body")
+  }
+
+  @Test
+  def malformedQueryInNestedCauseStillMapsToMalformedEnvelope(): Unit = {
+    val response = new SparqlRest().toResponse(new RuntimeException("outer", new MalformedQueryException("syntax")))
+    assertPlainTextError(Some(response.toResponse), 400, "MALFORMED_QUERY:")
+  }
+
+  @Test
+  def forbiddenModelAccessStillReturns403(): Unit = {
+    val forbiddenModelUri = MODELS.NAMESPACE_URI.appendFragment("forbidden-model")
+    val contextModelSet = Mockito.mock(classOf[IModelSet])
+    val secureModelSet = Mockito.mock(classOf[ISecureModelSet])
+    val model = Mockito.mock(classOf[IModel])
+
+    Mockito.when(contextModelSet.getModel(mEq(forbiddenModelUri), mEq(false))).thenReturn(model)
+    Mockito.when(model.getURI).thenReturn(forbiddenModelUri)
+    Mockito.when(model.getModelSet).thenReturn(secureModelSet)
+    Mockito.when(secureModelSet.isReadableBy(mAny(), mAny())).thenReturn(false)
+
+    Globals.contextModelSet.default.set(Full(contextModelSet))
+    try {
+      val response = new SparqlRest().queryModel("SELECT ?s WHERE { ?s ?p ?o }", forbiddenModelUri, "application/sparql-results+json")
+        .map(_.toResponse)
+      assertPlainTextError(response, 403, "FORBIDDEN: You don't have permissions to access")
+    } finally {
+      Globals.contextModelSet.default.set(Full(SparqlRestTest.modelSet))
+    }
+  }
+
+  @Test
   def constructQuery(): Unit = {
     val req = new MockHttpServletRequest(baseUrl) {
       method = "GET"
@@ -126,5 +342,15 @@ class SparqlRestTest {
         rStream.toString()
       case _ => fail("Unexpected response type"); ""
     }
+  }
+
+  def assertPlainTextError(response: Option[BasicResponse], expectedCode: Int, expectedPrefix: String): Unit = {
+    assertEquals(expectedCode, response.map(_.code).getOrElse(-1))
+    val contentType = response
+      .flatMap(_.headers.find(_._1.equalsIgnoreCase("Content-Type")).map(_._2))
+      .getOrElse("")
+    assertTrue(contentType.toLowerCase.startsWith("text/plain"), s"Expected text/plain content type but got: '$contentType'")
+    val body = response.map(responseToString).getOrElse("")
+    assertTrue(body.startsWith(expectedPrefix), s"Expected prefix '$expectedPrefix' but got: $body")
   }
 }
