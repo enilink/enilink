@@ -274,7 +274,7 @@ class SparqlRest extends RestHelper with CorsHelper {
               queryModel(new String(queryData, "UTF-8"), modelUri, mimeType)
             }
           }
-        case _ => Full(plainTextResponse(400, "MISSING_QUERY: The required parameter 'query' is missing."))
+        case _ => Full(plainTextResponse(400, "MISSING_QUERY: The request body is empty. Expected a SPARQL query."))
       }
 
     case Nil Post req if S.param("update").isDefined =>
@@ -296,7 +296,7 @@ class SparqlRest extends RestHelper with CorsHelper {
               updateModel(new String(updateData, "UTF-8"), modelUri, mimeType)
             }
           }
-        case _ => Full(plainTextResponse(400, "MISSING_UPDATE: The required parameter 'update' is missing."))
+        case _ => Full(plainTextResponse(400, "MISSING_UPDATE: The request body is empty. Expected a SPARQL update."))
       }
 
     // Fallback: no recognized parameter or content type.

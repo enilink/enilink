@@ -130,7 +130,7 @@ class SparqlRestTest {
       headers = Map("Accept" -> List("application/sparql-results+json"))
     }
     val response = sparqlRest(toReq(req))().map(_.toResponse)
-    assertPlainTextError(response, 400, "MISSING_QUERY: The required parameter 'query' is missing.")
+    assertPlainTextError(response, 400, "MISSING_QUERY: The request body is empty. Expected a SPARQL query.")
   }
 
   @Test
@@ -143,7 +143,7 @@ class SparqlRestTest {
       headers = Map("Accept" -> List("application/sparql-results+json"))
     }
     val response = sparqlRest(toReq(req))().map(_.toResponse)
-    assertPlainTextError(response, 400, "MISSING_UPDATE: The required parameter 'update' is missing.")
+    assertPlainTextError(response, 400, "MISSING_UPDATE: The request body is empty. Expected a SPARQL update.")
   }
 
   @Test
