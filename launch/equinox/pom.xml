@@ -52,20 +52,21 @@
 							<value>8080</value>
 						</property>
 						<property>
-							<name>net.enilink.logger.rootLevel</name>
+							<name>eclipse.log.level</name>
 							<value>INFO</value>
 						</property>
 					</vmProperties>
 					<startLevels>
-						<net.enilink.commons.logging>0</net.enilink.commons.logging>
-						<net.enilink.platform.lift>4</net.enilink.platform.lift>
-						<org.eclipse.equinox.http.jetty>4</org.eclipse.equinox.http.jetty>
+						<net.enilink.platform.lift>3</net.enilink.platform.lift>
 						<org.eclipse.core.runtime>0</org.eclipse.core.runtime>
 						<org.eclipse.equinox.common>2</org.eclipse.equinox.common>
 						<org.apache.felix.scr>2</org.apache.felix.scr>
+						<org.apache.felix.http.jetty12>3</org.apache.felix.http.jetty12>
 						<org.eclipse.equinox.event>2</org.eclipse.equinox.event>
 						<org.eclipse.equinox.simpleconfigurator>1</org.eclipse.equinox.simpleconfigurator>
 						<org.eclipse.osgi>-1</org.eclipse.osgi>
+						<org.apache.aries.spifly.dynamic.bundle>1</org.apache.aries.spifly.dynamic.bundle>
+						<org.eclipse.equinox.slf4j>2</org.eclipse.equinox.slf4j>
 					</startLevels>
 				</configuration>
 			</plugin>
@@ -92,12 +93,6 @@
 					<groupId>net.enilink.platform</groupId>
 					<artifactId>net.enilink.platform.equinox.feature</artifactId>
 					<version>${project.version}</version>
-					<type>pom</type>
-				</dependency>
-				<dependency>
-					<groupId>net.enilink.komma</groupId>
-					<artifactId>net.enilink.commons.logging</artifactId>
-					<version>${komma.version}</version>
 					<type>pom</type>
 				</dependency>
 			</dependencies>

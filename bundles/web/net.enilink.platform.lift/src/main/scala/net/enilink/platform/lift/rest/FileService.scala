@@ -5,8 +5,8 @@ import net.liftweb.common.Loggable
 import net.liftweb.http._
 import net.liftweb.http.provider.HTTPCookie
 import net.liftweb.http.rest.RestHelper
-import net.liftweb.json.JsonDSL._
-import net.liftweb.json._
+import org.json4s.JsonDSL._
+import org.json4s._
 
 import java.io.File
 import java.io.IOException
@@ -47,10 +47,9 @@ object FileService extends RestHelper with CorsHelper with Loggable {
 
   serve("files" :: Nil prefix {
     case Nil Options _ => OkResponse()
-    case Nil Post req => saveAndRespond(req)
     case Nil Post AllowedMimeTypes(req) => saveAndRespond(req)
     case key :: Nil Get _ => serveFile(key)
-    case key :: Nil Head _ => serveFile(key, head = true)
+    case Head(key :: Nil, _) => serveFile(key, head = true)
   })
 
   def serveFile(key: String, head: Boolean = false): LiftResponse = {
@@ -89,7 +88,7 @@ object FileService extends RestHelper with CorsHelper with Loggable {
               Using(Files.newOutputStream(tmpFile.toPath)) { os =>
                 logger.debug(s"""writing to $tmpFile""")
                 is.transferTo(os)
-                is.close
+                is.close()
               }
               // create param holder for temporary file (like lift does for attachments)
               new OnDiskFileParamHolder("upload", contentType, fileName, tmpFile)
@@ -100,7 +99,7 @@ object FileService extends RestHelper with CorsHelper with Loggable {
           }
         }
       }
-      val jvalue: List[JValue] = fpo.map(saveFile(_)).getOrElse(List("size" -> 0L))
+      val jvalue: List[JValue] = fpo.map(saveFile).getOrElse(List("size" -> 0L))
       JsonResponse(jvalue, responseHeaders, S.responseCookies, 200)
     } catch {
       case t: Throwable =>

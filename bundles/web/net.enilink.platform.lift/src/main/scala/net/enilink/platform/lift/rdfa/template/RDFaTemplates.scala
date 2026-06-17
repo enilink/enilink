@@ -1,7 +1,7 @@
 package net.enilink.platform.lift.rdfa.template
 
-import net.enilink.komma.core._
-import net.enilink.platform.lift.rdfa.template.BinderHelpers.{Attribute, _}
+import net.enilink.komma.core.*
+import net.enilink.platform.lift.rdfa.template.BinderHelpers.{Attribute, *}
 import net.enilink.platform.lift.rdfa.{RDFaHelpers, RDFaUtils}
 import net.enilink.platform.lift.util.{CurrentContext, RdfContext}
 import net.liftweb.common.Full
@@ -9,7 +9,8 @@ import net.liftweb.http.{PageName, S}
 
 import scala.collection.mutable
 import scala.collection.mutable.LinkedHashMap
-import scala.xml._
+import scala.util.matching.Regex
+import scala.xml.*
 
 sealed trait Operation {
   def merge(other: Operation): Operation = other match {
@@ -69,15 +70,15 @@ trait Binder {
 
   def priority: Int = 0
 
-  def bind(attrs: MetaData, ctx: RdfContext, bindings: IBindings[_], inferred: Boolean): Result
+  def bind(attrs: MetaData, ctx: RdfContext, bindings: IBindings[?], inferred: Boolean): Result
 }
 
 class IfInferredBinder(val key: String) extends Binder {
-  def bind(attrs: MetaData, ctx: RdfContext, bindings: IBindings[_], inferred: Boolean): Result = (attrs.remove(key), ctx, if (!inferred) Remove else Keep)
+  def bind(attrs: MetaData, ctx: RdfContext, bindings: IBindings[?], inferred: Boolean): Result = (attrs.remove(key), ctx, if (!inferred) Remove else Keep)
 }
 
 class UnlessInferredBinder(val key: String) extends Binder {
-  def bind(attrs: MetaData, ctx: RdfContext, bindings: IBindings[_], inferred: Boolean): Result = (attrs.remove(key), ctx, if (inferred) RemoveInferred else Keep)
+  def bind(attrs: MetaData, ctx: RdfContext, bindings: IBindings[?], inferred: Boolean): Result = (attrs.remove(key), ctx, if (inferred) RemoveInferred else Keep)
 }
 
 trait RdfAttributeBinder extends Binder {
@@ -98,7 +99,7 @@ class VarBinder(val e: Elem, val attr: String, val name: String, val verbatim: B
   // also allow to keep this node by adding the CSS class "keep", even if no binding exists for the related variable
   val keepNode = optional || RDFaHelpers.hasCssClass(e, "keep")
   val clearAttribute = attr.startsWith("data-clear-") || attr == "data-if"
-  def bind(attrs: MetaData, ctx: RdfContext, bindings: IBindings[_], inferred: Boolean): Result = {
+  def bind(attrs: MetaData, ctx: RdfContext, bindings: IBindings[?], inferred: Boolean): Result = {
     var attributes = attrs
     val rdfValue = bindings.get(name)
     var currentCtx = ctx
@@ -141,7 +142,7 @@ class VarBinder(val e: Elem, val attr: String, val name: String, val verbatim: B
 }
 
 class IriBinder(val e: Elem, val attr: String, val iri: URI) extends RdfAttributeBinder {
-  def bind(attrs: MetaData, ctx: RdfContext, bindings: IBindings[_], inferred: Boolean): Result = {
+  def bind(attrs: MetaData, ctx: RdfContext, bindings: IBindings[?], inferred: Boolean): Result = {
     // do also switch contexts for given constant CURIEs
     val rdfValue = ctx.subject match {
       case e: IEntity => e.getEntityManager.find(iri)
@@ -155,19 +156,19 @@ class IriBinder(val e: Elem, val attr: String, val iri: URI) extends RdfAttribut
   /**
    * Correctly change RDF context by executing resource or content bindings last.
    */
-  override def priority = attr match {
+  override def priority: Int = attr match {
     case Attribute("resource" | "content") => 10
     case _ => 0
   }
 }
 
 object TemplateNode extends RDFaUtils {
-  val ignoreAttributes = Set("data-for", "data-params", "data-bind")
-  val variable = "^([?$][^= \\t]+)$".r
+  val ignoreAttributes: Set[String] = Set("data-for", "data-params", "data-bind")
+  val variable: Regex = "^([?$][^= \\t]+)$".r
 
   def unapply(n: Node): Option[(Elem, Seq[Binder])] = {
     n match {
-      case e: Elem if !e.attributes.isEmpty => {
+      case e: Elem if e.attributes.nonEmpty => {
         val binders = e.attributes.flatMap { meta =>
           meta.value.text match {
             // remove nodes of type <span data-if="inferred">This data is inferred or explicit.</span>
@@ -214,8 +215,8 @@ class TemplateNode(
     attributes: MetaData,
     scope: NamespaceBinding,
     val binders: Seq[Binder],
-    child: xml.Node*) extends Elem(prefix, label, attributes, scope, true, child: _*) with RDFaUtils {
-  val instances: mutable.Map[(MetaData, RdfContext), Elem] = new LinkedHashMap
+    child: xml.Node*) extends Elem(prefix, label, attributes, scope, true, child*) with RDFaUtils {
+  val instances: mutable.Map[(MetaData, RdfContext), Elem] = new mutable.LinkedHashMap()
 
   override def copy(
     prefix: String = this.prefix,
@@ -223,7 +224,7 @@ class TemplateNode(
     attributes: MetaData = this.attributes,
     scope: NamespaceBinding = this.scope,
     minimizeEmpty: Boolean = this.minimizeEmpty,
-    child: collection.Seq[xml.Node] = this.child.toSeq): TemplateNode = new TemplateNode(prefix, label, attributes, scope, binders, child: _*)
+    child: collection.Seq[xml.Node] = this.child.toSeq): TemplateNode = new TemplateNode(prefix, label, attributes, scope, binders, child*)
 }
 
 class Template(val ns: NodeSeq) {
@@ -232,7 +233,7 @@ class Template(val ns: NodeSeq) {
     case other => other
   }
 
-  def transform(ctx: RdfContext, bindings: IBindings[_], inferred: Boolean) : Unit = {
+  def transform(ctx: RdfContext, bindings: IBindings[?], inferred: Boolean) : Unit = {
     def internalTransform(ctx: RdfContext, template: Seq[xml.Node]) : Unit = {
       template foreach {
         case t: TemplateNode => {
@@ -259,9 +260,9 @@ class Template(val ns: NodeSeq) {
                 internalTransform(rCtx, e.child)
               case None => {
                 val instance = if (rCtx == ctx) {
-                  new Elem(t.prefix, t.label, rAttrs, t.scope, true, deepCopy(t.child): _*)
+                  new Elem(t.prefix, t.label, rAttrs, t.scope, true, deepCopy(t.child)*)
                 } else {
-                  new ElemWithRdfa(rCtx, t.prefix, t.label, rAttrs, t.scope, deepCopy(t.child): _*)
+                  new ElemWithRdfa(rCtx, t.prefix, t.label, rAttrs, t.scope, deepCopy(t.child)*)
                 }
                 t.instances.put(key, instance)
                 internalTransform(rCtx, instance.child)
@@ -276,7 +277,7 @@ class Template(val ns: NodeSeq) {
     internalTransform(ctx, ns)
   }
 
-  def render = {
+  def render: NodeSeq = {
     /**
      * Process lift templates while changing the RDFa context resources
      */
@@ -294,7 +295,7 @@ class Template(val ns: NodeSeq) {
           case other => other
         }
       }
-      ns.flatMap(processNode _)
+      ns.flatMap(processNode)
     }
 
     def toInstances(ns: Seq[Node]): Seq[Node] = {
@@ -315,7 +316,7 @@ class Template(val ns: NodeSeq) {
 trait RDFaTemplates extends RDFaUtils {
   class Test
   def createTemplateNodes(ns: NodeSeq): NodeSeq = ns.map {
-    case TemplateNode(e, binders) => new TemplateNode(e.prefix, e.label, e.attributes, e.scope, binders, createTemplateNodes(e.child): _*)
+    case TemplateNode(e, binders) => new TemplateNode(e.prefix, e.label, e.attributes, e.scope, binders, createTemplateNodes(e.child)*)
     case e: Elem => e.copy(child = createTemplateNodes(e.child))
     case other => other
   }

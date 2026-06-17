@@ -19,18 +19,19 @@
 
 		<project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
 
-		<lift.version>3.5.0</lift.version>
-		<lift.bundle.version>${lift.version}-sp2</lift.bundle.version>
-		<komma.version>1.9.0</komma.version>
-		<scala.major.version>2.13</scala.major.version>
-		<scala.version>2.13.12</scala.version>
-		<scala.plugin.version>4.8.1</scala.plugin.version>
-		<rap.version>3.29.0</rap.version>
-		<osgi.version>7.0.0</osgi.version>
+		<lift.version>4.0.0</lift.version>
+		<lift.bundle.version>${lift.version}-SNAPSHOT</lift.bundle.version>
+		<komma.version>1.10.0-SNAPSHOT</komma.version>
+		<scala.major.version>3</scala.major.version>
+		<scala.version>3.8.4</scala.version>
+		<scala.plugin.version>4.9.10</scala.plugin.version>
+		<rap.version>4.6.0</rap.version>
+		<osgi.version>8.0.0</osgi.version>
+		<slf4j.version>2.0.18</slf4j.version>
 
-		<bnd.version>6.3.1</bnd.version>
-		<karaf.version>4.4.7</karaf.version>
-		<karaf.tooling.version>4.4.7</karaf.tooling.version>
+		<bnd.version>7.3.0</bnd.version>
+		<karaf.version>4.4.11</karaf.version>
+		<karaf.tooling.version>4.4.11</karaf.tooling.version>
 
 		<enilink.scm.connection>scm:git:git://github.com:enilink/enilink.git</enilink.scm.connection>
 		<enilink.scm.developerConnection>scm:git:git@github.com:enilink/enilink.git</enilink.scm.developerConnection>
@@ -86,31 +87,31 @@
 		<dependency>
 			<groupId>org.junit.platform</groupId>
 			<artifactId>junit-platform-launcher</artifactId>
-			<version>1.13.4</version>
+			<version>6.1.0</version>
 			<scope>test</scope>
 		</dependency>
 		<dependency>
 			<groupId>org.junit.jupiter</groupId>
 			<artifactId>junit-jupiter-engine</artifactId>
-			<version>5.13.4</version>
+			<version>6.1.0</version>
 			<scope>test</scope>
 		</dependency>
 		<dependency>
 			<groupId>org.junit.vintage</groupId>
 			<artifactId>junit-vintage-engine</artifactId>
-			<version>5.13.4</version>
+			<version>6.1.0</version>
 			<scope>test</scope>
 		</dependency>
 		<dependency>
 			<groupId>org.slf4j</groupId>
 			<artifactId>slf4j-simple</artifactId>
-			<version>1.7.36</version>
+			<version>2.1.0-alpha1</version>
 			<scope>test</scope>
 		</dependency>
 		<dependency>
 			<groupId>org.mockito</groupId>
 			<artifactId>mockito-core</artifactId>
-			<version>4.11.0</version>
+			<version>5.23.0</version>
 			<scope>test</scope>
 		</dependency>
 	</dependencies>
@@ -120,37 +121,74 @@
 			<dependency>
 				<groupId>org.eclipse.platform</groupId>
 				<artifactId>org.eclipse.core.runtime</artifactId>
-				<version>3.30.0</version>
+				<version>3.34.200</version>
 			</dependency>
 			<dependency>
 				<groupId>org.eclipse.platform</groupId>
 				<artifactId>org.eclipse.equinox.common</artifactId>
-				<version>3.18.200</version>
+				<version>3.20.400</version>
 			</dependency>
 			<dependency>
 				<groupId>org.eclipse.platform</groupId>
 				<artifactId>org.eclipse.core.resources</artifactId>
-				<version>3.20.0</version>
+				<version>3.24.0</version>
 			</dependency>
 			<dependency>
 				<groupId>org.eclipse.platform</groupId>
 				<artifactId>org.eclipse.osgi</artifactId>
-				<version>3.18.600</version>
+				<version>3.24.200</version>
 			</dependency>
 			<dependency>
 				<groupId>org.eclipse.platform</groupId>
 				<artifactId>org.eclipse.core.commands</artifactId>
-				<version>3.11.200</version>
+				<version>3.12.500</version>
 			</dependency>
 			<dependency>
 				<groupId>org.eclipse.platform</groupId>
 				<artifactId>org.eclipse.equinox.registry</artifactId>
-				<version>3.11.400</version>
+				<version>3.12.600</version>
+			</dependency>
+			<dependency>
+				<groupId>org.eclipse.platform</groupId>
+				<artifactId>org.eclipse.equinox.security</artifactId>
+				<version>1.4.700</version>
+				<exclusions>
+					<exclusion>
+						<groupId>*</groupId>
+						<artifactId>*</artifactId>
+					</exclusion>
+				</exclusions>
 			</dependency>
 			<dependency>
 				<groupId>org.scala-lang</groupId>
-				<artifactId>scala-library</artifactId>
+				<artifactId>scala3-library_3</artifactId>
 				<version>${scala.version}</version>
+			</dependency>
+			<!-- OSGi version of the Scala library -->
+			<dependency>
+				<groupId>org.opendaylight.controller</groupId>
+				<artifactId>scala3-library</artifactId>
+				<version>13.0.2</version>
+			</dependency>
+			<dependency>
+				<groupId>org.osgi</groupId>
+				<artifactId>org.osgi.service.component</artifactId>
+				<version>1.5.1</version>
+			</dependency>
+			<dependency>
+				<groupId>org.osgi</groupId>
+				<artifactId>org.osgi.service.component.annotations</artifactId>
+				<version>1.5.1</version>
+			</dependency>
+			<dependency>
+				<groupId>org.osgi</groupId>
+				<artifactId>org.osgi.service.servlet</artifactId>
+				<version>2.0.0</version>
+			</dependency>
+			<dependency>
+				<groupId>jakarta.servlet</groupId>
+				<artifactId>jakarta.servlet-api</artifactId>
+				<version>6.1.0</version>
 			</dependency>
 		</dependencies>
 	</dependencyManagement>
@@ -217,9 +255,9 @@
 				<plugin>
 					<groupId>org.apache.maven.plugins</groupId>
 					<artifactId>maven-compiler-plugin</artifactId>
-					<version>3.11.0</version>
+					<version>3.14.0</version>
 					<configuration>
-						<release>17</release>
+						<release>21</release>
 					</configuration>
 				</plugin>
 
@@ -228,7 +266,7 @@
 					<artifactId>maven-javadoc-plugin</artifactId>
 					<version>3.3.1</version>
 					<configuration>
-						<source>17</source>
+						<source>21</source>
 						<additionalOptions>${javadoc.opts}</additionalOptions>
 					</configuration>
 				</plugin>
@@ -236,7 +274,7 @@
 				<plugin>
 					<groupId>org.apache.maven.plugins</groupId>
 					<artifactId>maven-jar-plugin</artifactId>
-					<version>3.3.0</version>
+					<version>3.4.2</version>
 					<configuration>
 						<archive>
 							<manifestFile>${project.build.outputDirectory}/META-INF/MANIFEST.MF</manifestFile>
@@ -254,7 +292,7 @@
 				<plugin>
 					<groupId>org.apache.maven.plugins</groupId>
 					<artifactId>maven-surefire-plugin</artifactId>
-					<version>2.22.2</version>
+					<version>3.5.4</version>
 					<configuration>
 						<encoding>UTF-8</encoding>
 					</configuration>
@@ -281,7 +319,7 @@
 				<plugin>
 					<groupId>org.codehaus.mojo</groupId>
 					<artifactId>versions-maven-plugin</artifactId>
-					<version>2.8.1</version>
+					<version>2.21.0</version>
 				</plugin>
 
 				<plugin>
@@ -301,7 +339,7 @@
 				<plugin>
 					<groupId>org.apache.maven.plugins</groupId>
 					<artifactId>maven-dependency-plugin</artifactId>
-					<version>3.2.0</version>
+					<version>3.6.1</version>
 					<executions>
 						<execution>
 							<id>embed-webjars</id>

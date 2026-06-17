@@ -42,7 +42,7 @@ class SiteMapXml {
   def parse(in: InputStream) : Unit = {
     val xml = XML.load(in)
     menuList = xml match {
-      case sm @ <sitemap>{ _* }</sitemap> =>
+      case sm @ <sitemap>{ _ }</sitemap> =>
         val app = sm \@ "app"
         parseModelRule(app :: Nil, sm)
 
@@ -51,11 +51,11 @@ class SiteMapXml {
         }.toList
 
         val submenus = sm.child.collect {
-          case loc @ <loc>{ _* }</loc> => parseLocation(app, loc)
+          case loc @ <loc>{ _ }</loc> => parseLocation(app, loc)
         }.toList
 
         // redirect to index
-        val redirect = Menus.appMenu("redirect-to-index", "", Nil)(app) >> Hidden >> EarlyResponse(() => {
+        val redirect = Menus.appMenu("redirect-to-index", "", Nil)(using app) >> Hidden >> EarlyResponse(() => {
           Full(RedirectResponse(s"/$app/"))
         })
         redirect :: Menus.application(app, app :: Nil, parseLocParams(sm.attributes), submenus) :: Nil
@@ -92,7 +92,7 @@ class SiteMapXml {
       } catch {
         case e : Exception => None
       }) foreach (uri => {
-        modelRules += (path -> uri)
+        modelRules = modelRules + (path -> uri)
       })
       case _ => // ignore
     }
@@ -113,7 +113,7 @@ class SiteMapXml {
 
     val params = parseLocParams[Unit](loc.attributes)
     val submenus = loc.child.flatMap {
-      case child @ <loc>{ _* }</loc> => Some(parseLocation(app, child))
+      case child @ <loc>{ _ }</loc> => Some(parseLocation(app, child))
       case other => None // ignore
     }.toList
 
@@ -122,6 +122,6 @@ class SiteMapXml {
         if (app.nonEmpty) app + "." + name else name,
         new Link(path, loc.attributes.exists(_.key == "matchHead")),
         text, params),
-      submenus: _*)
+      submenus*)
   }
 }

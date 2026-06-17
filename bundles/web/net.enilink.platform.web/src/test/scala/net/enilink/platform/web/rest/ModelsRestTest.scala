@@ -12,13 +12,15 @@ import org.junit.jupiter.api.Assertions._
 
 import java.io.ByteArrayOutputStream
 import java.nio.charset.StandardCharsets
-import javax.servlet.http.HttpServletRequest
+import jakarta.servlet.http.HttpServletRequest
+
+import scala.compiletime.uninitialized
 
 /**
  * Companion object of unit tests for the /models endpoint
  */
 object ModelsRestTest {
-  var modelSet : IModelSet = _
+  var modelSet : IModelSet = uninitialized
 
   @BeforeAll
   def setup() : Unit = {

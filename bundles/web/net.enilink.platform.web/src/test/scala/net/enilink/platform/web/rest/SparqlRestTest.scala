@@ -2,27 +2,29 @@ package net.enilink.platform.web.rest
 
 import com.google.inject.Guice
 import net.enilink.komma.core.{KommaModule, Statement, URI, URIs}
-import net.enilink.komma.model._
+import net.enilink.komma.model.*
 import net.enilink.platform.core.security.ISecureModelSet
 import net.enilink.platform.lift.util.Globals
 import net.liftweb.common.{Box, Full}
 import net.liftweb.http.provider.servlet.HTTPRequestServlet
 import net.liftweb.http.{BasicResponse, InMemoryResponse, LiftResponse, OutputStreamResponse, Req}
 import org.junit.jupiter.api.{AfterAll, BeforeAll, Test}
-import org.junit.jupiter.api.Assertions._
+import org.junit.jupiter.api.Assertions.*
 import org.eclipse.rdf4j.query.{MalformedQueryException, QueryEvaluationException, QueryInterruptedException}
-import org.mockito.ArgumentMatchers.{any => mAny, eq => mEq}
+import org.mockito.ArgumentMatchers.{any as mAny, eq as mEq}
 import org.mockito.Mockito
 
 import java.io.ByteArrayOutputStream
 import java.nio.charset.StandardCharsets
-import javax.servlet.http.HttpServletRequest
+import jakarta.servlet.http.HttpServletRequest
+
+import scala.compiletime.uninitialized
 
 /**
  * Companion object of unit tests for the /sparql endpoint
  */
 object SparqlRestTest {
-  var modelSet: IModelSet = _
+  var modelSet: IModelSet = uninitialized
   val testModel: URI = MODELS.NAMESPACE_URI.appendFragment("test-model")
 
   @BeforeAll

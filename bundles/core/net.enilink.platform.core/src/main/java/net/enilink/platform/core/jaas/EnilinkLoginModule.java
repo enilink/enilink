@@ -163,13 +163,12 @@ public class EnilinkLoginModule implements LoginModule {
 	@Override
 	public boolean commit() throws LoginException {
 		try {
-			return Subject.doAs(SecurityUtil.SYSTEM_USER_SUBJECT,
-					(PrivilegedExceptionAction<Boolean>) () -> internalCommit());
-		} catch (PrivilegedActionException pae) {
-			if (pae.getException() instanceof LoginException) {
-				throw (LoginException) pae.getException();
+			return Subject.callAs(SecurityUtil.SYSTEM_USER_SUBJECT, this::internalCommit);
+		} catch (Exception e) {
+			if (e.getCause() instanceof LoginException) {
+				throw (LoginException) e.getCause();
 			} else {
-				throw (RuntimeException) pae.getException();
+				throw (RuntimeException) e.getCause();
 			}
 		}
 	}

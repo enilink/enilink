@@ -98,7 +98,7 @@ class Rdf extends DispatchSnippet with RDFaTemplates {
 
             // encode if attribute is used as URL
             val encode = replaceAttr.toLowerCase match {
-              case "href" | "src" if origText != "{}" => Helpers.urlEncode _
+              case "href" | "src" if origText != "{}" => Helpers.urlEncode
               case _ => (v: String) => v
             }
 
@@ -125,7 +125,7 @@ class Rdf extends DispatchSnippet with RDFaTemplates {
                   case i: java.lang.Iterable[_] if hasChildren => selector #> i.asScala.map(withChangedContext)
                   case i: Iterable[_] if hasChildren => selector #> i.map(withChangedContext)
                   case null => PassThru
-                  case o @ _ if hasChildren => selector #> withChangedContext(o) _
+                  case o @ _ if hasChildren => selector #> withChangedContext(o)
                   case o @ _ => selector #> o.toString
                 }
                 case _ => ClearNodes

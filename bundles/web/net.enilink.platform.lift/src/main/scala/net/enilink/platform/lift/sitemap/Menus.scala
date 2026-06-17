@@ -38,7 +38,7 @@ object Menus {
   def application(name: String, path: List[String], submenus: List[ConvertableToMenu] = Nil): Menu = application(name, path, Nil, submenus)
 
   def application(name: String, path: List[String], params: List[Loc.LocParam[Application]], submenus: List[ConvertableToMenu]): Menu = {
-    Menu(DataLoc(name, new Link(path), LinkText[Application](app => Text(app.name)), Full(Application(name, path)), params: _*), submenus: _*)
+    Menu(DataLoc(name, new Link(path), LinkText[Application](app => Text(app.name)), Full(Application(name, path)), params*), submenus*)
   }
 
   private object Right extends MenuCssClass("pull-right")
@@ -58,7 +58,7 @@ object Menus {
       // call the registered logout functions
       Globals.logoutFuncs.vend.foreach(_())
       S.session.map(_.httpSession.map(_.removeAttribute("javax.security.auth.subject")))
-      Globals.contextUser.session.remove
+      Globals.contextUser.session.remove()
     }
 
     List(appMenu("Login", S ? "Login", "login" :: Nil) >> Right >> If(() => !S.loggedIn_?, RedirectResponse("/")),
@@ -79,7 +79,7 @@ object Menus {
         })
       }, app => app.path.mkString("/"), * :: path.map(LocPath.stringToLocPath), false, params.toList, Nil).toMenu,
       // the menu for the enilink application
-      Menu(DataLoc("enilink." + name, new Link(path), linkText, Full(ENILINK_APPLICATION), params: _*)))
+      Menu(DataLoc("enilink." + name, new Link(path), linkText, Full(ENILINK_APPLICATION), params*)))
   }
 
   def sitemapMutator(menus: List[Menu], app: String): SiteMap => SiteMap = {

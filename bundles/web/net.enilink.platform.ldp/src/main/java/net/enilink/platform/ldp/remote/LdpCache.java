@@ -88,67 +88,64 @@ public class LdpCache {
 			throw new IllegalStateException("Failed to initialize LdpCache repository: " + re);
 		}
 		INSTANCE = LdpCache.this;
-		Subject.doAs(SecurityUtil.SYSTEM_USER_SUBJECT, new PrivilegedAction<Void>() {
-			@Override
-			public Void run() {
-				modelSet.getUnitOfWork().begin();
-				try {
-					// FIXME: just a placeholder, the actual data isn't stored
-					// here, but in the internal repository; this is needed for
-					// KOMMA model handling (context triggers the federation's
-					// cache member and thus the internal repository)
-					URI CACHE_MODEL_URI = URIs.createURI(CACHE_MODEL_IRI.toString());
-					cacheModel = modelSet.getModel(CACHE_MODEL_URI, false);
-					if (null == cacheModel) {
-						cacheModel = modelSet.createModel(CACHE_MODEL_URI);
-					}
-					// add the LDP cache as readable graph to the modelset
-					modelSet.getModule().addReadableGraph(CACHE_MODEL_URI);
-
-					// create a model to hold the configured endpoints
-					Set<URI> newEndpoints = getEndpoints();
-					endpointModel = modelSet.getModel(ENDPOINT_MODEL_URI, false);
-					if (null == endpointModel) {
-						endpointModel = modelSet.createModel(ENDPOINT_MODEL_URI);
-						((IResource) endpointModel).setRdfsLabel("registered LDP endpoints");
-					} else {
-						// sync endpoints between map and model
-						// query the model for known endpoints
-						IQuery<?> query = endpointModel.getManager()
-								.createQuery("PREFIX le: <" + ENDPOINT_MODEL_URI + "#> " //
-										+ "SELECT ?epAddr WHERE {" //
-										+ " ?ep a le:Endpoint . " //
-										+ " ?ep le:hasAddress ?epAddr . " //
-										+ "}", false);
-						// register the old endpoints from the model
-						for (IReference endpointAddress : query.evaluateRestricted(IReference.class).toList()) {
-							addEndpoint(endpointAddress);
-						}
-						query.close();
-					}
-
-					// put the new endpoints into the model
-					List<IStatement> stmts = new ArrayList<IStatement>();
-					for (URI newEndpoint : newEndpoints) {
-						IReference node = new BlankNode();
-						stmts.add(new Statement(node, RDF.PROPERTY_TYPE, URIs.createURI(TYPE_ENDPOINT.toString())));
-						stmts.add(new Statement(node, URIs.createURI(PROPERTY_HASADDRESS.toString()), newEndpoint));
-					}
-					try {
-						endpointModel.getManager().add(stmts);
-						// add a statement about the ontology into the cache (so that it isn't empty)
-						getConnection().add(vf.createStatement(CACHE_MODEL_IRI, vc.toRdf4j(RDF.PROPERTY_TYPE),
-								vc.toRdf4j(OWL.TYPE_ONTOLOGY)), CACHE_MODEL_IRI);
-					} catch (Throwable t) {
-						t.printStackTrace();
-					}
-
-					return null;
-				} catch (Throwable t) {
-					throw t;
-				} finally {
-					modelSet.getUnitOfWork().end();
+		Subject.callAs(SecurityUtil.SYSTEM_USER_SUBJECT, () -> {
+			modelSet.getUnitOfWork().begin();
+			try {
+				// FIXME: just a placeholder, the actual data isn't stored
+				// here, but in the internal repository; this is needed for
+				// KOMMA model handling (context triggers the federation's
+				// cache member and thus the internal repository)
+				URI CACHE_MODEL_URI = URIs.createURI(CACHE_MODEL_IRI.toString());
+				cacheModel = modelSet.getModel(CACHE_MODEL_URI, false);
+				if (null == cacheModel) {
+					cacheModel = modelSet.createModel(CACHE_MODEL_URI);
 				}
+				// add the LDP cache as readable graph to the modelset
+				modelSet.getModule().addReadableGraph(CACHE_MODEL_URI);
+
+				// create a model to hold the configured endpoints
+				Set<URI> newEndpoints = getEndpoints();
+				endpointModel = modelSet.getModel(ENDPOINT_MODEL_URI, false);
+				if (null == endpointModel) {
+					endpointModel = modelSet.createModel(ENDPOINT_MODEL_URI);
+					((IResource) endpointModel).setRdfsLabel("registered LDP endpoints");
+				} else {
+					// sync endpoints between map and model
+					// query the model for known endpoints
+					IQuery<?> query = endpointModel.getManager()
+							.createQuery("PREFIX le: <" + ENDPOINT_MODEL_URI + "#> " //
+									+ "SELECT ?epAddr WHERE {" //
+									+ " ?ep a le:Endpoint . " //
+									+ " ?ep le:hasAddress ?epAddr . " //
+									+ "}", false);
+					// register the old endpoints from the model
+					for (IReference endpointAddress : query.evaluateRestricted(IReference.class).toList()) {
+						addEndpoint(endpointAddress);
+					}
+					query.close();
+				}
+
+				// put the new endpoints into the model
+				List<IStatement> stmts = new ArrayList<IStatement>();
+				for (URI newEndpoint : newEndpoints) {
+					IReference node = new BlankNode();
+					stmts.add(new Statement(node, RDF.PROPERTY_TYPE, URIs.createURI(TYPE_ENDPOINT.toString())));
+					stmts.add(new Statement(node, URIs.createURI(PROPERTY_HASADDRESS.toString()), newEndpoint));
+				}
+				try {
+					endpointModel.getManager().add(stmts);
+					// add a statement about the ontology into the cache (so that it isn't empty)
+					getConnection().add(vf.createStatement(CACHE_MODEL_IRI, vc.toRdf4j(RDF.PROPERTY_TYPE),
+							vc.toRdf4j(OWL.TYPE_ONTOLOGY)), CACHE_MODEL_IRI);
+				} catch (Throwable t) {
+					t.printStackTrace();
+				}
+
+				return null;
+			} catch (Throwable t) {
+				throw t;
+			} finally {
+				modelSet.getUnitOfWork().end();
 			}
 		});
 		logger.trace("LdpCache activated");

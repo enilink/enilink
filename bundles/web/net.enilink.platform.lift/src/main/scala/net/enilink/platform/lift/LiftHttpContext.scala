@@ -6,13 +6,14 @@ import net.liftweb.common.{Full, Logger}
 import net.liftweb.http.{LiftRules, ResourceServer}
 import org.osgi.framework.Bundle
 import org.osgi.service.component.annotations.{Component, Reference, ServiceScope}
-import org.osgi.service.http.context.ServletContextHelper
+import org.osgi.service.servlet.context.ServletContextHelper
 
 import java.io.File
 import java.net.URL
 import java.util
 import scala.collection.mutable
-import scala.jdk.CollectionConverters._
+import scala.compiletime.uninitialized
+import scala.jdk.CollectionConverters.*
 import scala.util.matching.Regex
 
 /**
@@ -27,7 +28,7 @@ import scala.util.matching.Regex
     "osgi.http.whiteboard.context.path=/"))
 class LiftHttpContext extends ServletContextHelper with Logger {
   @Reference
-  var liftLifecycleManager: LiftLifecycleManager = _
+  var liftLifecycleManager: LiftLifecycleManager = uninitialized
 
   private val WEBJARS_PATH_PREFIX = "META-INF/resources/webjars"
 
@@ -105,7 +106,7 @@ class LiftHttpContext extends ServletContextHelper with Logger {
     webjarAssets
   }
 
-  private var webJarAssets: WebJarAssets = _
+  private var webJarAssets: WebJarAssets = uninitialized
   private val WEBJARS = "/" + ResourceServer.baseResourceLocation + "/webjars/"
   private val webjarWithWildcardPattern: Regex = "^([^/]+)/\\*/(.*)$".r
 
@@ -202,7 +203,7 @@ class LiftHttpContext extends ServletContextHelper with Logger {
     val liftBundles = liftLifecycleManager.bundles.entrySet.asScala.toSeq.view
     places.view.flatMap { place =>
       liftBundles.flatMap { b =>
-        b.getKey getResource (b.getValue mapResource place) match {
+        b.getKey.getResource(b.getValue.mapResource(place)) match {
           case null => None
           case res =>
             debug("""Lift-powered bundle "%s" answered for resource "%s".""".format(b.getKey.getSymbolicName, place))

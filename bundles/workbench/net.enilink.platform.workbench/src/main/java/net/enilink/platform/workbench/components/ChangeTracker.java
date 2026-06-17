@@ -142,7 +142,7 @@ public class ChangeTracker {
 				changeDescription.add(new Statement(changeUri, PROPERTY_AGENT, user));
 				changeDescription.add(new Statement(changeUri, PROPERTY_DATE, now));
 
-				Subject.doAs(SecurityUtil.SYSTEM_USER_SUBJECT, (PrivilegedAction<Object>) () -> {
+				Subject.callAs(SecurityUtil.SYSTEM_USER_SUBJECT, () -> {
 					URI auditModelUri = URIs.createURI("enilink:audit:" + modelRef.toString());
 					try {
 						modelSet.getUnitOfWork().begin();

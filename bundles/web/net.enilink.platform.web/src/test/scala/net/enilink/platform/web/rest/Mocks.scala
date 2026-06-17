@@ -10,7 +10,7 @@ import org.eclipse.core.runtime.content.{IContentDescription, IContentType}
 import org.mockito.Mockito
 
 import java.io.{ByteArrayInputStream, InputStream}
-import javax.servlet.ServletInputStream
+import jakarta.servlet.ServletInputStream
 
 trait MockModelsInApply extends RestHelper {
   override def apply(in: Req): () => Box[LiftResponse] = {
@@ -83,7 +83,7 @@ class MockHttpServletRequest(url: String) extends net.liftweb.mocks.MockHttpServ
 
     def isReady: Boolean = !isFinished()
 
-    def setReadListener(l: javax.servlet.ReadListener): Unit = ()
+    def setReadListener(l: jakarta.servlet.ReadListener): Unit = ()
   }
 
   override def getInputStream(): ServletInputStream = {

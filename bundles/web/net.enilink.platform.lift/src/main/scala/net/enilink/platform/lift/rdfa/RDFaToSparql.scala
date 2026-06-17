@@ -4,6 +4,7 @@ import net.enilink.komma.core.{IBindings, LinkedHashBindings}
 import net.enilink.platform.lift.rdf._
 
 import scala.collection.mutable.{LinkedHashSet, StringBuilder}
+import scala.compiletime.uninitialized
 import scala.xml.{Elem, NamespaceBinding, NodeSeq, Null, UnprefixedAttribute}
 
 /**
@@ -73,7 +74,7 @@ class RDFaToSparqlParser(e: xml.Elem, base: String, varResolver: Option[Variable
   val sparql: StringBuilder = new StringBuilder
   val selectVars = new LinkedHashSet[Variable]
   val orderBy = new LinkedHashSet[String]
-  val bindings: IBindings[_] = new LinkedHashBindings
+  val bindings: IBindings[?] = new LinkedHashBindings
   val seen: mutable.Set[Arc] = new mutable.HashSet[Arc]
 
   val initialIndentation = 0
@@ -86,8 +87,8 @@ class RDFaToSparqlParser(e: xml.Elem, base: String, varResolver: Option[Variable
   var strict: Boolean = initialStrictness
   var withinFilter = 0
 
-  var resultElem: xml.Elem = _
-  var resultQuery: String = _
+  var resultElem: xml.Elem = uninitialized
+  var resultQuery: String = uninitialized
 
   def projection: String = {
     selectVars.map(toString).mkString(" ")
@@ -240,7 +241,7 @@ class RDFaToSparqlParser(e: xml.Elem, base: String, varResolver: Option[Variable
         nonempty(e, "data-filter") foreach { filter => addLine("filter (" + filter + ")") }
         while (close > 0) { dedent; addLine("}"); close -= 1 }
         withinFilter -= closeFilter
-        if (thisStack.top.elem eq e) thisStack.pop
+        if (thisStack.top.elem eq e) thisStack.pop()
         result
       })
     }

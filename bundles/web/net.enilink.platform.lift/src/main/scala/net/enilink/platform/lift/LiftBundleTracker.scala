@@ -23,10 +23,10 @@ class LiftBundleTracker(context: BundleContext) extends BundleTracker[LiftBundle
     if (siteMapStr.isDefined || moduleStr.isDefined || packageStr.isDefined) {
       if (!LiftRules.doneBoot) {
         // track bundle immediately
-        val packages = packageStr.map(_.split("\\s,\\s")) openOr Array.empty
+        val packages = packageStr.map(_.split("\\s,\\s")) openOr Array.empty[String]
         val module = moduleStr.filter(_.trim.nonEmpty).flatMap { m =>
           try {
-            val clazz = bundle loadClass m
+            val clazz = bundle.loadClass(m)
             Full(clazz.getDeclaredConstructor().newInstance().asInstanceOf[AnyRef])
           } catch {
             case cnfe: ClassNotFoundException =>

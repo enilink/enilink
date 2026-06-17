@@ -15,7 +15,7 @@ class ElemWithRdfa(
   label: String,
   attributes: MetaData,
   scope: NamespaceBinding,
-  child: xml.Node*) extends Elem(prefix, label, attributes, scope, true, child: _*) {
+  child: xml.Node*) extends Elem(prefix, label, attributes, scope, true, child*) {
 
   override def basisForHashCode: Seq[Any] = List(context) ++ super.basisForHashCode
 
@@ -25,5 +25,5 @@ class ElemWithRdfa(
     attributes: MetaData = this.attributes,
     scope: NamespaceBinding = this.scope,
     minimizeEmpty: Boolean = this.minimizeEmpty,
-    child: collection.Seq[xml.Node] = this.child): ElemWithRdfa = new ElemWithRdfa(context, prefix, label, attributes, scope, child: _*)
+    child: collection.Seq[xml.Node] = this.child): ElemWithRdfa = new ElemWithRdfa(context, prefix, label, attributes, scope, child*)
 }

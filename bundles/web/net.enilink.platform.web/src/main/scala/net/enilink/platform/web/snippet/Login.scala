@@ -9,7 +9,8 @@ import net.liftweb.common.{Box, Empty, Full}
 import net.liftweb.http.js.JsCmds._
 import net.liftweb.http.provider.HTTPCookie
 import net.liftweb.http.{S, SessionVar, Templates, TransientRequestVar}
-import net.liftweb.json.DefaultFormats
+import org.json4s.DefaultFormats
+import org.json4s.native.JsonMethods.{parseOpt, compact, render as renderJson}
 import net.liftweb.util.Helpers._
 import net.liftweb.util.{CssSel, Helpers}
 import org.eclipse.equinox.security.auth.{ILoginContext, LoginContextFactory}
@@ -20,13 +21,14 @@ import javax.security.auth.Subject
 import javax.security.auth.callback._
 import javax.security.auth.login.LoginException
 import scala.collection._
+import scala.compiletime.uninitialized
 import scala.jdk.CollectionConverters._
 import scala.xml.NodeSeq.seqToNodeSeq
 import scala.xml.{Elem, Node, NodeSeq}
 
 class Login {
   class DelegatingCallbackHandler extends CallbackHandler {
-    var delegate: CallbackHandler = _
+    var delegate: CallbackHandler = uninitialized
     def handle(callbacks: Array[Callback]): Unit = delegate.handle(callbacks)
   }
 
@@ -35,8 +37,8 @@ class Login {
    */
   class State {
     var referer: Box[String] = Empty
-    var method: String = _
-    var context: ILoginContext = _
+    var method: String = uninitialized
+    var context: ILoginContext = uninitialized
     var handler: DelegatingCallbackHandler = new DelegatingCallbackHandler
     var params: Map[String, List[String]] = Map.empty
   }
@@ -44,7 +46,7 @@ class Login {
   object loginState extends SessionVar[Box[State]](Empty)
 
   object LoginDataHelpers {
-    import net.liftweb.json._
+    import org.json4s._
 
     lazy val methods: mutable.Buffer[(String, String)] = LoginUtil.getLoginMethods.asScala.map(m => (m.getFirst, m.getSecond))
 
@@ -65,11 +67,11 @@ class Login {
   }
 
   case class LoginData(props: mutable.Map[String, Any], currentMethod: (String, String)) {
-    implicit val formats: DefaultFormats.type = net.liftweb.json.DefaultFormats
-    import net.liftweb.json.Extraction._
-    import net.liftweb.json.JsonAST
+    implicit val formats: DefaultFormats.type = org.json4s.DefaultFormats
+    import org.json4s.Extraction._
+    import org.json4s.JsonAST
     def save() : Unit = {
-      S.addCookie(HTTPCookie("loginData", Helpers.urlEncode(JsonAST.compactRender(decompose(props.toMap)))).setMaxAge(3600 * 24 * 90 /* 3 months */ ))
+      S.addCookie(HTTPCookie("loginData", Helpers.urlEncode(compact(renderJson(decompose(props.toMap))))).setMaxAge(3600 * 24 * 90 /* 3 months */ ))
     }
   }
 
@@ -81,7 +83,7 @@ class Login {
     } getOrElse methods.head
     if (!props.get("method").contains(currentMethod._2)) {
       // clear data if login method has been changed
-      props.clear
+      props.clear()
     }
     props("method") = currentMethod._2
     LoginData(props, currentMethod)
@@ -277,7 +279,7 @@ class Login {
               Globals.logoutFuncs.vend :+ (() => loginCtx.logout())
             }
           } finally {
-            loginState.remove
+            loginState.remove()
           }
           // redirect to origin if login is successful
           if (!isRegister) S.redirectTo(state.referer openOr "/")
@@ -289,8 +291,10 @@ class Login {
             var cause = e
             // required for Equinox security to retrieve the
             // real cause for this exception
-            if (cause.getCause.isInstanceOf[LoginException]) {
-              cause = cause.getCause.asInstanceOf[LoginException]
+            cause.getCause match {
+              case exception: LoginException =>
+                cause = exception
+              case _ =>
             }
 
             form = <div class="alert alert-danger"><div><strong>Login failed</strong></div>{ cause.getMessage }</div>

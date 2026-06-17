@@ -10,6 +10,7 @@ import net.enilink.vocab.rdfs.RDFS;
 import org.osgi.framework.FrameworkUtil;
 
 import java.net.MalformedURLException;
+import java.net.URISyntaxException;
 import java.net.URL;
 import java.util.Arrays;
 import java.util.List;
@@ -29,8 +30,8 @@ public class LoginUtil {
 				return Optional.ofNullable(config.filter(configURI,
 						configURI.appendLocalPart("jaasConfigUrl"), null).objectString()).map(url -> {
 					try {
-						return new URL(url);
-					} catch (MalformedURLException e) {
+						return new java.net.URI(url).toURL();
+					} catch (MalformedURLException | URISyntaxException e) {
 						return null;
 					}
 				}).orElse(FrameworkUtil.getBundle(getClass()).getResource("/config/jaas.conf"));

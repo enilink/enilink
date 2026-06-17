@@ -18,7 +18,7 @@ import scala.xml.{Elem, NodeSeq, Null, UnprefixedAttribute}
 /**
  * Global SPARQL parameters that can be shared between different snippets.
  */
-object QueryParams extends RequestVar[Map[String, _]](Map.empty) {
+object QueryParams extends RequestVar[Map[String, ?]](Map.empty) {
   /**
    * Do not logUnreadVal since it may be the default case for this request variable.
    */
@@ -27,7 +27,7 @@ object QueryParams extends RequestVar[Map[String, _]](Map.empty) {
 
 object RdfHelpers {
   import scala.language.implicitConversions
-  implicit def bindingsToMap(bindings: IBindings[_]): Map[String, _] = bindings.getKeys.asScala.map(k => k -> bindings.get(k)).toMap
+  implicit def bindingsToMap(bindings: IBindings[?]): Map[String, ?] = bindings.getKeys.asScala.map(k => k -> bindings.get(k)).toMap
 }
 
 trait SparqlHelper {
@@ -35,7 +35,7 @@ trait SparqlHelper {
 
   def bindParams(params: Seq[String]): Map[String, Any] = convertParams(params.flatMap { name => S.param(name) map (name -> _) }.toMap)
 
-  def convertParams(params: Map[String, _]): Map[String, Any] = {
+  def convertParams(params: Map[String, ?]): Map[String, Any] = {
     params flatMap {
       case (key, value: String) if value.startsWith("_:") => Some((key, new BlankNode(value)))
       case (key, value) =>
@@ -51,12 +51,12 @@ trait SparqlHelper {
     }
   }
 
-  def withParameters[T](query: IQuery[T], params: Map[String, _]): IQuery[T] = {
+  def withParameters[T](query: IQuery[T], params: Map[String, ?]): IQuery[T] = {
     params foreach { p => query.setParameter(p._1, p._2) }
     query
   }
 
-  def globalQueryParameters: Map[String, _] = {
+  def globalQueryParameters: Map[String, ?] = {
     val map = (List(("currentUser", Globals.contextUser.vend)) ++
       CurrentContext.value.flatMap {
         _.subject match {
@@ -112,7 +112,7 @@ class Sparql extends SparqlHelper with RDFaTemplates {
 
     def renderResults = {
       def toBindings(firstBinding: String, row: Any) = row match {
-        case b: IBindings[_] => b
+        case b: IBindings[?] => b
         case other =>
           val b = new LinkedHashBindings[Any](1)
           b.put(firstBinding, other)
@@ -128,13 +128,13 @@ class Sparql extends SparqlHelper with RDFaTemplates {
                 query.bindResultType(null: String, classOf[IValue]).evaluate match {
                   case r: IGraphResult =>
                     n1 //renderGraph(new LinkedHashGraph(r.toList()))
-                  case r: ITupleResult[_] =>
+                  case r: ITupleResult[?] =>
                     val firstBinding = r.getBindingNames.get(0)
                     val allTuples = r.iterator.asScala.map { row => (toBindings(firstBinding, row), includeInferred) }
                     var toRender = if (queryAsserted) {
                       // query explicit statements and prepend them to the results
                       withParameters(em.createQuery(sparql, false), params)
-                        .bindResultType(null: String, classOf[IValue]).evaluate.asInstanceOf[ITupleResult[_]]
+                        .bindResultType(null: String, classOf[IValue]).evaluate.asInstanceOf[ITupleResult[?]]
                         .iterator.asScala
                         .map { row => (toBindings(firstBinding, row), false) } ++ allTuples
                     } else allTuples
@@ -157,7 +157,7 @@ class Sparql extends SparqlHelper with RDFaTemplates {
     captureRdfContext(n)(renderResults)
   }
 
-  def toSparql(n: NodeSeq, em: IEntityManager): Box[(NodeSeq, String, Map[String, _])] = n.collectFirst {
+  def toSparql(n: NodeSeq, em: IEntityManager): Box[(NodeSeq, String, Map[String, ?])] = n.collectFirst {
     case e: Elem if e.attribute("data-sparql").exists(_.nonEmpty) =>
       (n, e.attribute("data-sparql").map(_.text).get, globalQueryParameters ++ bindParams(extractParams(n)))
   }
@@ -208,7 +208,7 @@ class Sparql extends SparqlHelper with RDFaTemplates {
     applyRules(ns)
   }
 
-  def renderTuples(ctx: RdfContext, ns: Seq[xml.Node], rows: Iterator[(IBindings[_], Boolean)]): NodeSeq = {
+  def renderTuples(ctx: RdfContext, ns: Seq[xml.Node], rows: Iterator[(IBindings[?], Boolean)]): NodeSeq = {
     val template = createTemplate(ns)
     rows foreach { row => template.transform(ctx, row._1, row._2) }
 

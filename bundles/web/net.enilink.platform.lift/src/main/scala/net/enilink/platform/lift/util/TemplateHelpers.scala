@@ -59,7 +59,7 @@ object TemplateHelpers {
   }
 
   def render(path: List[String], snips: (String, NodeSeq => NodeSeq)*): Box[RenderResult] = withAppFor(path) {
-    template(path) flatMap (render(_, snips: _*))
+    template(path) flatMap (render(_, snips*))
   }
 
   private object FindScript {
@@ -73,7 +73,7 @@ object TemplateHelpers {
   }
 
   def render(template: NodeSeq, snips: (String, NodeSeq => NodeSeq)*): Box[RenderResult] = {
-    S.eval(template, snips: _*) map { ns => S.session.map(_.normalizeHtml(ns)) openOr ns } map { ns =>
+    S.eval(template, snips*) map { ns => S.session.map(_.normalizeHtml(ns)) openOr ns } map { ns =>
       import net.liftweb.util.Helpers._
 
       import scala.collection.mutable.ListBuffer

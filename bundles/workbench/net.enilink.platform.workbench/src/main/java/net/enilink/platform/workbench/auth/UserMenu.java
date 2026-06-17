@@ -32,7 +32,7 @@ public class UserMenu extends ContributionItem {
 
 	@Override
 	public void fill(final ToolBar toolBar, int index) {
-		Subject subject = Subject.getSubject(AccessController.getContext());
+		Subject subject = Subject.current();
 		boolean loggedIn = subject != null;
 		String username = null;
 
@@ -49,7 +49,7 @@ public class UserMenu extends ContributionItem {
 					}
 				}
 			}
-			if (username == null || username.trim().length() == 0) {
+			if (username == null || username.trim().isEmpty()) {
 				username = "You";
 			}
 

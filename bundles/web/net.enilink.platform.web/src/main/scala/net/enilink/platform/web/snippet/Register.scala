@@ -162,7 +162,7 @@ class Register extends Login {
       case _ if currentUser != Globals.UNKNOWN_USER =>
         S.withAttrs("mode" -> "link") {
           // access properties in "link" mode
-          loginDataVar.props.clear
+          loginDataVar.props.clear()
           super.doRender(false)
         }
       case _ => super.doRender(accountCreated)

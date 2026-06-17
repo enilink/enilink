@@ -21,17 +21,18 @@ import org.osgi.service.component.annotations.{Activate, Component, Deactivate}
 import org.slf4j.LoggerFactory
 
 import java.util
+import scala.compiletime.uninitialized
 import scala.jdk.CollectionConverters._
 
 @Component(service = Array(classOf[LiftLifecycleManager]))
 class LiftLifecycleManager extends Loggable {
-	private var context: BundleContext = _
+	private var context: BundleContext = uninitialized
 
 	private val log = LoggerFactory.getLogger(classOf[LiftLifecycleManager])
 
-	private var bundleTracker: LiftBundleTracker = _
+	private var bundleTracker: LiftBundleTracker = uninitialized
 
-	private var contextServiceReg: ServiceRegistration[_] = _
+	private var contextServiceReg: ServiceRegistration[?] = uninitialized
 
 	def bootBundle(bundle: Bundle, config: LiftBundleConfig) : Unit = {
 		// add packages to search path
@@ -163,11 +164,9 @@ class LiftLifecycleManager extends Loggable {
 		val bundlesByStartLevel = bundles.entrySet.asScala.toSeq.sortBy(_.getValue.startLevel)
 		bundlesByStartLevel foreach { entry =>
 			// boot bundle as system user to allow modifications of RDF data
-			Subject.doAs(SecurityUtil.SYSTEM_USER_SUBJECT, new PrivilegedAction[Unit]() {
-				def run : Unit = {
-					val bundle = entry.getKey
-					bootBundle(bundle, entry.getValue)
-				}
+			Subject.callAs(SecurityUtil.SYSTEM_USER_SUBJECT, () => {
+				val bundle = entry.getKey
+				bootBundle(bundle, entry.getValue)
 			})
 		}
 
@@ -221,7 +220,7 @@ class LiftLifecycleManager extends Loggable {
 			bundleTracker = null
 		}
 		// shutdown configuration
-		Globals.close
+		Globals.close()
 
 		if (contextServiceReg != null) {
 			contextServiceReg.unregister()

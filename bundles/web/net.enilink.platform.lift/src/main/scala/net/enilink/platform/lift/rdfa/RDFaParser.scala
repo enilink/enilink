@@ -9,7 +9,7 @@ import scala.language.postfixOps
 import scala.xml.{Elem, NamespaceBinding, NodeSeq}
 import scala.xml.NodeSeq.seqToNodeSeq
 
-object RDFaParser extends RDFaParser()(new Scope())
+object RDFaParser extends RDFaParser()(using new Scope())
 
 trait RDFaUtils {
   private val PREFIX_PATTERN = "([^\\s:]+):\\s+([\\S]+)".r
@@ -148,7 +148,7 @@ class RDFaParser()(implicit val s: Scope = new Scope()) extends CURIE with RDFaU
       childArcs
     } else LazyList.empty
 
-    if (hasPrefixMappings) s.namespaces.pop
+    if (hasPrefixMappings) s.namespaces.pop()
     (newE, arcs ++ childArcs)
   }
 

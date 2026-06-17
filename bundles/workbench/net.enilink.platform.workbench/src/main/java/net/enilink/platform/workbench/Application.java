@@ -36,10 +36,9 @@ import javax.security.auth.callback.Callback;
 import javax.security.auth.callback.CallbackHandler;
 import javax.security.auth.callback.UnsupportedCallbackException;
 import javax.security.auth.login.LoginException;
-import javax.servlet.http.HttpSession;
+import jakarta.servlet.http.HttpSession;
 import java.io.IOException;
 import java.net.URL;
-import java.security.PrivilegedAction;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
@@ -150,11 +149,11 @@ public class Application implements IApplication {
 					sCtx.login();
 					subject = sCtx.getSubject();
 				} catch (LoginException e) {
-					ThreadDeath threadDeath = (ThreadDeath) display.getData("login.exception.threaddeath");
+					/*ThreadDeath threadDeath = (ThreadDeath) display.getData("login.exception.threaddeath");
 					if (threadDeath != null) {
 						display.setData("login.exception.threaddeath", null);
 						throw threadDeath;
-					}
+					}*/
 					if (!Boolean.TRUE.equals(display.getData("login.canceled"))) {
 						// required for Equinox security to retrieve the
 						// real cause for this exception
@@ -181,13 +180,10 @@ public class Application implements IApplication {
 					session.setAttribute(SUBJECT_KEY, subject);
 				}
 				session.removeAttribute("login.state");
-				result = Subject.doAs(subject, new PrivilegedAction<Integer>() {
-					public Integer run() {
-						return runWorkbench(display);
-					}
-				});
+				result = Subject.callAs(subject, () -> runWorkbench(display));
 			} catch (Exception e) {
-				e.printStackTrace();
+				System.err.println("Starting application failed: " + e.getMessage());
+				e.printStackTrace(System.err);
 			} finally {
 				Object logout = display.getData("logout");
 				if (Boolean.TRUE.equals(logout)) {

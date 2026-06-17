@@ -6,8 +6,8 @@ import net.liftweb.http.{AjaxContext, JsonContext, JsonResponse, LiftRules, S, S
 import net.liftweb.http.js.JE._
 import net.liftweb.http.js.JsCmds._
 import net.liftweb.http.js.{JsCmd, JsExp}
-import net.liftweb.json.JsonAST._
-import net.liftweb.json.JsonParser
+import org.json4s.JsonAST._
+import org.json4s.native.JsonParser.parseOpt
 
 import scala.collection.Map
 import scala.xml._
@@ -18,7 +18,7 @@ object AjaxHelpers {
       var args: Seq[JsExp] = Seq(JsRaw("{'command': " + command.toJsCmd + ", 'params':" + params.toJsCmd + "}"))
       if (callback != null) args ++= Seq(callback)
       if (httpParams != null) args ++= Seq(httpParams)
-      Call(funcId, args: _*)
+      Call(funcId, args*)
     }
   }
 
@@ -29,7 +29,7 @@ object AjaxHelpers {
    *
    * @return ( JsonCall, JsCmd )
    */
-  def createJsonFunc(f: PFPromoter[JValue, _ <: Any]): (JsonFunc, JsCmd) = createJsonFunc(AjaxContext.json(
+  def createJsonFunc(f: PFPromoter[JValue, ? <: Any]): (JsonFunc, JsCmd) = createJsonFunc(AjaxContext.json(
     Full("""function(response) {
 if (response) {
     var runScript = true;
@@ -51,16 +51,16 @@ if (response) {
    *
    * @return ( JsonCall, JsCmd )
    */
-  def createJsonFunc(ajaxContext: JsonContext, pfp: PFPromoter[JValue, _ <: Any]): (JsonFunc, JsCmd) = {
-    import net.liftweb.json.JsonDSL._
+  def createJsonFunc(ajaxContext: JsonContext, pfp: PFPromoter[JValue, ? <: Any]): (JsonFunc, JsCmd) = {
+    import org.json4s.JsonDSL._
     def jsonCallback(in: List[String]): Any = {
       val f = pfp.pff()
-      val objects: List[JObject] = in.flatMap { line => JsonParser.parseOpt(line) } flatMap {
+      val objects: List[JObject] = in.flatMap { line => parseOpt(line) } flatMap {
         parsed =>
           if (f.isDefinedAt(parsed)) {
             // add individual result object for each function
             val result = f(parsed) match {
-              case seq: Seq[_] => seq.toList
+              case seq: Seq[?] => seq.toList
               case other => List(other)
             }
             val jsCmds = result.collect { case cmd: JsCmd => cmd } ++ List(LiftRules.noticesToJsCmd())
@@ -72,7 +72,7 @@ if (response) {
       JsonResponse(if (objects.isEmpty || objects.size > 1) JArray(objects) else objects.head)
     }
 
-    val af: AFuncHolder = jsonCallback _
+    val af: AFuncHolder = jsonCallback
     fmapFunc(af)({ name =>
       val body = JsRaw("""var paramStr = ""; if (httpParams) $.each(httpParams, function (i, val) { paramStr += "&" + i + "=" + encodeURIComponent(val); })""").cmd &
         SHtml.makeAjaxCall(JsRaw("'" + name + "=' + encodeURIComponent(" + LiftRules.jsArtifacts.jsonStringify(JsRaw("obj")).toJsCmd + ") + paramStr"),
@@ -94,7 +94,7 @@ if (response) {
    *
    * @return ( JsonCall, JsCmd )
    */
-  def createJsonFunc(name: String, ajaxContext: JsonContext, pfp: PFPromoter[JValue, _ <: Any]): (JsonFunc, JsCmd) = {
+  def createJsonFunc(name: String, ajaxContext: JsonContext, pfp: PFPromoter[JValue, ? <: Any]): (JsonFunc, JsCmd) = {
     cachedFuncs.get.get(name) match {
       case Some((func, cmd)) => (func, cmd)
       case _ =>
@@ -120,7 +120,7 @@ if (response) {
           case Group(g) => runNodes(g)
           case e: Elem =>
             val oldAttr: Map[String, String] = Map(
-              events.flatMap(a => e.attribute(a).map(v => a -> (v.text + "; "))): _*)
+              events.flatMap(a => e.attribute(a).map(v => a -> (v.text + "; ")))*)
             val newAttr = e.attributes.filter {
               case up: UnprefixedAttribute => !oldAttr.contains(up.key)
               case _ => true
@@ -141,7 +141,7 @@ if (response) {
   }
 
   def deferCall(data: JsExp, jsFunc: Call, ajaxContext: AjaxContext): Call =
-    Call(jsFunc.function, jsFunc.params ++ List(AnonFunc(SHtml.makeAjaxCall(data, ajaxContext))): _*)
+    Call(jsFunc.function, jsFunc.params ++ List(AnonFunc(SHtml.makeAjaxCall(data, ajaxContext)))*)
 
   def onEventsIndirect(events: List[String], jsFunc: Call, func: String => JsCmd,
     ajaxContext: AjaxContext = AjaxContext.js(Empty, Empty)): NodeSeq => NodeSeq = {

@@ -23,9 +23,9 @@ object Bs extends DispatchSnippet {
     case "feedback" => ns => S.withAttrs(feedbackAttrs)(Msg.render(ns))
   }
 
-  private def hidden(loc: Loc[_], path: List[Loc[_]]) = loc.hidden || loc.params.contains(HideIfInactive) && !path.contains(loc)
+  private def hidden(loc: Loc[?], path: List[Loc[?]]) = loc.hidden || loc.params.contains(HideIfInactive) && !path.contains(loc)
 
-  private def isApplication(loc: Loc[_]) = loc.defaultValue.exists(_.isInstanceOf[Application])
+  private def isApplication(loc: Loc[?]) = loc.defaultValue.exists(_.isInstanceOf[Application])
 
   private def menuEntries(submenu: Boolean) = {
     val result =

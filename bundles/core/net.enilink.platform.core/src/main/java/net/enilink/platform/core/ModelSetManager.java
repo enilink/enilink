@@ -20,7 +20,6 @@ import java.util.Set;
 
 import javax.security.auth.Subject;
 
-import org.checkerframework.checker.units.qual.C;
 import org.osgi.framework.FrameworkUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -313,35 +312,32 @@ class ModelSetManager {
 			modelSet = new UseService<Config, IModelSet>(Config.class) {
 				@Override
 				protected IModelSet withService(final Config config) {
-					return Subject.doAs(SecurityUtil.SYSTEM_USER_SUBJECT, new PrivilegedAction<IModelSet>() {
-						@Override
-						public IModelSet run() {
-							IModelSet modelSet;
-							if (!config.contains(META_MODELSET, null, null)) {
-								// create only a data modelset
-								modelSet = createModelSet(config);
-							} else {
-								IModelSet metaModelSet = createMetaModelSet(config);
-								IModel metaDataModel = metaModelSet.createModel(URIs.createURI("urn:enilink:metadata"));
-								modelSet = createModelSet(config, metaDataModel);
-							}
-							// register globally readable models
-							modelSet.getModule().addReadableGraph(SecurityUtil.USERS_MODEL);
-							// register foaf namespace
-							modelSet.getModule().addNamespace("foaf", FOAF.NAMESPACE_URI);
-
-							IEntityManager em = modelSet.getMetaDataManager();
-							em.createNamed(FOAF.TYPE_AGENT, RDFS.TYPE_CLASS);
-							em.createNamed(SecurityUtil.UNKNOWN_USER, FOAF.TYPE_AGENT);
-
-							// load users, groups and ACL config
-							loadUsersAndGroups(em, config);
-							loadAcls(em, config);
-
-							createModels(modelSet, config);
-
-							return modelSet;
+					return Subject.callAs(SecurityUtil.SYSTEM_USER_SUBJECT, () -> {
+						IModelSet modelSet;
+						if (!config.contains(META_MODELSET, null, null)) {
+							// create only a data modelset
+							modelSet = createModelSet(config);
+						} else {
+							IModelSet metaModelSet = createMetaModelSet(config);
+							IModel metaDataModel = metaModelSet.createModel(URIs.createURI("urn:enilink:metadata"));
+							modelSet = createModelSet(config, metaDataModel);
 						}
+						// register globally readable models
+						modelSet.getModule().addReadableGraph(SecurityUtil.USERS_MODEL);
+						// register foaf namespace
+						modelSet.getModule().addNamespace("foaf", FOAF.NAMESPACE_URI);
+
+						IEntityManager em = modelSet.getMetaDataManager();
+						em.createNamed(FOAF.TYPE_AGENT, RDFS.TYPE_CLASS);
+						em.createNamed(SecurityUtil.UNKNOWN_USER, FOAF.TYPE_AGENT);
+
+						// load users, groups and ACL config
+						loadUsersAndGroups(em, config);
+						loadAcls(em, config);
+
+						createModels(modelSet, config);
+
+						return modelSet;
 					});
 				}
 			}.getResult();

@@ -45,7 +45,7 @@ class SparqlRest extends RestHelper with CorsHelper {
         val defaultGraphs = S.params("default-graph-uri").flatMap { uriStr => tryo(URIs.createURI(uriStr)) }
         val namedGraphs = S.params("named-graph-uri").flatMap { uriStr => tryo(URIs.createURI(uriStr)) }
 
-        dm.createQuery(queryStr, null, true, defaultGraphs: _*)
+        dm.createQuery(queryStr, null, true, defaultGraphs*)
 
         BadRequestResponse()
       } finally {

@@ -15,8 +15,8 @@ import net.liftweb.http.{DispatchSnippet, ParsePath, S}
 import net.liftweb.http.js.JE._
 import net.liftweb.http.js.JsCmds._
 import net.liftweb.http.js.JsExp.strToJsExp
-import net.liftweb.json
-import net.liftweb.json._
+import org.json4s
+import org.json4s._
 import net.liftweb.util.JsonCommand
 import org.eclipse.core.runtime.Status
 
@@ -82,7 +82,7 @@ class JsonCallHandler {
     case _ => None
   }
 
-  def removeResources(resources: List[String], gc: Boolean = false): json.JBool = {
+  def removeResources(resources: List[String], gc: Boolean = false): JBool = {
     (for (model <- model; em = model.getManager; transaction = em.getTransaction) yield {
       transaction.begin()
       try {
@@ -148,11 +148,11 @@ class JsonCallHandler {
         }
       }
       if (success) {
-        import net.liftweb.json.Extraction._
+        import org.json4s.Extraction._
         if (replacements != null) decompose(replacements.map { case (k, v) => (k, v.toString) }.toMap) else JBool(true)
       } else JBool(false)
     case JsonCommand("propose", _, params) =>
-      import net.liftweb.json.JsonDSL._
+      import org.json4s.JsonDSL._
       val proposals = for (
         ProposeInput(rdf, query, index) <- params.extractOpt[ProposeInput];
         stmt <- statements(rdf).headOption.flatMap(resolve);
@@ -232,7 +232,7 @@ class JsonCallHandler {
                       val wrappedTemplate = <div about="?this" data-lift="rdfa">{ template }</div>
                       val resultValue = cmdResult.flatMap(_.getReturnValues.asScala.headOption)
                       val vars = new mutable.LinkedHashSet[Variable]()
-                      var params = new RDFaParser {
+                      var params = new RDFaParser() {
                         override def createVariable(name: String): Option[Reference] = {
                           val v = Variable(name.substring(1), None)
                           vars.add(v)
@@ -269,7 +269,7 @@ class JsonCallHandler {
                         case Full((html, script)) =>
                           val w = new java.io.StringWriter
                           S.htmlProperties.htmlWriter(Group(html \ "_"), w)
-                          List(JObject(List(JField("html", JString(w.toString))))) ++ script.map(Run)
+                          List(JObject(List(JField("html", JString(w.toString))))) ++ script.map(Run.apply)
                         case _ => okResult
                       }
                     }

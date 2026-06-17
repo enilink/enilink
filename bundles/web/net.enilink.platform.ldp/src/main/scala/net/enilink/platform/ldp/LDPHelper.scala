@@ -652,7 +652,7 @@ class LDPHelper extends RestHelper {
       relTypes += relType
     }
 
-    def applyPreference(pref: String) {
+    def applyPreference(pref: String): Unit = {
       preference = pref
     }
 
@@ -691,7 +691,7 @@ class LDPHelper extends RestHelper {
           dataVisitor.visitNamespace(new Namespace("dcterms", URIs.createURI("http://purl.org/dc/terms/")))
           dataVisitor.visitNamespace(new Namespace("omm", URIs.createURI("http://www.w3.org/2005/Incubator/omm/elements/1.0/")))
           dataVisitor.visitNamespace(new Namespace("prov", URIs.createURI("http://www.w3.org/ns/prov#")))
-          stmts.sorted(Ordering.comparatorToOrdering[IStatement](StatementComparator)).foreach { stmt =>
+          stmts.sorted(Ordering.comparatorToOrdering[IStatement](using StatementComparator)).foreach { stmt =>
             dataVisitor.visitStatement(convertStatement(stmt))
           }
           dataVisitor.visitEnd
@@ -809,7 +809,7 @@ class LDPHelper extends RestHelper {
    *
    * @see RestHelper#serveJx[T](pf: PartialFunction[Req, BoxOrRaw[T]]): Unit
    */
-  protected def serveTj[T](pf: PartialFunction[Req, BoxOrRaw[T]]): Unit = serveType(tjSel)(pf)(cvt)
+  protected def serveTj[T](pf: PartialFunction[Req, BoxOrRaw[T]]): Unit = serveType(tjSel)(pf)(using cvt)
 
   /**
    * Generate the LiftResponse appropriate for the output format from the query result T.
@@ -855,9 +855,9 @@ class LDPHelper extends RestHelper {
    */
   sealed trait TurtleJsonLdSelect
 
-  final case object TurtleSelect extends TurtleJsonLdSelect
+  case object TurtleSelect extends TurtleJsonLdSelect
 
-  final case object JsonLdSelect extends TurtleJsonLdSelect
+  case object JsonLdSelect extends TurtleJsonLdSelect
 
-  final case class DefaultSelect(preferred: ContentType) extends TurtleJsonLdSelect
+  case class DefaultSelect(preferred: ContentType) extends TurtleJsonLdSelect
 }

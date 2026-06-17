@@ -183,18 +183,15 @@ public class HistoryPart extends AbstractEditingDomainPart {
 
 				@Override
 				public String getColumnText(Object object, int columnIndex) {
-					return Subject.doAs(SecurityUtil.SYSTEM_USER_SUBJECT, (PrivilegedAction<String>) () -> {
+					return Subject.callAs(SecurityUtil.SYSTEM_USER_SUBJECT, () -> {
 						if (object instanceof ChangeDescription) {
 							ChangeDescription change = ((IEntity) object).as(ChangeDescription.class);
-							switch (columnIndex) {
-								case 0:
-									return DateFormat.getDateTimeInstance().format(change.getDate()
-											.toGregorianCalendar().getTime());
-								default:
-									return super.getText(change.getAgent());
+							if (columnIndex == 0) {
+								return DateFormat.getDateTimeInstance().format(change.getDate()
+										.toGregorianCalendar().getTime());
 							}
-						} else if (object instanceof ChangeElement && columnIndex == 1) {
-							ChangeElement changeElement = (ChangeElement) object;
+							return super.getText(change.getAgent());
+						} else if (object instanceof ChangeElement changeElement && columnIndex == 1) {
 							Statement stmt = changeElement.stmt;
 							return (changeElement.added ? "+ " : "- ") + "[" +
 									super.getText(stmt.getRdfSubject()) + " " +

@@ -6,7 +6,7 @@ import net.liftweb.http.{AjaxContext, DispatchSnippet, LiftRules, Req, S}
 import net.liftweb.http.js.JE._
 import net.liftweb.http.js.JsCmds._
 import net.liftweb.http.js._
-import net.liftweb.json._
+import org.json4s._
 import net.liftweb.util.JsonCommand
 
 import java.io.ByteArrayInputStream
@@ -89,7 +89,7 @@ object JS extends DispatchSnippet with SparqlHelper {
             }
             val w = new java.io.StringWriter
             S.htmlProperties.htmlWriter(Group(nsWithPath), w)
-            List(JObject(List(JField("html", JString(w.toString))))) ++ script.map(JsCmds.Run)
+            List(JObject(List(JField("html", JString(w.toString))))) ++ script.map(JsCmds.Run.apply)
         } openOr JObject(Nil)
       }
       result getOrElse JObject(Nil)

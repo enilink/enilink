@@ -16,7 +16,6 @@ import net.liftweb.util.Helpers.intToTimeSpanBuilder
 import net.liftweb.util.Vendor.{funcToVendor, valToVendor}
 import net.liftweb.util._
 
-import java.security.{AccessController, PrivilegedAction}
 import java.util.{Collections, Locale}
 import javax.security.auth.Subject
 import scala.language.postfixOps
@@ -75,7 +74,7 @@ class LiftModule extends Logger {
 
     // set context user from EnilinkPrincipal contained in the HTTP session after successful login
     Globals.contextUser.default.set(() => {
-      Subject.getSubject(AccessController.getContext) match {
+      Subject.current() match {
         case s: Subject =>
           val userPrincipals = s.getPrincipals(classOf[EnilinkPrincipal])
           if (!userPrincipals.isEmpty) userPrincipals.iterator.next.getId else Globals.UNKNOWN_USER
@@ -254,10 +253,7 @@ class LiftModule extends Logger {
                   case s: Subject => Full(s)
                   case _ => None
                 }) or subject).map {
-                  s =>
-                    Subject.doAs(s, new PrivilegedAction[T] {
-                      override def run: T = f
-                    })
+                  s => Subject.callAs(s, () => f)
                 } openOr f
               } catch {
                 case _: Throwable => f

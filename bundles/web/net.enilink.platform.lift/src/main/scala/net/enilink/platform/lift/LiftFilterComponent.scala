@@ -5,21 +5,25 @@ import net.liftweb.http.LiftFilter
 import net.liftweb.osgi.OsgiBootable
 import net.liftweb.util.Schedule
 import org.osgi.service.component.ComponentContext
-import org.osgi.service.component.annotations._
-import org.osgi.service.http.HttpService
+import org.osgi.service.component.annotations.*
+import org.osgi.service.servlet.runtime.HttpServiceRuntime
+import org.osgi.service.servlet.runtime.HttpServiceRuntimeConstants
 
 import java.util.concurrent.ExecutorService
-import javax.servlet.http.{HttpServlet, HttpServletRequest, HttpServletRequestWrapper, HttpServletResponse}
-import javax.servlet._
+import jakarta.servlet.http.{HttpServlet, HttpServletRequest, HttpServletRequestWrapper, HttpServletResponse}
+import jakarta.servlet.*
+
+import java.net.URI
+import scala.compiletime.uninitialized
 
 @Component(
   service = Array(classOf[LiftFilter])
 )
 class LiftFilterComponent extends LiftFilter with Loggable {
   @Reference
-  var lcm : LiftLifecycleManager = _
+  var lcm : LiftLifecycleManager = uninitialized
 
-  var config : FilterConfig = _
+  var config : FilterConfig = uninitialized
   @volatile var booted = false
 
   override def init(config: FilterConfig) : Unit = {
@@ -84,7 +88,7 @@ class LiftFilterComponent extends LiftFilter with Loggable {
     "osgi.http.whiteboard.context.select=(osgi.http.whiteboard.context.name=liftweb)"))
 class LiftFilterWrapper extends Filter with Loggable {
   @Reference
-  var liftFilter : LiftFilter = _
+  var liftFilter : LiftFilter = uninitialized
 
   override def init(config: FilterConfig): Unit = {
     liftFilter.init(config)
@@ -143,7 +147,7 @@ class LiftResources {
  */
 @Component( // add reference to HttpService because it is accessed in activate()
   reference = Array(
-    new Reference(name = "HttpService", service = classOf[HttpService]),
+    new Reference(name = "HttpServiceRuntime", service = classOf[HttpServiceRuntime]),
     // the LiftService should only be available if LiftFilter is already registered
     new Reference(name = "LiftFilter", service = classOf[Filter], target = "(osgi.http.whiteboard.filter.name=LiftFilter)")))
 class LiftServiceComponent extends LiftService {
@@ -152,11 +156,11 @@ class LiftServiceComponent extends LiftService {
   @Activate
   def activate(ctx: ComponentContext) : Unit = {
     for {
-      httpServiceRef <- Option(ctx.getBundleContext.getServiceReference(classOf[HttpService]))
-      portKey <- httpServiceRef.getPropertyKeys.find(_.endsWith("http.port"))
-      port <- Option(httpServiceRef.getProperty(portKey)).map(_.toString.toInt)
+      httpServiceRef <- Option(ctx.getBundleContext.getServiceReference(classOf[HttpServiceRuntime]))
+      port <- Option(httpServiceRef.getProperty(HttpServiceRuntimeConstants.HTTP_SERVICE_ENDPOINT))
+        .map(v => new URI(v.toString).getPort)
     } {
-      LiftServiceComponent.this.port = port
+      LiftServiceComponent.this.port = if (port == -1) 80 else port
     }
   }
 }

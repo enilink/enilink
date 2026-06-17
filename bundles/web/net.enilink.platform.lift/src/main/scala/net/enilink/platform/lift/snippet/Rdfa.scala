@@ -1,23 +1,25 @@
 package net.enilink.platform.lift.snippet
 
-import net.enilink.komma.core._
+import net.enilink.komma.core.*
 import net.enilink.komma.model.ModelUtil
 import net.enilink.platform.lift.rdfa.SparqlFromRDFa
 import net.enilink.platform.lift.util.{CurrentContext, Globals, TemplateHelpers}
 import net.liftweb.builtin.snippet.Form
 import net.liftweb.common.{Box, Empty, Full}
 import net.liftweb.http.S.SFuncHolder
-import net.liftweb.http.js.JE._
-import net.liftweb.http.js.JsCmds
+import net.liftweb.http.js.JE.*
+import net.liftweb.http.js.{JsCmd, JsCmds}
 import net.liftweb.http.{AjaxContext, JsonResponse, PaginatorSnippet, S, SHtml, Templates}
-import net.liftweb.json._
+import org.json4s.*
 import net.liftweb.util.CanBind.StringToCssBindPromoter
-import net.liftweb.util.Helpers._
-import net.liftweb.util.{CssSel, PassThru}
+import net.liftweb.util.Helpers.*
+import net.liftweb.util.{CssSel, Helpers, PassThru}
 
-import scala.jdk.CollectionConverters._
+import java.util.regex.Pattern
+import scala.jdk.CollectionConverters.*
 import scala.util.DynamicVariable
-import scala.xml._
+import scala.util.matching.Regex
+import scala.xml.*
 
 /**
  * Helper object for query parameters.
@@ -28,7 +30,7 @@ object ParamsHelper {
    */
   def params(filter: Set[String] = Set.empty): Map[String, String] = {
     def include = S.session.map(session => {
-      name: String => !(filter.contains(name) || name.matches("^F[0-9].*")) //|| session.findFunc(name).isDefined) // requires Lift 2.5
+      (name: String) => !(filter.contains(name) || name.matches("^F[0-9].*")) //|| session.findFunc(name).isDefined) // requires Lift 2.5
     }) openOr ((name: String) => !filter.contains(name))
     // TODO: check best practices wrt. HPP (HTTP Parameter Pollution) ie. what to do about multiple values for a single parameter
     // currently, the first entry of the list is used, the others are discarded
@@ -42,15 +44,15 @@ object ParamsHelper {
 object Search extends SparqlHelper with SparqlExtractor {
   import RdfHelpers._
 
-  val ESCAPE_CHARS = java.util.regex.Pattern.compile("[\\[.{(*+?^$|]")
-  def patternToRegex(pattern: String, flags: Int = 0) = {
+  val ESCAPE_CHARS: Pattern = java.util.regex.Pattern.compile("[\\[.{(*+?^$|]")
+  def patternToRegex(pattern: String, flags: Int = 0): String = {
     ESCAPE_CHARS.matcher(pattern).replaceAll("\\\\$0").replace("\\*", ".*").replace("\\?", ".")
   }
 
   /**
    * Generates an Ajax function for auto-completion that can be executed by using a named Javascript function.
    */
-  def autoCompleteJs(bindingNames: Seq[String], ns: NodeSeq) = {
+  def autoCompleteJs(bindingNames: Seq[String], ns: NodeSeq): (String, JsCmd) = {
     /**
      * Converts search results to candidate tokens for auto-completion.
      *
@@ -66,7 +68,7 @@ object Search extends SparqlHelper with SparqlExtractor {
     }
     val origParams = QueryParams.get
     val runWithContext: (=> Any) => Any = captureRdfContext(ns)
-    S.fmapFunc(S.contextFuncBuilder(SFuncHolder({ query: String =>
+    S.fmapFunc(S.contextFuncBuilder(SFuncHolder({ (query: String) =>
       runWithContext {
         lazy val default = JsonResponse(JArray(List(JString(query))))
         CurrentContext.value match {
@@ -119,7 +121,7 @@ object Search extends SparqlHelper with SparqlExtractor {
       } else ns
     }
 
-    var nodes = (".search-patterns" #> patterns _: CssSel)(ns)
+    var nodes = (".search-patterns" #> patterns: CssSel)(ns)
     nodes = (".search-form" #> ((form: NodeSeq) => {
       val (acName, acCmd) = autoCompleteJs(bindingNames, ns)
       JsCmds.Script(acCmd) ++ (Templates(List("templates-hidden", "search")) map {
@@ -132,8 +134,8 @@ object Search extends SparqlHelper with SparqlExtractor {
                 // add refresh function to query parameters
                 queryParams = (name, name) :: queryParams
                 // use an ajax form
-                ns: NodeSeq => Form.render(ns) flatMap { ("form [class]" #> (ns \ "@class").text).apply(_) }
-                case _ => PassThru
+                (ns: NodeSeq) => Form.render(ns) flatMap { ("form [class]" #> (ns \ "@class").text).apply(_) }
+              case _ => PassThru
             }) &
               "* *" #> ((ns: NodeSeq) => ns ++ (queryParams map {
                 case (key, value) => <input type="hidden" name={ key } value={ value }></input>
@@ -150,7 +152,7 @@ object Search extends SparqlHelper with SparqlExtractor {
  */
 trait SparqlExtractor {
   def extractSparql(n: NodeSeq): SparqlFromRDFa = {
-    val nodesWithAcl = (".acl" #> Acl.render _).apply(n)
+    val nodesWithAcl = (".acl" #> Acl.render).apply(n)
     SparqlFromRDFa(nodesWithAcl.headOption.map(_.asInstanceOf[Elem]) getOrElse <div></div>, S.request.map(r => r.hostAndPath + r.uri) openOr "http://unknown/")
   }
 }
@@ -161,7 +163,7 @@ class Rdfa extends Sparql with SparqlExtractor {
   /**
    * Support partial refresh via ajax call
    */
-  def makeAjaxRefresh(ns: NodeSeq) = {
+  def makeAjaxRefresh(ns: NodeSeq): String = {
     val origParams = QueryParams.get
     val origAttrs = S.attrsToMetaData
     val origCtx = CurrentContext.value
@@ -178,7 +180,7 @@ class Rdfa extends Sparql with SparqlExtractor {
     S.fmapFunc(S.contextFuncBuilder(refresh))(name => name)
   }
 
-  def callAjaxRefresh(name: String, params: List[(String, String)]) = {
+  def callAjaxRefresh(name: String, params: List[(String, String)]): JsCmd = {
     SHtml.makeAjaxCall(Str(name + "=" + name + "&" + paramsToUrlParams(params))).cmd
   }
 
@@ -195,49 +197,59 @@ class Rdfa extends Sparql with SparqlExtractor {
           }
           case _ => ns
         }
-        val transformers = prepare _ andThen TemplateHelpers.withTemplateNames _
-        Search(transformers(nodesWithId), super.renderWithoutPrepare _)
+        val transformers = prepare andThen TemplateHelpers.withTemplateNames
+        Search(transformers(nodesWithId), super.renderWithoutPrepare)
       }
     }
   }
 
-  def paginate(sparqlFromRdfa: SparqlFromRDFa, queryParams: Map[String, _], em: IEntityManager) = {
+  def paginate(sparqlFromRdfa: SparqlFromRDFa, queryParams: Map[String, ?], em: IEntityManager): (NodeSeq, String, Map[String, ?]) = {
     // support for pagination of results
     var paginatedQuery: Box[String] = Empty
     var countQuery: String = null
-    var nodesWithPagination = (".paginator" #> ((ns: NodeSeq) => {
-      var bindingName = (ns \ "@data-for").text.stripPrefix("?")
-      if (!bindingName.isEmpty) {
+    val nodesWithPagination = (".paginator" #> ((ns: NodeSeq) => {
+      val bindingName = (ns \ "@data-for").text.stripPrefix("?")
+      if (bindingName.nonEmpty) {
         countQuery = sparqlFromRdfa.getCountQuery(bindingName)
+
         def paramsForOffset(offsetParam: String, offset: Long): List[(String, String)] = {
           (ParamsHelper.params(Set(offsetParam)) + (offsetParam -> offset.toString)).toList
         }
-        val paginator = new PaginatorSnippet[AnyRef] {
+
+        val paginator: PaginatorSnippet[AnyRef] = new PaginatorSnippet[AnyRef] {
           // ensure that offset param does not interfere with non-ajax offset
-          override def offsetParam = RdfaRefreshFunc.value match { case Full(name) => "offset_" + name case _ => "offset" }
+          override def offsetParam: String = RdfaRefreshFunc.value match {
+            case Full(name) => "offset_" + name
+            case _ => "offset"
+          }
 
           override def pageUrl(offset: Long): String = {
             appendParams(S.uri, paramsForOffset(offsetParam, offset))
           }
 
-          val Nr = "([0-9]+)".r
+          val Nr: Regex = "([0-9]+)".r
+
           override def pageXml(newFirst: Long, ns: NodeSeq): NodeSeq = {
             if (first == newFirst || newFirst < 0 || newFirst >= count)
-              <li class={
-                ns match {
-                  case Text(Nr(_)) => "active"
-                  case _ => "disabled"
-                }
-              }><a href="javascript:void(0)">{ ns }</a></li>
+              <li class={ns match {
+                case Text(Nr(_)) => "active"
+                case _ => "disabled"
+              }}>
+                <a href="javascript:void(0)">
+                  {ns}
+                </a>
+              </li>
             else
-              <li>{
-                RdfaRefreshFunc.value match {
-                  case Full(name) => <a href="javascript://" onclick={
-                    callAjaxRefresh(name, paramsForOffset(offsetParam, newFirst)).toJsCmd
-                  }>{ ns }</a>
-                  case _ => <a href={ pageUrl(newFirst) }>{ ns }</a>
-                }
-              }</li>
+              <li>
+                {RdfaRefreshFunc.value match {
+                case Full(name) => <a href="javascript://" onclick={callAjaxRefresh(name, paramsForOffset(offsetParam, newFirst)).toJsCmd}>
+                  {ns}
+                </a>
+                case _ => <a href={pageUrl(newFirst)}>
+                  {ns}
+                </a>
+              }}
+              </li>
           }
 
           // replaces the annotated elements instead of using them as a container
@@ -246,8 +258,8 @@ class Rdfa extends Sparql with SparqlExtractor {
 
             ".first" #> pageXml(0, firstXml) &
               ".prev" #> pageXml(max(first - itemsPerPage, 0), prevXml) &
-              ".all-pages" #> pagesXml(0 until numPages) _ &
-              ".zoomed-pages" #> pagesXml(zoomedPages) _ &
+              ".all-pages" #> pagesXml(0 until numPages) &
+              ".zoomed-pages" #> pagesXml(zoomedPages) &
               ".next" #> pageXml(
                 max(0, min(first + itemsPerPage, itemsPerPage * (numPages - 1))),
                 nextXml
@@ -259,13 +271,26 @@ class Rdfa extends Sparql with SparqlExtractor {
               ".records-count" #> count
           }
 
-          override def itemsPerPage = try { (ns \ "@data-items").text.toInt } catch { case _: Throwable => 20 }
-          lazy val cachedCount = withParameters(em.createQuery(countQuery, includeInferred), queryParams).getSingleResult(classOf[Long])
-          def count = cachedCount
-          def page = Nil
+          override def itemsPerPage: Int = try {
+            (ns \ "@data-items").text.toInt
+          } catch {
+            case _: Throwable => 20
+          }
+
+          lazy val cachedCount: Long = withParameters(em.createQuery(countQuery, includeInferred), queryParams).getSingleResult(classOf[Long])
+
+          def count: Long = cachedCount
+
+          def page: Seq[AnyRef] = Nil
 
           // select last page if count < offset
-          override def first = super.first min (count - ((count % itemsPerPage) match { case 0 => itemsPerPage case r => r })) max 0
+          override def first: Long =  {
+            import scala.math._
+            max(0, min(super.first, count - (count % itemsPerPage match {
+              case 0 => itemsPerPage.toLong
+              case r => r
+            })))
+          }
         }
         paginatedQuery = Full(sparqlFromRdfa.getPaginatedQuery(bindingName, paginator.first, paginator.itemsPerPage))
         if (ns.head.child.forall(_.isInstanceOf[Text])) {
@@ -281,7 +306,7 @@ class Rdfa extends Sparql with SparqlExtractor {
     }
   }
 
-  override def toSparql(n: NodeSeq, em: IEntityManager): Box[(NodeSeq, String, Map[String, _])] = {
+  override def toSparql(n: NodeSeq, em: IEntityManager): Box[(NodeSeq, String, Map[String, ?])] = {
     val sparqlFromRdfa = extractSparql(n)
     if (sparqlFromRdfa.getQueryVariables.isEmpty) Empty else {
       val queryParams = globalQueryParameters ++ bindParams(extractParams(n))

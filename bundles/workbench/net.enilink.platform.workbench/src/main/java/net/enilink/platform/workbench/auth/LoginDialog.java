@@ -33,8 +33,8 @@ import org.eclipse.ui.forms.events.HyperlinkEvent;
 import org.eclipse.ui.forms.widgets.Hyperlink;
 
 import javax.security.auth.callback.*;
-import javax.servlet.http.Cookie;
-import javax.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.Cookie;
+import jakarta.servlet.http.HttpServletRequest;
 import java.io.IOException;
 import java.io.StringReader;
 import java.io.StringWriter;
@@ -389,9 +389,9 @@ public class LoginDialog extends TitleAreaDialog implements CallbackHandler {
 							display.sleep();
 						}
 					} catch (Throwable e) {
-						if (e instanceof ThreadDeath) {
+						/* if (e instanceof ThreadDeath) {
 							display.setData("login.exception.threaddeath", e);
-						}
+						} */
 						exception[0] = new IOException(e);
 						return;
 					}
