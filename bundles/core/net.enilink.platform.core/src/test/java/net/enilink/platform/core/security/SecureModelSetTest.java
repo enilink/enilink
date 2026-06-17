@@ -10,33 +10,9 @@
  *******************************************************************************/
 package net.enilink.platform.core.security;
 
-import java.math.BigInteger;
-import java.security.PrivilegedAction;
-import java.util.ArrayList;
-import java.util.List;
-
-import javax.security.auth.Subject;
-
-import net.enilink.platform.core.security.ISecureEntity;
-import net.enilink.platform.core.security.SecureEntitySupport;
-import net.enilink.platform.core.security.SecureModelSetSupport;
-import net.enilink.platform.core.security.SecurityUtil;
-import net.enilink.komma.core.BlankNode;
-import net.enilink.komma.core.IEntityManager;
-import net.enilink.komma.core.IGraph;
-import net.enilink.komma.core.IReference;
-import net.enilink.komma.core.KommaException;
-import net.enilink.komma.core.KommaModule;
-import net.enilink.komma.core.LinkedHashGraph;
-import net.enilink.komma.core.Statement;
-import net.enilink.komma.core.URI;
-import net.enilink.komma.core.URIs;
-import net.enilink.komma.model.IModel;
-import net.enilink.komma.model.IModelSet;
-import net.enilink.komma.model.IModelSetFactory;
-import net.enilink.komma.model.MODELS;
-import net.enilink.komma.model.ModelPlugin;
-import net.enilink.komma.model.ModelSetModule;
+import com.google.inject.Guice;
+import net.enilink.komma.core.*;
+import net.enilink.komma.model.*;
 import net.enilink.platform.security.auth.AuthModule;
 import net.enilink.vocab.acl.Authorization;
 import net.enilink.vocab.acl.ENILINKACL;
@@ -49,27 +25,28 @@ import net.enilink.vocab.owl.Restriction;
 import net.enilink.vocab.rdf.RDF;
 import net.enilink.vocab.rdfs.RDFS;
 import net.enilink.vocab.rdfs.Resource;
-
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
 
-import com.google.inject.Guice;
+import javax.security.auth.Subject;
+import java.math.BigInteger;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.concurrent.CompletionException;
 
 public class SecureModelSetTest {
 	final static URI alice = SecurityUtil.usernameToUri("alice");
 	final static URI bob = SecurityUtil.usernameToUri("bob");
 	final static URI carl = SecurityUtil.usernameToUri("carl");
 
-	final static URI system = SecurityUtil.SYSTEM_USER;
-
 	IModelSet modelSet;
 
 	IModel model1, model2;
 
 	@Before
-	public void beforeTest() throws Exception {
+	public void beforeTest() {
 		KommaModule module = ModelPlugin.createModelSetModule(getClass()
 				.getClassLoader());
 		// add authentication classes
@@ -111,7 +88,7 @@ public class SecureModelSetTest {
 	}
 
 	@After
-	public void afterTest() throws Exception {
+	public void afterTest() {
 		modelSet.dispose();
 	}
 
@@ -147,217 +124,190 @@ public class SecureModelSetTest {
 	}
 
 	@Test
-	public void testModelAcls() throws Exception {
+	public void testModelAcls() {
 		try {
 			// adding data without user should fail
 			addData(model1);
 			exceptionExpected();
-		} catch (KommaException e) {
+		} catch (KommaException ignored) {
 		}
 
 		try {
 			// adding data as alice to model1 should also fail
-			Subject.doAs(SecurityUtil.subjectForUser(alice),
-					new PrivilegedAction<Void>() {
-						@Override
-						public Void run() {
-							addData(model1);
-							return null;
-						}
+			Subject.callAs(SecurityUtil.subjectForUser(alice),
+					() -> {
+						addData(model1);
+						return null;
 					});
 			exceptionExpected();
-		} catch (KommaException e) {
+		} catch (CompletionException ignored) {
 		}
 
 		// adding data as alice to model2 should work
-		Subject.doAs(SecurityUtil.subjectForUser(alice),
-				new PrivilegedAction<Void>() {
-					@Override
-					public Void run() {
-						addData(model2);
-						return null;
-					}
+		Subject.callAs(SecurityUtil.subjectForUser(alice),
+				() -> {
+					addData(model2);
+					return null;
 				});
 
 		// adding data as bob to model1 should work
-		Subject.doAs(SecurityUtil.subjectForUser(bob),
-				new PrivilegedAction<Void>() {
-					@Override
-					public Void run() {
-						addData(model1);
-						return null;
-					}
+		Subject.callAs(SecurityUtil.subjectForUser(bob),
+				() -> {
+					addData(model1);
+					return null;
 				});
 
 		Assert.assertFalse("The model " + model1
 				+ " should not be readable by " + bob, model1.getManager()
 				.hasMatch(null, WEBACL.PROPERTY_OWNER, bob));
-		Subject.doAs(SecurityUtil.subjectForUser(alice),
-				new PrivilegedAction<Void>() {
-					@Override
-					public Void run() {
-						Assert.assertTrue(
-								"The model " + model1
-										+ " should be readable by " + alice,
-								model1.getManager().hasMatch(null,
-										WEBACL.PROPERTY_OWNER, bob));
-						return null;
-					}
+		Subject.callAs(SecurityUtil.subjectForUser(alice),
+				() -> {
+					Assert.assertTrue(
+							"The model " + model1
+									+ " should be readable by " + alice,
+							model1.getManager().hasMatch(null,
+									WEBACL.PROPERTY_OWNER, bob));
+					return null;
 				});
 	}
 
 	@Test
-	public void testLocalAcls() throws Exception {
-		Subject.doAs(SecurityUtil.subjectForUser(carl),
-				new PrivilegedAction<Void>() {
-					@Override
-					public Void run() {
-						// adding data as carl to model2 should work
-						addData(model2);
-						// adding data as carl to model1 should fail
-						try {
-							addData(model1);
-							exceptionExpected();
-						} catch (KommaException e) {
-						}
-						return null;
+	public void testLocalAcls() {
+		Subject.callAs(SecurityUtil.subjectForUser(carl),
+				() -> {
+					// adding data as carl to model2 should work
+					addData(model2);
+					// adding data as carl to model1 should fail
+					try {
+						addData(model1);
+						exceptionExpected();
+					} catch (KommaException ignored) {
 					}
+					return null;
 				});
 
 		final URI carlsClass = URIs.createURI("resource:carls-class");
 		final URI carlsRestriction = URIs
 				.createURI("resource:carls-restriction");
-		final Authorization[] restrictionAcl = { null };
-		Subject.doAs(SecurityUtil.SYSTEM_USER_SUBJECT,
-				new PrivilegedAction<Void>() {
-					@Override
-					public Void run() {
-						model1.getManager()
-								.createNamed(carlsClass, Class.class);
-						// carl may write the carlsClass resource
-						createAcl(model1.getManager(), carl, carlsClass,
-								WEBACL.MODE_WRITE);
+		final Authorization[] restrictionAcl = {null};
+		Subject.callAs(SecurityUtil.SYSTEM_USER_SUBJECT,
+				() -> {
+					model1.getManager()
+							.createNamed(carlsClass, Class.class);
+					// carl may write the carlsClass resource
+					createAcl(model1.getManager(), carl, carlsClass,
+							WEBACL.MODE_WRITE);
 
-						model1.getManager().createNamed(carlsRestriction,
-								Restriction.class);
-						// carl may write any restriction resource
-						restrictionAcl[0] = createAclForClass(
-								model1.getManager(), carl,
-								OWL.TYPE_RESTRICTION, WEBACL.MODE_WRITE);
-						return null;
-					}
+					model1.getManager().createNamed(carlsRestriction,
+							Restriction.class);
+					// carl may write any restriction resource
+					restrictionAcl[0] = createAclForClass(
+							model1.getManager(), carl,
+							OWL.TYPE_RESTRICTION, WEBACL.MODE_WRITE);
+					return null;
 				});
 
-		Subject.doAs(SecurityUtil.subjectForUser(carl),
-				new PrivilegedAction<Void>() {
-					@Override
-					public Void run() {
-						model1.getManager().add(
-								new Statement(carlsClass, RDFS.PROPERTY_LABEL,
-										"Carl's class"));
-						Assert.assertTrue(model1.getManager()
-								.hasMatch(carlsClass, RDFS.PROPERTY_LABEL,
-										"Carl's class"));
+		Subject.callAs(SecurityUtil.subjectForUser(carl),
+				() -> {
+					model1.getManager().add(
+							new Statement(carlsClass, RDFS.PROPERTY_LABEL,
+									"Carl's class"));
+					Assert.assertTrue(model1.getManager()
+							.hasMatch(carlsClass, RDFS.PROPERTY_LABEL,
+									"Carl's class"));
 
-						model1.getManager().add(
-								new Statement(carlsRestriction,
-										RDFS.PROPERTY_LABEL,
-										"Carl's restriction"));
-						Assert.assertTrue(model1.getManager().hasMatch(
-								carlsRestriction, RDFS.PROPERTY_LABEL,
-								"Carl's restriction"));
-
-						try {
-							// adding an arbitrary resource should fail
-							model1.getManager()
-									.add(new Statement(
-											URIs.createURI("resource:someResource"),
-											RDFS.PROPERTY_LABEL,
-											"Some resource"));
-							exceptionExpected();
-						} catch (KommaException e) {
-						}
-						return null;
-					}
-				});
-
-		Subject.doAs(SecurityUtil.SYSTEM_USER_SUBJECT,
-				new PrivilegedAction<Void>() {
-					@Override
-					public Void run() {
-						// remove carl's write access to restrictions
-						model1.getManager().removeRecursive(restrictionAcl[0],
-								true);
-						return null;
-					}
-				});
-
-		Subject.doAs(SecurityUtil.subjectForUser(carl),
-				new PrivilegedAction<Void>() {
-					@Override
-					public Void run() {
-						IEntityManager em = model1.getManager();
-						try {
-							// adding an addition label to carlsRestriction
-							// should fail
-							em.add(new Statement(carlsRestriction,
+					model1.getManager().add(
+							new Statement(carlsRestriction,
 									RDFS.PROPERTY_LABEL,
-									"Other label for Carl's restriction"));
-							exceptionExpected();
-						} catch (KommaException e) {
-						}
+									"Carl's restriction"));
+					Assert.assertTrue(model1.getManager().hasMatch(
+							carlsRestriction, RDFS.PROPERTY_LABEL,
+							"Carl's restriction"));
 
-						// adding a new restriction to carlsClass should work
-						// since only blank nodes are newly created
-						try {
-							em.getTransaction().begin();
+					try {
+						// adding an arbitrary resource should fail
+						model1.getManager()
+								.add(new Statement(
+										URIs.createURI("resource:someResource"),
+										RDFS.PROPERTY_LABEL,
+										"Some resource"));
+						exceptionExpected();
+					} catch (KommaException ignored) {
+					}
+					return null;
+				});
 
-							Restriction r = em.create(Restriction.class);
-							r.setOwlOnProperty(em.find(RDFS.PROPERTY_LABEL,
-									OwlProperty.class));
-							r.setOwlMaxCardinality(BigInteger.valueOf(1));
-							em.find(carlsClass, Class.class)
-									.getRdfsSubClassOf().add(r);
+		Subject.callAs(SecurityUtil.SYSTEM_USER_SUBJECT,
+				() -> {
+					// remove carl's write access to restrictions
+					model1.getManager().removeRecursive(restrictionAcl[0],
+							true);
+					return null;
+				});
 
-							em.getTransaction().commit();
-						} catch (Exception e) {
-							if (em.getTransaction().isActive()) {
-								em.getTransaction().rollback();
-							}
-							throw e;
-						}
+		Subject.callAs(SecurityUtil.subjectForUser(carl),
+				() -> {
+					IEntityManager em = model1.getManager();
+					try {
+						// adding an addition label to carlsRestriction
+						// should fail
+						em.add(new Statement(carlsRestriction,
+								RDFS.PROPERTY_LABEL,
+								"Other label for Carl's restriction"));
+						exceptionExpected();
+					} catch (KommaException ignored) {
+					}
 
-						// creating a detached restriction should fail
-						try {
-							em.getTransaction().begin();
+					// adding a new restriction to carlsClass should work
+					// since only blank nodes are newly created
+					try {
+						em.getTransaction().begin();
 
-							Restriction r = em.create(Restriction.class);
-							r.setOwlOnProperty(em.find(RDFS.PROPERTY_LABEL,
-									OwlProperty.class));
-							r.setOwlMaxCardinality(BigInteger.valueOf(1));
+						Restriction r = em.create(Restriction.class);
+						r.setOwlOnProperty(em.find(RDFS.PROPERTY_LABEL,
+								OwlProperty.class));
+						r.setOwlMaxCardinality(BigInteger.valueOf(1));
+						em.find(carlsClass, Class.class)
+								.getRdfsSubClassOf().add(r);
 
-							em.getTransaction().commit();
-							exceptionExpected();
-						} catch (Exception e) {
+						em.getTransaction().commit();
+					} catch (Exception e) {
+						if (em.getTransaction().isActive()) {
 							em.getTransaction().rollback();
 						}
-
-						// creating a detached restriction outside of a
-						// transaction should also fail
-						try {
-							em.create(Restriction.class);
-							exceptionExpected();
-						} catch (Exception e) {
-						}
-
-						return null;
+						throw e;
 					}
+
+					// creating a detached restriction should fail
+					try {
+						em.getTransaction().begin();
+
+						Restriction r = em.create(Restriction.class);
+						r.setOwlOnProperty(em.find(RDFS.PROPERTY_LABEL,
+								OwlProperty.class));
+						r.setOwlMaxCardinality(BigInteger.valueOf(1));
+
+						em.getTransaction().commit();
+						exceptionExpected();
+					} catch (Exception e) {
+						em.getTransaction().rollback();
+					}
+
+					// creating a detached restriction outside of a
+					// transaction should also fail
+					try {
+						em.create(Restriction.class);
+						exceptionExpected();
+					} catch (Exception ignored) {
+					}
+
+					return null;
 				});
 
 	}
 
 	List<IReference> addList(IEntityManager em, IReference subject,
-			IReference property) {
+	                         IReference property) {
 		List<IReference> items = new ArrayList<>();
 		IReference list = em.createReference();
 		items.add(list);
@@ -374,152 +324,134 @@ public class SecureModelSetTest {
 	}
 
 	@Test
-	public void testLocalAclsWithSharedBNodes() throws Exception {
+	public void testLocalAclsWithSharedBNodes() {
 		final URI bobsClass = URIs.createURI("resource:bobs-class");
 		final URI carlsClass = URIs.createURI("resource:carls-class");
 		final List<IReference> bobsList = new ArrayList<>();
 		final List<IReference> carlsList = new ArrayList<>();
-		Subject.doAs(SecurityUtil.subjectForUser(bob),
-				new PrivilegedAction<Void>() {
-					@Override
-					public Void run() {
-						IEntityManager em = model1.getManager();
+		Subject.callAs(SecurityUtil.subjectForUser(bob),
+				() -> {
+					IEntityManager em = model1.getManager();
 
-						// create Bob's class
-						em.createNamed(bobsClass, Class.class);
-						bobsList.addAll(addList(em, bobsClass,
-								URIs.createURI("some:prop")));
+					// create Bob's class
+					em.createNamed(bobsClass, Class.class);
+					bobsList.addAll(addList(em, bobsClass,
+							URIs.createURI("some:prop")));
 
-						// create Carl's class
-						em.createNamed(carlsClass, Class.class);
-						// carl may write the carlsClass resource
-						createAcl(model1.getManager(), carl, carlsClass,
-								WEBACL.MODE_WRITE);
+					// create Carl's class
+					em.createNamed(carlsClass, Class.class);
+					// carl may write the carlsClass resource
+					createAcl(model1.getManager(), carl, carlsClass,
+							WEBACL.MODE_WRITE);
 
-						return null;
-					}
+					return null;
 				});
 
-		Subject.doAs(SecurityUtil.subjectForUser(carl),
-				new PrivilegedAction<Void>() {
-					@Override
-					public Void run() {
-						IEntityManager em = model1.getManager();
+		Subject.callAs(SecurityUtil.subjectForUser(carl),
+				() -> {
+					IEntityManager em = model1.getManager();
 
-						// add a list of items to Carl's class
-						carlsList.addAll(addList(em, carlsClass,
-								URIs.createURI("some:prop")));
+					// add a list of items to Carl's class
+					carlsList.addAll(addList(em, carlsClass,
+							URIs.createURI("some:prop")));
 
-						// appending an item of bob should fail
-						IReference lastItem = carlsList.get(carlsList.size() - 1);
-						IReference bobsItem = bobsList.get(3);
-						try {
-							em.add(new Statement(lastItem, RDF.PROPERTY_REST,
-									bobsItem));
-							exceptionExpected();
-						} catch (Exception e) {
-						}
-
-						// deleting an item of bob should fail
-						try {
-							em.remove(bobsItem);
-							exceptionExpected();
-						} catch (Exception e) {
-						}
-						return null;
-					}
-				});
-
-		Subject.doAs(SecurityUtil.subjectForUser(bob),
-				new PrivilegedAction<Void>() {
-					@Override
-					public Void run() {
-						// carl may write the bobsClass resource
-						createAcl(model1.getManager(), carl, bobsClass,
-								WEBACL.MODE_WRITE);
-						return null;
-					}
-				});
-
-		Subject.doAs(SecurityUtil.subjectForUser(carl),
-				new PrivilegedAction<Void>() {
-					@Override
-					public Void run() {
-						IEntityManager em = model1.getManager();
-						// appending an item of bob should work now, since ACLs
-						// have been added by bob
-						IReference lastItem = carlsList.get(carlsList.size() - 1);
-						IReference bobsItem = bobsList.get(3);
+					// appending an item of bob should fail
+					IReference lastItem = carlsList.getLast();
+					IReference bobsItem = bobsList.get(3);
+					try {
 						em.add(new Statement(lastItem, RDF.PROPERTY_REST,
 								bobsItem));
-
-						// deleting an item of bob should work now
-						em.remove(bobsItem);
-						return null;
+						exceptionExpected();
+					} catch (Exception ignored) {
 					}
+
+					// deleting an item of bob should fail
+					try {
+						em.remove(bobsItem);
+						exceptionExpected();
+					} catch (Exception ignored) {
+					}
+					return null;
+				});
+
+		Subject.callAs(SecurityUtil.subjectForUser(bob),
+				() -> {
+					// carl may write the bobsClass resource
+					createAcl(model1.getManager(), carl, bobsClass,
+							WEBACL.MODE_WRITE);
+					return null;
+				});
+
+		Subject.callAs(SecurityUtil.subjectForUser(carl),
+				() -> {
+					IEntityManager em = model1.getManager();
+					// appending an item of bob should work now, since ACLs
+					// have been added by bob
+					IReference lastItem = carlsList.getLast();
+					IReference bobsItem = bobsList.get(3);
+					em.add(new Statement(lastItem, RDF.PROPERTY_REST,
+							bobsItem));
+
+					// deleting an item of bob should work now
+					em.remove(bobsItem);
+					return null;
 				});
 	}
 
 	@Test
-	public void testControlAcls() throws Exception {
+	public void testControlAcls() {
 		final URI bobsClass = URIs.createURI("resource:bobs-class");
 		final URI carlsClass = URIs.createURI("resource:carls-class");
-		Subject.doAs(SecurityUtil.subjectForUser(bob),
-				new PrivilegedAction<Void>() {
-					@Override
-					public Void run() {
-						IEntityManager em = model1.getManager();
+		Subject.callAs(SecurityUtil.subjectForUser(bob),
+				() -> {
+					IEntityManager em = model1.getManager();
 
-						// create Bob's class
-						em.createNamed(bobsClass, Class.class);
+					// create Bob's class
+					em.createNamed(bobsClass, Class.class);
 
-						// create Carl's class
-						em.createNamed(carlsClass, Class.class);
-						// carl may control the carlsClass resource
-						createAcl(model1.getManager(), carl, carlsClass,
-								WEBACL.MODE_CONTROL);
+					// create Carl's class
+					em.createNamed(carlsClass, Class.class);
+					// carl may control the carlsClass resource
+					createAcl(model1.getManager(), carl, carlsClass,
+							WEBACL.MODE_CONTROL);
 
-						return null;
-					}
+					return null;
 				});
 
-		Subject.doAs(SecurityUtil.subjectForUser(carl),
-				new PrivilegedAction<Void>() {
-					@Override
-					public Void run() {
-						IEntityManager em = model1.getManager();
+		Subject.callAs(SecurityUtil.subjectForUser(carl),
+				() -> {
+					IEntityManager em = model1.getManager();
 
-						// add ACL to bobsClass should fail
-						try {
-							em.getTransaction().begin();
-							createAcl(em, alice, bobsClass, WEBACL.MODE_WRITE);
-							em.getTransaction().commit();
-							exceptionExpected();
-						} catch (Exception e) {
-							// ignore
-						} finally {
-							if (em.getTransaction().isActive()) {
-								em.getTransaction().rollback();
-							}
+					// add ACL to bobsClass should fail
+					try {
+						em.getTransaction().begin();
+						createAcl(em, alice, bobsClass, WEBACL.MODE_WRITE);
+						em.getTransaction().commit();
+						exceptionExpected();
+					} catch (Exception e) {
+						// ignore
+					} finally {
+						if (em.getTransaction().isActive()) {
+							em.getTransaction().rollback();
 						}
-
-						// add ACL to carlsClass should work
-						try {
-							em.getTransaction().begin();
-							createAcl(em, alice, carlsClass, WEBACL.MODE_WRITE);
-							em.getTransaction().commit();
-						} finally {
-							if (em.getTransaction().isActive()) {
-								em.getTransaction().rollback();
-							}
-						}
-						return null;
 					}
+
+					// add ACL to carlsClass should work
+					try {
+						em.getTransaction().begin();
+						createAcl(em, alice, carlsClass, WEBACL.MODE_WRITE);
+						em.getTransaction().commit();
+					} finally {
+						if (em.getTransaction().isActive()) {
+							em.getTransaction().rollback();
+						}
+					}
+					return null;
 				});
 	}
 
 	Authorization createAclForClass(IEntityManager em, IReference agent,
-			IReference targetClass, IReference mode) {
+	                                IReference targetClass, IReference mode) {
 		Authorization auth = em.create(Authorization.class);
 		auth.setAclAccessToClass(em.find(targetClass, Class.class));
 		auth.setAclAgent(em.find(agent, Agent.class));
@@ -529,7 +461,7 @@ public class SecureModelSetTest {
 	}
 
 	Authorization createAcl(IEntityManager em, IReference agent,
-			IReference target, IReference mode) {
+	                        IReference target, IReference mode) {
 		Authorization auth = em.create(Authorization.class);
 		auth.setAclAccessTo(em.find(target, Resource.class));
 		auth.setAclAgent(em.find(agent, Agent.class));
