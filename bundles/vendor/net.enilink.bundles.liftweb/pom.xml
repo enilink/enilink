@@ -68,6 +68,12 @@
 		</dependency>
 		<dependency>
 			<groupId>io.github.json4s</groupId>
+			<artifactId>json4s-native-core_3</artifactId>
+			<version>4.2.0-M3</version>
+			<scope>provided</scope>
+		</dependency>
+		<dependency>
+			<groupId>io.github.json4s</groupId>
 			<artifactId>json4s-ast_3</artifactId>
 			<version>4.2.0-M3</version>
 			<scope>provided</scope>
