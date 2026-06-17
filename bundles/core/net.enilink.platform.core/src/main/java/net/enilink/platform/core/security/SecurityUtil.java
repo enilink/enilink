@@ -1,7 +1,5 @@
 package net.enilink.platform.core.security;
 
-import java.security.AccessControlContext;
-import java.security.AccessController;
 import java.util.Collections;
 import java.util.Set;
 
@@ -43,39 +41,28 @@ public class SecurityUtil {
 			+ "{ ?acl acl:agent [ foaf:member* ?agent ] } union { ?agent a [ rdfs:subClassOf* ?agentClass ] . ?acl acl:agentClass ?agentClass } . "
 			+ "?acl acl:mode ?mode }" + //
 			"}";
-	
+
 	public static final String QUERY_MEMBER = "prefix foaf: <" + FOAF.NAMESPACE
 			+ "> ask where { ?group foaf:member* ?agent }";
 
-	private static final QualifiedName JOB_CONTEXT = new QualifiedName(
-			"net.enilink.platform.core.security", "Context");
+	private static final QualifiedName JOB_USER = new QualifiedName(
+			"net.enilink.platform.core.security", "user");
 
 	static {
 		// change listener to propagate access control contexts for jobs
 		Job.getJobManager().addJobChangeListener(new JobChangeAdapter() {
 			@Override
 			public void scheduled(IJobChangeEvent event) {
-				AccessControlContext context = null;
-				Job job = Job.getJobManager().currentJob();
-				if (job != null) {
-					context = (AccessControlContext) job
-							.getProperty(JOB_CONTEXT);
-				}
-				if (context == null) {
-					context = AccessController.getContext();
-				}
 				// attach context of current thread to job
-				event.getJob().setProperty(JOB_CONTEXT, context);
+				event.getJob().setProperty(JOB_USER, getUser());
 			}
 		});
 	}
 
 	/**
 	 * Create a subject for the given user URI.
-	 * 
-	 * @param user
-	 *            The user's URI.
-	 * 
+	 *
+	 * @param user The user's URI.
 	 * @return A subject for the given user
 	 */
 	public static Subject subjectForUser(URI user) {
@@ -86,9 +73,8 @@ public class SecurityUtil {
 
 	/**
 	 * Returns a default URI for the given user name.
-	 * 
-	 * @param username
-	 *            The user name
+	 *
+	 * @param username The user name
 	 * @return A URI for the user
 	 */
 	public static URI usernameToUri(String username) {
@@ -98,8 +84,7 @@ public class SecurityUtil {
 	/**
 	 * Returns a user name for the given user URI.
 	 *
-	 * @param uri
-	 *            The user URI
+	 * @param uri The user URI
 	 * @return The user name
 	 */
 	public static String uriToUsername(URI uri) {
@@ -109,29 +94,24 @@ public class SecurityUtil {
 
 	/**
 	 * Returns the current user.
-	 * 
+	 * <p>
 	 * If the current user is unknown then {@link SecurityUtil#UNKNOWN_USER} is
 	 * returned.
-	 * 
+	 *
 	 * @return The id of the current user or {@link SecurityUtil#UNKNOWN_USER}.
 	 */
 	public static URI getUser() {
-		Subject s = null;
 		// try to get subject with context of current running job
 		Job job = Job.getJobManager().currentJob();
 		if (job != null) {
-			AccessControlContext context = (AccessControlContext) job
-					.getProperty(JOB_CONTEXT);
-			if (context != null) {
-				s = Subject.getSubject(context);
+			URI user = (URI) job.getProperty(JOB_USER);
+			if (user != null) {
+				return user;
 			}
 		}
-		if (s == null) {
-			s = Subject.getSubject(AccessController.getContext());
-		}
+		Subject s = Subject.current();
 		if (s != null) {
-			Set<EnilinkPrincipal> principals = s
-					.getPrincipals(EnilinkPrincipal.class);
+			Set<EnilinkPrincipal> principals = s.getPrincipals(EnilinkPrincipal.class);
 			if (!principals.isEmpty()) {
 				return principals.iterator().next().getId();
 			}
@@ -142,15 +122,12 @@ public class SecurityUtil {
 	/**
 	 * Determines if the current user has the requested type within the given
 	 * entity manager.
-	 * 
-	 * @param em
-	 *            The entity manager that contains the data about the current
-	 *            user
-	 * @param type
-	 *            The type that should be looked up
-	 * 
+	 *
+	 * @param em   The entity manager that contains the data about the current
+	 *             user
+	 * @param type The type that should be looked up
 	 * @return <code>true</code> if the current user has the given
-	 *         <code>type</code>, else <code>false</code>
+	 * <code>type</code>, else <code>false</code>
 	 */
 	public static boolean hasType(IEntityManager em, IReference type) {
 		return em.find(getUser(), IResource.class).getRdfTypes().contains(type);
@@ -159,15 +136,12 @@ public class SecurityUtil {
 	/**
 	 * Determines if the current user is member of a group within the given
 	 * entity manager.
-	 * 
-	 * @param em
-	 *            The entity manager that contains the data about the current
-	 *            user
-	 * @param group
-	 *            The group that should be looked up
-	 * 
+	 *
+	 * @param em    The entity manager that contains the data about the current
+	 *              user
+	 * @param group The group that should be looked up
 	 * @return <code>true</code> if the current user is member of the given
-	 *         <code>group</code>, else <code>false</code>
+	 * <code>group</code>, else <code>false</code>
 	 */
 	public static boolean isMemberOf(IEntityManager em, IReference group) {
 		URI user = getUser();
