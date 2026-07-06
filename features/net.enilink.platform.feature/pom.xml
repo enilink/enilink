@@ -59,6 +59,10 @@
 			<version>${lift.bundle.version}</version>
 		</dependency>
 		<dependency>
+			<groupId>org.opendaylight.controller</groupId>
+			<artifactId>scala3-library</artifactId>
+		</dependency>
+		<dependency>
 			<groupId>nu.validator.htmlparser</groupId>
 			<artifactId>htmlparser</artifactId>
 			<version>1.4</version>
