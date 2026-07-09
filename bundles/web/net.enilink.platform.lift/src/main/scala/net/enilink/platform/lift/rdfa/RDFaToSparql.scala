@@ -313,7 +313,7 @@ class RDFaToSparqlParser(e: xml.Elem, base: String, varResolver: Option[Variable
     lazy val orderDesc = hasCssClass(e, "desc")
     (if (orderAsc) toString(variable) else if (orderDesc) "desc(" + toString(variable) + ")" else null) match {
       case modifier: Any => orderBy.add(modifier)
-      case _ =>
+      case null =>
     }
   }
 

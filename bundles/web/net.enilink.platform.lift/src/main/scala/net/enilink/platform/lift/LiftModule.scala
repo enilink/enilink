@@ -78,7 +78,7 @@ class LiftModule extends Logger {
         case s: Subject =>
           val userPrincipals = s.getPrincipals(classOf[EnilinkPrincipal])
           if (!userPrincipals.isEmpty) userPrincipals.iterator.next.getId else Globals.UNKNOWN_USER
-        case _ => Globals.UNKNOWN_USER
+        case null => Globals.UNKNOWN_USER
       }
     })
 

@@ -142,7 +142,7 @@ class RDFaParser()(implicit val s: Scope = new Scope()) extends CURIE with RDFaU
         case c: xml.Node =>
           newChild.append(c)
           LazyList.empty
-        case _ => LazyList.empty
+        case null => LazyList.empty
       })
       if (changedChild) newE = newE.copy(child = newChild)
       childArcs

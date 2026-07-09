@@ -300,9 +300,8 @@ class Template(val ns: NodeSeq) {
 
     def toInstances(ns: Seq[Node]): Seq[Node] = {
       ns.flatMap {
-        case t: TemplateNode => t.instances.values.map {
+        case t: TemplateNode => t.instances.values.collect {
           case e: Elem => e.copy(child = toInstances(e.child))
-          case other => other
         }.filter(_ != null)
         case e: Elem => e.copy(child = toInstances(e.child))
         case other => other

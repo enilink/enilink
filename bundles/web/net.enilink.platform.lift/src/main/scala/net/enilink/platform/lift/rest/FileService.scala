@@ -95,7 +95,7 @@ object FileService extends RestHelper with CorsHelper with Loggable {
             case data : Array[Byte] =>
               // create param holder for data already loaded into memory
               FileParamHolder("memory", contentType, fileName, data)
-            case _ => throw new Exception("illegal argument")
+            case null => throw new Exception("illegal argument")
           }
         }
       }

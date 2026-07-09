@@ -1,7 +1,7 @@
 package net.enilink.platform.web.rest
 
-import net.enilink.komma.core._
-import net.enilink.komma.model.{IModel, IModelSet, ModelUtil}
+import net.enilink.komma.core.*
+import net.enilink.komma.model.{IModelSet, ModelUtil}
 import net.enilink.komma.rdf4j.RDF4JValueConverter
 import net.enilink.platform.lift.rest.CorsHelper
 import net.enilink.platform.lift.util.{Globals, NotAllowedModel}
@@ -11,17 +11,17 @@ import net.liftweb.http.{InMemoryResponse, LiftResponse, OutputStreamResponse, R
 import net.liftweb.util.Helpers.tryo
 import org.eclipse.rdf4j.common.exception.RDF4JException
 import org.eclipse.rdf4j.model.impl.SimpleValueFactory
-import org.eclipse.rdf4j.query.{MalformedQueryException, QueryEvaluationException, QueryInterruptedException}
 import org.eclipse.rdf4j.query.resultio.{QueryResultIO, QueryResultWriter}
+import org.eclipse.rdf4j.query.{MalformedQueryException, QueryEvaluationException, QueryInterruptedException}
 import org.eclipse.rdf4j.rio.WriterConfig
 import org.eclipse.rdf4j.rio.helpers.BasicWriterSettings
 
 import java.io.{ByteArrayOutputStream, OutputStream}
-import scala.jdk.CollectionConverters._
+import scala.jdk.CollectionConverters.*
 
 class SparqlRest extends RestHelper with CorsHelper {
 
-  import net.enilink.platform.web.rest.Util._
+  import net.enilink.platform.web.rest.Util.*
 
   val converter = new RDF4JValueConverter(SimpleValueFactory.getInstance)
 

@@ -90,7 +90,7 @@ class Scope(val vars: Iterable[Variable]) {
   vars foreach {
     case v @ Variable(n, x) if safeName(n) == n => varstack.push(v)
     case v @ Variable(n, x) => varstack.push(fresh(n))
-    case _ => varstack.push(fresh("v"))
+    case null => varstack.push(fresh("v"))
   }
 
   /* baseName is a name that does *not* follow the xyx.123 pattern */

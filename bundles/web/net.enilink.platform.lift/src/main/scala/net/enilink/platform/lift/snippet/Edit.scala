@@ -67,7 +67,7 @@ class JsonCallHandler {
       case c: ICommand =>
         c.dispose()
         CommandResult.newCancelledCommandResult
-      case _ => CommandResult.newCancelledCommandResult
+      case null => CommandResult.newCancelledCommandResult
     }
   }
 
@@ -79,7 +79,7 @@ class JsonCallHandler {
       val p = stmt.getPredicate
       new Statement(em.find(stmt.getSubject), if (p == null) null else em.find(p), stmt.getObject)
     }
-    case _ => None
+    case null => None
   }
 
   def removeResources(resources: List[String], gc: Boolean = false): JBool = {
@@ -177,7 +177,7 @@ class JsonCallHandler {
           case stmt :: _ => resolve(stmt).map(createHelper().getValue(_))
           case _ => None
         }
-        case _ => None
+        case null => None
       } map (v => JString(v.toString)) getOrElse JString("")
     case JsonCommand("removeValue", _, rdf) =>
       var successful = false
