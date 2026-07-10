@@ -51,6 +51,10 @@
 					<groupId>org.slf4j</groupId>
 					<artifactId>*</artifactId>
 				</exclusion>
+				<exclusion>
+					<groupId>org.scala-lang</groupId>
+					<artifactId>scala3-library_3</artifactId>
+				</exclusion>
 			</exclusions>
 		</dependency>
 		<dependency>
