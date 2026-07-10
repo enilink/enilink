@@ -83,7 +83,7 @@ class ModelSetManager {
 	private static final URI META_MODELSET = URIs.createURI("urn:enilink:metadata");
 	private static final URI DATA_MODELSET = URIs.createURI("urn:enilink:data");
 
-	private UnitOfWork uow = new UnitOfWork();
+	private final UnitOfWork uow = new UnitOfWork();
 	private IModelSet modelSet;
 
 	protected void overwriteProperty(IGraph data, URI s, URI property, Object value) {

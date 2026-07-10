@@ -64,7 +64,6 @@
 						<org.apache.felix.http.jetty12>3</org.apache.felix.http.jetty12>
 						<org.eclipse.equinox.event>2</org.eclipse.equinox.event>
 						<org.eclipse.equinox.simpleconfigurator>1</org.eclipse.equinox.simpleconfigurator>
-						<org.eclipse.osgi>-1</org.eclipse.osgi>
 						<org.apache.aries.spifly.dynamic.bundle>1</org.apache.aries.spifly.dynamic.bundle>
 						<org.eclipse.equinox.slf4j>2</org.eclipse.equinox.slf4j>
 					</startLevels>

@@ -119,8 +119,6 @@ public class ConfigHashGraph extends LinkedHashGraph implements Config {
 		return new FilteredConfig(subj, pred, obj, contexts);
 	}
 
-	;
-
 	private static URI getConfigFromLocation(Location location) {
 		if (Platform.isRunning()) {
 			try {
