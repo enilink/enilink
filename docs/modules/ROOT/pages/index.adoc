@@ -1,0 +1,5 @@
+= eniLINK Platform Documentation
+
+This component contains operational documentation for running and configuring the eniLINK platform.
+
+See xref:configuring-platform.adoc[Configuring the platform] for `config.ttl` setup details.

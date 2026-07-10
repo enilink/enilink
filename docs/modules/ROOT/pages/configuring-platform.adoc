@@ -1,0 +1,78 @@
+= Configuring the platform (`config.ttl`)
+
+The platform reads its runtime configuration from a Turtle file named `config.ttl`.
+
+== Configuration file lookup order
+
+At startup, eniLINK resolves configuration in this order:
+
+1. System property `net.enilink.config` (file path or absolute URI).
+2. `<instance-location>/config.ttl`.
+3. `<install-location>/config.ttl`.
+
+If no configuration file is found, eniLINK still loads default anonymous ACL settings from `acl-anonymous-all.ttl`.
+If `-Dnet.enilink.acl.anonymous=all` is set, these ACL settings are always loaded.
+
+== Pointing to a specific config file
+
+Use the JVM system property:
+
+[source,shell]
+----
+-Dnet.enilink.config=/absolute/path/to/config.ttl
+----
+
+You can also use an absolute URI:
+
+[source,shell]
+----
+-Dnet.enilink.config=file:///opt/enilink/config.ttl
+----
+
+== Minimal `config.ttl` example
+
+This example configures persistent metadata and data repositories in the workspace and imports admin user defaults:
+
+[source,turtle]
+----
+@prefix owl: <http://www.w3.org/2002/07/owl#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix models: <http://enilink.net/vocab/komma/models#> .
+
+<> a owl:Ontology ;
+   owl:imports <platform:/plugin/net.enilink.platform.core/config/user-admin.ttl> .
+
+<urn:enilink:metadata> a models:PersistentModelSet ;
+  models:inference false ;
+  models:repository <workspace:/meta/> .
+
+<urn:enilink:data> a models:PersistentModelSet ;
+  models:inference false ;
+  models:repository <workspace:/data/> .
+----
+
+== Using imports for modular configuration
+
+`config.ttl` supports `owl:imports`. Imported TTL files are resolved and loaded recursively.
+This lets you keep authentication, ACL, and model set definitions in separate files.
+
+Example:
+
+[source,turtle]
+----
+@prefix owl: <http://www.w3.org/2002/07/owl#> .
+
+<> owl:imports <platform:/plugin/net.enilink.platform.core/config/group-admin.ttl> .
+----
+
+== Built-in model set templates
+
+The platform provides templates in `net.enilink.platform.core/config/` for different backends, for example:
+
+* `enilink-memory.ttl`
+* `enilink-stardog.ttl`
+* `enilink-agraph.ttl`
+* `enilink-owlim.ttl`
+* `enilink-owlim-lite.ttl`
+
+Use these files as a starting point and import or copy the relevant statements into your own `config.ttl`.
