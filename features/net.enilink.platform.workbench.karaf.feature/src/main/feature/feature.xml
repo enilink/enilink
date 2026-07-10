@@ -44,5 +44,9 @@
         <bundle>mvn:org.eclipse.rap/org.eclipse.rap.ui.views/${rap.version}</bundle>
         <bundle>mvn:org.eclipse.rap/org.eclipse.rap.ui.workbench/${rap.version}</bundle>
         <bundle>mvn:org.eclipse.rap/org.eclipse.rap.ui/${rap.version}</bundle>
+
+        <!-- RAP 4.x.x has a custom HttpService implementation -->
+        <bundle>mvn:org.eclipse.rap/org.eclipse.rap.http.registry/${rap.version}</bundle>
+        <bundle>mvn:org.eclipse.rap/org.eclipse.rap.http.servlet/${rap.version}</bundle>
     </feature>
 </features>
