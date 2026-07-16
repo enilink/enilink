@@ -93,7 +93,7 @@
 						<feature>scr</feature>
 						<!-- feature>felix-http</feature -->
 						<feature>net.enilink.platform.karaf.feature</feature>
-						<!-- feature>net.enilink.platform.workbench.karaf.feature</feature -->
+						<feature>net.enilink.platform.workbench.karaf.feature</feature>
 					</bootFeatures>
 				</configuration>
 			</plugin>
