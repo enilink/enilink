@@ -8,6 +8,8 @@ import net.enilink.platform.lift.util.Globals
 import net.liftweb.common.{Box, Full}
 import net.liftweb.http.provider.servlet.HTTPRequestServlet
 import net.liftweb.http.{BasicResponse, InMemoryResponse, LiftResponse, OutputStreamResponse, Req}
+import org.json4s.*
+import org.json4s.native.JsonMethods.parse
 import org.junit.jupiter.api.{AfterAll, BeforeAll, Test}
 import org.junit.jupiter.api.Assertions.*
 import org.eclipse.rdf4j.query.{MalformedQueryException, QueryEvaluationException, QueryInterruptedException}
@@ -332,6 +334,69 @@ class SparqlRestTest {
     assertTrue(body.contains("t:s2"))
     assertTrue(body.contains("t:p2"))
     assertTrue(body.contains("t:o2"))
+  }
+
+  @Test
+  def addingAndRemovingOwlImportsUpdatesQueryResults(): Unit = {
+    val modelA = "http://example.org/graphs/import-test-a"
+    val modelB = "http://example.org/graphs/import-test-b"
+    val parentModel = "http://example.org/graphs/import-test-parent"
+    val imports = "http://www.w3.org/2002/07/owl#imports"
+
+    List(modelA, modelB, parentModel).foreach { uri =>
+      SparqlRestTest.modelSet.createModel(URIs.createURI(uri))
+    }
+
+    def update(modelUri: String, sparql: String): Unit = {
+      val req = new MockHttpServletRequest(baseUrl) {
+        method = "POST"
+        parameters = List("update" -> sparql, "model" -> modelUri)
+        contentType = "application/x-www-form-urlencoded"
+      }
+      val response = sparqlRest(toReq(req))().map(_.toResponse)
+      assertEquals(200, response.map(_.code).getOrElse(-1), response.map(responseToString).getOrElse(""))
+    }
+
+    def assertParentItems(expectedItems: Set[String]): Unit = {
+      val req = new MockHttpServletRequest(baseUrl) {
+        method = "POST"
+        parameters = List(
+          "query" -> "SELECT ?s ?o WHERE { VALUES ?s { <urn:item-a> <urn:item-b> <urn:item-parent> } ?s <urn:p> ?o }",
+          "model" -> parentModel
+        )
+        contentType = "application/x-www-form-urlencoded"
+        headers = Map("Accept" -> List("application/sparql-results+json"))
+      }
+      val response = sparqlRest(toReq(req))().map(_.toResponse)
+      val body = response.map(responseToString).getOrElse("")
+      assertEquals(200, response.map(_.code).getOrElse(-1), body)
+      val bindings = (parse(body) \ "results" \ "bindings").children
+      val actual = bindings.map { binding =>
+        (binding \ "s" \ "value", binding \ "o" \ "value")
+      }
+      val expected = expectedItems.map { item =>
+        (JString(s"urn:item-$item"), JString(s"value-from-$item"))
+      }
+      assertEquals(expected.size, actual.size, body)
+      assertEquals(expected, actual.toSet, body)
+    }
+
+    update(modelA, """INSERT DATA { <urn:item-a> <urn:p> "value-from-a" }""")
+    update(modelB, """INSERT DATA { <urn:item-b> <urn:p> "value-from-b" }""")
+    update(parentModel, """INSERT DATA { <urn:item-parent> <urn:p> "value-from-parent" }""")
+    assertParentItems(Set("parent"))
+
+    update(parentModel, s"INSERT DATA { <$parentModel> <$imports> <$modelA> . <$parentModel> <$imports> <$modelB> }")
+    assertParentItems(Set("a", "b", "parent"))
+
+    update(parentModel, s"DELETE DATA { <$parentModel> <$imports> <$modelA> }")
+    assertParentItems(Set("b", "parent"))
+
+    update(parentModel, s"DELETE DATA { <$parentModel> <$imports> <$modelB> }")
+    assertParentItems(Set("parent"))
+
+    update(parentModel, s"INSERT DATA { <$parentModel> <$imports> <$modelA> }")
+    assertParentItems(Set("a", "parent"))
   }
 
   def responseToString(resp: BasicResponse): String = {

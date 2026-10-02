@@ -9,6 +9,8 @@ import net.liftweb.http.provider.servlet.HTTPRequestServlet
 import net.liftweb.http.{BasicResponse, InMemoryResponse, LiftResponse, OutputStreamResponse, Req}
 import org.junit.jupiter.api.{AfterAll, BeforeAll, Test}
 import org.junit.jupiter.api.Assertions._
+import org.json4s.*
+import org.json4s.native.JsonMethods.parse
 
 import java.io.ByteArrayOutputStream
 import java.nio.charset.StandardCharsets
@@ -163,6 +165,69 @@ class ModelsRestTest {
     assertFalse(body.contains("<t:s> <t:p> <t:o1>"))
   }
 
+  @Test
+  def addingAndRemovingOwlImportsUpdatesQueryResults(): Unit = {
+    val modelA = baseUrl + "/import-test-a"
+    val modelB = baseUrl + "/import-test-b"
+    val parentModel = baseUrl + "/import-test-parent"
+    val imports = "http://www.w3.org/2002/07/owl#imports"
+    val parentData = """<urn:item-parent> <urn:p> "value-from-parent" ."""
+    val importA = s"<$parentModel> <$imports> <$modelA> ."
+    val importB = s"<$parentModel> <$imports> <$modelB> ."
+
+    def upload(modelUri: String, requestMethod: String, data: String): Unit = {
+      val req = new MockHttpServletRequest(modelUri) {
+        method = requestMethod
+        body_=(data, "text/turtle")
+      }
+      val response = modelsRest(toReq(req))().map(_.toResponse)
+      assertEquals(200, response.map(_.code).getOrElse(-1), response.map(responseToString).getOrElse(""))
+    }
+
+    def assertParentItems(expectedItems: Set[String]): Unit = {
+      val req = new MockHttpServletRequest("http://foo.com/sparql") {
+        method = "GET"
+        parameters = List(
+          "query" -> "SELECT ?s ?o WHERE { VALUES ?s { <urn:item-a> <urn:item-b> <urn:item-parent> } ?s <urn:p> ?o }",
+          "model" -> parentModel
+        )
+        headers = Map("Accept" -> List("application/sparql-results+json"))
+      }
+      val response = MockSparqlRest(toReq(req))().map(_.toResponse)
+      val body = response.map(responseToString).getOrElse("")
+      assertEquals(200, response.map(_.code).getOrElse(-1), body)
+      val bindings = (parse(body) \ "results" \ "bindings").children
+      val actual = bindings.map { binding =>
+        (binding \ "s" \ "value", binding \ "o" \ "value")
+      }
+      val expected = expectedItems.map { item =>
+        (JString(s"urn:item-$item"), JString(s"value-from-$item"))
+      }
+      assertEquals(expected.size, actual.size, body)
+      assertEquals(expected, actual.toSet, body)
+    }
+
+    upload(modelA, "POST", """<urn:item-a> <urn:p> "value-from-a" .""")
+    upload(modelB, "PUT", """<urn:item-b> <urn:p> "value-from-b" .""")
+    upload(parentModel, "POST", parentData)
+    assertParentItems(Set("parent"))
+
+    upload(parentModel, "POST", importA)
+    assertParentItems(Set("a", "parent"))
+
+    upload(parentModel, "PUT", s"$parentData\n$importA\n$importB")
+    assertParentItems(Set("a", "b", "parent"))
+
+    upload(parentModel, "PUT", s"$parentData\n$importB")
+    assertParentItems(Set("b", "parent"))
+
+    upload(parentModel, "PUT", parentData)
+    assertParentItems(Set("parent"))
+
+    upload(parentModel, "POST", importA)
+    assertParentItems(Set("a", "parent"))
+  }
+
   def responseToString(resp: BasicResponse): String = {
     resp match {
       case InMemoryResponse(data, _, _, _) =>
@@ -175,4 +240,3 @@ class ModelsRestTest {
     }
   }
 }
-

@@ -105,8 +105,8 @@ class ModelsRest(val sparqlRest : Option[SparqlRest] = None) extends RestHelper 
         case Some(cd) if "true".equals(String.valueOf(cd.getProperty(hasWriter))) =>
           // start unit of work here to avoid closing by loan wrapper
           val uow = model.getModelSet.getUnitOfWork
-          uow.begin()
           val func = (out: OutputStream) => {
+            uow.begin()
             try {
               model.save(out, Map(IModel.OPTION_CONTENT_DESCRIPTION -> cd).asJava)
             } catch {
@@ -131,8 +131,6 @@ class ModelsRest(val sparqlRest : Option[SparqlRest] = None) extends RestHelper 
       case model =>
         try {
           model.load(in, Map(IModel.OPTION_CONTENT_DESCRIPTION -> contentDescription).asJava)
-          // refresh the model
-          // model.unloadManager
           OkResponse()
         } catch {
           case ke : KommaException => BadRequestResponse(ke.getMessage)
@@ -149,14 +147,8 @@ class ModelsRest(val sparqlRest : Option[SparqlRest] = None) extends RestHelper 
         ForbiddenResponse("You don't have permissions to access " + modelUri + ".")
       case model =>
         // model exists, clear it
-        val modelSet = model.getModelSet
-        val changeSupport = modelSet.getDataChangeSupport
-        try {
-          changeSupport.setEnabled(null, false)
-          model.getManager.clear()
-        } finally {
-          changeSupport.setEnabled(null, true)
-        }
+        model.getManager.clear()
+        model.unloadManager()
         OkResponse()
     } orElse Full(OkResponse()) // also return OK if model does not exist
   }

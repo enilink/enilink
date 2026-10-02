@@ -159,22 +159,12 @@ class SparqlRest extends RestHelper with CorsHelper {
         Full(plainTextResponse(403, "FORBIDDEN: You don't have permissions to access " + model.getURI + "."))
       case model =>
         val em = model.getManager
-        val changeSupport = model.getModelSet.getDataChangeSupport
-        // disable change support for updates via SPARQL endpoint
-        val enabled = changeSupport.isEnabled(null)
-        if (enabled) {
-          changeSupport.setEnabled(null, false)
-        }
         try {
           val update = em.createUpdate(queryStr, model.getURI.toString, true)
           update.execute()
           Full(OkResponse())
         } catch {
           case e: Exception => Full(toResponse(e))
-        } finally {
-          if (enabled) {
-            changeSupport.setEnabled(null, true)
-          }
         }
     }
   }
