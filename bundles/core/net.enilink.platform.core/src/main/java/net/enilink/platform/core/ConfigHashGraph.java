@@ -178,11 +178,14 @@ public class ConfigHashGraph extends LinkedHashGraph implements Config {
 		}
 		final Queue<URI> toLoad = new LinkedList<>();
 		if (configUri != null) {
+			log.info("Loading configuration from {}", configUri);
 			toLoad.add(configUri);
 		}
 		// load ACL for anonymous access
 		if (toLoad.isEmpty() || "all".equals(System.getProperty("net.enilink.acl.anonymous"))) {
-			toLoad.add(URIs.createURI("platform:/plugin/net.enilink.platform.core/config/acl-anonymous-all.ttl"));
+			URI aclUri = URIs.createURI("platform:/plugin/net.enilink.platform.core/config/acl-anonymous-all.ttl");
+			log.info("Loading default configuration from {}", aclUri);
+			toLoad.add(aclUri);
 		}
 		Set<URI> seen = new HashSet<>();
 

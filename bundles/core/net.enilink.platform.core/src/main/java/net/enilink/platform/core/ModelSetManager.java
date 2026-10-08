@@ -79,6 +79,11 @@ class ModelSetManager {
 	private static final Logger log = LoggerFactory.getLogger(ModelSetManager.class);
 
 	public static final ModelSetManager INSTANCE = new ModelSetManager();
+	static {
+		// ensure that the model set is disposed when the JVM shuts down
+		// shutdown hook is also called when OSGi bundle is stopped, but this is not guaranteed in all circumstances
+		Runtime.getRuntime().addShutdownHook(new Thread(INSTANCE::shutdown));
+	}
 
 	private static final URI META_MODELSET = URIs.createURI("urn:enilink:metadata");
 	private static final URI DATA_MODELSET = URIs.createURI("urn:enilink:data");
@@ -414,6 +419,7 @@ class ModelSetManager {
 
 	public synchronized void shutdown() {
 		if (modelSet != null) {
+			log.info("Shutting down model set manager");
 			modelSet.dispose();
 			modelSet = null;
 		}
