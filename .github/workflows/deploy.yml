@@ -46,6 +46,7 @@ jobs:
         run: |
              echo $GPG_PASSWORD | gpg --batch --passphrase-fd 0 -o releng/enilink.asc --decrypt releng/enilink.asc.gpg
              gpg --import releng/enilink.asc
+             gpg --list-signatures
 
       # Runs the Maven build
       - name: Build and deploy with Maven
