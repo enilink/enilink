@@ -397,6 +397,8 @@ class LDPHelper extends RestHelper {
           } else {
             Full(FailedResponse(500, "failed to create resource", constraintHeader))
           }
+        case Right(_) =>
+          Full(FailedResponse(400, "invalid request body", constraintHeader))
       }
     }
 
@@ -593,6 +595,10 @@ class LDPHelper extends RestHelper {
               }
               }
             }
+          case Right(Empty) =>
+            Full(new OperationResponse(OperationResponse.BAD_REQUEST, "Empty request body"))
+          case Right(Failure(msg, _, _)) =>
+            Full(new OperationResponse(OperationResponse.BAD_REQUEST, s"Failed to parse request body: $msg"))
         }
       case Full(false) => Full(new OperationResponse(OperationResponse.PRECONDITION_FAILED, "IF-MATCH Avoiding mid-air collisions"))
       case Failure(msg, _, _) => Full(new OperationResponse(OperationResponse.IF_MATCH_MISSING, msg))
