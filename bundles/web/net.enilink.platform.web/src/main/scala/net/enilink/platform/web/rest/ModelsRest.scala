@@ -105,8 +105,8 @@ class ModelsRest(val sparqlRest : Option[SparqlRest] = None) extends RestHelper 
         case Some(cd) if "true".equals(String.valueOf(cd.getProperty(hasWriter))) =>
           // start unit of work here to avoid closing by loan wrapper
           val uow = model.getModelSet.getUnitOfWork
+          uow.begin()
           val func = (out: OutputStream) => {
-            uow.begin()
             try {
               model.save(out, Map(IModel.OPTION_CONTENT_DESCRIPTION -> cd).asJava)
             } catch {

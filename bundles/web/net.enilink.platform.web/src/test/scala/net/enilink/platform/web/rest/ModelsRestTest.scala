@@ -78,7 +78,10 @@ class ModelsRestTest {
       method = "GET"
       headers = (("Accept", "text/turtle" :: Nil) :: Nil).toMap
     }
-    assertEquals(200, modelsRest(toReq(getReq))().map(_.toResponse.code).getOrElse(-1))
+    val response = modelsRest(toReq(getReq))().map(_.toResponse)
+    assertEquals(200, response.map(_.code).getOrElse(-1))
+    val body = response.map(responseToString).getOrElse("")
+    assertTrue(body.contains("<t:s> <t:p> <t:o>"))
   }
 
   @Test

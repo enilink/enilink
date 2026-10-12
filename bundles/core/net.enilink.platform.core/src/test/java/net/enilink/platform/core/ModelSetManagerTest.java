@@ -1,26 +1,20 @@
 package net.enilink.platform.core;
 
-import net.enilink.komma.core.IStatement;
 import net.enilink.komma.core.Statement;
 import net.enilink.komma.core.URI;
 import net.enilink.komma.core.URIs;
-import net.enilink.komma.core.visitor.IDataVisitor;
-import net.enilink.komma.em.util.KommaCoreModule;
-import net.enilink.komma.model.*;
+import net.enilink.komma.model.IModel;
+import net.enilink.komma.model.IModelSet;
+import net.enilink.komma.model.MODELS;
 import net.enilink.komma.model.base.ExtensibleURIConverter;
 import net.enilink.komma.model.base.URIHandler;
 import net.enilink.platform.core.security.ISecureEntity;
 import net.enilink.platform.core.security.SecurityUtil;
-import net.enilink.platform.security.auth.EnilinkPrincipal;
 import net.enilink.vocab.rdf.RDF;
 import org.junit.Assert;
 import org.junit.Test;
 
-import javax.security.auth.Subject;
-import java.net.MalformedURLException;
 import java.net.URL;
-import java.util.ArrayList;
-import java.util.Map;
 
 public class ModelSetManagerTest {
 	@Test

@@ -75,52 +75,63 @@ class SparqlRest extends RestHelper with CorsHelper {
           query.evaluate match {
             case r: ITupleResult[_] if QueryResultIO.getWriterFormatForMIMEType(resultMimeType).isPresent =>
               // start unit of work here to avoid closing by loan wrapper
-              model.getModelSet.getUnitOfWork.begin()
+              val ms = model.getModelSet
+              val uow = ms.getUnitOfWork
+              uow.begin()
               val func = (out: OutputStream) => {
-                val format = QueryResultIO.getWriterFormatForMIMEType(resultMimeType).get()
-                val writer = QueryResultIO.createTupleWriter(format, out)
-                configure(writer)
-
-                writer.startQueryResult(r.getBindingNames)
-
                 try {
-                  r.iterator.asScala.foreach {
-                    case bindings: IBindings[_] =>
-                      val bindingSet = converter.toRdf4j(bindings)
-                      writer.handleSolution(bindingSet)
-                    case value: IValue =>
-                      // select with only one variable like "select ?s where { ?s ?p ?o }" for which KOMMA returns direct object instances
-                      val values = java.util.List.of(value)
-                      val bindings: IBindings[IValue] = new IBindings[IValue] {
-                        override def get(key: String): IValue = value
+                  val format = QueryResultIO.getWriterFormatForMIMEType(resultMimeType).get()
+                  val writer = QueryResultIO.createTupleWriter(format, out)
+                  configure(writer)
+                  writer.startQueryResult(r.getBindingNames)
 
-                        override def getKeys: java.util.List[String] = r.getBindingNames
+                  try {
+                    r.iterator.asScala.foreach {
+                      case bindings: IBindings[_] =>
+                        val bindingSet = converter.toRdf4j(bindings)
+                        writer.handleSolution(bindingSet)
+                      case value: IValue =>
+                        // select with only one variable like "select ?s where { ?s ?p ?o }" for which KOMMA returns direct object instances
+                        val values = java.util.List.of(value)
+                        val bindings: IBindings[IValue] = new IBindings[IValue] {
+                          override def get(key: String): IValue = value
 
-                        override def iterator: java.util.Iterator[IValue] = values.iterator.asInstanceOf[java.util.Iterator[IValue]]
-                      }
-                      writer.handleSolution(converter.toRdf4j(bindings))
+                          override def getKeys: java.util.List[String] = r.getBindingNames
+
+                          override def iterator: java.util.Iterator[IValue] = values.iterator.asInstanceOf[java.util.Iterator[IValue]]
+                        }
+                        writer.handleSolution(converter.toRdf4j(bindings))
+                    }
+                  } finally {
+                    r.close()
                   }
-                } finally {
-                  r.close()
-                  model.getModelSet.getUnitOfWork.end()
-                }
 
-                writer.endQueryResult()
+                  writer.endQueryResult()
+                } finally {
+                  uow.end()
+                }
               }
 
               Full(OutputStreamResponse(func, -1,
                 ("Content-Type", resultMimeType + "; charset=utf-8") :: responseHeaders,
                 responseCookies, 200))
             case r: IGraphResult =>
+              val ms = model.getModelSet
+              val uow = ms.getUnitOfWork
+              uow.begin()
               val func = (out: OutputStream) => {
-                val writer = ModelUtil.writeData(out, model.getURI.toString, resultMimeType, "UTF-8")
-                writer.visitBegin
                 try {
-                  r.iterator.asScala.foreach { stmt => writer.visitStatement(stmt) }
+                  val writer = ModelUtil.writeData(out, model.getURI.toString, resultMimeType, "UTF-8")
+                  writer.visitBegin
+                  try {
+                    r.iterator.asScala.foreach { stmt => writer.visitStatement(stmt) }
+                  } finally {
+                    r.close()
+                  }
+                  writer.visitEnd
                 } finally {
-                  r.close()
+                  uow.end()
                 }
-                writer.visitEnd
               } : Unit
 
               Full(OutputStreamResponse(func, -1,
