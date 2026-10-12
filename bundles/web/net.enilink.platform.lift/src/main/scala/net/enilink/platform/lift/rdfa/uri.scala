@@ -38,7 +38,7 @@ object Util {
   /**
    * Appendix B. Parsing a URI Reference with a Regular Expression
    */
-  val Parts: Regex = """(([^:/?#]+):)?(//([^/?#]*))?([^?#]*)(\?([^#]*))?(#(.*))?""".r
+  private val Parts: Regex = """(([^:/?#]+):)?(//([^/?#]*))?([^?#]*)(\?([^#]*))?(#(.*))?""".r
 
   /**
    * Combine URI reference with base URI
@@ -50,11 +50,11 @@ object Util {
    * @throws java.text.ParseException if base isn't an absoluteURI
    */
   def combine(base: String, ref: String): String = {
-    val Parts(_, sr, _, ar, pr, _, qr, _, fragment) = ref
+    val Parts(_, sr, _, ar, pr, _, qr, _, fragment) = ref.runtimeChecked
 
     if (sr != null) ref // ref is absolute; we're done.
     else {
-      val Parts(_, scheme, _, ab, pb, _, qb, _, fb) = base
+      val Parts(_, scheme, _, ab, pb, _, qb, _, fb) = base.runtimeChecked
       if (scheme == null || scheme == "") {
         throw new ParseException("missing scheme in base URI" + base, 0)
       }

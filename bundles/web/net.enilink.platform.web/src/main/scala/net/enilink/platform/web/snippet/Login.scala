@@ -99,7 +99,7 @@ class Login {
 
   def isLinkIdentity: Boolean = S.attr("mode").exists(_ == "link") && Globals.contextUser.vend != SecurityUtil.UNKNOWN_USER
 
-  def getEntityManager: IEntityManager = Globals.contextModelSet.vend.map(_.getMetaDataManager) openOrThrowException "Unable to retrieve the model set"
+  def getEntityManager: IEntityManager = Globals.contextModelSet.vend.map(_.getMetaDataManager).openOrThrowException("Unable to retrieve the model set")
 
   /**
    * Retrieve a HTTP param from the login state or from the request
