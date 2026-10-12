@@ -1,0 +1,81 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project
+		xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd"
+		xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+	<modelVersion>4.0.0</modelVersion>
+
+	<name>eniLINK: Platform Tests</name>
+
+	<parent>
+		<groupId>net.enilink.platform</groupId>
+		<artifactId>tests</artifactId>
+		<version>1.8.0-SNAPSHOT</version>
+	</parent>
+
+	<scm>
+		<connection>${enilink.scm.connection}</connection>
+		<developerConnection>${enilink.scm.developerConnection}</developerConnection>
+		<url>${enilink.scm.url}</url>
+	</scm>
+
+	<artifactId>net.enilink.platform.tests</artifactId>
+	<packaging>jar</packaging>
+
+	<dependencies>
+		<dependency>
+			<groupId>org.osgi</groupId>
+			<artifactId>osgi.core</artifactId>
+			<version>${osgi.version}</version>
+			<scope>provided</scope>
+		</dependency>
+	</dependencies>
+
+	<build>
+		<plugins>
+			<plugin>
+				<groupId>biz.aQute.bnd</groupId>
+				<artifactId>bnd-maven-plugin</artifactId>
+				<executions>
+					<execution>
+						<goals>
+							<goal>bnd-process</goal>
+						</goals>
+					</execution>
+				</executions>
+			</plugin>
+
+			<plugin>
+				<groupId>biz.aQute.bnd</groupId>
+				<artifactId>bnd-maven-plugin</artifactId>
+			</plugin>
+
+			<plugin>
+				<groupId>org.apache.maven.plugins</groupId>
+				<artifactId>maven-surefire-plugin</artifactId>
+				<version>3.5.4</version>
+				<configuration>
+					<skipTests>true</skipTests>
+				</configuration>
+			</plugin>
+
+			<plugin>
+				<groupId>biz.aQute.bnd</groupId>
+				<artifactId>bnd-testing-maven-plugin</artifactId>
+				<version>${bnd.version}</version>
+				<configuration>
+					<failOnChanges>false</failOnChanges>
+					<resolve>true</resolve>
+					<!-- allows to use debug-* for enabling the debug mode -->
+					<testing>tests*</testing>
+				</configuration>
+				<executions>
+					<execution>
+						<goals>
+							<goal>testing</goal>
+						</goals>
+					</execution>
+				</executions>
+			</plugin>
+		</plugins>
+	</build>
+</project>

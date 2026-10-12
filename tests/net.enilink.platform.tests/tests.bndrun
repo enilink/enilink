@@ -1,0 +1,16 @@
+-tester: biz.aQute.tester.junit-platform
+-runfw: org.eclipse.osgi
+-runee: JavaSE-21
+-runrequires: osgi.identity;filter:='(osgi.identity=${project.artifactId})', \
+  osgi.identity;filter:='(osgi.identity=org.apache.commons.commons-io)',\
+  osgi.identity;filter:='(osgi.identity=org.apache.commons.commons-codec)',\
+  osgi.identity;filter:='(osgi.identity=org.apache.httpcomponents.httpclient)',\
+  osgi.identity;filter:='(osgi.identity=org.eclipse.equinox.event)',\
+  osgi.identity;filter:='(osgi.identity=junit-jupiter-engine)',\
+  osgi.identity;filter:='(osgi.identity=junit-vintage-engine)',\
+  osgi.identity;filter:='(osgi.identity=biz.aQute.tester.junit-platform)'
+
+# required for mockito
+-runsystempackages: sun.reflect
+
+-runproperties: tester.trace=true
