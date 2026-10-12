@@ -2,6 +2,7 @@
 -runfw: org.eclipse.osgi
 -runee: JavaSE-21
 -runrequires: osgi.identity;filter:='(osgi.identity=${project.artifactId})', \
+  osgi.identity;filter:='(osgi.identity=net.enilink.platform.web)', \
   osgi.identity;filter:='(osgi.identity=org.apache.commons.commons-io)',\
   osgi.identity;filter:='(osgi.identity=org.apache.commons.commons-codec)',\
   osgi.identity;filter:='(osgi.identity=org.apache.httpcomponents.httpclient)',\
@@ -13,4 +14,4 @@
 # required for mockito
 -runsystempackages: sun.reflect
 
--runproperties: tester.trace=true
+-runproperties: tester.trace=false

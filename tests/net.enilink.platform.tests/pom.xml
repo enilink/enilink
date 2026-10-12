@@ -28,6 +28,12 @@
 			<version>${osgi.version}</version>
 			<scope>provided</scope>
 		</dependency>
+		<dependency>
+			<groupId>net.enilink.platform</groupId>
+			<artifactId>net.enilink.platform.equinox.feature</artifactId>
+			<version>${project.version}</version>
+			<type>pom</type>
+		</dependency>
 	</dependencies>
 
 	<build>
@@ -61,7 +67,7 @@
 			<plugin>
 				<groupId>biz.aQute.bnd</groupId>
 				<artifactId>bnd-testing-maven-plugin</artifactId>
-				<version>${bnd.version}</version>
+				<version>7.5.0-SNAPSHOT</version>
 				<configuration>
 					<failOnChanges>false</failOnChanges>
 					<resolve>true</resolve>
