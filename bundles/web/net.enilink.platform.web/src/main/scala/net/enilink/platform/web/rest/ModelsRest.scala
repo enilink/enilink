@@ -76,7 +76,7 @@ class ModelsRest(val sparqlRest : Option[SparqlRest] = None) extends RestHelper 
     }
   }
 
-  def mimeTypeToPair(mimeType: String): Box[(String, String)] = mimeType.split("/") match {
+  def mimeTypeToPair(mimeType: String): Box[(String, String)] = mimeType.takeWhile(_ != ';').trim.split("/") match {
     case Array(superType, subType) => Full((superType, subType))
     case _ => Failure("Invalid mime type: " + mimeType)
   }
@@ -178,9 +178,7 @@ class ModelsRest(val sparqlRest : Option[SparqlRest] = None) extends RestHelper 
     case ("vocab" | "models") :: _ Options _ => OkResponse()
     case ("vocab" | "models") :: modelName Get req if validModel(modelName) =>
       S.param("query") match {
-        case Full(sparql) => getSparqlQueryResponseMimeType(req) flatMap { resultMimeType =>
-          sparqlRest.flatMap(_.queryModel(sparql, getModelUri(req), resultMimeType))
-        }
+        case Full(sparql) => sparqlRest.flatMap(_.queryModel(sparql, getModelUri(req), req))
         case _ if getResponseContentType(req).isDefined => serveRdf(req, getModelUri(req))
         case _ => BadRequestResponse()
       }
@@ -208,9 +206,7 @@ class ModelsRest(val sparqlRest : Option[SparqlRest] = None) extends RestHelper 
     case ("vocab" | "models") :: modelName Post req =>
       val response: Box[LiftResponse] = if (validModel(modelName)) {
         S.param("query") match {
-          case Full(sparql) => getSparqlQueryResponseMimeType(req) flatMap { resultMimeType =>
-            sparqlRest.flatMap(_.queryModel(sparql, getModelUri(req), resultMimeType))
-          }
+          case Full(sparql) => sparqlRest.flatMap(_.queryModel(sparql, getModelUri(req), req))
           case _ =>
             req.rawInputStream match {
               case Full(in) =>

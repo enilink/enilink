@@ -5,21 +5,22 @@ import net.enilink.komma.model.{IModelSet, ModelUtil}
 import net.enilink.komma.rdf4j.RDF4JValueConverter
 import net.enilink.platform.lift.rest.CorsHelper
 import net.enilink.platform.lift.util.{Globals, NotAllowedModel}
-import net.liftweb.common.{Box, Full}
+import net.liftweb.common.{Box, Full, Loggable}
 import net.liftweb.http.rest.RestHelper
-import net.liftweb.http.{InMemoryResponse, LiftResponse, OutputStreamResponse, Req, S}
+import net.liftweb.http.{ContentType, InMemoryResponse, LiftResponse, OutputStreamResponse, Req, S}
 import net.liftweb.util.Helpers.tryo
 import org.eclipse.rdf4j.common.exception.RDF4JException
 import org.eclipse.rdf4j.model.impl.SimpleValueFactory
-import org.eclipse.rdf4j.query.resultio.{QueryResultIO, QueryResultWriter}
+import org.eclipse.rdf4j.query.resultio.{QueryResultFormat, QueryResultIO, QueryResultWriter}
 import org.eclipse.rdf4j.query.{MalformedQueryException, QueryEvaluationException, QueryInterruptedException}
-import org.eclipse.rdf4j.rio.WriterConfig
+import org.eclipse.rdf4j.rio.{RDFFormat, Rio, WriterConfig}
 import org.eclipse.rdf4j.rio.helpers.BasicWriterSettings
 
+import scala.jdk.OptionConverters.*
 import java.io.{ByteArrayOutputStream, OutputStream}
 import scala.jdk.CollectionConverters.*
 
-class SparqlRest extends RestHelper with CorsHelper {
+class SparqlRest extends RestHelper with CorsHelper with Loggable {
 
   import net.enilink.platform.web.rest.Util.*
 
@@ -45,7 +46,7 @@ class SparqlRest extends RestHelper with CorsHelper {
         val defaultGraphs = S.params("default-graph-uri").flatMap { uriStr => tryo(URIs.createURI(uriStr)) }
         val namedGraphs = S.params("named-graph-uri").flatMap { uriStr => tryo(URIs.createURI(uriStr)) }
 
-        dm.createQuery(queryStr, null, true, defaultGraphs*)
+        dm.createQuery(queryStr, null, true, defaultGraphs *)
 
         BadRequestResponse()
       } finally {
@@ -54,10 +55,12 @@ class SparqlRest extends RestHelper with CorsHelper {
     }
   }
 
+  private def toMimeType(ct: ContentType) = ct.theType + '/' + ct.subtype
+
   /**
    * Handle SPARQL queries against a model.
    */
-  def queryModel(queryStr: String, modelUri: URI, resultMimeType: String): Box[LiftResponse] = {
+  def queryModel(queryStr: String, modelUri: URI, req: Req): Box[LiftResponse] = {
     getModel(modelUri).dmap(Full(plainTextResponse(404, "MODEL_NOT_FOUND: No model found for the given identifier.")): Box[LiftResponse]) {
       case model@NotAllowedModel(_) =>
         Full(plainTextResponse(403, "FORBIDDEN: You don't have permissions to access " + model.getURI + "."))
@@ -73,87 +76,127 @@ class SparqlRest extends RestHelper with CorsHelper {
           }
 
           query.evaluate match {
-            case r: ITupleResult[_] if QueryResultIO.getWriterFormatForMIMEType(resultMimeType).isPresent =>
-              // start unit of work here to avoid closing by loan wrapper
-              val ms = model.getModelSet
-              val uow = ms.getUnitOfWork
-              uow.begin()
-              val func = (out: OutputStream) => {
-                try {
-                  val format = QueryResultIO.getWriterFormatForMIMEType(resultMimeType).get()
-                  val writer = QueryResultIO.createTupleWriter(format, out)
-                  configure(writer)
-                  writer.startQueryResult(r.getBindingNames)
+            case r: ITupleResult[_] =>
+              val writerFormat: Option[QueryResultFormat] = if (req.weightedAccept.isEmpty || req.acceptsStarStar) {
+                QueryResultIO.getWriterFormatForMIMEType("application/sparql-results+json").toScala
+              } else {
+                req.weightedAccept.map(ct => QueryResultIO.getWriterFormatForMIMEType(toMimeType(ct)))
+                  .find(_.isPresent).map(_.get())
+              }
 
-                  try {
-                    r.iterator.asScala.foreach {
-                      case bindings: IBindings[_] =>
-                        val bindingSet = converter.toRdf4j(bindings)
-                        writer.handleSolution(bindingSet)
-                      case value: IValue =>
-                        // select with only one variable like "select ?s where { ?s ?p ?o }" for which KOMMA returns direct object instances
-                        val values = java.util.List.of(value)
-                        val bindings: IBindings[IValue] = new IBindings[IValue] {
-                          override def get(key: String): IValue = value
+              writerFormat match {
+                case Some(format) =>
+                  val resultMimeType = format.getDefaultMIMEType
+                  // start unit of work here to avoid closing by loan wrapper
+                  val ms = model.getModelSet
+                  val uow = ms.getUnitOfWork
+                  uow.begin()
+                  val func = (out: OutputStream) => {
+                    try {
+                      val format = QueryResultIO.getWriterFormatForMIMEType(resultMimeType).get()
+                      val writer = QueryResultIO.createTupleWriter(format, out)
+                      configure(writer)
+                      writer.startQueryResult(r.getBindingNames)
 
-                          override def getKeys: java.util.List[String] = r.getBindingNames
+                      try {
+                        r.iterator.asScala.foreach {
+                          case bindings: IBindings[_] =>
+                            val bindingSet = converter.toRdf4j(bindings)
+                            writer.handleSolution(bindingSet)
+                          case value: IValue =>
+                            // select with only one variable like "select ?s where { ?s ?p ?o }" for which KOMMA returns direct object instances
+                            val values = java.util.List.of(value)
+                            val bindings: IBindings[IValue] = new IBindings[IValue] {
+                              override def get(key: String): IValue = value
 
-                          override def iterator: java.util.Iterator[IValue] = values.iterator.asInstanceOf[java.util.Iterator[IValue]]
+                              override def getKeys: java.util.List[String] = r.getBindingNames
+
+                              override def iterator: java.util.Iterator[IValue] = values.iterator.asInstanceOf[java.util.Iterator[IValue]]
+                            }
+                            writer.handleSolution(converter.toRdf4j(bindings))
                         }
-                        writer.handleSolution(converter.toRdf4j(bindings))
+                      } finally {
+                        r.close()
+                      }
+
+                      writer.endQueryResult()
+                    } finally {
+                      uow.end()
                     }
-                  } finally {
-                    r.close()
                   }
 
-                  writer.endQueryResult()
-                } finally {
-                  uow.end()
-                }
+                  Full(OutputStreamResponse(func, -1,
+                    ("Content-Type", resultMimeType + "; charset=utf-8") :: responseHeaders,
+                    responseCookies, 200))
+                case _ =>
+                  Full(plainTextResponse(406, "UNSUPPORTED_ACCEPT: The requested result format is not supported."))
               }
-
-              Full(OutputStreamResponse(func, -1,
-                ("Content-Type", resultMimeType + "; charset=utf-8") :: responseHeaders,
-                responseCookies, 200))
             case r: IGraphResult =>
-              val ms = model.getModelSet
-              val uow = ms.getUnitOfWork
-              uow.begin()
-              val func = (out: OutputStream) => {
-                try {
-                  val writer = ModelUtil.writeData(out, model.getURI.toString, resultMimeType, "UTF-8")
-                  writer.visitBegin
+              val writerFormat: Option[RDFFormat] = if (req.weightedAccept.isEmpty || req.acceptsStarStar) {
+                Rio.getWriterFormatForMIMEType("text/turtle").toScala
+              } else {
+                req.weightedAccept.map(ct => Rio.getWriterFormatForMIMEType(toMimeType(ct)))
+                  .find(_.isPresent).map(_.get())
+              }
+              writerFormat match {
+                case Some(format) =>
+                  val resultMimeType = format.getDefaultMIMEType
+                  val ms = model.getModelSet
+                  val uow = ms.getUnitOfWork
+                  uow.begin()
+                  val func = (out: OutputStream) => {
+                    try {
+                      val writer = ModelUtil.writeData(out, model.getURI.toString, resultMimeType, "UTF-8")
+                      writer.visitBegin
+                      try {
+                        r.iterator.asScala.foreach { stmt => writer.visitStatement(stmt) }
+                      } finally {
+                        r.close()
+                      }
+                      writer.visitEnd
+                    } finally {
+                      uow.end()
+                    }
+                  }: Unit
+
+                  Full(OutputStreamResponse(func, -1,
+                    ("Content-Type", resultMimeType + "; charset=utf-8") :: responseHeaders,
+                    responseCookies, 200))
+                case _ =>
+                  Full(plainTextResponse(406, "UNSUPPORTED_ACCEPT: The requested result format is not supported."))
+              }
+            case r: IBooleanResult =>
+              val writerFormat: Option[QueryResultFormat] = if (req.weightedAccept.isEmpty || req.acceptsStarStar) {
+                QueryResultIO.getBooleanParserFormatForMIMEType("application/sparql-results+json").toScala
+              } else {
+                req.weightedAccept.map(ct => QueryResultIO.getBooleanParserFormatForMIMEType(toMimeType(ct)))
+                  .find(_.isPresent).map(_.get())
+              }
+              writerFormat match {
+                case Some(format) =>
+                  val resultMimeType = format.getDefaultMIMEType
+                  val baos = new ByteArrayOutputStream
+                  val writer = QueryResultIO.createBooleanWriter(format, baos)
+                  configure(writer)
+
                   try {
-                    r.iterator.asScala.foreach { stmt => writer.visitStatement(stmt) }
+                    val result = r.asBoolean
+                    writer.handleBoolean(result)
                   } finally {
                     r.close()
                   }
-                  writer.visitEnd
-                } finally {
-                  uow.end()
-                }
-              } : Unit
 
-              Full(OutputStreamResponse(func, -1,
-                ("Content-Type", resultMimeType + "; charset=utf-8") :: responseHeaders,
-                responseCookies, 200))
-            case r: IBooleanResult if QueryResultIO.getBooleanWriterFormatForMIMEType(resultMimeType).isPresent =>
-              val baos = new ByteArrayOutputStream
-              val format = QueryResultIO.getBooleanWriterFormatForMIMEType(resultMimeType).get()
-              val writer = QueryResultIO.createBooleanWriter(format, baos)
-              configure(writer)
-
-              try {
-                val result = r.asBoolean
-                writer.handleBoolean(result)
-              } finally {
-                r.close()
+                  val data = baos.toByteArray
+                  Full(InMemoryResponse(data, ("Content-Length", data.length.toString) ::
+                    ("Content-Type", resultMimeType + "; charset=utf-8") :: responseHeaders, responseCookies, 200))
+                case _ =>
+                  Full(plainTextResponse(406, "UNSUPPORTED_ACCEPT: The requested result format is not supported."))
               }
-
-              val data = baos.toByteArray
-              Full(InMemoryResponse(data, ("Content-Length", data.length.toString) ::
-                ("Content-Type", resultMimeType + "; charset=utf-8") :: responseHeaders, responseCookies, 200))
-            case _ => Full(BadRequestResponse()) // unexpected, should not happen
+            case r =>
+              logger.warn("Unexpected SPARQL query result type: " + r.getClass.getName)
+              r.close()
+              // unexpected, should not happen
+              Full(BadRequestResponse())
           }
         } catch {
           case e: Exception => Full(toResponse(e))
@@ -164,7 +207,7 @@ class SparqlRest extends RestHelper with CorsHelper {
   /**
    * Handle SPARQL updates against a model.
    */
-  def updateModel(queryStr: String, modelUri: URI, resultMimeType: String): Box[LiftResponse] = {
+  def updateModel(queryStr: String, modelUri: URI, req: Req): Box[LiftResponse] = {
     getModel(modelUri).dmap(Full(plainTextResponse(404, "MODEL_NOT_FOUND: No model found for the given identifier.")): Box[LiftResponse]) {
       case model@NotAllowedModel(_) =>
         Full(plainTextResponse(403, "FORBIDDEN: You don't have permissions to access " + model.getURI + "."))
@@ -214,13 +257,6 @@ class SparqlRest extends RestHelper with CorsHelper {
     InMemoryResponse(message.getBytes("UTF-8"), "Content-Type" -> "text/plain; charset=utf-8" :: responseHeaders, responseCookies, status)
   }
 
-  private def withResponseMimeType(req: Req)(f: String => Box[LiftResponse]): Box[LiftResponse] = {
-    getSparqlQueryResponseMimeType(req) match {
-      case Full(mimeType) => f(mimeType)
-      case _ => Full(plainTextResponse(406, "UNSUPPORTED_ACCEPT: The requested result format is not supported."))
-    }
-  }
-
   private def withModelUri(f: URI => Box[LiftResponse]): Box[LiftResponse] = {
     S.param("model").filter(_.nonEmpty) match {
       case Full(modelName) =>
@@ -245,9 +281,7 @@ class SparqlRest extends RestHelper with CorsHelper {
       S.param("query").filter(_.nonEmpty) match {
         case Full(query) =>
           withModelUri { modelUri =>
-            withResponseMimeType(req) { mimeType =>
-              queryModel(query, modelUri, mimeType)
-            }
+            queryModel(query, modelUri, req)
           }
         case _ => Full(plainTextResponse(400, "MISSING_QUERY: The required parameter 'query' is missing."))
       }
@@ -260,9 +294,7 @@ class SparqlRest extends RestHelper with CorsHelper {
       S.param("query").filter(_.nonEmpty) match {
         case Full(q) =>
           withModelUri { modelUri =>
-            withResponseMimeType(req) { mimeType =>
-              queryModel(q, modelUri, mimeType)
-            }
+            queryModel(q, modelUri, req)
           }
         case _ => Full(plainTextResponse(400, "MISSING_QUERY: The required parameter 'query' is missing."))
       }
@@ -271,9 +303,7 @@ class SparqlRest extends RestHelper with CorsHelper {
       req.body.filter(_.nonEmpty) match {
         case Full(queryData) =>
           withModelUri { modelUri =>
-            withResponseMimeType(req) { mimeType =>
-              queryModel(new String(queryData, "UTF-8"), modelUri, mimeType)
-            }
+            queryModel(new String(queryData, "UTF-8"), modelUri, req)
           }
         case _ => Full(plainTextResponse(400, "MISSING_QUERY: The request body is empty. Expected a SPARQL query."))
       }
@@ -282,9 +312,7 @@ class SparqlRest extends RestHelper with CorsHelper {
       S.param("update").filter(_.nonEmpty) match {
         case Full(u) =>
           withModelUri { modelUri =>
-            withResponseMimeType(req) { mimeType =>
-              updateModel(u, modelUri, mimeType)
-            }
+            updateModel(u, modelUri, req)
           }
         case _ => Full(plainTextResponse(400, "MISSING_UPDATE: The required parameter 'update' is missing."))
       }
@@ -293,9 +321,7 @@ class SparqlRest extends RestHelper with CorsHelper {
       req.body.filter(_.nonEmpty) match {
         case Full(updateData) =>
           withModelUri { modelUri =>
-            withResponseMimeType(req) { mimeType =>
-              updateModel(new String(updateData, "UTF-8"), modelUri, mimeType)
-            }
+            updateModel(new String(updateData, "UTF-8"), modelUri, req)
           }
         case _ => Full(plainTextResponse(400, "MISSING_UPDATE: The request body is empty. Expected a SPARQL update."))
       }

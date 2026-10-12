@@ -1,34 +1,39 @@
 package net.enilink.platform.web.rest
 
-import com.google.inject.Guice
-import net.enilink.komma.core.KommaModule
-import net.enilink.komma.model._
+import com.google.inject.{AbstractModule, Guice}
+import com.google.inject.util.Modules
+import net.enilink.komma.core.{IUnitOfWork, KommaModule}
+import net.enilink.komma.model.*
 import net.enilink.platform.lift.util.Globals
 import net.liftweb.common.{Box, Full}
 import net.liftweb.http.provider.servlet.HTTPRequestServlet
 import net.liftweb.http.{BasicResponse, InMemoryResponse, LiftResponse, OutputStreamResponse, Req}
 import org.junit.jupiter.api.{AfterAll, BeforeAll, Test}
-import org.junit.jupiter.api.Assertions._
+import org.junit.jupiter.api.Assertions.*
 import org.json4s.*
 import org.json4s.native.JsonMethods.parse
 
 import java.io.ByteArrayOutputStream
 import java.nio.charset.StandardCharsets
 import jakarta.servlet.http.HttpServletRequest
+import net.enilink.komma.em.util.UnitOfWork
 
+import java.util.stream.{Collectors, Stream}
 import scala.compiletime.uninitialized
 
 /**
  * Companion object of unit tests for the /models endpoint
  */
 object ModelsRestTest {
+  val log = org.slf4j.LoggerFactory.getLogger(getClass)
   var modelSet : IModelSet = uninitialized
 
   @BeforeAll
   def setup() : Unit = {
     // create configuration and a model set factory
     val module: KommaModule = ModelPlugin.createModelSetModule(classOf[ModelPlugin].getClassLoader)
-    val factory: IModelSetFactory = Guice.createInjector(new ModelSetModule(module)).getInstance(classOf[IModelSetFactory])
+    val guiceModule = new ModelSetModule(module)
+    val factory: IModelSetFactory = Guice.createInjector(guiceModule).getInstance(classOf[IModelSetFactory])
 
     // create a model set with an in-memory repository
     modelSet = factory.createModelSet(MODELS.NAMESPACE_URI.appendFragment("MemoryModelSet"))
@@ -37,6 +42,7 @@ object ModelsRestTest {
 
   @AfterAll
   def tearDown() : Unit = {
+    modelSet.getUnitOfWork.end()
     modelSet.dispose()
     modelSet = null
   }
@@ -53,6 +59,11 @@ class ModelsRestTest {
 
   def toReq(httpRequest: HttpServletRequest): Req = {
     Req(new HTTPRequestServlet(httpRequest, null), Nil, System.nanoTime)
+  }
+
+  @Test
+  def mimeTypeToPairStripsCharset(): Unit = {
+    assertEquals(Full(("text", "turtle")), MockModelsRest.mimeTypeToPair("text/turtle; charset=utf-8"))
   }
 
   @Test
@@ -97,7 +108,10 @@ class ModelsRestTest {
       method = "GET"
       headers = (("Accept", "application/ld+json" :: Nil) :: Nil).toMap
     }
-    assertEquals(200, modelsRest(toReq(getReq))().map(_.toResponse.code).getOrElse(-1))
+    val response = modelsRest(toReq(getReq))().map(_.toResponse)
+    assertEquals(200, response.map(_.code).getOrElse(-1))
+    val body = response.map(responseToString).getOrElse("")
+    assertTrue(body.matches(".*\"@id\":\\s*\"t:s\".*"))
   }
 
   @Test
@@ -107,7 +121,8 @@ class ModelsRestTest {
       method = "POST"
       body_=("<t:s> <t:p> <t:o> .", "text/turtle")
     }
-    assertEquals(400, modelsRest(toReq(postReqToBase))().map(_.toResponse.code).getOrElse(-1))
+    val response = modelsRest(toReq(postReqToBase))().map(_.toResponse)
+    assertEquals(400, response.map(_.code).getOrElse(-1))
   }
 
   @Test
@@ -117,7 +132,8 @@ class ModelsRestTest {
       method = "POST"
       body_=("<t:s> _invalid_ <t:p> <t:o> .", "text/turtle")
     }
-    assertEquals(400, modelsRest(toReq(invalidPostReq))().map(_.toResponse.code).getOrElse(-1))
+    val response = modelsRest(toReq(invalidPostReq))().map(_.toResponse)
+    assertEquals(400, response.map(_.code).getOrElse(-1))
   }
 
   @Test
@@ -135,7 +151,10 @@ class ModelsRestTest {
       method = "GET"
       headers = (("Accept", "text/turtle" :: Nil) :: Nil).toMap
     }
-    assertEquals(200, modelsRest(toReq(getReq))().map(_.toResponse.code).getOrElse(-1))
+    val response = modelsRest(toReq(getReq))().map(_.toResponse)
+    assertEquals(200, response.map(_.code).getOrElse(-1))
+    val body = response.map(responseToString).getOrElse("")
+    assertTrue(body.contains("<t:s> <t:p> <t:o>"))
   }
 
   @Test

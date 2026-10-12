@@ -1,7 +1,7 @@
 package net.enilink.platform.web.rest
 
 import com.google.inject.Guice
-import net.enilink.komma.core.{KommaModule, Statement, URI, URIs}
+import net.enilink.komma.core.{IUnitOfWork, KommaModule, Statement, URI, URIs}
 import net.enilink.komma.model.*
 import net.enilink.platform.core.security.ISecureModelSet
 import net.enilink.platform.lift.util.Globals
@@ -43,6 +43,7 @@ object SparqlRestTest {
 
   @AfterAll
   def tearDown() : Unit = {
+    modelSet.getUnitOfWork.end()
     modelSet.dispose()
     modelSet = null
   }
@@ -277,11 +278,17 @@ class SparqlRestTest {
     Mockito.when(model.getURI).thenReturn(forbiddenModelUri)
     Mockito.when(model.getModelSet).thenReturn(secureModelSet)
     Mockito.when(secureModelSet.isReadableBy(mAny(), mAny())).thenReturn(false)
+    val uow = Mockito.mock(classOf[IUnitOfWork])
+    Mockito.when(contextModelSet.getUnitOfWork).thenReturn(uow)
 
     Globals.contextModelSet.default.set(Full(contextModelSet))
     try {
-      val response = new SparqlRest().queryModel("SELECT ?s WHERE { ?s ?p ?o }", forbiddenModelUri, "application/sparql-results+json")
-        .map(_.toResponse)
+      val req = new MockHttpServletRequest(baseUrl) {
+        method = "GET"
+        parameters = List("query" -> "SELECT ?s WHERE { ?s ?p ?o }", "model" -> forbiddenModelUri.toString)
+        headers = Map("Accept" -> List("application/sparql-results+json"))
+      }
+      val response = sparqlRest(toReq(req))().map(_.toResponse)
       assertPlainTextError(response, 403, "FORBIDDEN: You don't have permissions to access")
     } finally {
       Globals.contextModelSet.default.set(Full(SparqlRestTest.modelSet))

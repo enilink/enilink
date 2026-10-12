@@ -14,8 +14,9 @@ import jakarta.servlet.ServletInputStream
 
 trait MockModelsInApply extends RestHelper {
   override def apply(in: Req): () => Box[LiftResponse] = {
+    val uow = Globals.contextModelSet.vend.map(_.getUnitOfWork)
     try {
-      Globals.contextModelSet.vend.map(_.getUnitOfWork.begin)
+      uow.foreach(_.begin)
       CurrentReq.doWith(in) {
         val m = S.param("model").flatMap(name => Full(URIs.createURI(name)).filterNot(_.isRelative))
         Globals.contextModel.doWith(() => m.flatMap(uri => {
@@ -25,12 +26,12 @@ trait MockModelsInApply extends RestHelper {
         }
       }
     } finally {
-      Globals.contextModelSet.vend.map(_.getUnitOfWork.end)
+      uow.foreach(_.end)
     }
   }
 }
 
-object MockModelsRest extends ModelsRest with MockModelsInApply{
+object MockModelsRest extends ModelsRest with MockModelsInApply {
   // this class is required to mock the content types which are not working without OSGi
 
   class MockContentDescription(mimeType: (String, String), contentType: IContentType) extends IContentDescription {
