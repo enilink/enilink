@@ -39,7 +39,8 @@
 					<outputDirectory>${project.build.outputDirectory}</outputDirectory>
 					<excludeTransitive>true</excludeTransitive>
 					<!-- exclude logging and test dependencies -->
-					<excludeGroupIds>junit,org.mockito,org.slf4j</excludeGroupIds>
+					<excludeGroupIds>org.slf4j</excludeGroupIds>
+					<includeScope>compile</includeScope>
 				</configuration>
 			</plugin>
 
